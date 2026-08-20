@@ -7,11 +7,14 @@ If you want to know what we're doing, the page says it better than this file doe
 ## What's here
 
 ```
-index.html                  the whole page
-assets/styles.css           the whole stylesheet
-assets/eye.js              pointer tracking, saccades, day counter
+index.html                    the whole page
+assets/styles.css             the whole stylesheet
+assets/eye.js                 pointer tracking, saccades, day counter
+assets/og.png                 social card, rendered from the site's own CSS
+assets/*-hartt|mahmood.jpg    portraits (see tools/portraits.py)
 fonts/newsreader-latin.woff2  self-hosted display face (SIL OFL)
-_headers                    Cloudflare Pages security + cache headers
+tools/portraits.py            regenerates the portraits from source photos
+_headers                      Cloudflare Pages security + cache headers
 ```
 
 There is no bundler and nothing to install. Open `index.html` in a browser, or:

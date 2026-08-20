@@ -334,19 +334,18 @@ h1 {
 }
 
 .portrait {
-  width: 5.6rem; height: 5.6rem;
+  width: 6.5rem; height: 6.5rem;
+  display: block;
+  object-fit: cover;
   border: 1px solid var(--rule);
   background: var(--paper-2);
-  display: grid; place-items: center;
   margin-bottom: 1.4rem;
-  position: relative;
 }
-.portrait::after {
-  content: attr(data-initials);
-  font-family: var(--mono);
-  font-size: .9rem;
-  letter-spacing: .16em;
-  color: var(--ink-3);
+
+/* The portraits are toned for paper, so their highlights sit brighter than
+   anything else on a near-black page. Dim them slightly to settle in. */
+@media (prefers-color-scheme: dark) {
+  .portrait { filter: brightness(.88) contrast(1.02); }
 }
 
 .person h3 {
