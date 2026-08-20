@@ -46,31 +46,28 @@
         <!-- fedora: crown, band, brim -->
         <g class="hat">
           <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
-          <path class="hat-band"  d="M69 72C100 79 140 79 171 72L170 96L70 96Z"/>
-          <path class="hat-buckle" d="M78 74L88 75.6L87.4 95L77.6 95Z"/>
+          <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+          <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
           <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
         </g>
 
-        <!-- eye -->
-        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <!-- eye: the whole group squashes vertically to blink -->
+        <g class="eye" id="eye">
+          <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
 
-        <g clip-path="url(#eyeclip)">
-          <g id="iris" class="iris">
-            <circle class="iris-outer" cx="120" cy="142" r="31"/>
-            <circle class="iris-inner" cx="120" cy="142" r="22"/>
-            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
-            <circle class="glint"      cx="109" cy="131" r="6"/>
-            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          <g clip-path="url(#eyeclip)">
+            <g id="iris" class="iris">
+              <circle class="iris-outer" cx="120" cy="142" r="31"/>
+              <circle class="iris-inner" cx="120" cy="142" r="22"/>
+              <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+              <circle class="glint"      cx="109" cy="131" r="6"/>
+              <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+            </g>
           </g>
 
-          <!-- eyelid: flush above the eye when open, sweeps down to blink -->
-          <g id="lid" class="lid">
-            <path class="lid-fill" d="M36 142C72 104 168 104 204 142L204 6L36 6Z"/>
-            <path class="lid-edge" d="M40 141C72 104 168 104 200 141"/>
-          </g>
+          <path class="eye-outline" vector-effect="non-scaling-stroke"
+                d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
         </g>
-
-        <path class="eye-outline" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
       </svg>
     </div>
 

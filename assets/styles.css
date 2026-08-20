@@ -108,7 +108,7 @@ body {
 }
 
 .mark {
-  width: clamp(140px, 20vw, 210px);
+  width: clamp(150px, 21vw, 232px);
   margin: 0 auto clamp(2rem, 4vh, 3rem);
 }
 .mark svg { width: 100%; height: auto; display: block; overflow: visible; }
@@ -133,21 +133,17 @@ body {
 
 .iris { transition: transform .09s linear; }
 
-.lid-fill { fill: var(--paper); }
-.lid-edge {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 6;
-  stroke-linecap: round;
+/* the eye squashes to a line to blink; the outline keeps its
+   stroke weight via vector-effect so it reads as a shut lid */
+.eye {
+  transform-origin: 120px 142px;
+  animation: blink 7.4s infinite;
 }
-
-/* eyelid parks flush above the eye and sweeps down to blink */
-.lid { transform: translateY(0); animation: blink 7.4s infinite; }
-.mark.dormant .lid { animation: none; }
+.mark.dormant .eye { animation: none; }
 
 @keyframes blink {
-  0%, 93%, 100% { transform: translateY(0); }
-  95.6%, 96.6%  { transform: translateY(78px); }
+  0%, 93%, 100% { transform: scaleY(1); }
+  95.4%, 96.4%  { transform: scaleY(.045); }
 }
 
 h1 {
@@ -157,7 +153,7 @@ h1 {
   line-height: 1.06;
   letter-spacing: -.021em;
   margin: 0 auto;
-  max-width: 18ch;
+  max-width: 26ch;
   text-wrap: balance;
 }
 
@@ -196,7 +192,7 @@ h1 {
 .band {
   padding: var(--band-space) var(--gutter);
   border-bottom: 1px solid var(--rule-2);
-  max-width: 78rem;
+  max-width: 74rem;
   margin: 0 auto;
 }
 
@@ -207,6 +203,25 @@ h1 {
   text-transform: uppercase;
   color: var(--ink-3);
   margin: 0 0 clamp(2rem, 4vh, 3rem);
+}
+
+/* Editorial two-column: the section number sits out in the left
+   margin and rides along, the content keeps a readable measure. */
+@media (min-width: 62rem) {
+  .band {
+    display: grid;
+    grid-template-columns: 10rem minmax(0, 1fr);
+    column-gap: clamp(2rem, 5vw, 4.5rem);
+    align-items: start;
+  }
+  .band > .label {
+    grid-column: 1;
+    margin: 0;
+    padding-top: .5rem;
+    position: sticky;
+    top: 2rem;
+  }
+  .band > :not(.label) { grid-column: 2; }
 }
 
 .prose { max-width: var(--measure); }
@@ -265,8 +280,8 @@ h1 {
 
 .steps {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-  gap: clamp(2rem, 4vw, 3.4rem);
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: clamp(1.6rem, 3vw, 2.6rem);
   margin-top: clamp(2.2rem, 4vh, 3rem);
   padding-top: clamp(2.2rem, 4vh, 3rem);
   border-top: 1px solid var(--rule);
@@ -380,13 +395,18 @@ h1 {
 
 /* ─────────────  actions  ───────────── */
 
+/* Fixed two-up so four items always fill the grid — auto-fit
+   leaves a dead cell at three columns. */
 .actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  grid-template-columns: 1fr;
   gap: 1px;
   background: var(--rule);
   border: 1px solid var(--rule);
   margin-top: clamp(2.2rem, 4vh, 3rem);
+}
+@media (min-width: 40rem) {
+  .actions { grid-template-columns: 1fr 1fr; }
 }
 
 .action {
@@ -453,7 +473,7 @@ footer {
 /* ─────────────  motion  ───────────── */
 
 @media (prefers-reduced-motion: reduce) {
-  .lid { animation: none; }
+  .eye { animation: none; }
   .pulse { animation: none; }
   .iris { transition: none; }
   * { scroll-behavior: auto !important; }
