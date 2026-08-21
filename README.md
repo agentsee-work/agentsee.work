@@ -1,8 +1,27 @@
 # agentsee.work
 
-The landing page for AgentSee. One page, no build step, no framework, no tracking.
+The landing page for AgentSee, set as a broadsheet. One page, no build step, no
+framework, no tracking.
 
 If you want to know what we're doing, the page says it better than this file does.
+
+## The publishing system
+
+The page is **Issue No. 1**, and it is built to be the first of a series rather
+than a one-off. That is a deliberate constraint, not decoration: everything we
+publish gets a number and a date so it can be held against us later.
+
+- The **masthead** and **dateline** are standing furniture. The dateline
+  computes itself — `Day N · <today>` — so the page can never claim to be
+  fresher or staler than it is.
+- The **register** (section 04) lists every issue. No. 1 is this document.
+  No. 2 is listed as unwritten, and should stay that way until it exists.
+  Never list an issue that hasn't been published.
+- **Day 1 is 18 August 2026**, the day the domain was registered. That epoch
+  lives in `assets/eye.js` and nowhere else.
+
+When there is a second issue, it becomes its own page under `/issues/`, keeps
+the same masthead and dateline, and gets a row in the register here.
 
 ## What's here
 

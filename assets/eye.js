@@ -1,31 +1,48 @@
 /* ─────────────────────────────────────────────────────────────
-   AgentSee — the eye
-   Tracks the pointer, wanders when nothing is happening, blinks.
-   Pauses entirely when off-screen or when the visitor has asked
-   for reduced motion. No dependencies, no network, no storage.
+   AgentSee — the eye, and the dateline
+
+   The eye tracks the pointer, wanders when nothing is happening,
+   and blinks. It stops entirely when off-screen, when the tab is
+   hidden, or when the visitor has asked for reduced motion.
+
+   The dateline and day counter compute themselves so nothing on
+   the page can quietly go stale. Without JS they fall back to
+   text that is true whenever it is read.
+
+   No dependencies, no network, no storage.
    ───────────────────────────────────────────────────────────── */
 
 (function () {
   'use strict';
 
-  /* ── day counter ─────────────────────────────────────────── */
+  /* ── dateline ────────────────────────────────────────────── */
 
-  // agentsee.work was registered 2026-08-18. Day 1 is that day.
+  // Registered 2026-08-18. That is Day 1.
   var EPOCH = Date.UTC(2026, 7, 18);
   var DAY = 86400000;
 
-  function today() {
-    var now = new Date();
-    return Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  function midnightUTC(d) {
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
   }
 
-  var day = Math.floor((today() - EPOCH) / DAY) + 1;
+  var now = new Date();
+  var day = Math.floor((midnightUTC(now) - EPOCH) / DAY) + 1;
+
+  function set(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
   if (day >= 1) {
-    var label = 'Day ' + day;
-    ['daycount', 'daycount-foot'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.textContent = label;
-    });
+    // Composed in two parts on purpose: asking for the weekday together with
+    // the date gives "Friday, 21 August 2026", and a dateline takes no comma.
+    var longDate =
+      now.toLocaleDateString('en-GB', { weekday: 'long' }) + ' ' +
+      now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    set('daycount', 'Day ' + day);
+    set('dateline', 'Day ' + day + ' · ' + longDate);
+    set('colophon-date', 'Day ' + day + ' · founded 18 August 2026');
   }
 
   /* ── the eye ─────────────────────────────────────────────── */
@@ -37,9 +54,11 @@
   var svg = mark.querySelector('svg');
   var still = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-  // How far the iris may travel inside the eye, in viewBox units.
-  var REACH_X = 15;
-  var REACH_Y = 8.5;
+  // How far the iris may travel, in viewBox units. The masthead eye is
+  // small, so this is pushed near the limit of the sclera to keep the
+  // tracking legible at 50-90px wide.
+  var REACH_X = 19;
+  var REACH_Y = 10;
 
   // Where the eye sits inside the 240 x 210 viewBox, as a fraction.
   var EYE_FX = 120 / 240;
@@ -54,13 +73,9 @@
     iris.setAttribute('transform', 'translate(' + x.toFixed(2) + ' ' + y.toFixed(2) + ')');
   }
 
-  function centre() {
-    look(0, 0);
-  }
+  function centre() { look(0, 0); }
 
-  function clamp(v, lo, hi) {
-    return v < lo ? lo : v > hi ? hi : v;
-  }
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
   /* Follow the pointer. */
   function track(px, py) {
@@ -85,12 +100,13 @@
 
     stopWandering();
 
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(function () {
-      queued = false;
-      track(e.clientX, e.clientY);
-    });
+    if (!queued) {
+      queued = true;
+      requestAnimationFrame(function () {
+        queued = false;
+        track(e.clientX, e.clientY);
+      });
+    }
 
     // If the pointer settles, start looking around on our own.
     clearTimeout(idleTimer);
@@ -102,15 +118,12 @@
   function startWandering() {
     if (still.matches || !visible) return;
 
-    var hold = 900 + Math.random() * 2100;
-
-    // Bias toward the horizontal, the way real eyes scan.
     look(
       (Math.random() * 2 - 1) * REACH_X * 0.85,
       (Math.random() * 2 - 1) * REACH_Y * 0.6
     );
 
-    wanderTimer = setTimeout(startWandering, hold);
+    wanderTimer = setTimeout(startWandering, 900 + Math.random() * 2100);
   }
 
   function stopWandering() {

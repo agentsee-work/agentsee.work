@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgentSee — the agents see the work, humans make the decisions</title>
-<meta name="description" content="A software agency being built from the ground up for a world where engineering stopped being the bottleneck. Day one, in public, with the questions we haven't answered yet.">
+<meta name="description" content="A software agency being built from the ground up for a world where engineering stopped being the bottleneck. Issue No. 1: the premise, and nine questions we can't answer yet.">
 <link rel="canonical" href="https://agentsee.work/">
 
 <meta property="og:type" content="website">
@@ -19,10 +19,10 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://agentsee.work/assets/og.png">
 
-<meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0e0d0c" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
 
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%2316130f'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%2316130f'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23faf7f2' stroke='%2316130f' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23b5451f'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%2316130f'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
 
 <link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/styles.css">
@@ -31,115 +31,110 @@
 
 <a class="skip" href="#premise">Skip to content</a>
 
-<header class="topbar">
-  <span class="wordmark">AgentSee</span>
-  <span class="topbar-meta">agentsee.work</span>
+<!-- ═══════════════  MASTHEAD  ═══════════════ -->
+<header class="masthead">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
 </header>
+
+<!-- ═══════════════  DATELINE  ═══════════════ -->
+<div class="dateline">
+  <span class="edge">Hove &amp; London</span>
+  <span class="mid" id="dateline">Founded 18 August 2026</span>
+  <span class="edge">Issue No.&nbsp;1 &middot; Free, obviously</span>
+</div>
 
 <main>
 
-  <!-- ─────────────────────────  HERO  ───────────────────────── -->
-  <section class="hero">
-
-    <div class="mark" id="mark">
-      <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
-        <defs>
-          <clipPath id="eyeclip">
-            <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
-          </clipPath>
-        </defs>
-
-        <!-- fedora: crown, band, brim -->
-        <g class="hat">
-          <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
-          <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
-          <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
-          <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
-        </g>
-
-        <!-- eye: the whole group squashes vertically to blink -->
-        <g class="eye" id="eye">
-          <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
-
-          <g clip-path="url(#eyeclip)">
-            <g id="iris" class="iris">
-              <circle class="iris-outer" cx="120" cy="142" r="31"/>
-              <circle class="iris-inner" cx="120" cy="142" r="22"/>
-              <circle class="pupil"      cx="120" cy="142" r="13.5"/>
-              <circle class="glint"      cx="109" cy="131" r="6"/>
-              <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
-            </g>
-          </g>
-
-          <path class="eye-outline" vector-effect="non-scaling-stroke"
-                d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
-        </g>
-      </svg>
-    </div>
-
-    <h1>
-      The agents see the work.<br>
-      Humans make the decisions.
-    </h1>
-
-    <p class="standfirst">
+  <!-- ═══════════════  LEAD  ═══════════════ -->
+  <article class="lead">
+    <h1>The agents see the work.<br>Humans make the decisions.</h1>
+    <p class="deck">
       A software agency being built from the ground up — organisationally, not just
       technically — for a world where engineering stopped being the bottleneck.
       We know what changed. We don't yet know everything it changes.
     </p>
-
     <p class="status">
       <span class="pulse" aria-hidden="true"></span>
-      <span id="daycount">Early days</span>
+      <b id="daycount">Early days</b>
       <span class="sep">/</span> No clients
       <span class="sep">/</span> No case studies
       <span class="sep">/</span> Nothing to sell you yet
     </p>
-  </section>
+  </article>
 
-  <!-- ─────────────────────────  01 PREMISE  ───────────────────────── -->
-  <section id="premise" class="band">
-    <p class="label">01 — The premise</p>
+  <!-- ═══════════════  01 PREMISE  ═══════════════ -->
+  <section class="section" id="premise">
+    <p class="kicker">01 — The premise</p>
+    <h2>Every software agency that has ever existed was organised around one scarce thing: engineering time.</h2>
 
-    <div class="prose">
-      <p class="lede">
-        Every software agency that has ever existed was organised around one scarce
-        thing: engineering time.
-      </p>
-      <p>
+    <div class="cols">
+      <p class="drop">
         The account manager protected it. The delivery manager sequenced it. The
         business analyst translated into it. The estimate priced it. The change
-        request defended it. The org chart, the rate card and the statement of work
-        are all scaffolding built around a single constraint.
+        request defended it.
       </p>
-    </div>
-
-    <p class="pullquote">The constraint moved.</p>
-
-    <div class="prose">
+      <p>
+        The org chart, the rate card and the statement of work are all scaffolding
+        built around a single constraint — and everything an agency sells is shaped
+        by the cost of the thing it was protecting.
+      </p>
       <p>
         We don't think that makes agencies obsolete. We think it makes most of their
         structure obsolete, and we would rather find out what replaces it by building
         one than by writing another post about it.
       </p>
+    </div>
+
+    <p class="pull">The constraint moved.</p>
+
+    <div class="cols two">
       <p>
         So this is the whole thing, from the ground up: what the roles are, what you
         buy, what it costs, who is accountable, and what it is actually like to be a
         person doing this work every day.
       </p>
+      <p>
+        We are at the very earliest stage of that. This document is the first thing
+        we have published, and it exists to be argued with rather than agreed with.
+      </p>
     </div>
   </section>
 
-  <!-- ─────────────────────────  02 QUESTIONS  ───────────────────────── -->
-  <section class="band">
-    <p class="label">02 — What we actually don't know</p>
-
-    <div class="prose">
-      <p class="lede">
-        These are not rhetorical. We don't have the answers, and we are suspicious of
-        anyone currently selling them.
-      </p>
-    </div>
+  <!-- ═══════════════  02 QUESTIONS  ═══════════════ -->
+  <section class="section">
+    <p class="kicker">02 — What we actually don't know</p>
+    <h2>These are not rhetorical. We don't have the answers, and we are suspicious of anyone currently selling them.</h2>
 
     <ol class="questions">
       <li>If writing the code is no longer the expensive part, what is the client actually buying?</li>
@@ -154,18 +149,13 @@
     </ol>
   </section>
 
-  <!-- ─────────────────────────  03 APPROACH  ───────────────────────── -->
-  <section class="band">
-    <p class="label">03 — How we're going about it</p>
-
-    <div class="prose">
-      <p class="lede">
-        We're going to spend a long time asking before we spend any time selling.
-      </p>
-    </div>
+  <!-- ═══════════════  03 APPROACH  ═══════════════ -->
+  <section class="section">
+    <p class="kicker">03 — How we're going about it</p>
+    <h2>We're going to spend a long time asking before we spend any time selling.</h2>
 
     <div class="steps">
-      <div class="step">
+      <div>
         <h3>In public, on the record</h3>
         <p>
           Streams and a podcast with people who run agencies, buy from agencies and
@@ -174,7 +164,7 @@
           exists.
         </p>
       </div>
-      <div class="step">
+      <div>
         <h3>Built alongside you</h3>
         <p>
           Built with you rather than delivered to you — in the room while it's made,
@@ -183,7 +173,7 @@
           that reflects having taken it.
         </p>
       </div>
-      <div class="step">
+      <div>
         <h3>Discovery first, then partners</h3>
         <p>
           The discovery isn't a formality we're hurrying through to get to the selling.
@@ -203,140 +193,168 @@
     </blockquote>
   </section>
 
-  <!-- ─────────────────────────  04 WHO  ───────────────────────── -->
-  <section class="band">
-    <p class="label">04 — Who</p>
+  <!-- ═══════════════  04 REGISTER  ═══════════════ -->
+  <section class="section">
+    <p class="kicker">04 — The register</p>
+    <h2>Everything we publish gets a number and a date, so it can be held against us later.</h2>
+
+    <div class="register">
+      <div class="issue">
+        <span class="issue-no">No. 1</span>
+        <span class="issue-title">The premise, and nine questions we can't answer</span>
+        <span class="issue-meta">This document &middot; 18 Aug 2026</span>
+      </div>
+      <div class="issue pending">
+        <span class="issue-no">No. 2</span>
+        <span class="issue-title">Unwritten — the first conversation with someone who disagrees</span>
+        <span class="issue-meta">Not yet recorded</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════  05 CONTRIBUTORS  ═══════════════ -->
+  <section class="section">
+    <p class="kicker">05 — Contributors</p>
 
     <div class="people">
 
       <article class="person">
-        <img class="portrait" src="/assets/james-hartt.jpg" alt=""
-             width="256" height="256" loading="lazy" decoding="async">
-        <h3>James&nbsp;Hartt</h3>
-        <p class="role">Lead Software Engineer, agentic engineering &middot; Hove, UK</p>
-        <p>
-          James isn't theorising about agentic engineering. He's been doing it in
-          production and counting: 874 commits across three production codebases in six
-          months, around a quarter of his team's total output, and he wrote the AI agent
-          guidelines the rest of the team now works to.
-        </p>
-        <p>
-          Fifteen years in the parts of the industry where shipping badly is expensive
-          and immediate — nearly six years leading development on a cloud live-broadcast
-          platform, iOS for HM Revenue &amp; Customs, and a news app read by five million
-          people.
-        </p>
-        <p>
-          The side projects are the argument rather than a hobby. A C++ WebTransport
-          real-time audio server, written across two Sundays, so his guitar quartet could
-          rehearse from different rooms. A 52,000-line Go platform with 146 end-to-end
-          tests and 40 migrations that runs the fixtures for a Brighton parks tennis
-          league. Both solo, both in real use by real people, both alongside a full-time
-          job — which is roughly the point.
-        </p>
-        <p>
-          First-class BEng in Electronic &amp; Electrical Engineering from Leeds, top of
-          his year, holding the only award the department gives to undergraduates — voted
-          by staff rather than calculated from marks.
-        </p>
-        <p class="links">
-          <a href="https://tutti.rocks">tutti.rocks</a>
-          <a href="https://jim.tennis">jim.tennis</a>
-          <a href="https://github.com/jameshartt">GitHub</a>
-          <a href="https://www.linkedin.com/in/james-hartt-78519132/">LinkedIn</a>
-        </p>
+        <div class="byline">
+          <img class="portrait" src="/assets/james-hartt.jpg" alt=""
+               width="256" height="256" loading="lazy" decoding="async">
+          <div>
+            <h3>James&nbsp;Hartt</h3>
+            <p class="role">Lead Software Engineer, agentic engineering &middot; Hove</p>
+          </div>
+        </div>
+        <div class="body">
+          <p>
+            James isn't theorising about agentic engineering. He's been doing it in
+            production and counting: 874 commits across three production codebases in
+            six months, around a quarter of his team's total output, and he wrote the
+            AI agent guidelines the rest of the team now works to.
+          </p>
+          <p>
+            Fifteen years in the parts of the industry where shipping badly is expensive
+            and immediate — nearly six years leading development on a cloud live-broadcast
+            platform, iOS for HM Revenue &amp; Customs, and a news app read by five
+            million people.
+          </p>
+          <p>
+            The side projects are the argument rather than a hobby. A C++ WebTransport
+            real-time audio server, written across two Sundays, so his guitar quartet
+            could rehearse from different rooms. A 52,000-line Go platform with 146
+            end-to-end tests that runs the fixtures for a Brighton parks tennis league.
+            Both solo, both in real use, both alongside a full-time job.
+          </p>
+          <p>
+            First-class BEng in Electronic &amp; Electrical Engineering from Leeds, top
+            of his year, holding the only award the department gives to undergraduates —
+            voted by staff rather than calculated from marks.
+          </p>
+          <p class="links">
+            <a href="https://tutti.rocks">tutti.rocks</a>
+            <a href="https://jim.tennis">jim.tennis</a>
+            <a href="https://github.com/jameshartt">GitHub</a>
+            <a href="https://www.linkedin.com/in/james-hartt-78519132/">LinkedIn</a>
+          </p>
+        </div>
       </article>
 
       <!-- ABRAR: this block is yours. Edit freely — prose, role line, links.
            Nothing outside these markers depends on what's inside them.
            To replace the photo see tools/portraits.py. -->
       <article class="person">
-        <img class="portrait" src="/assets/abrar-mahmood.jpg" alt=""
-             width="256" height="256" loading="lazy" decoding="async">
-        <h3>Abrar&nbsp;Mahmood</h3>
-        <p class="role">Lead Software Architect &middot; Co-founder &amp; CTO, GradeDrive</p>
-        <p>
-          Abrar has spent nine years working on the seams where software actually fails:
-          ownership, architecture and the client conversation. Seven of them architecting
-          a global retail commerce platform — point of sale, payments, transaction flows,
-          inventory, and ERP and OMS integrations. The systems where being wrong costs
-          money in public, instantly.
-        </p>
-        <p>
-          He led distributed teams and walked clients through high-stakes technical
-          decisions, which is precisely the role this whole thesis puts under the most
-          pressure. He rebuilt that platform around modular patterns that cut running
-          costs and raised deployment velocity, and got environment onboarding down by
-          eighty per cent.
-        </p>
-        <p>
-          He is currently co-founder and CTO of GradeDrive, an AI marking platform he
-          took from zero into real classrooms in UK secondary schools. So he has already
-          had to answer "what is this worth, and who is accountable when it's wrong"
-          for money, not in theory.
-        </p>
-        <p>
-          He cares about clean system design, clear ownership, and creating leverage
-          through good engineering — the three things an agency built this way will
-          either get right or die of.
-        </p>
-        <p class="links">
-          <a href="https://www.linkedin.com/in/abrar-m-339b61386/">LinkedIn</a>
-        </p>
+        <div class="byline">
+          <img class="portrait" src="/assets/abrar-mahmood.jpg" alt=""
+               width="256" height="256" loading="lazy" decoding="async">
+          <div>
+            <h3>Abrar&nbsp;Mahmood</h3>
+            <p class="role">Lead Software Architect &middot; Co-founder &amp; CTO, GradeDrive</p>
+          </div>
+        </div>
+        <div class="body">
+          <p>
+            Abrar has spent nine years working on the seams where software actually
+            fails: ownership, architecture and the client conversation. Seven of them
+            architecting a global retail commerce platform — point of sale, payments,
+            transaction flows, inventory, and ERP and OMS integrations. The systems
+            where being wrong costs money in public, instantly.
+          </p>
+          <p>
+            He led distributed teams and walked clients through high-stakes technical
+            decisions, which is precisely the role this whole thesis puts under the most
+            pressure. He rebuilt that platform around modular patterns that cut running
+            costs and raised deployment velocity, and got environment onboarding down by
+            eighty per cent.
+          </p>
+          <p>
+            He is currently co-founder and CTO of GradeDrive, an AI marking platform he
+            took from zero into real classrooms in UK secondary schools. So he has
+            already had to answer "what is this worth, and who is accountable when it's
+            wrong" for money, not in theory.
+          </p>
+          <p>
+            He cares about clean system design, clear ownership, and creating leverage
+            through good engineering — the three things an agency built this way will
+            either get right or die of.
+          </p>
+          <p class="links">
+            <a href="https://www.linkedin.com/in/abrar-m-339b61386/">LinkedIn</a>
+          </p>
+        </div>
       </article>
       <!-- /ABRAR -->
 
     </div>
   </section>
 
-  <!-- ─────────────────────────  05 CONTACT  ───────────────────────── -->
-  <section class="band" id="contact">
-    <p class="label">05 — Come and argue with us</p>
+  <!-- ═══════════════  06 CLASSIFIEDS  ═══════════════ -->
+  <section class="section" id="contact">
+    <p class="kicker">06 — Classifieds</p>
+    <h2>Everything below goes to an inbox two people read. No sequence, no drip, no CRM.</h2>
 
-    <div class="prose">
-      <p class="lede">
-        Everything below goes to a real inbox that two people read. There is no
-        sequence, no drip, no CRM.
-      </p>
-    </div>
+    <div class="classifieds">
 
-    <div class="actions">
-
-      <a class="action" href="mailto:show@agentsee.work?subject=AgentSee%3A%20Come%20on%20the%20show">
-        <span class="action-title">Come on the show</span>
-        <span class="action-body">
-          We want people who have run an agency, bought from one, or been chewed up by
-          one. Especially if your experience contradicts ours.
+      <a class="ad" href="mailto:show@agentsee.work?subject=AgentSee%3A%20Come%20on%20the%20show">
+        <span class="ad-head">Wanted</span>
+        <span class="ad-title">Come on the show</span>
+        <span class="ad-body">
+          People who have run an agency, bought from one, or been chewed up by one.
+          Especially if your experience contradicts ours.
         </span>
-        <span class="action-cue">Pitch yourself &rarr;</span>
+        <span class="ad-cue">Pitch yourself &rarr;</span>
       </a>
 
-      <a class="action" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20Follow%20the%20build">
-        <span class="action-title">Follow the build</span>
-        <span class="action-body">
-          Streams, episodes, and what we get wrong. Low volume, no marketing, and we'll
-          tell you when it stops being interesting.
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20Follow%20the%20build">
+        <span class="ad-head">Subscriptions</span>
+        <span class="ad-title">Follow the build</span>
+        <span class="ad-body">
+          Streams, episodes, and what we get wrong. Low volume, no marketing, and
+          we'll tell you when it stops being interesting.
         </span>
-        <span class="action-cue">Get the updates &rarr;</span>
+        <span class="ad-cue">Get the updates &rarr;</span>
       </a>
 
-      <a class="action" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20You%27re%20wrong">
-        <span class="action-title">Tell us we're wrong</span>
-        <span class="action-body">
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20You%27re%20wrong">
+        <span class="ad-head">Corrections</span>
+        <span class="ad-title">Tell us we're wrong</span>
+        <span class="ad-body">
           If you think the premise is nonsense, we would much rather hear it now than
           in two years. The strongest disagreement gets a whole episode.
         </span>
-        <span class="action-cue">Take the swing &rarr;</span>
+        <span class="ad-cue">Take the swing &rarr;</span>
       </a>
 
-      <a class="action" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20Build%20alongside%20us">
-        <span class="action-title">Build alongside us</span>
-        <span class="action-body">
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20Build%20alongside%20us">
+        <span class="ad-head">Situations vacant</span>
+        <span class="ad-title">Build alongside us</span>
+        <span class="ad-body">
           Not today — we're still in discovery. But if you'd take a real risk on a new
-          way of working for a real share of the reward, that's exactly who we want to
-          start with. You'll hear what we charge before you hear a pitch.
+          way of working for a real share of the reward, that's who we want to start
+          with. You'll hear what we charge before you hear a pitch.
         </span>
-        <span class="action-cue">Put your name down &rarr;</span>
+        <span class="ad-cue">Put your name down &rarr;</span>
       </a>
 
     </div>
@@ -345,13 +363,15 @@
 </main>
 
 <footer>
-  <div class="footer-row">
-    <span class="wordmark">AgentSee</span>
-    <span class="footer-meta"><span id="daycount-foot">Early days</span> &middot; since 18 August 2026</span>
+  <div class="colophon">
+    <span>AgentSee &middot; Issue No.&nbsp;1</span>
+    <span id="colophon-date">Founded 18 August 2026</span>
+    <span>Set in Newsreader</span>
   </div>
   <p class="footer-note">
-    One page. No trackers, no cookies, no analytics, no third-party requests of any
-    kind. If that ever changes, it will say so right here.
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here.
   </p>
 </footer>
 
