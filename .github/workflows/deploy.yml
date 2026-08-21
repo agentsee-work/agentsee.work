@@ -1,0 +1,62 @@
+name: Deploy
+
+# Pushing to main publishes the site.
+#
+# This is a convenience, not the source of truth. Deploys can always be run
+# straight from a working copy with `wrangler pages deploy .` — see the README.
+# That path deliberately does not touch GitHub, so a forge outage can never
+# stop us shipping. If this workflow is red and you need to publish, publish.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer push should win rather than queue behind an older one, but never
+# cancel a deploy that is already talking to Cloudflare.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Publish to Cloudflare Pages
+    runs-on: ubuntu-latest
+    # Forks don't get secrets, so don't hand them a job that must fail.
+    if: github.repository == 'agentsee-work/agentsee.work'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check nothing secret is about to be published
+        run: |
+          if grep -rInE 'cfat_[A-Za-z0-9_-]{20,}|CLOUDFLARE_API_TOKEN=[^$"'"'"'[:space:]]' \
+               --exclude-dir=.git --exclude-dir=.github . ; then
+            echo "::error::Something that looks like a credential is in the working tree."
+            exit 1
+          fi
+          echo "No credentials found in the tree."
+
+      - name: Deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy . --project-name=agentsee --branch=main
+
+      - name: Confirm the site is actually serving
+        run: |
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://agentsee.work/?ci=${GITHUB_SHA::7}-$i")
+            echo "attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "::notice::https://agentsee.work is serving 200 after ${GITHUB_SHA::7}"
+              exit 0
+            fi
+            sleep 12
+          done
+          echo "::error::agentsee.work did not return 200 after the deploy."
+          exit 1
