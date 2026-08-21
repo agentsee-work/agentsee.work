@@ -26,6 +26,7 @@ the same masthead and dateline, and gets a row in the register here.
 ## What's here
 
 ```
+docs/RUNBOOK.md               where the infrastructure lives, and its traps
 index.html                    the whole page
 assets/styles.css             the whole stylesheet
 assets/eye.js                 pointer tracking, saccades, day counter
