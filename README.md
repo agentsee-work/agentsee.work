@@ -65,6 +65,45 @@ have no business claiming taste anywhere else.
 - **The eye pauses when off-screen or backgrounded**, via IntersectionObserver
   and the visibility API.
 
+## Mail
+
+Cloudflare Email Routing forwards `@agentsee.work` to personal inboxes. The
+domain **receives only — nothing sends as `@agentsee.work`**, and the DNS says
+so:
+
+```
+SPF    v=spf1 include:_spf.mx.cloudflare.net ~all
+DKIM   cf2024-1._domainkey            (Cloudflare's, for forwarded mail)
+DMARC  v=DMARC1; p=reject; sp=reject; rua=mailto:dmarc@agentsee.work; fo=1
+```
+
+`p=reject` tells the world that any mail claiming to be from us is forged.
+That is true today and it is the strongest anti-spoofing position available.
+It does not affect *inbound* forwarding — DMARC applies to the sender's domain,
+and Cloudflare rewrites the envelope on forward so SPF still passes.
+
+### ⚠ Before you send mail as @agentsee.work
+
+**Relax DMARC first, or your own mail will be rejected.** Free Gmail
+"Send mail as" relays through Google with a Gmail DKIM signature and envelope,
+so neither SPF nor DKIM aligns to `agentsee.work` — under `p=reject` recipients
+are being explicitly instructed to throw it away. The failure is silent from
+the sender's side, which is the worst kind.
+
+The order that works:
+
+1. Set `p=none` on `_dmarc.agentsee.work` (keep `rua`).
+2. Set up sending, and add its sender to SPF — for Google that is
+   `include:_spf.google.com`; for a provider like Postmark or Fastmail, use
+   whatever they specify, and add their DKIM record too.
+3. Watch the aggregate reports at `dmarc@agentsee.work` until your own mail is
+   passing with alignment.
+4. Only then go back to `p=reject`.
+
+Aggregate reports arrive at `dmarc@agentsee.work` as daily XML attachments.
+For a domain that sends nothing they are mostly a spoofing tripwire; drop the
+`rua=` tag if the noise isn't worth it.
+
 ## Deploying
 
 Deploys go straight from a working copy to Cloudflare Pages. They do **not** pass
