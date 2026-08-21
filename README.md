@@ -35,8 +35,13 @@ have no business claiming taste anywhere else.
 - **Content-Security-Policy `default-src 'none'`.** Enforced in `_headers`.
   Adding a third-party script would break the page, which is the point.
 - **Works without JavaScript.** JS adds the eye's pointer tracking and the live
-  day counter. Without it the eye still blinks (CSS) and the counter falls back
-  to a static value. Nothing else depends on it.
+  day counter. Without it the eye still blinks (CSS), the counter reads "Early
+  days" rather than a number that would silently go stale, and every contact
+  link is a real `mailto:`. Nothing else depends on it.
+- **Cloudflare's Email Address Obfuscation is off** for this zone, on purpose.
+  It rewrites `mailto:` links into `/cdn-cgi/l/email-protection#…` and injects a
+  decoder script, which breaks the contact links without JS and adds a script we
+  didn't write. If the CTAs ever stop working, check that setting first.
 - **`prefers-reduced-motion` is honoured.** The eye stops moving and blinking.
 - **The eye pauses when off-screen or backgrounded**, via IntersectionObserver
   and the visibility API.
