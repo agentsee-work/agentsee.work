@@ -32,9 +32,12 @@ jobs:
 
       - name: Check nothing secret is about to be published
         run: |
-          if grep -rInE 'cfat_[A-Za-z0-9_-]{20,}|CLOUDFLARE_API_TOKEN=[^$"'"'"'[:space:]]' \
+          # Match credential-SHAPED values only. The docs legitimately contain
+          # `export CLOUDFLARE_API_TOKEN=...` as a placeholder, and a check that
+          # cries wolf over its own documentation gets switched off within a week.
+          if grep -rInE 'cfat_[A-Za-z0-9_-]{20,}|CLOUDFLARE_API_TOKEN=[A-Za-z0-9_-]{30,}' \
                --exclude-dir=.git --exclude-dir=.github . ; then
-            echo "::error::Something that looks like a credential is in the working tree."
+            echo "::error::Something credential-shaped is in the working tree."
             exit 1
           fi
           echo "No credentials found in the tree."
