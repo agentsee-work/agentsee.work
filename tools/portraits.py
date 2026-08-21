@@ -9,11 +9,14 @@ framing and mapped to the same two-tone ink/paper ramp, which puts them in a
 single tonal world and makes the pair look deliberate.
 
 Usage:
-    python3 tools/portraits.py                 # duotone (what the site ships)
-    python3 tools/portraits.py --colour        # same crops, colour left alone
+    python3 tools/portraits.py                          # rebuild from defaults
+    python3 tools/portraits.py --colour                 # skip the toning
+    python3 tools/portraits.py --abrar photo.jpg        # swap one source photo
+    python3 tools/portraits.py --james photo.jpg --crop 40,10,360,330
 
-Requires Pillow. Source photos are not in the repo; point SOURCES at wherever
-they live.
+Requires Pillow. Source photos are not in the repo — pass your own with the
+--james / --abrar flags. A new photo almost certainly needs a new --crop: aim
+for head-and-shoulders, with both heads about the same size in frame.
 """
 
 import sys
@@ -70,10 +73,48 @@ def build(name, path, box, sharpen, colour=False):
     print(f"  {out}")
 
 
+def arg(flag):
+    """Value following --flag on the command line, or None."""
+    if flag in sys.argv:
+        i = sys.argv.index(flag)
+        if i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+        sys.exit(f"{flag} needs a value")
+    return None
+
+
 def main():
     colour = "--colour" in sys.argv or "--color" in sys.argv
+
+    sources = {name: list(v) for name, v in SOURCES.items()}
+
+    # --james / --abrar swap a source photo; --crop overrides the crop box
+    for who, key in (("--james", "james-hartt"), ("--abrar", "abrar-mahmood")):
+        path = arg(who)
+        if path:
+            sources[key][0] = path
+            # a different photo will not match the old crop, so start from the
+            # whole frame unless told otherwise
+            sources[key][1] = None
+
+    crop = arg("--crop")
+    if crop:
+        box = tuple(int(n) for n in crop.split(","))
+        if len(box) != 4:
+            sys.exit("--crop wants left,top,right,bottom")
+        for who, key in (("--james", "james-hartt"), ("--abrar", "abrar-mahmood")):
+            if arg(who):
+                sources[key][1] = box
+
     print("building portraits" + (" (colour)" if colour else " (duotone)"))
-    for name, (path, box, sharpen) in SOURCES.items():
+    for name, (path, box, sharpen) in sources.items():
+        if box is None:
+            with Image.open(path) as probe:
+                w, h = probe.size
+            side = min(w, h)
+            box = ((w - side) // 2, (h - side) // 2,
+                   (w - side) // 2 + side, (h - side) // 2 + side)
+            print(f"  {name}: no --crop given, using centre square {box}")
         build(name, path, box, sharpen, colour)
 
 
