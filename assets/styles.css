@@ -100,7 +100,8 @@ body > * { position: relative; z-index: 1; }
 }
 
 .mark {
-  width: clamp(52px, 6.6vw, 96px);
+  --mark-w: clamp(52px, 6.6vw, 96px);
+  width: var(--mark-w);
   flex: none;
 }
 .mark svg { width: 100%; height: auto; display: block; overflow: visible; }
@@ -501,7 +502,16 @@ footer {
 .hat-band   { fill: var(--paper); opacity: .16; }
 .hat-buckle { fill: var(--signal); }
 .sclera     { fill: var(--paper-2); }
-.eye-outline { fill: none; stroke: var(--ink); stroke-width: 6; stroke-linejoin: round; }
+/* The outline uses non-scaling-stroke so the blink's vertical squash can't
+   flatten it to nothing — but that makes stroke-width a screen-pixel value,
+   which stops tracking the mark's size. Deriving it from --mark-w keeps the
+   weight proportional at every size: 6 units of a 240-wide viewBox = 2.5%. */
+.eye-outline {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: calc(var(--mark-w, 96px) * .025);
+  stroke-linejoin: round;
+}
 .iris-outer { fill: var(--signal); }
 .iris-inner { fill: var(--signal); filter: brightness(.82); }
 .pupil      { fill: var(--ink); }
