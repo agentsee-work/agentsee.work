@@ -31,7 +31,9 @@ these are the permissions and what each is actually for:
 | Zone — Read | Zone | Resolving the zone by name at all |
 | DNS — Edit | Zone | Custom domain, MX/SPF/DKIM/DMARC |
 | Email Routing Rules — Edit | Zone | The `name@agentsee.work` rules |
-| Cache Purge — Purge | Zone | *Not currently held.* Force-expiring stale assets |
+| Cache & Performance → Cache | Zone | Purging stale assets |
+| Zone Settings — Edit | Zone | Browser Cache TTL, Email Address Obfuscation |
+| Workers Scripts — Edit | Account | *Not held.* An Email Worker, if we ever fan mail out |
 
 Scope it to the `agentsee.work` zone, not "all zones".
 
@@ -110,9 +112,17 @@ headers before you check anything else — and note that a browser can hold a
 stale stylesheet while `curl` shows the fresh one, which makes it look like
 a rendering bug rather than a caching one.
 
-**Cache purging needs a permission we don't have.** `Zone — Cache Purge` is
-not on the current token, so there is no way to force-expire an asset. Add it
-if you want the deploy workflow to purge after publishing.
+**Purging the cache.** In the current Cloudflare UI the permission is grouped
+as **Cache & Performance → Cache** (it used to be a flat "Cache Purge" entry,
+which is what older docs and any older notes will call it). With it:
+
+```sh
+curl -X POST "https://api.cloudflare.com/client/v4/zones/$ZID/purge_cache" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  --data '{"files":["https://agentsee.work/assets/styles.css"]}'
+```
+
+Worth knowing you rarely need it now that `/assets/*` is ten minutes.
 
 **GitHub has no API for creating an organisation.** `POST /admin/organizations`
 is GitHub Enterprise Server only and 404s on github.com. Web UI only.
