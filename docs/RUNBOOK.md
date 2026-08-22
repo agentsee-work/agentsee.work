@@ -31,6 +31,7 @@ these are the permissions and what each is actually for:
 | Zone — Read | Zone | Resolving the zone by name at all |
 | DNS — Edit | Zone | Custom domain, MX/SPF/DKIM/DMARC |
 | Email Routing Rules — Edit | Zone | The `name@agentsee.work` rules |
+| Cache Purge — Purge | Zone | *Not currently held.* Force-expiring stale assets |
 
 Scope it to the `agentsee.work` zone, not "all zones".
 
@@ -88,6 +89,20 @@ with Zone DNS access writes the CNAME.
 **A Pages alias can serve stale HTML for a minute or two after a deploy.**
 Check `canonical_deployment` on the project before concluding a deploy failed —
 twice it was correct while the alias was still catching up. Wait, don't redeploy.
+
+**The zone's Browser Cache TTL silently overrode our `_headers`.** It was set
+to 14400, so CSS and JS were served with `max-age=14400` no matter what
+`_headers` said — up to four hours before a change reached a returning
+visitor, and `cf-cache-status: HIT` at the edge on top. It is now **0**
+("Respect Existing Headers") so `_headers` actually governs, and `/assets/*`
+is `max-age=600`. If a deploy looks like it hasn't landed, check the cache
+headers before you check anything else — and note that a browser can hold a
+stale stylesheet while `curl` shows the fresh one, which makes it look like
+a rendering bug rather than a caching one.
+
+**Cache purging needs a permission we don't have.** `Zone — Cache Purge` is
+not on the current token, so there is no way to force-expire an asset. Add it
+if you want the deploy workflow to purge after publishing.
 
 **GitHub has no API for creating an organisation.** `POST /admin/organizations`
 is GitHub Enterprise Server only and 404s on github.com. Web UI only.
