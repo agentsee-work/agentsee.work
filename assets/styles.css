@@ -188,6 +188,17 @@ body > * { position: relative; z-index: 1; }
 }
 @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
 
+/* Used on the 404. Must live here rather than in a style attribute — the
+   CSP is style-src 'self', so inline styles are blocked and the link would
+   fall back to default browser blue. */
+.backlink {
+  color: var(--signal);
+  text-decoration: none;
+  border-bottom: 1px solid var(--hair);
+  padding-bottom: .15rem;
+}
+.backlink:hover { border-color: var(--signal); }
+
 /* ═══════════════  SECTIONS  ═══════════════ */
 
 .section {
