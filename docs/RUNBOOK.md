@@ -18,6 +18,8 @@ appear in dashboard URLs and are useless without a token.
 | Custom domains | apex + `www`, both CNAME → `agentsee-6bm.pages.dev`, proxied |
 | GitHub | `agentsee-work/agentsee.work` (public) |
 | Mail | Cloudflare Email Routing → personal inboxes |
+| Email Worker | `email-fanout` — fans `hello@` and `show@` to both of us |
+| Repo layout | **only `public/` is deployed**; docs, tooling and the Worker are not |
 
 ## Token scopes
 
@@ -47,12 +49,11 @@ a scope needs no update in CI; *rolling* it does.
 |---|---|
 | CI (`CLOUDFLARE_API_TOKEN` secret, Pages-only) | _record when rolled_ |
 
-> **The CI secret is over-privileged.** `CLOUDFLARE_API_TOKEN` in the repo
-> secrets currently carries all of the above, but the workflow only needs
-> *Pages — Edit*. The repo is public, so the blast radius of a leak matters:
-> a Pages-only token means "someone redeploys the landing page"; the current
-> one means "someone repoints the domain and the mail". Replace it with a
-> Pages-only token:
+> **Keep the CI secret minimal.** `CLOUDFLARE_API_TOKEN` in the repo secrets is
+> a **Pages-only** token, and should stay that way. The repo is public, so the
+> blast radius of a leak matters: Pages-only means "someone redeploys the
+> landing page", whereas a full token means "someone repoints the domain and
+> the mail". Don't paste a working token in there for convenience.
 >
 > ```sh
 > gh secret set CLOUDFLARE_API_TOKEN --repo agentsee-work/agentsee.work
@@ -103,6 +104,17 @@ Every address in it must already be a *verified* destination on the account or
 forwarding to it silently does nothing. Redeploy the Worker with
 `npx wrangler deploy` from that directory; it is not covered by the site's
 deploy workflow.
+
+**`wrangler pages deploy <dir>` publishes everything in that directory.** It
+has no exclude flag, and Pages ignores `.assetsignore` — tested, the files
+uploaded anyway. While the command was `pages deploy .`, the site was serving
+`README.md`, `CONTRIBUTING.md`, `LICENSE`, `docs/RUNBOOK.md`,
+`tools/portraits.py` and the Worker source, all from `agentsee.work`. Not a
+credential leak, but the marketing site was handing out this file.
+
+That is why deployable files live in **`public/`** and everything else does
+not. Anything added outside `public/` stays off the website by construction.
+If you ever point the deploy back at the repo root, you republish all of it.
 
 **A forwarding destination must be confirmed by a human.** Adding an address
 emails a verification link to it, and no rule referencing it can be created
