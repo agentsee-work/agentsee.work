@@ -35,6 +35,16 @@ these are the permissions and what each is actually for:
 
 Scope it to the `agentsee.work` zone, not "all zones".
 
+**Record the expiry date here whenever the token is rolled, and put a reminder
+somewhere you'll see it.** Deploys depend on this token, and an expired one
+fails silently in the sense that nothing warns you in advance — the next push
+just goes red. Editing a token's permissions keeps the same secret, so adding
+a scope needs no update in CI; *rolling* it does.
+
+| Token | Expires |
+|---|---|
+| CI (`CLOUDFLARE_API_TOKEN` secret, Pages-only) | _record when rolled_ |
+
 > **The CI secret is over-privileged.** `CLOUDFLARE_API_TOKEN` in the repo
 > secrets currently carries all of the above, but the workflow only needs
 > *Pages — Edit*. The repo is public, so the blast radius of a leak matters:

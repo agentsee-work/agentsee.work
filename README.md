@@ -28,6 +28,9 @@ the same masthead and dateline, and gets a row in the register here.
 ```
 docs/RUNBOOK.md               where the infrastructure lives, and its traps
 index.html                    the whole page
+404.html                      Issue No. 404, never printed
+robots.txt / sitemap.xml      so crawlers get those, not the homepage
+apple-touch-icon.png          iOS home screen; downscaled from assets/brand/
 assets/styles.css             the whole stylesheet
 assets/eye.js                 pointer tracking, saccades, day counter
 assets/og.png                 social card, rendered from the site's own CSS
