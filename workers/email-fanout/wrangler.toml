@@ -1,0 +1,10 @@
+name = "email-fanout"
+main = "src/index.js"
+compatibility_date = "2026-08-22"
+
+# No routes and no triggers on purpose. This Worker is invoked by Email
+# Routing, which is wired up on the zone rather than here: the rule's action
+# becomes {"type":"worker","value":["email-fanout"]}.
+#
+# RECIPIENTS is a secret, not a var — the addresses are personal and this
+# repo is public. Set it with `npx wrangler secret put RECIPIENTS`.

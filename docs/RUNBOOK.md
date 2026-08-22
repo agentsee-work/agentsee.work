@@ -82,12 +82,27 @@ and adds a script we didn't write. It only happens on the proxied custom
 domain, so `*.pages.dev` tests clean and you never see it. It is now **off**
 for this zone. If the CTAs ever stop working, check that first.
 
-**Email Routing cannot fan one address out to two people.** The API rejects
-multiple destinations in one action (*"forward action must contain exactly one
-destination"*) and then rejects multiple actions (*"only one action per rule is
-allowed"*). So `hello@` reaches exactly one inbox. The real fix is a Cloudflare
-Email Worker, which needs a Workers-scoped token. Until then the page must not
-claim mail reaches both of us.
+**Email Routing cannot fan one address out to two people — on its own.** The
+API rejects multiple destinations in one action (*"forward action must contain
+exactly one destination"*) and then rejects multiple actions (*"only one action
+per rule is allowed"*).
+
+The way round it is an **Email Worker**: routing hands the message to a Worker
+and the Worker forwards it to everyone. That is what `workers/email-fanout` is,
+and `hello@` and `show@` now use it — their rule action is
+`{"type":"worker","value":["email-fanout"]}` rather than a forward.
+
+Recipients live in the Worker's `RECIPIENTS` secret, comma-separated, **never
+in the repo** — they are personal addresses and this repo is public:
+
+```sh
+cd workers/email-fanout && npx wrangler secret put RECIPIENTS
+```
+
+Every address in it must already be a *verified* destination on the account or
+forwarding to it silently does nothing. Redeploy the Worker with
+`npx wrangler deploy` from that directory; it is not covered by the site's
+deploy workflow.
 
 **A forwarding destination must be confirmed by a human.** Adding an address
 emails a verification link to it, and no rule referencing it can be created
