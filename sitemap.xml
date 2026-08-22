@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- No <lastmod>. A hardcoded date here would drift out of true the moment
+     the page changed, and nothing on this site is allowed to do that. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://agentsee.work/</loc>
+  </url>
+</urlset>
