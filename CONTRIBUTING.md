@@ -5,7 +5,7 @@ permission to fix their own bio.
 
 ## Editing your own section
 
-Your block in `index.html` is marked with comments:
+Your block in `public/index.html` is marked with comments:
 
 ```html
 <!-- ABRAR: this block is yours. ... -->
@@ -38,10 +38,10 @@ one head is noticeably bigger, adjust the crop box in that file and run again.
 
 ## Seeing your change
 
-No build step. Open `index.html`, or:
+No build step. Open `public/index.html`, or:
 
 ```sh
-python3 -m http.server 8000
+cd public && python3 -m http.server 8000
 ```
 
 Check it in both light and dark — the page follows the system theme and it is
@@ -52,7 +52,7 @@ easy to make something that only works in one.
 ```sh
 export CLOUDFLARE_ACCOUNT_ID=...
 export CLOUDFLARE_API_TOKEN=...     # Account > Cloudflare Pages > Edit
-npx wrangler pages deploy . --project-name=agentsee --commit-dirty=true
+npx wrangler pages deploy public --project-name=agentsee --commit-dirty=true
 ```
 
 This uploads straight from your working copy to Cloudflare. It does **not** go

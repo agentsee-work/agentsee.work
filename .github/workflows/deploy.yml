@@ -48,7 +48,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy . --project-name=agentsee --branch=main
+          command: pages deploy public --project-name=agentsee --branch=main
 
       - name: Confirm the site is actually serving
         run: |

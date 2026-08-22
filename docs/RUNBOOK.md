@@ -33,7 +33,7 @@ these are the permissions and what each is actually for:
 | Email Routing Rules — Edit | Zone | The `name@agentsee.work` rules |
 | Cache & Performance → Cache | Zone | Purging stale assets |
 | Zone Settings — Edit | Zone | Browser Cache TTL, Email Address Obfuscation |
-| Workers Scripts — Edit | Account | *Not held.* An Email Worker, if we ever fan mail out |
+| Workers Scripts — Edit | Account | Deploying `workers/email-fanout` |
 
 Scope it to the `agentsee.work` zone, not "all zones".
 
@@ -62,7 +62,7 @@ a scope needs no update in CI; *rolling* it does.
 
 Three routes, in order of how much you should trust them:
 
-1. **Direct upload** — `npx wrangler pages deploy . --project-name=agentsee`.
+1. **Direct upload** — `npx wrangler pages deploy public --project-name=agentsee`.
    Does not touch GitHub. This is the one that always works.
 2. **Push to `main`** — `.github/workflows/deploy.yml` publishes and then polls
    `agentsee.work` until it returns 200, so a green tick means the site really
@@ -144,7 +144,7 @@ is GitHub Enterprise Server only and 404s on github.com. Web UI only.
 
 **GitHub has no API for setting an org avatar.** `PATCH /orgs/{org}` accepts
 `avatar_url`, returns 200, and silently ignores it — it looks like it worked.
-Web UI only. The source images are in `assets/brand/`.
+Web UI only. The source images are in `public/assets/brand/`.
 
 **Org membership alone does not grant push.** This org's
 `default_repository_permission` is `read`, so a new member can see the repo and

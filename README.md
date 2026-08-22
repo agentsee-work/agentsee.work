@@ -18,32 +18,41 @@ publish gets a number and a date so it can be held against us later.
   No. 2 is listed as unwritten, and should stay that way until it exists.
   Never list an issue that hasn't been published.
 - **Day 1 is 18 August 2026**, the day the domain was registered. That epoch
-  lives in `assets/eye.js` and nowhere else.
+  lives in `public/assets/eye.js` and nowhere else.
 
 When there is a second issue, it becomes its own page under `/issues/`, keeps
 the same masthead and dateline, and gets a row in the register here.
 
 ## What's here
 
+**Only `public/` is published.** Everything else — docs, tooling, the Worker —
+stays in the repo and off the website. That separation is deliberate: before it
+existed, `wrangler pages deploy .` was serving the README, the runbook and the
+Worker source from the marketing site.
+
 ```
+public/                       ← the only thing that gets deployed
+  index.html                  the whole page
+  404.html                    Issue No. 404, never printed
+  robots.txt / sitemap.xml    so crawlers get those, not the homepage
+  apple-touch-icon.png        iOS home screen; from assets/brand/
+  _headers                    Cloudflare Pages security + cache headers
+  assets/styles.css           the whole stylesheet
+  assets/eye.js               pointer tracking, saccades, day counter
+  assets/og.png               social card, rendered from the site's own CSS
+  assets/*-hartt|mahmood.jpg  portraits (see tools/portraits.py)
+  assets/brand/               org avatars, not used by the page
+  fonts/newsreader-latin.woff2  self-hosted display face (SIL OFL)
+
 docs/RUNBOOK.md               where the infrastructure lives, and its traps
-index.html                    the whole page
-404.html                      Issue No. 404, never printed
-robots.txt / sitemap.xml      so crawlers get those, not the homepage
-apple-touch-icon.png          iOS home screen; downscaled from assets/brand/
-assets/styles.css             the whole stylesheet
-assets/eye.js                 pointer tracking, saccades, day counter
-assets/og.png                 social card, rendered from the site's own CSS
-assets/*-hartt|mahmood.jpg    portraits (see tools/portraits.py)
-fonts/newsreader-latin.woff2  self-hosted display face (SIL OFL)
 tools/portraits.py            regenerates the portraits from source photos
-_headers                      Cloudflare Pages security + cache headers
+workers/email-fanout/         fans hello@ and show@ out to both of us
 ```
 
-There is no bundler and nothing to install. Open `index.html` in a browser, or:
+There is no bundler and nothing to install:
 
 ```sh
-python3 -m http.server 8000
+cd public && python3 -m http.server 8000
 ```
 
 ## Deliberate constraints
@@ -55,7 +64,7 @@ have no business claiming taste anywhere else.
   embeds. The typeface is self-hosted. The favicon is an inline data URI. The
   page makes exactly the requests it serves itself and no others.
 - **No cookies, no storage, no tracking.** Nothing to consent to, so no banner.
-- **Content-Security-Policy `default-src 'none'`.** Enforced in `_headers`.
+- **Content-Security-Policy `default-src 'none'`.** Enforced in `public/_headers`.
   Adding a third-party script would break the page, which is the point.
 - **Works without JavaScript.** JS adds the eye's pointer tracking and the live
   day counter. Without it the eye still blinks (CSS), the counter reads "Early
@@ -116,7 +125,7 @@ through a git host, so no forge outage can block a deploy:
 ```sh
 export CLOUDFLARE_ACCOUNT_ID=...
 export CLOUDFLARE_API_TOKEN=...        # needs Account > Cloudflare Pages > Edit
-npx wrangler pages deploy . --project-name=agentsee --commit-dirty=true
+npx wrangler pages deploy public --project-name=agentsee --commit-dirty=true
 ```
 
 Git remotes are for reading and for history. Push targets can be mirrored so

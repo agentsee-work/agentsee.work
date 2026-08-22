@@ -68,7 +68,7 @@ def build(name, path, box, sharpen, colour=False):
         im = im.filter(ImageFilter.UnsharpMask(1.2, int(sharpen * 100), 3))
     if not colour:
         im = duotone(im)
-    out = f"assets/{name}.jpg"
+    out = f"public/assets/{name}.jpg"
     im.save(out, quality=92, subsampling=0, optimize=True, progressive=True)
     print(f"  {out}")
 
