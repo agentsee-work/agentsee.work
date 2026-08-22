@@ -63,3 +63,41 @@ jobs:
           done
           echo "::error::agentsee.work did not return 200 after the deploy."
           exit 1
+
+      # An expired token gives no warning — the next push simply goes red. This
+      # turns that into a heads-up. It must never fail the build: a deploy that
+      # worked should not be marked broken by a token that still works.
+      - name: Warn if the Cloudflare token is near expiry
+        continue-on-error: true
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          curl -s "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/tokens/verify" \
+            -H "Authorization: Bearer $CF_TOKEN" -o /tmp/tok.json || true
+          python3 - <<'PY' || true
+          import json, datetime, pathlib
+
+          raw = pathlib.Path("/tmp/tok.json")
+          if not raw.exists():
+              print("::notice::Could not reach the token verify endpoint; skipping.")
+              raise SystemExit(0)
+          try:
+              expires = (json.loads(raw.read_text()).get("result") or {}).get("expires_on")
+          except Exception:
+              print("::notice::Could not parse the token verify response; skipping.")
+              raise SystemExit(0)
+          if not expires:
+              print("::notice::Token reports no expiry; nothing to warn about.")
+              raise SystemExit(0)
+
+          when = datetime.datetime.fromisoformat(expires.replace("Z", "+00:00"))
+          days = (when - datetime.datetime.now(datetime.timezone.utc)).days
+          if days <= 21:
+              print(f"::warning::CLOUDFLARE_API_TOKEN expires in {days} days "
+                    f"({when:%d %B %Y}). Deploys will start failing. Roll it and "
+                    f"run: gh secret set CLOUDFLARE_API_TOKEN --repo "
+                    f"agentsee-work/agentsee.work")
+          else:
+              print(f"Token healthy: {days} days left (expires {when:%d %B %Y}).")
+          PY

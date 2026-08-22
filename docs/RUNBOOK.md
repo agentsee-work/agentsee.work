@@ -47,7 +47,12 @@ a scope needs no update in CI; *rolling* it does.
 
 | Token | Expires |
 |---|---|
-| CI (`CLOUDFLARE_API_TOKEN` secret, Pages-only) | _record when rolled_ |
+| CI (`CLOUDFLARE_API_TOKEN` secret, Pages-only) | **20 November 2026** |
+
+You shouldn't have to remember that date: every deploy checks the token's
+remaining life and warns in the run summary once it is inside 21 days. The
+check never fails the build — a deploy that works should not be blocked by a
+token that still works.
 
 > **Keep the CI secret minimal.** `CLOUDFLARE_API_TOKEN` in the repo secrets is
 > a **Pages-only** token, and should stay that way. The repo is public, so the
