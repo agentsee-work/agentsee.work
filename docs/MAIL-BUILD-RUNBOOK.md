@@ -19,7 +19,7 @@ worse than none, because it gets trusted.
 |---|---|---|
 | Cloudflare | ✅ have | Zone, R2, Pages |
 | GitHub | ✅ have | `agentsee-work` org |
-| **Bitwarden** | needed **first** | [CREDENTIALS.md](CREDENTIALS.md). Everything below produces a credential |
+| **1Password** | needed **first** | [CREDENTIALS.md](CREDENTIALS.md). Everything below produces a credential, and `op run` wants it there |
 | **Infomaniak** | needed | Payment card. Public Cloud, not the hosted mail — see below |
 | **SMTP2GO** | needed | Free tier, no card. The outbound relay — see below |
 | healthchecks.io | needed | Free. The backup dead-man's switch |
@@ -45,9 +45,14 @@ would leave us fine, but it does not say so about ingress. An MX is port 25 or
 nothing, and there is no workaround. Ask them first — the wording to use is in
 the checkpoint below.
 
-After signup, download **clouds.yaml** from the manager (Public Cloud >
-project > OpenStack RC / clouds.yaml) to `~/.config/openstack/clouds.yaml`.
-That file holds the password and must never be committed.
+After signup, open the **OpenStack RC / clouds.yaml** download in the manager
+(Public Cloud > your project) but **don't save it to disk**. Copy the username,
+project and password into a `Infomaniak Public Cloud` item in the vault —
+`infra/op.env` resolves them from there at apply time, so there is no
+credentials file to leak or forget to `chmod`.
+
+Check the two `OS_*_DOMAIN_NAME` values in that RC file against `op.env`, which
+guesses `Default`. If it differs, `op.env` is where to correct it.
 
 **The relay is SMTP2GO.** Free tier is 1,000/month with no card, which two
 people's correspondence will not approach. It was chosen over AWS SES because
@@ -82,9 +87,10 @@ If mail breaks and the recovery link for the server that runs your mail is sent
 to your broken mail, you are locked out of the thing you need to fix it. The
 rule: **nothing in the recovery path for mail may depend on mail.**
 
-This is the third instance of one pattern — the vault's 2FA isn't in the vault,
-mail alerts don't go by mail, mail infrastructure doesn't recover by mail. When
-a system is down, every recovery channel that runs through it is down too.
+This is one instance of a pattern with four of them — the vault's 2FA isn't in
+the vault, the Emergency Kit isn't only in the vault, mail alerts don't go by
+mail, mail infrastructure doesn't recover by mail. When a system is down, every
+recovery channel that runs through it is down too.
 
 Everything else — social platforms, Cal.com, anything not load-bearing — uses
 `accounts@agentsee.work`.
@@ -94,7 +100,8 @@ Everything else — social platforms, Cal.com, anything not load-bearing — use
 | Need | Where |
 |---|---|
 | Cloudflare token | vault, `infra`. Zone > DNS > Edit. **Not** the Pages-only CI token |
-| Infomaniak clouds.yaml | vault, `infra`. Holds the Public Cloud password |
+| 1Password CLI | local — `op --version`. `op run` injects everything below |
+| Infomaniak Public Cloud | vault, `infra`. Username, project, password from the RC file |
 | SMTP2GO SMTP user | vault, `infra`. Sending > SMTP Users — not the account login |
 | R2 tokens ×2 | vault, `infra`. One for state, one for backups. Separate deliberately |
 | OpenTofu ≥ 1.8 | local — `tofu version` |
@@ -125,14 +132,10 @@ put both in the vault. Separate deliberately: one credential that can both
 delete the backups and rewrite the infrastructure is a poor blast radius for
 something that ends up on an internet-facing box.
 
-Only the state token goes in `~/.aws/credentials`. The backup token is read by
-the box from `/etc/agentsee/backup.env` in phase 5 and never belongs here:
-
-```ini
-[r2-tfstate]
-aws_access_key_id     = ...
-aws_secret_access_key = ...
-```
+Put the state token in the vault as `R2 tfstate token` — `infra/op.env`
+resolves it into `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` at apply time, so
+there is no `~/.aws/credentials` file. The backup token is read by the box from
+`/etc/agentsee/backup.env` in phase 5 and never touches this machine.
 
 **Then create the SMTP2GO account and verify the sender domain.** Sending >
 Verified Senders > Sender Domains > Add `agentsee.work`. It returns three
@@ -160,10 +163,20 @@ everything and nothing else depends on the answer. Something like:
 The distinction matters and support will assume you mean outbound if you don't
 draw it, because that is what everyone else is asking about.
 
-> ✅ **Checkpoint 0** — both buckets exist, `aws --profile r2-tfstate s3 ls`
-> authenticates, SMTP2GO shows the sender domain with three CNAMEs to publish
-> and an SMTP user created, `~/.config/openstack/clouds.yaml` is in place, and
-> **Infomaniak has confirmed inbound 25 in writing.**
+> ✅ **Checkpoint 0** — both buckets exist, SMTP2GO shows the sender domain
+> with three CNAMEs to publish and an SMTP user created, every item named in
+> `infra/op.env` resolves, and **Infomaniak has confirmed inbound 25 in
+> writing.**
+
+Prove the last-but-one before going near `tofu`, because a missing vault item
+surfaces as a provider auth error that reads like a wrong credential:
+
+```sh
+cd infra && op run --env-file=op.env -- env | grep -E 'CLOUDFLARE|AWS_ACCESS|OS_USERNAME'
+```
+
+`op run` masks the values, so this shows that each reference *resolved* without
+printing what it resolved to.
 
 **If inbound 25 turns out to be closed and they won't open it**, stop and
 re-read [MAIL-SELFHOST.md](MAIL-SELFHOST.md). Owning the inbox is the whole
@@ -179,18 +192,15 @@ cd infra
 cp terraform.tfvars.example terraform.tfvars
 $EDITOR terraform.tfvars          # ssh_public_key at minimum
 
-export CLOUDFLARE_API_TOKEN=...
-# OpenStack auth is read from ~/.config/openstack/clouds.yaml, not the
-# environment. `openstack_cloud` in tfvars names the entry to use.
-
 # ⚠ Confirm the image name exists before the first plan — they move:
-openstack image list | grep -i debian
+op run --env-file=op.env -- openstack image list | grep -i debian
 
-tofu init
-tofu fmt -check
+tofu fmt -check                    # no credentials needed
 tofu validate
-tofu plan                          # READ IT
-tofu apply
+
+op run --env-file=op.env -- tofu init
+op run --env-file=op.env -- tofu plan     # READ IT
+op run --env-file=op.env -- tofu apply
 ```
 
 Put the three SMTP2GO CNAMEs into `terraform.tfvars` as
@@ -203,9 +213,12 @@ MX and SPF, DMARC at `p=none`, and the three relay CNAMEs — **and nothing at
 the apex**. If you see the apex MX in the plan, stop and check the variable.
 
 ```sh
-tofu output next_steps
-tofu output smtp2go_records_present    # must be true
+op run --env-file=op.env -- tofu output next_steps
+op run --env-file=op.env -- tofu output smtp2go_records_present   # must be true
 ```
+
+Every command touching state needs `op run`, including reads — the backend
+credentials come from the vault too.
 
 > ✅ **Checkpoint 1** — `dig +short mail.agentsee.work` returns the instance
 > IPv4 and `dig +short mail.agentsee.work AAAA` the IPv6, `dig +short
@@ -216,7 +229,7 @@ tofu output smtp2go_records_present    # must be true
 The login is **`debian`**, not root — OpenStack images inject the keypair into
 the image's default user.
 
-**Rollback:** `tofu destroy`. Nothing live has changed.
+**Rollback:** `op run --env-file=op.env -- tofu destroy`. Nothing live has changed.
 
 ⚠ It will refuse, because the data volume is `prevent_destroy`. That guard is
 the point: destroying the instance should be routine and destroying the mail
@@ -311,7 +324,7 @@ re-applying:
 
 ```sh
 cd infra && $EDITOR terraform.tfvars   # dkim_public_key = "v=DKIM1; k=rsa; p=..."
-tofu apply
+op run --env-file=op.env -- tofu apply
 ```
 
 > ✅ **Checkpoint 3** — `plan.json` committed and clean, and
@@ -408,8 +421,8 @@ write otherwise. Subdomains are unaffected, so the `in.agentsee.work` pipeline i
 ```sh
 cd infra
 $EDITOR terraform.tfvars          # enable_apex_mx = true
-tofu plan                          # should be ~2 creates. Nothing else.
-tofu apply
+op run --env-file=op.env -- tofu plan    # should be ~2 creates. Nothing else.
+op run --env-file=op.env -- tofu apply
 ```
 
 Then watch:
@@ -423,8 +436,8 @@ Send to `hello@agentsee.work` from an external account. Reply. Confirm it lands.
 > ✅ **Checkpoint 6** — apex MX is ours, mail flows both ways, `header.d` is
 > still `agentsee.work`.
 
-**Rollback:** set `enable_apex_mx = false`, `tofu apply`, re-enable Email
-Routing. Mail sent during the gap is not lost — senders retry for days.
+**Rollback:** set `enable_apex_mx = false`, `op run --env-file=op.env -- tofu
+apply`, re-enable Email Routing. Mail sent during the gap is not lost — senders retry for days.
 
 ---
 
@@ -436,7 +449,7 @@ with alignment. Days, not hours.
 ```sh
 cd infra
 $EDITOR terraform.tfvars          # dmarc_policy = "reject"
-tofu apply
+op run --env-file=op.env -- tofu apply
 ```
 
 > ✅ **Checkpoint 7** — `dig +short _dmarc.agentsee.work TXT` shows `p=reject`,

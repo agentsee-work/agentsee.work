@@ -1,18 +1,13 @@
 # Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
 #
-# NOTHING SECRET GOES IN HERE. Credentials come from outside the repo:
+# NOTHING SECRET GOES IN HERE, and nothing secret goes in your shell either.
+# Every credential is resolved from 1Password at the moment tofu runs:
 #
-#   export CLOUDFLARE_API_TOKEN=...    # Zone > DNS > Edit on agentsee.work
-#   ~/.config/openstack/clouds.yaml    # from the Infomaniak manager
-#   # R2: profile `r2-tfstate` in ~/.aws/credentials (state backend only)
+#   op run --env-file=op.env -- tofu plan
 #
-# All three belong in the vault's `infra` collection — see docs/CREDENTIALS.md.
-# The relay's SMTP credentials are NOT here and not in state: they are created
-# in the SMTP2GO dashboard and typed into the server's .env once.
-
-# The clouds.yaml entry to authenticate with. Infomaniak names it after the
-# project. Not itself a secret — the file it points at holds the password.
-openstack_cloud = "PCP-XXXXXXX"
+# See op.env for what gets injected, and docs/CREDENTIALS.md for the vault.
+# The relay's SMTP credentials are in neither: they are created in the SMTP2GO
+# dashboard and typed into the server's .env once.
 
 # A public key is public. Safe here.
 ssh_public_key = "ssh-ed25519 AAAA... you@host"

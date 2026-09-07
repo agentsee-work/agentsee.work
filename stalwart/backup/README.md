@@ -17,7 +17,7 @@ unrecoverable ciphertext** — R2 will happily keep bytes you can never read.
 
 It is more important than the server, the mail, or any API token, because
 everything else can be rebuilt and this cannot. It belongs in the vault
-(`infra` collection, [../../docs/CREDENTIALS.md](../../docs/CREDENTIALS.md))
+(tagged `mail`, [../../docs/CREDENTIALS.md](../../docs/CREDENTIALS.md))
 **and** on paper, offline, with the vault's own recovery codes.
 
 Storing it only in the vault creates a loop: if the vault is what you lost, the

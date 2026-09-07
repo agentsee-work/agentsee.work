@@ -9,24 +9,21 @@ terraform {
   #
   #   npx wrangler r2 bucket create agentsee-tfstate
   #
-  # then mint an R2 API token and put it in ~/.aws/credentials under this
-  # profile name. The backup repository gets a SECOND bucket and a SECOND
-  # token — see stalwart/backup/README.md. One credential that can both delete
-  # the backups and rewrite the infrastructure is a poor blast radius for
-  # something sitting on an internet-facing box.
+  # then mint an R2 API token and put it in the vault. The backend speaks S3,
+  # so it reads AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY — supplied by
+  # `op run` from op.env, so there is no ~/.aws/credentials file holding it.
   #
-  #   [r2-tfstate]
-  #   aws_access_key_id     = ...
-  #   aws_secret_access_key = ...
+  # The backup repository gets a SECOND bucket and a SECOND token, which lives
+  # on the box — see stalwart/backup/README.md. One credential that can both
+  # delete the backups and rewrite the infrastructure is a poor blast radius.
   #
   # This is the manual root of trust. Something has to hold the credential that
-  # lets the automation run, and it cannot be automated away. See
-  # docs/CREDENTIALS.md — the R2 token belongs in the `infra` collection.
+  # lets the automation run, and it cannot be automated away — here that is a
+  # 1Password account. See docs/CREDENTIALS.md.
   backend "s3" {
-    bucket  = "agentsee-tfstate"
-    key     = "mail/terraform.tfstate"
-    region  = "auto"
-    profile = "r2-tfstate"
+    bucket = "agentsee-tfstate"
+    key    = "mail/terraform.tfstate"
+    region = "auto"
 
     endpoints = {
       s3 = "https://9468eccb7caed9f96283a9139c37a4df.r2.cloudflarestorage.com"
@@ -65,15 +62,18 @@ terraform {
   }
 }
 
-# Credentials come from the environment, never from this repo:
-#   CLOUDFLARE_API_TOKEN   zone DNS edit on agentsee.work
+# Both provider blocks are empty on purpose. Every credential arrives in the
+# environment, injected by `op run` from op.env at the moment tofu starts:
 #
-# OpenStack auth comes from ~/.config/openstack/clouds.yaml, downloaded from
-# the Infomaniak manager. `cloud` names the entry in that file. The alternative
-# is putting user_name/password in the provider block, which is exactly the
-# thing this repo does not do.
+#   op run --env-file=op.env -- tofu plan
+#
+# Cloudflare reads CLOUDFLARE_API_TOKEN. OpenStack reads the standard OS_*
+# variables, which is why there is no `cloud` argument and no clouds.yaml on
+# disk — Infomaniak documents clouds.yaml, and it works, but it is a password
+# sitting in a file at mode 0600 and hoping. Setting OS_CLOUD instead of the
+# individual OS_* variables restores that path if you ever want it.
+#
+# Putting credentials in a provider block is the thing this repo does not do.
 provider "cloudflare" {}
 
-provider "openstack" {
-  cloud = var.openstack_cloud
-}
+provider "openstack" {}

@@ -9,6 +9,7 @@ reason for the comment density. The build it produces is specified in
 [../docs/MAIL-SELFHOST.md](../docs/MAIL-SELFHOST.md).
 
 ```
+op.env          op:// references injected by `op run`. Committed; no values
 versions.tf     providers, and R2 as the state backend
 variables.tf    inputs, including the cutover flag
 dns.tf          Cloudflare: MX, SPF, DKIM, DMARC
@@ -37,15 +38,19 @@ cd infra
 cp terraform.tfvars.example terraform.tfvars   # gitignored
 $EDITOR terraform.tfvars
 
-export CLOUDFLARE_API_TOKEN=...   # Zone > DNS > Edit
-# OpenStack auth comes from ~/.config/openstack/clouds.yaml, not the shell.
+op run --env-file=op.env -- tofu init
+op run --env-file=op.env -- tofu plan       # read this. every time.
+op run --env-file=op.env -- tofu apply
 
-tofu init
-tofu fmt -check
-tofu validate
-tofu plan       # read this. every time.
-tofu apply
+tofu fmt -check && tofu validate            # no credentials needed
 ```
+
+Every credential is resolved from 1Password when the command starts and exists
+only in that process. Nothing is exported into a shell, there is no
+`~/.aws/credentials` and no `clouds.yaml` on disk, and rotating a token is one
+edit to one vault item. `op.env` is committed because it holds `op://`
+references rather than values — see [op.env](op.env) and
+[../docs/CREDENTIALS.md](../docs/CREDENTIALS.md).
 
 `fmt -check` and `validate` pass as committed — they were run against this
 configuration, unlike the runbook, which is still written from design rather
@@ -69,7 +74,7 @@ delivers.
 | **Formatting the data volume** | One `mkfs` in phase 2. Doing it in cloud-init means a first-boot script that can reformat the disk holding the mail |
 | **The relay's SMTP user** | Same reason. Which means the sending credential never enters state — an accidental improvement on the SES version, which stored one permanently |
 | **The R2 state bucket** | Chicken-and-egg: state has to live somewhere before there is state. One `wrangler` command, once |
-| **Credentials** | IaC references secrets, never contains them. Doubly so in a public repo |
+| **Credentials** | IaC references secrets, never contains them. `op.env` names them; 1Password holds them |
 | **The DKIM private key** | Stalwart generates it on the box. We declare its *publication*; the key material is state |
 | **Stalwart's own config** | Versioned separately. Modelling mail-server internals as TF resources gives a bad module and a worse mail server |
 

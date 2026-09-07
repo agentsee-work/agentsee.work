@@ -24,6 +24,11 @@ crash.*.log
 *_rsa
 *_ed25519
 
+# op.env IS committed. It holds op:// references, not values, and resolving one
+# needs an unlocked 1Password account the file knows nothing about. Listed here
+# so that adding a blanket *.env rule later doesn't silently hide it.
+!op.env
+
 # The lock file IS committed — it pins provider checksums, and that is the
 # point of it. Not ignored, listed here so nobody "tidies" it away.
 !.terraform.lock.hcl

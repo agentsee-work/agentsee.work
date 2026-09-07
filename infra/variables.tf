@@ -85,24 +85,6 @@ variable "dkim_public_key" {
 }
 
 # ─── Host ────────────────────────────────────────────────────────────────────
-variable "openstack_cloud" {
-  description = <<-EOT
-    Name of the entry in ~/.config/openstack/clouds.yaml to authenticate with.
-    Infomaniak names it after the project — "PCP-XXXXXXX" — and the file is
-    downloaded from their manager.
-
-    Not a secret in itself; the clouds.yaml it points at holds the password,
-    and that file never enters this repo.
-  EOT
-  type        = string
-}
-
-variable "openstack_region" {
-  description = "Infomaniak's OpenStack region."
-  type        = string
-  default     = "dc3-a"
-}
-
 variable "public_network" {
   description = <<-EOT
     Network the instance attaches to. ext-net1 is Infomaniak's dual-stack
