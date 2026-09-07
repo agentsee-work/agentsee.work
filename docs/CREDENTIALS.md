@@ -146,23 +146,61 @@ than making a contractor an Administrator.
 **The Emergency Kit goes on paper, offline, both of us.** 1Password has an
 account-specific **Secret Key** as well as your password, and *you cannot sign
 in on a new device without it*. It is not recoverable by support and it is not
-in your head. Print the Emergency Kit, store it away from the passwords, and do
-it before there is anything in the vault worth losing.
+in your head. Write it down or print it, store it away from the passwords, and
+do it before there is anything in the vault worth losing.
 
-Administrator recovery covers the case where one of us is locked out. It does
-not cover both of us at once, or the account being gone. The paper does.
+**Then sign out and sign back in using only the paper.** A kit nobody has tested
+is a guess about a character that may have been transcribed wrong, and the test
+costs two minutes now against everything later. James's is written by hand and
+verified this way, which is better than an untested printout.
+
+⚠ The kit has a **blank for the account password**, and a Secret Key alone will
+not get you in. Owner recovery covers one of us being locked out — the paper's
+real job is the case where we both are, or the account is gone, and that is
+precisely the case where a missing password matters.
 
 **The vault's own 2FA is never in the vault.** Storing a vault's second factor
 inside itself is a circular dependency that only reveals itself when locked out.
 Each of us secures our 1Password login with an authenticator on our own phone —
 and the recovery codes for *that* go on paper, one copy each, offline.
 
-**TOTP for shared accounts goes in the vault; personal 2FA does not.** Putting
-the seed next to the password collapses two factors into one, so this is a real
-trade and worth naming: it means a compromised vault loses the account outright.
-We take it for *shared* accounts because the alternative — TOTP on one person's
-phone — guarantees a lockout the first time that person is unavailable, which is
-a certainty rather than a risk. Personal logins keep genuine 2FA separation.
+**Prefer a passkey in the shared vault; fall back to TOTP.** Both live in the
+vault and both are therefore reachable by either of us, which is the property
+that matters — 2FA on one person's phone guarantees a lockout the first time
+that person is unavailable, which is a certainty rather than a risk.
+
+Where they differ is the attack we will actually see. A TOTP code can be typed
+into a convincing fake login page and replayed by whoever is running it; a
+passkey is bound to the real origin and simply will not offer itself to the
+fake. Nobody is going to break our crypto. Somebody might well send Abrar a
+Cloudflare login page.
+
+Both collapse two factors into one, and that is a real trade worth naming: a
+compromised vault loses the account outright. We take it for *shared* accounts
+because the alternative is worse. Personal logins keep genuine 2FA separation.
+
+### Security keys: not yet, and not one
+
+A hardware key is the one factor that does *not* collapse into the vault, which
+is exactly why it is the right protection for the vault itself rather than for
+the accounts inside it.
+
+It is not bought yet, for two reasons:
+
+- **It cannot be shared.** Making it work across shared accounts means
+  registering both our keys on each one, and a spare each so that losing one is
+  an inconvenience rather than a lockout. That is four keys, around £200.
+- **Fewer than four is worse than none.** A single key is a new single point of
+  failure, which is this file's recurring rule wearing yet another hat.
+  1Password's own guidance is to have a recovery code or authenticator
+  configured *before* adding a key, not after.
+
+Against a password plus a Secret Key that is itself unphishable, the marginal
+gain today is real but small.
+
+**The trigger is the first client** — the same trigger as the Business plan.
+The moment this vault holds credentials that are not ours to lose, the
+calculation changes, and the first thing to protect is the vault.
 
 **No recovery path may run through the thing it recovers.** Four instances of
 one rule, and they keep appearing because it is easy to miss:
