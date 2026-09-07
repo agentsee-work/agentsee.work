@@ -81,31 +81,66 @@ With Infomaniak's box at £60–80, the pair comes to **≈£230–250/year** be
 the personal savings and **≈£155–175** after. Either way it is over the original
 £100, and worth naming rather than hiding in a subtotal.
 
-## One vault, three tags
+## Vaults
 
-| Tag | Holds |
-|---|---|
-| `social` | The platform logins and their TOTP seeds |
-| `infra` | Cloudflare, Infomaniak, SMTP2GO, R2 tokens, GitHub org, registrar |
-| `mail` | Mailbox passwords, app passwords, the restic passphrase |
+Six, created rather than planned, and the structure is the filing — there are
+no tags. A second scheme layered on top of vaults would be two answers to the
+same question, which is how items end up findable by neither.
 
-**One shared `AgentSee` vault, not three.** 1Password's permissions are per
-vault, so three vaults means three permission sets to keep in sync for two
-people who both need all of it. Tags give the same organisation with none of
-the drift.
+| Vault | Holds | The test |
+|---|---|---|
+| **Engineering** | Cloudflare API token, R2 tokens, Infomaniak Public Cloud, SMTP2GO SMTP user | Read by a machine |
+| **IT** | Cloudflare and Infomaniak account logins, registrar, GitHub org, mailboxes, healthchecks.io | Typed by a person |
+| **Security** | The restic passphrase. Where the Emergency Kits physically are — not what is in them | Losing it loses something unrecoverable |
+| **Social** | Platform logins and their passkeys | Obvious |
+| **Finance** | Bank, invoicing, accounting | Empty until there is money |
+| **Shared** | Nothing | See below |
 
-Business would let us split them with proper group permissions, which is why
-the answer changes the moment there is someone who should see one and not the
-others. It does not change for two people who need everything.
+### The rule that makes it decidable
 
-**Split into a real vault the moment someone should *not* see something** — a
-contractor, or a client's credentials. That is when the boundary is real and a
-vault is the right tool for it. Until then it is filing, and tags are filing.
+**Engineering is machine-read; IT is human-typed.** That is the whole boundary,
+and it is the one that would otherwise cost an argument every time — "Cloudflare"
+is both an API token and a dashboard login, and they are not the same secret.
+The API token that `op run` resolves goes in Engineering. The login you sign
+into with a browser goes in IT. Same company, different vaults, and each is in
+the one you would look in.
 
-Personal items stay in your own **Private** vault, which nobody else can see —
-including Owners, who can recover an account but cannot read what is in it. The
-shared vault is for things that are genuinely shared, and putting a personal
-login in it is how the boundary starts to blur.
+The same split settles GitHub: the org account is IT, a deploy token is
+Engineering. And SMTP2GO: the dashboard login is IT, the SMTP user the mail
+server authenticates with is Engineering.
+
+Security is not "important things" — everything here is important. It is
+**things whose loss cannot be undone.** A leaked R2 token is a bad afternoon;
+you mint another. A lost `RESTIC_PASSWORD` turns every backup into ciphertext
+nobody can read, permanently. Only the second kind belongs there, or the vault
+becomes a synonym for "sensitive" and stops meaning anything.
+
+### Why this beats the single vault this file used to specify
+
+Everything `op run` resolves now lives in **one** vault. So when a service
+account is eventually created for CI, it gets read on Engineering and nothing
+else — least privilege by construction, rather than something to be discovered
+in an audit. That was awkward with one shared vault and is free here.
+
+### Shared stays empty
+
+It came with the account and it is the path of least resistance, which is
+exactly what makes it dangerous: things land there by default rather than by
+decision.
+
+So it has a job, and the job is to hold nothing. **An item in Shared means an
+unfiled item and nothing else** — an inbox to be triaged, not a drawer. That is
+checkable at a glance, which "don't let it become a dumping ground" is not.
+
+### What this does not yet buy
+
+Six vaults with identical permissions is filing, not security. The separation
+starts paying the day there is a third person or a service account, and until
+then it is an investment in not having to reorganise then. Worth being straight
+about that rather than describing it as defence in depth.
+
+Private items stay in your own **Private** vault, which nobody else can see —
+including Owners, who can recover an account but cannot read what is in it.
 
 Anything belonging to *you* rather than to AgentSee belongs in the linked
 Families account instead, so it survives you ever leaving the Business team.
@@ -114,8 +149,8 @@ Families account instead, so it survives you ever leaving the Business team.
 it — partners, family — with access to its shared vaults. An AgentSee
 credential dragged into one of those is a business secret handed to someone
 outside the business, and the drag is a two-second gesture between two accounts
-sitting in the same sidebar. Business credentials go to the `AgentSee` vault or
-to your own Private vault, never to a family shared vault.
+sitting in the same sidebar. Business credentials go to a business vault or to
+your own Private vault, never to a family shared vault.
 
 ## Rules
 
@@ -267,9 +302,12 @@ apply, so rename deliberately and grep `infra/op.env` first.
 - [ ] **Both print the Emergency Kit** and store it apart from the passwords.
 - [x] James: personal account linked, free Families membership claimed.
 - [ ] Abrar does the same — it is per-member, not something you can grant him.
-- [ ] Create the shared `AgentSee` vault and the three tags. The name matters —
-      [`infra/op.env`](../infra/op.env) resolves `op://AgentSee/...` and will
-      fail on a rename.
+- [x] Create the vaults: Engineering, Finance, IT, Security, Social, plus the
+      Shared one that came with the account.
+- [ ] Empty `Shared` and keep it that way.
+- [ ] File the existing secrets by the machine-read/human-typed rule above.
+      [`infra/op.env`](../infra/op.env) resolves `op://Engineering/...`, so
+      those three items must be in **Engineering** under exactly those names.
 - [ ] Install the CLI and turn on the desktop-app integration, so `op run` can
       unlock without a session token in the shell.
 - [ ] *Then* the social signups in [SOCIAL.md](SOCIAL.md) — so each TOTP seed

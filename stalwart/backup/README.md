@@ -17,11 +17,15 @@ unrecoverable ciphertext** — R2 will happily keep bytes you can never read.
 
 It is more important than the server, the mail, or any API token, because
 everything else can be rebuilt and this cannot. It belongs in the vault
-(tagged `mail`, [../../docs/CREDENTIALS.md](../../docs/CREDENTIALS.md))
+(the **Security** vault, [../../docs/CREDENTIALS.md](../../docs/CREDENTIALS.md))
 **and** on paper, offline, with the vault's own recovery codes.
 
 Storing it only in the vault creates a loop: if the vault is what you lost, the
 backups are gone too.
+
+It is in Security rather than Engineering because that vault is specifically for
+things whose loss cannot be undone. A leaked R2 token is a bad afternoon and you
+mint another; this one has no replacement.
 
 ## Setup
 

@@ -49,8 +49,8 @@ output "next_steps" {
        today at p=none, discarded silently at p=reject.
 
     2. Create an SMTP user (Sending > SMTP Users). Those credentials go
-       straight to the vault, tagged `infra`; they are not managed here
-       and never enter state.
+       straight to the Engineering vault; they are not managed here and
+       never enter state.
 
     2b. Format and mount the data volume before installing anything —
        MAIL-BUILD-RUNBOOK phase 2. It is deliberately not done by

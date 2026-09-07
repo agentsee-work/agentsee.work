@@ -19,7 +19,7 @@ worse than none, because it gets trusted.
 |---|---|---|
 | Cloudflare | ✅ have | Zone, R2, Pages |
 | GitHub | ✅ have | `agentsee-work` org |
-| 1Password | ✅ Business, Abrar invited | [CREDENTIALS.md](CREDENTIALS.md) — but the `AgentSee` vault and the second Owner are still outstanding, and `op run` needs the vault |
+| 1Password | ✅ Business, vaults created | [CREDENTIALS.md](CREDENTIALS.md) — the second Owner is still outstanding, and `op run` needs the three Engineering items to exist |
 | **Infomaniak** | needed | Payment card. Public Cloud, not the hosted mail — see below |
 | **SMTP2GO** | needed | Free tier, no card. The outbound relay — see below |
 | healthchecks.io | needed | Free. The backup dead-man's switch |
@@ -99,11 +99,11 @@ Everything else — social platforms, Cal.com, anything not load-bearing — use
 
 | Need | Where |
 |---|---|
-| Cloudflare token | vault, `infra`. Zone > DNS > Edit. **Not** the Pages-only CI token |
+| Cloudflare token | **Engineering** vault. Zone > DNS > Edit. **Not** the Pages-only CI token |
 | 1Password CLI | local — `op --version`. `op run` injects everything below |
-| Infomaniak Public Cloud | vault, `infra`. Username, project, password from the RC file |
-| SMTP2GO SMTP user | vault, `infra`. Sending > SMTP Users — not the account login |
-| R2 tokens ×2 | vault, `infra`. One for state, one for backups. Separate deliberately |
+| Infomaniak Public Cloud | **Engineering** vault. Username, project, password from the RC file. The *account login* is IT |
+| SMTP2GO SMTP user | **Engineering** vault. Sending > SMTP Users — the account login is IT |
+| R2 tokens ×2 | **Engineering** vault. One for state, one for backups. Separate deliberately |
 | OpenTofu ≥ 1.8 | local — `tofu version` |
 | SSH key | local — public half goes in `terraform.tfvars` |
 
@@ -143,7 +143,8 @@ CNAMEs — return-path, DKIM and link tracking. Keep them; they go into
 `terraform.tfvars` in phase 1.
 
 While you are there: **Sending > SMTP Users**, create one. Those credentials go
-to the vault. They are not managed by OpenTofu and never enter state.
+to the **Engineering** vault. They are not managed by OpenTofu and never enter
+state.
 
 **Turn link tracking off.** It rewrites URLs in the message body, which is both
 unwanted for correspondence and likely to invalidate the DKIM signature
