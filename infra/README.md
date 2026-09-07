@@ -69,6 +69,7 @@ delivers.
 
 | Not automated | Why |
 |---|---|
+| **Ordering Public Cloud, and the first project** | The tenancy is the commercial boundary. See below |
 | **The SMTP2GO sender domain** | No provider exists, so the domain is added in their dashboard and the three CNAMEs it issues are pasted back as a variable |
 | **Reverse DNS** | Designate exposes floating-IP PTR at `/reverse/floatingips`, which the OpenStack provider has no resource for. On `ext-net1` it is platform-assigned anyway — and since we never deliver direct-to-MX, it barely matters |
 | **Formatting the data volume** | One `mkfs` in phase 2. Doing it in cloud-init means a first-boot script that can reformat the disk holding the mail |
@@ -82,6 +83,32 @@ There is always a manual root of trust: something holds the credential that
 lets the automation run, and it cannot be automated away. That boundary is
 documented in [../docs/CREDENTIALS.md](../docs/CREDENTIALS.md) rather than
 hidden.
+
+### The tenancy is clicked. The VPS is not.
+
+Worth stating plainly, because the two get conflated and the conflation is an
+argument against IaC that IaC doesn't deserve.
+
+**Nothing about the server is created by hand.** The instance, its flavour and
+image, the data volume, both security groups and every rule in them, the network
+attachment, and all the DNS are in these files. There is no dashboard step that
+produces a box.
+
+What is clicked, once, is the layer *above* OpenStack: ordering Public Cloud and
+creating the project and its `PCU-` user. That is the tenancy — a billing
+relationship and an identity for the automation to authenticate as — and it is
+not API-able at Infomaniak or anywhere else worth using. AWS wants an account
+and an IAM user before Terraform runs; Hetzner wants a project and a token; GCP
+wants a billing account. Anti-fraud is most of the reason, and the rest is that
+you cannot have an API credential before you have the thing that issues it.
+
+So the honest shape of it is: **one click-op, once, producing three strings**
+that go into the vault and are never touched again. From there,
+`op run -- tofu apply` is the only thing that builds anything.
+
+If that ever stops being true — if a hand-fix on the box or a resource created
+in Horizon is load-bearing — that is the bug, and the rule below is the one
+being broken.
 
 ## The host is Infomaniak, and the provider is generic
 

@@ -46,9 +46,18 @@ nothing, and there is no workaround. Ask them first — the wording to use is in
 the checkpoint below.
 
 **Public Cloud is a separate product to order**, not something the account has
-by default. Verifying your identity gets you an Infomaniak account; it does not
-get you a project. Order it, and you land on a dashboard with **Create a
-project**.
+by default, and **projects live inside an ordered Public Cloud** — which is why
+there is no mention of projects anywhere until you have one. Verifying your
+identity gets you an Infomaniak account; it does not get you a project.
+
+At `manager.infomaniak.com`, find the Public Cloud product section and use the
+button to order one. The listing then gives each Public Cloud a tree icon that
+opens its projects page, and an arrow that opens the OpenStack Horizon
+dashboard directly.
+
+This is the only part of the build done by hand, and it is the tenancy rather
+than the server — see [infra/README.md](../infra/README.md#the-tenancy-is-clicked-the-vps-is-not).
+Nothing about the box is created this way.
 
 Creating the project mints an OpenStack user named `PCU-XXXXXXX` — auto-
 generated, not editable — and the project itself gets `PCP-XXXXXXX`.
