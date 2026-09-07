@@ -85,16 +85,87 @@ variable "dkim_public_key" {
 }
 
 # ─── Host ────────────────────────────────────────────────────────────────────
-variable "server_type" {
-  description = "Hetzner type. Stalwart needs 512 MB; cx22 is 2 vCPU / 4 GB."
+variable "openstack_cloud" {
+  description = <<-EOT
+    Name of the entry in ~/.config/openstack/clouds.yaml to authenticate with.
+    Infomaniak names it after the project — "PCP-XXXXXXX" — and the file is
+    downloaded from their manager.
+
+    Not a secret in itself; the clouds.yaml it points at holds the password,
+    and that file never enters this repo.
+  EOT
   type        = string
-  default     = "cx22"
 }
 
-variable "location" {
-  description = "Hetzner location. fsn1/nbg1/hel1 are EU."
+variable "openstack_region" {
+  description = "Infomaniak's OpenStack region."
   type        = string
-  default     = "fsn1"
+  default     = "dc3-a"
+}
+
+variable "public_network" {
+  description = <<-EOT
+    Network the instance attaches to. ext-net1 is Infomaniak's dual-stack
+    public network: a charged public IPv4 and a free public IPv6.
+
+    See the comment at the top of server.tf for why this rather than a private
+    network and a floating IP.
+  EOT
+  type        = string
+  default     = "ext-net1"
+}
+
+variable "flavor" {
+  description = <<-EOT
+    Instance size. Named a{vcpu}-ram{mb}-disk{gb}-{perf}; -perf1 is 500 IOPS
+    and 200 MB/s.
+
+    Stalwart itself needs 512 MB, so this is oversized for mail on purpose —
+    the box is also the place new things get tried, and an experiment competing
+    with the mail server for memory is a bad way to find out it was too small.
+  EOT
+  type        = string
+  default     = "a2-ram4-disk20-perf1"
+}
+
+variable "image_name" {
+  description = <<-EOT
+    Base image, matched by name. ⚠ VERIFY THIS FIRST — image names here follow
+    "Debian NN codename" and the available releases move:
+
+      openstack image list | grep -i debian
+
+    A wrong name fails at plan time rather than apply time, which is the good
+    kind of failure, but it fails.
+  EOT
+  type        = string
+  default     = "Debian 12 bookworm"
+}
+
+variable "mail_volume_gb" {
+  description = <<-EOT
+    Block volume mounted at /var/lib/stalwart, separate from the root disk so
+    the instance can be destroyed and recreated without taking the mail with
+    it. Marked prevent_destroy in server.tf.
+
+    Two people's correspondence grows slowly; 20 GB is years. Growing it later
+    is an in-place change, shrinking it is not.
+  EOT
+  type        = number
+  default     = 20
+}
+
+variable "lab_ports" {
+  description = <<-EOT
+    Extra inbound TCP ports for experiments, as { "8080" = "why" }. Lands in a
+    security group of its own so that widening the box for something you are
+    trying out is never the same change as widening the mail server.
+
+    Every entry wants a reason in its value. "temporary" is a reason; it is
+    also a thing to grep for later.
+  EOT
+  type        = map(string)
+  default     = {}
 }
 
 variable "ssh_public_key" {

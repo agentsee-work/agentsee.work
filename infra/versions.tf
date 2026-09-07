@@ -1,9 +1,9 @@
 terraform {
   required_version = ">= 1.8"
 
-  # State records every value this configuration manages. This repo is public,
-  # so state must never live in it. R2 is S3-compatible and the Cloudflare
-  # account already exists.
+  # State records every managed value in clear, and gains secrets the moment any
+  # resource has one. This repo is public, so state must never live in it. R2 is
+  # S3-compatible and the Cloudflare account already exists.
   #
   # Bootstrap once, by hand, before the first `tofu init`:
   #
@@ -49,18 +49,31 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "~> 5.0"
     }
-    hcloud = {
-      source  = "hetznercloud/hcloud"
-      version = "~> 1.50"
+
+    # Infomaniak Public Cloud is OpenStack, so the host is declared with the
+    # generic OpenStack provider rather than a vendor one. Their own docs
+    # specify this source and constraint.
+    #
+    # That is a nicer position than it looks: the same configuration would
+    # largely apply to any OpenStack cloud, so the host is the least
+    # vendor-locked part of this repo. Which is the opposite of how it read on
+    # Hetzner, where every resource was hcloud_*.
+    openstack = {
+      source  = "terraform-provider-openstack/openstack"
+      version = "~> 2.0.0"
     }
-    # No relay provider. SMTP2GO does not publish one, so the sender domain is
-    # registered by hand and its records arrive as a variable. See relay.tf.
   }
 }
 
 # Credentials come from the environment, never from this repo:
 #   CLOUDFLARE_API_TOKEN   zone DNS edit on agentsee.work
-#   HCLOUD_TOKEN           Hetzner project token
+#
+# OpenStack auth comes from ~/.config/openstack/clouds.yaml, downloaded from
+# the Infomaniak manager. `cloud` names the entry in that file. The alternative
+# is putting user_name/password in the provider block, which is exactly the
+# thing this repo does not do.
 provider "cloudflare" {}
 
-provider "hcloud" {}
+provider "openstack" {
+  cloud = var.openstack_cloud
+}

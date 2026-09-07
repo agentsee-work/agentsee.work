@@ -1,10 +1,11 @@
 output "mail_server_ipv4" {
-  description = "Public IP. Check the PTR resolves before cutover."
-  value       = hcloud_server.mail.ipv4_address
+  description = "Public IPv4. This is what the A record points at."
+  value       = local.mail_ipv4
 }
 
 output "mail_server_ipv6" {
-  value = hcloud_server.mail.ipv6_address
+  description = "Public IPv6, free on ext-net1."
+  value       = local.mail_ipv6
 }
 
 output "mail_hostname" {
@@ -50,14 +51,19 @@ output "next_steps" {
     2. Create an SMTP user (Sending > SMTP Users). Those credentials go
        straight to the vault; they are not managed here and not in state.
 
+    2b. Format and mount the data volume before installing anything —
+       MAIL-BUILD-RUNBOOK phase 2. It is deliberately not done by
+       cloud-init: a first-boot script that can reformat the volume
+       holding the mail is a bad thing to get subtly wrong.
+
     3. Install Stalwart, then read its generated DKIM public key and set
        dkim_public_key in terraform.tfvars. Re-apply. Until you do, the
        record is absent and nothing warns you.
 
     4. Configure the relay — Settings > SMTP > Outbound > Relay Hosts:
          host  mail.smtp2go.com
-         port  8465, implicit TLS — NOT 465, which Hetzner blocks
-               outbound on new accounts for about a month
+         port  8465, implicit TLS — NOT 465, which hosts commonly
+               block outbound
          user  from step 2
        Then DISABLE DANE and MTA-STS on that route. Both assert things
        about direct-to-MX delivery that are false with a smarthost in the

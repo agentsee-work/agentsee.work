@@ -73,7 +73,7 @@ one rule, and they keep appearing because it is easy to miss:
 |---|---|
 | The vault's 2FA inside the vault | Locked out of the vault, locked out of its key |
 | Mail alerts about mail failures | The alert can't arrive if mail is what broke |
-| `@agentsee.work` on Hetzner, the relay, Cloudflare, Bitwarden | Mail breaks → recovery link goes to broken mail → can't fix mail |
+| `@agentsee.work` on Infomaniak, the relay, Cloudflare, the vault | Mail breaks → recovery link goes to broken mail → can't fix mail |
 
 So the accounts that mail *depends on* use personal addresses. Everything else —
 social platforms, booking, anything not load-bearing — uses
@@ -84,7 +84,7 @@ social platforms, booking, anything not load-bearing — uses
 | Collection | Holds |
 |---|---|
 | `social` | The platform logins and their TOTP seeds |
-| `infra` | Cloudflare, Infomaniak, GitHub org, domain registrar |
+| `infra` | Cloudflare, Infomaniak (Public Cloud **and** clouds.yaml), SMTP2GO, GitHub org, registrar |
 | `mail` | Mailbox passwords, app passwords |
 
 **API tokens live in the vault, and nowhere else that persists.** Specifically:

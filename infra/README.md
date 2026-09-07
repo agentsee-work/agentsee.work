@@ -12,7 +12,7 @@ reason for the comment density. The build it produces is specified in
 versions.tf     providers, and R2 as the state backend
 variables.tf    inputs, including the cutover flag
 dns.tf          Cloudflare: MX, SPF, DKIM, DMARC
-server.tf       Hetzner: box, firewall, PTR
+server.tf       Infomaniak/OpenStack: instance, security groups, data volume
 relay.tf        SMTP2GO's three sender-domain CNAMEs
 outputs.tf      the relay endpoint, and what to do next
 cloud-init.yaml base image only — deliberately not the Stalwart config
@@ -38,7 +38,7 @@ cp terraform.tfvars.example terraform.tfvars   # gitignored
 $EDITOR terraform.tfvars
 
 export CLOUDFLARE_API_TOKEN=...   # Zone > DNS > Edit
-export HCLOUD_TOKEN=...
+# OpenStack auth comes from ~/.config/openstack/clouds.yaml, not the shell.
 
 tofu init
 tofu fmt -check
@@ -50,7 +50,7 @@ tofu apply
 `fmt -check` and `validate` pass as committed — they were run against this
 configuration, unlike the runbook, which is still written from design rather
 than transcribed from a successful run. `validate` checks syntax and internal
-references only; it does not talk to Cloudflare or Hetzner, so it says nothing
+references only; it does not talk to Cloudflare or Infomaniak, so it says nothing
 about whether the plan is *correct*.
 
 `tofu output next_steps` prints the sequence for what follows.
@@ -65,6 +65,8 @@ delivers.
 | Not automated | Why |
 |---|---|
 | **The SMTP2GO sender domain** | No provider exists, so the domain is added in their dashboard and the three CNAMEs it issues are pasted back as a variable |
+| **Reverse DNS** | Designate exposes floating-IP PTR at `/reverse/floatingips`, which the OpenStack provider has no resource for. On `ext-net1` it is platform-assigned anyway — and since we never deliver direct-to-MX, it barely matters |
+| **Formatting the data volume** | One `mkfs` in phase 2. Doing it in cloud-init means a first-boot script that can reformat the disk holding the mail |
 | **The relay's SMTP user** | Same reason. Which means the sending credential never enters state — an accidental improvement on the SES version, which stored one permanently |
 | **The R2 state bucket** | Chicken-and-egg: state has to live somewhere before there is state. One `wrangler` command, once |
 | **Credentials** | IaC references secrets, never contains them. Doubly so in a public repo |
@@ -75,6 +77,38 @@ There is always a manual root of trust: something holds the credential that
 lets the automation run, and it cannot be automated away. That boundary is
 documented in [../docs/CREDENTIALS.md](../docs/CREDENTIALS.md) rather than
 hidden.
+
+## The host is Infomaniak, and the provider is generic
+
+Infomaniak Public Cloud is OpenStack, so the box is declared with the community
+`terraform-provider-openstack` rather than a vendor-specific one. That is a
+better position than it sounds: almost none of `server.tf` is Infomaniak-specific,
+so the host is the *least* locked-in part of this repo. On Hetzner every
+resource was `hcloud_*`.
+
+It was chosen over Hetzner on conduct rather than technology, at roughly
+£15–30/year more — the reasoning is in
+[../docs/MAIL-SELFHOST.md](../docs/MAIL-SELFHOST.md#why-infomaniak-and-why-that-costs-more).
+
+### The box is also a lab, and that is a risk to this whole design
+
+It is deliberately oversized, and it is where new things get tried. That cuts
+directly against the rebuild property below, because experiments mean hand-fixes
+and hand-fixes are how IaC starts lying.
+
+Two things hold the line, and neither is enforced by anything but discipline:
+
+- **A separate `lab` security group.** Opening a port for something you are
+  testing is a change to a resource mail has nothing to do with, so it can
+  never quietly widen the mail server's exposure. If a port seems to belong in
+  both, it belongs in neither yet.
+- **`/opt/lab`, in containers, not backed up.** Nothing outside it gets touched
+  by hand. If something there earns permanence it earns a place in the repo
+  first.
+
+The test is simple and worth running for real: can you destroy the instance and
+get the mail server back from this repo plus a restore? The day the answer is no,
+it stopped being infrastructure and became a pet.
 
 ## The relay is SMTP2GO, and it is meant to be swappable
 
@@ -120,7 +154,7 @@ Before flipping it, all of:
 ## Rebuilding is the normal repair
 
 The server is disposable: config comes from this repo, mail comes from backups.
-So `tofu destroy -target=hcloud_server.mail && tofu apply` plus a restore is a
+So `tofu destroy -target=openstack_compute_instance_v2.mail && tofu apply` is a
 legitimate first response to a broken box, and it is *expected to work*. If it
 doesn't, that's the bug — and better found deliberately than during an outage.
 

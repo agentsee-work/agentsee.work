@@ -8,6 +8,10 @@
 #
 # This file is in `ignore_changes` on the server, because editing it should not
 # silently mean "destroy the mailbox host". Change it, then rebuild on purpose.
+#
+# ⚠ The login is `debian`, not root. OpenStack images inject the keypair into
+# the image's default user; the hardening below permits root by key but nothing
+# puts a key there. Use `ssh debian@...` and sudo.
 
 package_update: true
 package_upgrade: true
@@ -46,7 +50,21 @@ write_files:
       A hand-fix at 2am is how the IaC starts lying, and IaC that lies is
       worse than none: it is confidently wrong.
 
+      That rule is under the most pressure here, because this box is also
+      where new things get tried, and trying things means hand-fixing.
+
+      So: experiments live in /opt/lab, in containers, and nothing outside
+      /opt/lab gets touched by hand. /opt/lab is NOT backed up and NOT
+      rebuilt — if something there earns permanence, it earns a place in
+      the repo first. The day you cannot rebuild this box from the repo
+      plus a restore is the day the mail server became a pet.
+
 runcmd:
   - systemctl enable --now docker
   - systemctl enable --now fail2ban
   - systemctl restart ssh
+  # Experiments go here, and only here. Not backed up, deliberately.
+  - install -d -m 0755 /opt/lab
+  # NOT the mail volume. That is formatted and mounted by hand in phase 2 —
+  # a first-boot script that can reformat the disk holding the mail is a bad
+  # thing to get subtly wrong, and cloud-init reruns on rebuild.

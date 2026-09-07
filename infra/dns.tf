@@ -28,17 +28,18 @@ resource "cloudflare_dns_record" "mail_a" {
   zone_id = var.cloudflare_zone_id
   name    = local.mail_fqdn
   type    = "A"
-  content = hcloud_server.mail.ipv4_address
+  content = local.mail_ipv4
   ttl     = 300
   proxied = false
   comment = "Mail server. MUST stay DNS-only — Cloudflare cannot proxy SMTP."
 }
 
+# Free on ext-net1, so there is no reason not to. Some senders are v6-first.
 resource "cloudflare_dns_record" "mail_aaaa" {
   zone_id = var.cloudflare_zone_id
   name    = local.mail_fqdn
   type    = "AAAA"
-  content = hcloud_server.mail.ipv6_address
+  content = local.mail_ipv6
   ttl     = 300
   proxied = false
   comment = "Mail server. MUST stay DNS-only — Cloudflare cannot proxy SMTP."

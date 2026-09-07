@@ -20,31 +20,34 @@ worse than none, because it gets trusted.
 | Cloudflare | ✅ have | Zone, R2, Pages |
 | GitHub | ✅ have | `agentsee-work` org |
 | **Bitwarden** | needed **first** | [CREDENTIALS.md](CREDENTIALS.md). Everything below produces a credential |
-| **Hetzner** | needed | Payment card **and photo ID** — see below |
+| **Infomaniak** | needed | Payment card. Public Cloud, not the hosted mail — see below |
 | **SMTP2GO** | needed | Free tier, no card. The outbound relay — see below |
 | healthchecks.io | needed | Free. The backup dead-man's switch |
 | Cal.com | later | Free tier. Guest booking, not on this path |
 
-### ⚠ Hetzner signup now needs government ID
+### The host is Infomaniak Public Cloud
 
-This entry used to warn about a manual fraud review taking a day or two. That
-is out of date. Hetzner moved cloud onboarding to iDenfy, which asks for a
-government-issued ID document and a biometric selfie, and is **automated** —
-faster than the process it replaced, though edge cases still route to a human.
+**Public Cloud**, their OpenStack IaaS — not kSuite, which is the hosted-mail
+product this build exists instead of. Same company, different thing, and it is
+easy to sign up for the wrong one.
 
-Two things follow that are easy to trip on:
+Chosen over Hetzner on conduct rather than technology, and it costs roughly
+£15–30/year more. The reasoning is in
+[MAIL-SELFHOST.md](MAIL-SELFHOST.md#why-infomaniak-and-why-that-costs-more).
 
-- Hetzner advises against signing up with a free email provider. Our own rule
-  says Hetzner must **not** use `@agentsee.work`, because nothing in the
-  recovery path for mail may depend on mail. A personal Gmail is the collision
-  of those two, and it is the one to expect friction from.
-- Don't sign up over a VPN.
+**Outbound port 25 is blocked by default**, openable by a support request. We
+never need it: nothing is ever sent direct-to-MX, and the relay is reached on
+8465. Don't file the request — an unused open port is only a liability.
 
-**Their network blocks outbound 25 and 465 for roughly the first month**,
-lifted by a limit request after the first invoice. Inbound 25 is open from day
-one, which is the port an MX actually needs. The outbound block is why the
-relay route uses **8465** — see phase 3. Nothing in this build waits on that
-limit request.
+⚠ **Inbound 25 is the one thing to confirm before building anything.** Their
+documentation describes the block as *outgoing*, which is the normal shape and
+would leave us fine, but it does not say so about ingress. An MX is port 25 or
+nothing, and there is no workaround. Ask them first — the wording to use is in
+the checkpoint below.
+
+After signup, download **clouds.yaml** from the manager (Public Cloud >
+project > OpenStack RC / clouds.yaml) to `~/.config/openstack/clouds.yaml`.
+That file holds the password and must never be committed.
 
 **The relay is SMTP2GO.** Free tier is 1,000/month with no card, which two
 people's correspondence will not approach. It was chosen over AWS SES because
@@ -72,8 +75,8 @@ Set up `accounts@agentsee.work` fanned to both of us before anything else
 
 ### ⚠ Except for the accounts mail depends on
 
-**Hetzner, the relay provider, Cloudflare and Bitwarden must NOT use
-`@agentsee.work`.** Use personal addresses.
+**Infomaniak, the relay provider, Cloudflare and the password manager must
+NOT use `@agentsee.work`.** Use personal addresses.
 
 If mail breaks and the recovery link for the server that runs your mail is sent
 to your broken mail, you are locked out of the thing you need to fix it. The
@@ -91,7 +94,7 @@ Everything else — social platforms, Cal.com, anything not load-bearing — use
 | Need | Where |
 |---|---|
 | Cloudflare token | vault, `infra`. Zone > DNS > Edit. **Not** the Pages-only CI token |
-| Hetzner token | vault, `infra`. Project, read+write |
+| Infomaniak clouds.yaml | vault, `infra`. Holds the Public Cloud password |
 | SMTP2GO SMTP user | vault, `infra`. Sending > SMTP Users — not the account login |
 | R2 tokens ×2 | vault, `infra`. One for state, one for backups. Separate deliberately |
 | OpenTofu ≥ 1.8 | local — `tofu version` |
@@ -143,9 +146,29 @@ to the vault. They are not managed by OpenTofu and never enter state.
 unwanted for correspondence and likely to invalidate the DKIM signature
 Stalwart applies before handoff.
 
+**And open a ticket with Infomaniak about inbound 25.** Do it first; it gates
+everything and nothing else depends on the answer. Something like:
+
+> We are deploying a Public Cloud instance to run a mail server (Stalwart) for
+> our own domain, on `ext-net1`. Outbound mail goes via an authenticated
+> third-party relay on port 8465, so **we are not asking for outbound port 25
+> to be opened** and do not need it.
+>
+> Can you confirm that **inbound** connections to port 25 reach an instance on
+> `ext-net1`, so the instance can act as the MX for our domain?
+
+The distinction matters and support will assume you mean outbound if you don't
+draw it, because that is what everyone else is asking about.
+
 > ✅ **Checkpoint 0** — both buckets exist, `aws --profile r2-tfstate s3 ls`
-> authenticates, and SMTP2GO shows the sender domain with three CNAMEs to
-> publish and an SMTP user created.
+> authenticates, SMTP2GO shows the sender domain with three CNAMEs to publish
+> and an SMTP user created, `~/.config/openstack/clouds.yaml` is in place, and
+> **Infomaniak has confirmed inbound 25 in writing.**
+
+**If inbound 25 turns out to be closed and they won't open it**, stop and
+re-read [MAIL-SELFHOST.md](MAIL-SELFHOST.md). Owning the inbox is the whole
+point of this path; without it there is no build, only kSuite. The box would
+still be worth having as somewhere to run things — just not this.
 
 ---
 
@@ -157,7 +180,11 @@ cp terraform.tfvars.example terraform.tfvars
 $EDITOR terraform.tfvars          # ssh_public_key at minimum
 
 export CLOUDFLARE_API_TOKEN=...
-export HCLOUD_TOKEN=...
+# OpenStack auth is read from ~/.config/openstack/clouds.yaml, not the
+# environment. `openstack_cloud` in tfvars names the entry to use.
+
+# ⚠ Confirm the image name exists before the first plan — they move:
+openstack image list | grep -i debian
 
 tofu init
 tofu fmt -check
@@ -170,38 +197,70 @@ Put the three SMTP2GO CNAMEs into `terraform.tfvars` as
 `smtp2go_cname_records` before applying — they are the one input phase 0
 produced.
 
-`enable_apex_mx` stays `false`. The plan should create the server, firewall,
-PTR, the `mail.` records, the `test.` MX and SPF, DMARC at `p=none`, and the
-three relay CNAMEs — **and nothing at the apex**. If you see the apex MX in the
-plan, stop and check the variable.
+`enable_apex_mx` stays `false`. The plan should create the instance, the two
+security groups, the data volume, the `mail.` A and AAAA records, the `test.`
+MX and SPF, DMARC at `p=none`, and the three relay CNAMEs — **and nothing at
+the apex**. If you see the apex MX in the plan, stop and check the variable.
 
 ```sh
 tofu output next_steps
 tofu output smtp2go_records_present    # must be true
 ```
 
-> ✅ **Checkpoint 1** — `dig +short mail.agentsee.work` returns the Hetzner IP,
-> `dig +short agentsee.work MX` still returns **Cloudflare**, you can
-> `ssh root@mail.agentsee.work`, and SMTP2GO's dashboard shows the sender
+> ✅ **Checkpoint 1** — `dig +short mail.agentsee.work` returns the instance
+> IPv4 and `dig +short mail.agentsee.work AAAA` the IPv6, `dig +short
+> agentsee.work MX` still returns **Cloudflare**, you can
+> `ssh debian@mail.agentsee.work`, and SMTP2GO's dashboard shows the sender
 > domain as verified rather than pending.
 
+The login is **`debian`**, not root — OpenStack images inject the keypair into
+the image's default user.
+
 **Rollback:** `tofu destroy`. Nothing live has changed.
+
+⚠ It will refuse, because the data volume is `prevent_destroy`. That guard is
+the point: destroying the instance should be routine and destroying the mail
+should not. To actually tear everything down, remove the `lifecycle` block in
+`server.tf` first — a deliberate edit, which is the intent.
 
 ---
 
 ## Phase 2 — Install Stalwart
 
+First, the data volume. It is attached but raw, and Stalwart's datastore lives
+on it so that rebuilding the instance does not take the mail with it:
+
 ```sh
-ssh root@mail.agentsee.work
-install -d -m 0755 /opt/agentsee
-git clone <repo> /opt/agentsee/repo
-ln -s /opt/agentsee/repo/stalwart /opt/agentsee/stalwart
+ssh debian@mail.agentsee.work
+lsblk                                  # expect vdb, ~20G, no filesystem
+
+# ⚠ CHECK lsblk FIRST. mkfs on the wrong device is unrecoverable, and on a
+# rebuilt box the volume already holds the mail — formatting it is the one
+# irreversible mistake available in this phase.
+sudo mkfs.ext4 -L stalwart /dev/vdb    # ONLY if it has no filesystem
+
+sudo install -d -m 0755 /var/lib/stalwart
+echo 'LABEL=stalwart /var/lib/stalwart ext4 defaults,noatime 0 2' | sudo tee -a /etc/fstab
+sudo mount -a && df -h /var/lib/stalwart
+```
+
+Mounting by **label** rather than `/dev/vdb` on purpose: device names are
+assignment order, and a second volume added later can renumber them. A mail
+server whose datastore silently mounted the wrong disk is a bad morning.
+
+Then the application:
+
+```sh
+sudo install -d -m 0755 /opt/agentsee
+sudo git clone <repo> /opt/agentsee/repo
+sudo ln -s /opt/agentsee/repo/stalwart /opt/agentsee/stalwart
 
 cd /opt/agentsee/stalwart
-echo "RELAY_SMTP_PASSWORD=<from the vault>" > .env && chmod 0600 .env
+echo "RELAY_SMTP_PASSWORD=<from the vault>" | sudo tee .env >/dev/null
+sudo chmod 0600 .env
 
-docker compose up -d
-docker compose logs -f
+sudo docker compose up -d
+sudo docker compose logs -f
 ```
 
 ⚠ **Verify the image name first.** The project renamed from `mail-server` to
@@ -211,8 +270,14 @@ Complete the setup wizard at `https://mail.agentsee.work` — admin account,
 domain `agentsee.work`, listeners, and ACME so TLS renews itself. Port 80 is
 open for the challenge.
 
-> ✅ **Checkpoint 2** — WebAdmin loads over **valid** TLS (not self-signed), and
-> `openssl s_client -connect mail.agentsee.work:25 -starttls smtp` completes.
+> ✅ **Checkpoint 2** — `df -h /var/lib/stalwart` shows the volume mounted,
+> WebAdmin loads over **valid** TLS (not self-signed), and
+> `openssl s_client -connect mail.agentsee.work:25 -starttls smtp` completes
+> **from somewhere else on the internet**.
+
+That last one is the real test of inbound 25, and it has to be run from off the
+box. If it fails, the answer Infomaniak gave in phase 0 was about egress only,
+and the build stops here rather than at cutover.
 
 ---
 
@@ -302,8 +367,7 @@ openssl s_client -connect mail.smtp2go.com:8465 -quiet
 ```
 
 If that hangs, the host is filtering the port. **Do not "fix" it by moving to
-465** — that is the port Hetzner blocks for the first month. 2525 is the
-fallback.
+465** — that is a port hosts commonly block. 2525 is the fallback.
 
 ---
 

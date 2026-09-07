@@ -26,8 +26,8 @@ whole reason this design works:
 
 - **Our IP reputation is irrelevant.** The unwinnable part of self-hosting is
   bought, for pennies.
-- **Outbound port 25 blocks don't matter.** Hetzner and most clouds block it by
-  default; we never use it.
+- **Outbound port 25 blocks don't matter.** Infomaniak blocks it by default,
+  as does nearly every host; we never use it, and never have to ask.
 - **What remains is ordinary sysadmin** — a service, a disk, backups. No
   reputation, no deliverability guesswork, no silent junking.
 
@@ -35,17 +35,52 @@ whole reason this design works:
 
 | Part | Choice | Per year |
 |---|---|---|
-| Host | Hetzner CX22, 2 vCPU / 4 GB (Stalwart needs 512 MB) | ≈ £47 |
+| Host | Infomaniak `a2-ram4-disk0`, 2 vCPU / 4 GB | **€5.29/mo** ≈ £54 |
+| Root disk | `-disk20-perf1` instead, for a 20 GB root | *confirm at signup* |
+| Volume | 20 GB for `/var/lib/stalwart` | *confirm at signup* |
 | Server | Stalwart — SMTP, IMAP, JMAP, CalDAV, CardDAV, spam filter, ACME | £0 |
 | Relay | SMTP2GO free tier, 1,000 messages/month, no card | £0 |
 | Backups | restic → Cloudflare R2 (no egress fees, account already exists) | ≈ £1 |
-| **Total** | | **≈ £48** |
+| **Total** | | **£60–80** |
 
-Cheaper than Fastmail, more than kSuite, plus your time — which is the real
-price and doesn't appear in the table. The host is now essentially the entire
-bill, so the honest comparison is one VPS against a hosted mailbox, and it is
-still not a saving. UK alternative to Hetzner if the jurisdiction matters:
-Mythic Beasts.
+The €5.29 is Infomaniak's published figure for the `disk0` flavour, where the
+root disk is only as large as the image. The variants with a real root disk and
+the price of block storage are **not** figures I have, so the total is a range
+rather than a number — settle it on the pricing page before committing, and
+replace this table with what you actually paid.
+
+More than kSuite either way, plus your time, which is the real price and
+doesn't appear here at all. The host is essentially the entire bill, so the
+honest comparison is one VPS against a hosted mailbox, and it is not a saving.
+
+### Why Infomaniak, and why that costs more
+
+Hetzner is cheaper — around £47/yr for the equivalent box — and was the
+original choice. It lost on grounds that are not technical.
+
+Provider conduct is a selection criterion for this agency, on two sides that
+have to be held together. A host should refuse to carry fascists and organised
+harassment of marginalised people, and should hold the line when a state or a
+corporation leans on legitimate journalism. Those are not in tension; the
+second is not a licence for the first.
+
+- **Vultr** failed the second outright. It took FreeWeChat offline on a
+  Tencent-instigated complaint, ignored a claim-by-claim rebuttal and a letter
+  from 17 press-freedom organisations, then terminated GreatFire's account
+  "without cause" in November 2025.
+- **Hetzner** terminated Unredacted, a non-profit running censorship-evasion
+  services. Open public proxies attract genuine abuse, so this is a closer call
+  than Vultr's — but it lands on the wrong side of the line.
+- **Infomaniak** is a certified B Corp, employee-owned, has never taken outside
+  investment, runs on 100% renewable energy and offsets 200%. B Corp matters
+  here because it is third-party assessed rather than self-declared.
+
+The difference is roughly £15–30/year. It buys nothing technical, and the honest
+framing is that it is a values purchase rather than a risk mitigation — nothing
+we host will ever attract a Tencent-scale takedown. That is still a reason.
+
+Swiss jurisdiction is the incidental bonus, and the fact that they run email
+for a living means running an MX is not a policy argument.
 
 ### Why SMTP2GO and not SES
 
@@ -106,8 +141,12 @@ invalidate our signature. That is a deduction from how DKIM body hashing works
 rather than something SMTP2GO documents, so verify it at the alignment check
 rather than trusting it. It is unwanted regardless: this is correspondence.
 
-Set the VPS **PTR** to `mail.agentsee.work` at the host. It matters less when
-relaying, but a mismatched PTR is free suspicion on inbound connections.
+**PTR is nearly irrelevant here, and that is worth stating** because every
+mail-server guide insists on it. A PTR is checked on connections a mail server
+*makes*, and this one never delivers direct-to-MX — everything outbound goes to
+the relay, whose reputation is what matters. On Infomaniak's `ext-net1` the PTR
+is platform-assigned and changing it is a support request; leave it. If we ever
+send direct, that flips, and `infra/server.tf` explains what to change.
 
 ## Relay configuration
 
@@ -121,8 +160,8 @@ protocol   SMTP,  tls.implicit = true
 auth       an SMTP user from Sending > SMTP Users — not the account login
 ```
 
-⚠ **Use 8465, not 465.** Hetzner blocks outbound 25 and 465 on new cloud
-servers for about the first month, and most budget hosts do something similar.
+⚠ **Use 8465, not 465.** Infomaniak blocks outbound 25 by default and will
+open it on request; most hosts block some combination of 25, 465 and 587.
 8465 is SMTP2GO's implicit-TLS port on a number nobody filters, so the relay
 path stops depending on the host's port policy at all. 2525 is the fallback.
 Don't drop to a STARTTLS port without requiring TLS on the route — a stripped
@@ -162,7 +201,11 @@ still looks healthy.
 
 The VPS IP is public by necessity — that's what an MX is.
 
-- Firewall to **25, 443, 993, 22** only. SSH key-only, no passwords.
+- Two security groups. `agentsee-mail` opens **25, 80, 443, 465, 993** to the
+  world and **22** to named CIDRs; `agentsee-lab` starts empty and is where
+  ports for experiments go. Splitting them means widening the box for something
+  you're testing is never the same change as widening the mail server.
+- SSH key-only, no passwords. The login is `debian`, not root.
 - Unattended security upgrades on.
 - Stalwart supports **encryption at rest** with your own S/MIME or PGP key, so
   disk access alone doesn't read the mail. Worth turning on given it holds
