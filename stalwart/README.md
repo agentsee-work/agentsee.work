@@ -66,7 +66,7 @@ that admits a gap:
 |---|---|
 | `config.json` | Confident — the format is documented and trivial |
 | `docker-compose.yml` | **Check the image name.** The project renamed from `mail-server` to `stalwart`; the Docker Hub tag may not have followed. Port mappings are ours and correct |
-| `relay-ses.reference.json` | **Field names only.** Taken from the MtaRoute docs. The surrounding plan envelope must come from `snapshot` |
+| `relay-smtp2go.reference.json` | **Field names only.** Taken from the MtaRoute docs. The surrounding plan envelope must come from `snapshot` |
 
 None of this has been run. Treat it as a starting point that saves you reading,
 not as a tested artifact.
@@ -77,12 +77,17 @@ not as a tested artifact.
 `None`, `Value`, `EnvironmentVariable` and `File`.
 
 **Use `EnvironmentVariable`.** It means the committed plan references
-`SES_SMTP_PASSWORD` rather than containing it, so the plan is safe in a public
+`RELAY_SMTP_PASSWORD` rather than containing it, so the plan is safe in a public
 repo and the secret stays in the vault and the systemd unit. `Value` would
 inline it — that is how a credential ends up in git history, where deleting it
 doesn't remove it.
 
-See `relay-ses.reference.json` for the object shape.
+The variable is named for the *role*, not the provider. SMTP2GO is a for-now
+choice, and `SMTP2GO_PASSWORD` would spread it into the compose file, the
+systemd unit, the `.env` and the plan — making a one-object swap a rename in
+five places.
+
+See `relay-smtp2go.reference.json` for the object shape.
 
 ## ⚠ Disable DANE and MTA-STS on the relay route
 
@@ -103,10 +108,13 @@ Roughly in this order:
    two people is the thing Cloudflare Email Routing refused to do and why
    `workers/email-fanout` exists — see [RUNBOOK](../docs/RUNBOOK.md).)
 3. **DkimSignature** — generate it here, then publish the public half via
-   `dkim_public_key` in [`infra/`](../infra/). Ours, not SES's.
+   `dkim_public_key` in [`infra/`](../infra/). Ours *as well as* the relay's:
+   SMTP2GO signs via a CNAME delegated to them, so that key is theirs and
+   leaves when they do. Two aligned signatures is legal and DMARC passes if
+   either validates.
 4. **ACME** — Let's Encrypt, so TLS renews itself. Needs port 80 reachable,
    which `infra/server.tf` already allows.
-5. **MtaRoute** — the SES relay, per the reference file.
+5. **MtaRoute** — the SMTP2GO relay, per the reference file.
 6. **Spam filter** — Stalwart's is built in; the defaults are sane.
 
 ## Backups

@@ -1,6 +1,7 @@
 # This repo is public. Everything here is about that.
 
-# State holds the SES SMTP password in clear. It belongs in R2.
+# State records every managed value in clear, and gains secrets the moment any
+# resource has one. It belongs in R2, never here.
 *.tfstate
 *.tfstate.*
 *.tfstate.backup

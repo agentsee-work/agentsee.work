@@ -1,0 +1,26 @@
+{
+  "_comment": "REFERENCE ONLY — not a plan file. JSON has no comments, so read stalwart/README.md alongside this. Field names are from the MtaRoute docs; the plan envelope must come from `stalwart-cli snapshot` against a running server, because the CLI is schema-driven and the server is the authority on its own shape.",
+
+  "@type": "Relay",
+  "address": "mail.smtp2go.com",
+  "port": 465,
+  "protocol": "smtp",
+  "implicitTls": true,
+  "allowInvalidCerts": false,
+
+  "authUsername": "REPLACE — created at SMTP2GO under Sending > SMTP Users",
+
+  "authSecret": {
+    "@type": "EnvironmentVariable",
+    "name": "RELAY_SMTP_PASSWORD"
+  },
+
+  "_notes": {
+    "why_environment_variable": "The `Value` variant would inline the password into a file committed to a PUBLIC repo — and deleting a secret from git does not remove it from history. EnvironmentVariable keeps the plan committable and the secret in the vault.",
+    "why_the_name_is_generic": "RELAY_SMTP_PASSWORD, not SMTP2GO_PASSWORD. The relay is explicitly a for-now choice, and a provider-shaped name would spread that choice into the compose file, the systemd unit, the .env and the plan — turning a one-object swap into a rename across five places.",
+    "port_choice": "465 is implicit TLS. SMTP2GO also offers 587/2525/25 with STARTTLS, and 8025/8465/443 as alternates for networks that block the usual ports. Implicit TLS is preferred: there is no cleartext phase to strip.",
+    "dane_and_mtasts": "Both MUST be disabled on this route. They assert properties of direct-to-MX delivery that are false with a smarthost in the path, and the resulting failures present as TLS errors — which sends you debugging certificates instead of routing. The key differs by version; confirm it in your snapshot.",
+    "link_tracking": "Turn it OFF at SMTP2GO. It rewrites URLs in the message body, and Stalwart signed that body with our DKIM key before handoff — a rewrite after signing invalidates the signature. This is a deduction from how DKIM body hashing works, not something SMTP2GO documents either way, so treat it as a thing to VERIFY at phase 4 rather than a settled fact. It is also simply unwanted: this is correspondence, not marketing.",
+    "second_signature": "SMTP2GO adds its own DKIM signature via the CNAME delegated in infra/relay.tf. Two aligned signatures is legal and DMARC passes if either validates. Ours is the one that survives changing relay."
+  }
+}

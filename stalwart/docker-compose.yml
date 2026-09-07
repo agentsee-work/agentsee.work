@@ -5,7 +5,8 @@
 # hub.docker.com/u/stalwartlabs before the first pull rather than after.
 #
 # Ports map 1:1 to the firewall rules in infra/server.tf. Note there is no
-# outbound port 25 anywhere in this design — everything leaves via SES on 465.
+# outbound port 25 anywhere in this design — everything leaves via the relay
+# on 465.
 
 services:
   stalwart:
@@ -31,7 +32,7 @@ services:
       # Referenced by the relay route as an EnvironmentVariable authSecret, so
       # the committed plan never contains the credential. Supplied by the
       # systemd unit or an .env file that is NOT in git — see .gitignore.
-      SES_SMTP_PASSWORD: "${SES_SMTP_PASSWORD:?set SES_SMTP_PASSWORD}"
+      RELAY_SMTP_PASSWORD: "${RELAY_SMTP_PASSWORD:?set RELAY_SMTP_PASSWORD}"
 
     # The server writes crash context and needs a real hostname for HELO.
     hostname: mail.agentsee.work

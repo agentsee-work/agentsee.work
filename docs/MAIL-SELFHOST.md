@@ -10,7 +10,7 @@ Own the inbox, rent the reputation. The buy-instead path stays in
 ```
                  inbound                          outbound
                     │                                 │
- sender ──MX──► mail.agentsee.work            Stalwart ──465──► Amazon SES ──► world
+ sender ──MX──► mail.agentsee.work            Stalwart ──465──► SMTP2GO ──► world
                     │  (your VPS)                                    │
                     ▼                                          rented reputation
               Stalwart: SMTP · IMAP · JMAP
@@ -21,8 +21,8 @@ Own the inbox, rent the reputation. The buy-instead path stays in
 ```
 
 **The VPS never sends directly to the internet.** Every outbound message goes to
-SES over authenticated submission. Three consequences, and they are the whole
-reason this design works:
+the relay over authenticated submission. Three consequences, and they are the
+whole reason this design works:
 
 - **Our IP reputation is irrelevant.** The unwinnable part of self-hosting is
   bought, for pennies.
@@ -37,18 +37,32 @@ reason this design works:
 |---|---|---|
 | Host | Hetzner CX22, 2 vCPU / 4 GB (Stalwart needs 512 MB) | ≈ £47 |
 | Server | Stalwart — SMTP, IMAP, JMAP, CalDAV, CardDAV, spam filter, ACME | £0 |
-| Relay | Amazon SES à la carte, **$0.10 / 1000**, no minimum | ≈ £1 |
+| Relay | SMTP2GO free tier, 1,000 messages/month, no card | £0 |
 | Backups | restic → Cloudflare R2 (no egress fees, account already exists) | ≈ £1 |
-| **Total** | | **≈ £50** |
+| **Total** | | **≈ £48** |
 
 Cheaper than Fastmail, more than kSuite, plus your time — which is the real
-price and doesn't appear in the table. UK alternative to Hetzner if the
-jurisdiction matters: Mythic Beasts.
+price and doesn't appear in the table. The host is now essentially the entire
+bill, so the honest comparison is one VPS against a hosted mailbox, and it is
+still not a saving. UK alternative to Hetzner if the jurisdiction matters:
+Mythic Beasts.
 
-At two people's correspondence volume SES costs cents per month. **The one
-hurdle is sandbox exit** — new SES accounts are capped and can only send to
-verified addresses until you request production access. Do that on day one; it
-is not instant.
+### Why SMTP2GO and not SES
+
+SES is cheaper per message ($0.10/1000) and the better answer at volume. It was
+the original choice here and it lost on one thing: **new SES accounts start in a
+sandbox**, capped and able to deliver only to addresses you have verified, and
+leaving it requires a support request reviewed by a human. No API, no timebox.
+That review sat squarely on the critical path for the whole build.
+
+SMTP2GO's free tier is 1,000 messages a month with no card. Two people's
+correspondence does not approach that, and it is enough to prove the entire
+pipeline end to end. If we outgrow it, Starter is $10/month for 10,000 — and
+moving to SES instead is one `MtaRoute` object plus a DNS change.
+
+The cost of the swap is real but small: SES has an OpenTofu provider and
+SMTP2GO does not, so its sender domain is registered by hand. See
+[../infra/README.md](../infra/README.md).
 
 ## DNS
 
@@ -57,7 +71,8 @@ All on Cloudflare, which already runs the zone.
 ```
 mail.agentsee.work   A      <vps-ip>          ← DNS ONLY. Grey cloud.
 agentsee.work        MX 10  mail.agentsee.work
-agentsee.work        TXT    v=spf1 include:amazonses.com ~all
+agentsee.work        TXT    v=spf1 ~all             ← authorises nothing. see below
+<3 CNAMEs>                   → smtp2go                ← issued by them, per account
 <sel>._domainkey     TXT    <Stalwart's public key>
 _dmarc               TXT    v=DMARC1; p=none; … → p=reject once aligned
 ```
@@ -67,13 +82,29 @@ orange-clouding it silently breaks inbound mail. This is the same class of trap
 as the Email Address Obfuscation one in the runbook — a Cloudflare default doing
 something helpful to something that isn't HTTP.
 
-**SPF names SES, not the VPS**, because the VPS never sends. Listing its IP would
-be authorising something that doesn't happen.
+**SPF authorises nobody, and that is correct.** It looks like an omission, so:
+SMTP2GO does not use an SPF include. Since 2019 they use VERP, setting the
+return-path to a subdomain of ours that is CNAMEd to them — so SPF is evaluated
+against *that* subdomain and their record. Their own docs say you do not need to
+change your existing SPF record. DMARC still passes, because relaxed alignment
+accepts a return-path on a subdomain of the From domain.
 
-**Let Stalwart hold the DKIM key, not SES.** Both can sign, and it's tempting to
-let SES do it. Don't: a key that lives with the relay has to be rebuilt if the
-relay ever changes, and DKIM is the thing standing between `p=reject` and our own
-mail disappearing. Ours, published in our zone, signed before handoff.
+The VPS never sends directly either, so listing its IP would authorise something
+that doesn't happen. Nothing sends with an apex envelope-from, so nothing is
+authorised to. Tighten `~all` to `-all` in the same change that sets `p=reject`.
+
+**Let Stalwart hold a DKIM key of its own, as well as the relay's.** SMTP2GO
+signs via the second of its three CNAMEs — delegated to their DNS, so they hold
+that private key and it leaves when they do. Sign with our own key too, before
+handoff, published as a TXT record in our zone. Two aligned signatures is legal
+and DMARC passes if either validates; ours is the one that survives changing
+relay, and DKIM is what stands between `p=reject` and our own mail disappearing.
+
+⚠ **Turn SMTP2GO's link tracking off.** It rewrites URLs in the message body,
+and Stalwart signed that body before handoff — a rewrite after signing should
+invalidate our signature. That is a deduction from how DKIM body hashing works
+rather than something SMTP2GO documents, so verify it at the alignment check
+rather than trusting it. It is unwanted regardless: this is correspondence.
 
 Set the VPS **PTR** to `mail.agentsee.work` at the host. It matters less when
 relaying, but a mismatched PTR is free suspicion on inbound connections.
@@ -84,10 +115,10 @@ Stalwart has first-class relay support: **Settings → SMTP → Outbound → Rel
 Hosts**, then point routing at it under **Outbound → Routing**.
 
 ```
-address    email-smtp.<region>.amazonaws.com
-port       465
+address    mail.smtp2go.com
+port       465                       (implicit TLS. 587/2525 are STARTTLS)
 protocol   SMTP,  tls.implicit = true
-auth       SES SMTP credentials (NOT your AWS access keys — separate things)
+auth       an SMTP user from Sending > SMTP Users — not the account login
 ```
 
 ⚠ **Disable DANE and MTA-STS on the relay route.** Both assert things about
@@ -147,8 +178,8 @@ Do not cut the apex over to an unproven server.
 2. **Deploy Stalwart** — [`stalwart/`](../stalwart/). Note its config is *not*
    a `config.toml`: since v0.16 everything lives in the datastore and is
    reconciled declaratively with `stalwart-cli apply`. Most guides online are
-   for the old format. **Request SES production access now too** — it is the
-   slowest step and blocks nothing else.
+   for the old format. **Verify the sender domain at SMTP2GO now too** — the
+   three CNAMEs it issues have to propagate before alignment can pass.
 3. **Prove it on a subdomain.** Point `test.agentsee.work` MX at the box and send
    it real mail from outside. The apex keeps working on Cloudflare Routing
    throughout, so there is no window where the show's mail is at risk.

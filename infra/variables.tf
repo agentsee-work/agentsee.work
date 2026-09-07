@@ -70,9 +70,15 @@ variable "dkim_public_key" {
     The PRIVATE half never comes near this repo. It lives on the box, is
     included in the backup, and its existence is recorded in the vault.
 
-    Deliberately ours rather than SES-managed: a key that lives with the relay
-    has to be rebuilt if the relay ever changes, and DKIM is what stands between
-    p=reject and our own mail vanishing.
+    Deliberately ours as well as the relay's. SMTP2GO signs too, via the DKIM
+    CNAME in relay.tf, which means they hold that private key — so that
+    signature is only as permanent as the relay is. This one is ours, published
+    in our zone, and survives a relay change. DKIM is what stands between
+    p=reject and our own mail vanishing, so it should not belong to a supplier
+    we have already said we may swap.
+
+    Two aligned signatures is legal and strictly better: DMARC passes if either
+    validates.
   EOT
   type        = string
   default     = ""
@@ -106,8 +112,20 @@ variable "ssh_allowed_ips" {
   default     = ["0.0.0.0/0", "::/0"]
 }
 
-variable "aws_region" {
-  description = "SES region. eu-west-1 keeps mail in the EU."
-  type        = string
-  default     = "eu-west-1"
+# ─── Relay ───────────────────────────────────────────────────────────────────
+variable "smtp2go_cname_records" {
+  description = <<-EOT
+    The three CNAMEs SMTP2GO issues when a sender domain is verified, as
+    { "<label>" = "<target>" }. Labels are relative to the domain.
+
+    There is no SMTP2GO provider, so these are copied from their dashboard by
+    hand — Sending > Verified Senders > Sender Domains. Empty until that has
+    been done, which means the first apply is expected to create none of them.
+
+    Until they exist, SMTP2GO signs outbound with its OWN domain instead of
+    ours. Mail still delivers, so nothing appears wrong; it just arrives marked
+    "via smtp2go.com" and unaligned, and would be discarded under p=reject.
+  EOT
+  type        = map(string)
+  default     = {}
 }

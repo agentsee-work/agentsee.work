@@ -4,10 +4,11 @@
 #
 #   export CLOUDFLARE_API_TOKEN=...    # Zone > DNS > Edit on agentsee.work
 #   export HCLOUD_TOKEN=...            # Hetzner project, read+write
-#   # AWS: profile `agentsee-ses` in ~/.aws/credentials
-#   # R2:  profile `r2-tfstate`   in ~/.aws/credentials
+#   # R2: profile `r2-tfstate` in ~/.aws/credentials (state backend only)
 #
-# All four belong in the vault's `infra` collection — see docs/CREDENTIALS.md.
+# All three belong in the vault's `infra` collection — see docs/CREDENTIALS.md.
+# The relay's SMTP credentials are NOT here and not in state: they are created
+# in the SMTP2GO dashboard and typed into the server's .env once.
 
 # A public key is public. Safe here.
 ssh_public_key = "ssh-ed25519 AAAA... you@host"
@@ -16,6 +17,19 @@ ssh_public_key = "ssh-ed25519 AAAA... you@host"
 # ssh_allowed_ips = ["203.0.113.4/32"]
 
 # ─── Left at defaults until the build says otherwise ────────────────────────
+
+# The three CNAMEs from SMTP2GO's Sender Domains screen. Labels are relative to
+# the domain; both halves are generated per account, so these are examples of
+# the SHAPE, not values to copy. Empty until the domain is verified there.
+#
+# Without them, mail still sends — signed as smtp2go.com rather than as us.
+# That is invisible at p=none and fatal at p=reject.
+#
+# smtp2go_cname_records = {
+#   "em1234"       = "return.smtp2go.net"
+#   "s1._domainkey" = "dkim.smtp2go.net"
+#   "link"         = "track.smtp2go.net"
+# }
 
 # Empty on the first apply — Stalwart generates the key, so it cannot exist
 # before the server does. Fill in from the WebAdmin, then re-apply.

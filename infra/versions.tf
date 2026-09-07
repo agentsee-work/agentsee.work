@@ -1,22 +1,23 @@
 terraform {
   required_version = ">= 1.8"
 
-  # State contains secrets — the SES SMTP password, at minimum. This repo is
-  # public, so state must never live in it. R2 is S3-compatible and the
-  # Cloudflare account already exists.
+  # State records every value this configuration manages. This repo is public,
+  # so state must never live in it. R2 is S3-compatible and the Cloudflare
+  # account already exists.
   #
   # Bootstrap once, by hand, before the first `tofu init`:
   #
   #   npx wrangler r2 bucket create agentsee-tfstate
   #
-  # then mint an R2 API token and put it in ~/.aws/credentials as its own
-  # profile. Two profiles, because the backend talks to R2 and the AWS provider
-  # talks to real AWS — sharing AWS_ACCESS_KEY_ID between them silently sends
-  # one set of credentials to the wrong service:
+  # then mint an R2 API token and put it in ~/.aws/credentials under this
+  # profile name. The backup repository gets a SECOND bucket and a SECOND
+  # token — see stalwart/backup/README.md. One credential that can both delete
+  # the backups and rewrite the infrastructure is a poor blast radius for
+  # something sitting on an internet-facing box.
   #
-  #   [r2-tfstate]                     [agentsee-ses]
-  #   aws_access_key_id     = ...      aws_access_key_id     = ...
-  #   aws_secret_access_key = ...      aws_secret_access_key = ...
+  #   [r2-tfstate]
+  #   aws_access_key_id     = ...
+  #   aws_secret_access_key = ...
   #
   # This is the manual root of trust. Something has to hold the credential that
   # lets the automation run, and it cannot be automated away. See
@@ -52,10 +53,8 @@ terraform {
       source  = "hetznercloud/hcloud"
       version = "~> 1.50"
     }
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
+    # No relay provider. SMTP2GO does not publish one, so the sender domain is
+    # registered by hand and its records arrive as a variable. See relay.tf.
   }
 }
 
@@ -65,8 +64,3 @@ terraform {
 provider "cloudflare" {}
 
 provider "hcloud" {}
-
-provider "aws" {
-  region  = var.aws_region
-  profile = "agentsee-ses"
-}

@@ -11,11 +11,23 @@ reason for the comment density. The build it produces is specified in
 ```
 versions.tf     providers, and R2 as the state backend
 variables.tf    inputs, including the cutover flag
-dns.tf          Cloudflare: MX, SPF, DKIM, DMARC, SES verification
+dns.tf          Cloudflare: MX, SPF, DKIM, DMARC
 server.tf       Hetzner: box, firewall, PTR
-ses.tf          AWS: domain identity, DKIM, send-only SMTP user
-outputs.tf      credentials to move to the vault, and what to do next
+relay.tf        SMTP2GO's three sender-domain CNAMEs
+outputs.tf      the relay endpoint, and what to do next
 cloud-init.yaml base image only — deliberately not the Stalwart config
+
+.terraform.lock.hcl   provider checksums. COMMITTED, on purpose
+```
+
+The lock file records hashes for **linux_amd64, darwin_arm64 and darwin_amd64**,
+because we are two people and will not both be on the same OS. A lock generated
+on one platform makes `tofu init` fail on any other with a checksum mismatch
+that reads like a supply-chain alarm rather than a missing entry. If a third
+platform ever joins:
+
+```sh
+tofu providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=<new>
 ```
 
 ## Running it
@@ -29,9 +41,17 @@ export CLOUDFLARE_API_TOKEN=...   # Zone > DNS > Edit
 export HCLOUD_TOKEN=...
 
 tofu init
+tofu fmt -check
+tofu validate
 tofu plan       # read this. every time.
 tofu apply
 ```
+
+`fmt -check` and `validate` pass as committed — they were run against this
+configuration, unlike the runbook, which is still written from design rather
+than transcribed from a successful run. `validate` checks syntax and internal
+references only; it does not talk to Cloudflare or Hetzner, so it says nothing
+about whether the plan is *correct*.
 
 `tofu output next_steps` prints the sequence for what follows.
 
@@ -44,7 +64,8 @@ delivers.
 
 | Not automated | Why |
 |---|---|
-| **SES production access** | A human reviews a support request. No API exists. Start it day one; it blocks nothing else |
+| **The SMTP2GO sender domain** | No provider exists, so the domain is added in their dashboard and the three CNAMEs it issues are pasted back as a variable |
+| **The relay's SMTP user** | Same reason. Which means the sending credential never enters state — an accidental improvement on the SES version, which stored one permanently |
 | **The R2 state bucket** | Chicken-and-egg: state has to live somewhere before there is state. One `wrangler` command, once |
 | **Credentials** | IaC references secrets, never contains them. Doubly so in a public repo |
 | **The DKIM private key** | Stalwart generates it on the box. We declare its *publication*; the key material is state |
@@ -54,6 +75,27 @@ There is always a manual root of trust: something holds the credential that
 lets the automation run, and it cannot be automated away. That boundary is
 documented in [../docs/CREDENTIALS.md](../docs/CREDENTIALS.md) rather than
 hidden.
+
+## The relay is SMTP2GO, and it is meant to be swappable
+
+Chosen over SES for one reason: SES starts in a sandbox and leaving it needs a
+support request reviewed by a human, with no API and no timebox. That review sat
+on the critical path for the whole build. SMTP2GO's free tier is 1,000 messages
+a month with no card, which is more than two people's correspondence and enough
+to prove the entire pipeline.
+
+The cost is the two dashboard steps above. SES could create its own identity and
+read back its own DKIM tokens; this cannot.
+
+Because the relay is expected to change, nothing structural depends on it:
+
+- **Stalwart signs with our own DKIM key** before handoff, published as a TXT
+  record we control. SMTP2GO signs too, but through a CNAME delegated to them —
+  that key is theirs and leaves when they do. Ours stays.
+- **The relay host is one `MtaRoute` object** in the Stalwart plan, not
+  something wired through the infrastructure.
+- **SPF names nobody**, so there is no include to unpick. See the comment at the
+  top of `dns.tf` — this is the part that looks wrong and isn't.
 
 ## The cutover is a variable
 

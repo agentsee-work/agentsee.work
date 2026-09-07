@@ -58,8 +58,8 @@ resource "hcloud_firewall" "mail" {
   }
 
   # No outbound rules: Hetzner allows all egress by default, and we only need
-  # 465 out to SES. Note we never need outbound 25 — Hetzner blocks it for new
-  # accounts, and this design does not care.
+  # 465 out to the relay. Note we never need outbound 25 — Hetzner blocks it
+  # for new accounts, and this design does not care.
 }
 
 resource "hcloud_server" "mail" {

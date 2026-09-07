@@ -2,10 +2,21 @@ locals {
   mail_fqdn = "${var.mail_hostname}.${var.domain}"
   test_fqdn = "${var.test_subdomain}.${var.domain}"
 
-  # SPF authorises SES, NOT the server. The server never sends to the internet —
-  # everything outbound goes to the relay — so listing its IP would authorise
-  # something that does not happen.
-  spf = "v=spf1 include:amazonses.com ~all"
+  # This record authorises nothing, and that is correct.
+  #
+  # It looks like a mistake, so: SMTP2GO does not use an SPF include. Since 2019
+  # they use VERP, setting the return-path to a subdomain of ours that is CNAMEd
+  # to them (see relay.tf). SPF is therefore evaluated against THAT subdomain
+  # and their record, not against this one. Their own docs say "you do not need
+  # to update your domain's existing SPF record".
+  #
+  # DMARC still passes: relaxed alignment accepts a return-path on a subdomain
+  # of the From domain, which is exactly what the CNAME produces.
+  #
+  # So nothing sends with an apex envelope-from, and nothing is authorised to.
+  # Softfail rather than -all only because we have not proven that yet; tighten
+  # it in the same change that sets dmarc_policy = "reject".
+  spf = "v=spf1 ~all"
 }
 
 # ─── The mail host ───────────────────────────────────────────────────────────
@@ -104,26 +115,4 @@ resource "cloudflare_dns_record" "dkim" {
   content = var.dkim_public_key
   ttl     = 300
   comment = "Stalwart's DKIM key. Private half lives on the box and in backups."
-}
-
-# ─── SES verification and its own DKIM ───────────────────────────────────────
-# SES signs too. Two aligned signatures is legal and strictly better: DMARC
-# passes if either validates, so a relay change can't take alignment with it.
-resource "cloudflare_dns_record" "ses_verification" {
-  zone_id = var.cloudflare_zone_id
-  name    = "_amazonses.${var.domain}"
-  type    = "TXT"
-  content = aws_ses_domain_identity.main.verification_token
-  ttl     = 300
-}
-
-resource "cloudflare_dns_record" "ses_dkim" {
-  count = 3
-
-  zone_id = var.cloudflare_zone_id
-  name    = "${aws_ses_domain_dkim.main.dkim_tokens[count.index]}._domainkey.${var.domain}"
-  type    = "CNAME"
-  content = "${aws_ses_domain_dkim.main.dkim_tokens[count.index]}.dkim.amazonses.com"
-  ttl     = 300
-  proxied = false
 }

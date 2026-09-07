@@ -17,27 +17,21 @@ output "test_address_hint" {
   value       = "anything@${local.test_fqdn}"
 }
 
-output "ses_smtp_endpoint" {
+output "relay_smtp_endpoint" {
   description = "Relay host for Stalwart: Settings > SMTP > Outbound > Relay Hosts."
-  value       = "email-smtp.${var.aws_region}.amazonaws.com"
+  value       = "mail.smtp2go.com"
 }
 
-output "ses_smtp_username" {
-  value = aws_iam_access_key.smtp.id
-}
+# There is no relay credential output. SMTP2GO's SMTP users are created in
+# their dashboard (Sending > SMTP Users), not by this configuration, so the
+# username and password never enter state at all.
+#
+# That is an accident of there being no provider, and it is a good accident:
+# the SES version of this file put a sending credential in state permanently.
 
-# The SMTP password is derived from the IAM secret key — it is NOT the secret
-# key itself, and pasting the wrong one produces an authentication failure that
-# looks like a wrong password because it is one.
-#
-#   tofu output -raw ses_smtp_password
-#
-# Put it straight in the vault (docs/CREDENTIALS.md, `infra` collection). It is
-# already in state, which is why state lives in R2 and never in this repo.
-output "ses_smtp_password" {
-  description = "SES SMTP password. Sensitive — goes to the vault, not to a file."
-  value       = aws_iam_access_key.smtp.ses_smtp_password_v4
-  sensitive   = true
+output "smtp2go_records_present" {
+  description = "False means outbound will be signed as smtp2go.com, not as us."
+  value       = length(var.smtp2go_cname_records) > 0
 }
 
 output "next_steps" {
@@ -45,32 +39,44 @@ output "next_steps" {
 
     ── after this apply ──────────────────────────────────────────────
 
-    1. Request SES production access if you have not. Sandbox will only
-       deliver to verified addresses, and the review is done by a human.
+    1. Verify the sender domain at SMTP2GO if you have not: Sending >
+       Verified Senders > Sender Domains > Add ${var.domain}. Put the
+       three CNAMEs it returns into smtp2go_cname_records and re-apply.
 
-    2. Install Stalwart, then read its generated DKIM public key and set
+       Skipping this does not break sending. It makes SMTP2GO sign as
+       itself, so mail arrives "via smtp2go.com" and unaligned — fine
+       today at p=none, discarded silently at p=reject.
+
+    2. Create an SMTP user (Sending > SMTP Users). Those credentials go
+       straight to the vault; they are not managed here and not in state.
+
+    3. Install Stalwart, then read its generated DKIM public key and set
        dkim_public_key in terraform.tfvars. Re-apply. Until you do, the
        record is absent and nothing warns you.
 
-    3. Configure the relay — Settings > SMTP > Outbound > Relay Hosts:
-         host  ${"email-smtp.${var.aws_region}.amazonaws.com"}
+    4. Configure the relay — Settings > SMTP > Outbound > Relay Hosts:
+         host  mail.smtp2go.com
          port  465, implicit TLS
-         user  see ses_smtp_username / ses_smtp_password
+         user  from step 2
        Then DISABLE DANE and MTA-STS on that route. Both assert things
        about direct-to-MX delivery that are false with a smarthost in the
        path, and the resulting failures present as TLS bugs.
 
-    4. Send real mail to ${"anything@${local.test_fqdn}"} and confirm it
+       Turn link tracking OFF. It rewrites URLs in the body, and the body
+       was signed by Stalwart before handoff — see MAIL-BUILD-RUNBOOK
+       phase 4.
+
+    5. Send real mail to ${"anything@${local.test_fqdn}"} and confirm it
        lands. Reply, then check in Gmail via "Show original":
          spf=pass   dkim=pass   header.d=${var.domain}   dmarc=pass
        header.d must be OUR domain. Anything else means p=reject would
        reject our own mail.
 
-    5. Backups running AND a restore actually restored. Before cutover,
+    6. Backups running AND a restore actually restored. Before cutover,
        not after — a first restore test after real mail exists is not a
        test.
 
-    6. Only then: enable_apex_mx = true. Disable Cloudflare Email Routing
+    7. Only then: enable_apex_mx = true. Disable Cloudflare Email Routing
        first or the API will refuse to touch the apex MX.
 
     ──────────────────────────────────────────────────────────────────
