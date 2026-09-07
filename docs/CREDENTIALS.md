@@ -110,6 +110,13 @@ login in it is how the boundary starts to blur.
 Anything belonging to *you* rather than to AgentSee belongs in the linked
 Families account instead, so it survives you ever leaving the Business team.
 
+⚠ **And it goes one way only.** The linked Families account has other people in
+it — partners, family — with access to its shared vaults. An AgentSee
+credential dragged into one of those is a business secret handed to someone
+outside the business, and the drag is a two-second gesture between two accounts
+sitting in the same sidebar. Business credentials go to the `AgentSee` vault or
+to your own Private vault, never to a family shared vault.
+
 ## Rules
 
 These are the parts that matter. The product is interchangeable; these aren't.
@@ -220,7 +227,8 @@ apply, so rename deliberately and grep `infra/op.env` first.
       one Owner looks exactly like a team with two until you need the second.
 - [ ] Both enable 2FA on their own login; write recovery codes on paper.
 - [ ] **Both print the Emergency Kit** and store it apart from the passwords.
-- [ ] Both link a personal account and claim the free Families membership.
+- [x] James: personal account linked, free Families membership claimed.
+- [ ] Abrar does the same — it is per-member, not something you can grant him.
 - [ ] Create the shared `AgentSee` vault and the three tags. The name matters —
       [`infra/op.env`](../infra/op.env) resolves `op://AgentSee/...` and will
       fail on a rename.
