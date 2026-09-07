@@ -45,6 +45,14 @@ public/                       ← the only thing that gets deployed
   fonts/newsreader-latin.woff2  self-hosted display face (SIL OFL)
 
 docs/RUNBOOK.md               where the infrastructure lives, and its traps
+docs/SOCIAL.md                the handle, and what signup will throw at you
+docs/MAIL-MIGRATION.md        proposed move to hosted mail — not yet executed
+docs/CREDENTIALS.md           where shared secrets live — not yet set up
+docs/AGENT-MAIL.md            inbound mail as an agent trigger — design only
+docs/MAIL-SELFHOST.md         own the inbox, rent the reputation — build spec
+docs/MAIL-BUILD-RUNBOOK.md    standing it up, phase by phase, with checkpoints
+infra/                        the mail server declared — OpenTofu, not applied
+stalwart/                     mail server config — declarative plan, not applied
 tools/portraits.py            regenerates the portraits from source photos
 workers/email-fanout/         fans hello@ and show@ out to both of us
 ```

@@ -20,6 +20,7 @@ appear in dashboard URLs and are useless without a token.
 | Mail | Cloudflare Email Routing → personal inboxes |
 | Email Worker | `email-fanout` — fans `hello@` and `show@` to both of us |
 | Repo layout | **only `public/` is deployed**; docs, tooling and the Worker are not |
+| Social | `agentseework` everywhere, `@agentsee.work` on Bluesky — see [SOCIAL.md](SOCIAL.md) |
 
 ## Token scopes
 
