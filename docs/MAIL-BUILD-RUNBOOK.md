@@ -19,7 +19,7 @@ worse than none, because it gets trusted.
 |---|---|---|
 | Cloudflare | ✅ have | Zone, R2, Pages |
 | GitHub | ✅ have | `agentsee-work` org |
-| **1Password** | needed **first** | [CREDENTIALS.md](CREDENTIALS.md). Everything below produces a credential, and `op run` wants it there |
+| 1Password | ✅ Business, Abrar invited | [CREDENTIALS.md](CREDENTIALS.md) — but the `AgentSee` vault and the second Owner are still outstanding, and `op run` needs the vault |
 | **Infomaniak** | needed | Payment card. Public Cloud, not the hosted mail — see below |
 | **SMTP2GO** | needed | Free tier, no card. The outbound relay — see below |
 | healthchecks.io | needed | Free. The backup dead-man's switch |

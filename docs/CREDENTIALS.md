@@ -5,10 +5,14 @@ Where shared secrets live, and the rules that keep the arrangement honest.
 **Nothing in this file is a secret.** It describes the system, not its contents.
 No password, seed, recovery code or token belongs in this repo — it is public.
 
-## Status: proposed, not yet set up
+## Status: account exists, not yet loaded
 
-Like [MAIL-MIGRATION.md](MAIL-MIGRATION.md), this is a plan. When the vault
-exists, this file stops saying "will" and starts saying "does".
+1Password Business is signed up and Abrar is invited. Nothing else below has
+happened — no vault, no roles confirmed, no secrets in it.
+
+The gap between "the account exists" and "the arrangement works" is entirely
+the [Order](#order) at the end of this file, and every item in it is the kind
+of thing that gets skipped because nothing warns you.
 
 ## Why
 
@@ -24,48 +28,58 @@ Three things forced it, and they are the same thing wearing different hats:
 The rule we settled on for mail applies here: **nothing important should be
 recoverable by exactly one person.**
 
-## Choice: 1Password Families — $71.88/year
+## Choice: 1Password Business — $215.76/year
 
-Chosen because one of us already uses it, which is a better reason than it
-looks: a password manager nobody enjoys is a password manager that gets
-bypassed, and the bypass is where the single points of failure come back.
+1Password because one of us already used it, which is a better reason than it
+looks: a password manager nobody enjoys is one that gets bypassed, and the
+bypass is where the single points of failure come back.
 
-| Option | 2 users/yr | Verdict |
+| Option | 2 users/yr | |
 |---|---|---|
-| **Families** | **$71.88** (≈£57) | 5 seats, shared vaults, TOTP, and both can be organizers |
-| Business | $215.76 (≈£171) | Real Owner roles, audit log, and a free Families each |
+| **Business** | **$215.76** (≈£171) | $8.99/user/mo, annual only. Chosen |
+| Families | $71.88 (≈£57) | 5 seats and shared vaults, but organizer-based recovery |
 | Teams Starter Pack | $239.40 (≈£190) | Flat rate for 10 seats we don't have |
 
-**Families now, Business at the first client.** What Business buys over Families
-is an audit log, provisioning and proper role separation — worth real money the
-moment there are client secrets or a third person, and worth very little at two,
-where "who changed this" is answerable by asking. That is the trigger, written
-down now so it is a decision rather than a drift.
+This file previously recommended Families now and Business at the first client.
+We went to Business directly. Three things make that defensible rather than
+just more expensive:
 
-Starting with Families creates **no migration debt.** Moving later is dragging
-items between vaults plus linking the accounts — the same work whenever it
-happens.
+- **The free Families membership per member** means both personal accounts stop
+  being separate bills. If both were on Individual at $47.88, that is $95.76
+  back, and the real gap against the Families plan is nearer $120/year than the
+  $144 the table implies.
+- **Real roles now.** Families recovery runs through *family organizers*, a role
+  that also carries everything else. Business separates recovery from
+  administration, so a third person can be given the ability to recover accounts
+  and nothing more. That matters the first time someone is added, and adding
+  someone is not a thing you want to re-architect the vault for.
+- **Service accounts and the developer tooling.** Business is the tier where
+  service accounts, SSH agent and Git commit signing land. Given this repo runs
+  `op run` in front of every apply, that is the difference between a password
+  manager and part of the toolchain.
 
-### The linking thing, because it is not obvious
+There is also now an **activity log**, which quietly retires the reasoning that
+"who changed this" is answerable by asking. It is answerable by looking.
 
-A Business account includes a **free Families membership** for each member. So
-under Business the personal 1Password stops being a separate bill — which
-offsets about $96 of the $216, making the real gap nearer $120/year than $144.
+### Linking the personal accounts
 
-Worth being precise about what that does, because "migration" is the wrong word
-for it: **nothing of yours moves.** The personal account stays exactly as it is
-and is *linked*, which is a billing relationship and nothing else — 1Password's
-own wording is that the two accounts "aren't connected in any technical way".
-Only the items you deliberately drag across go anywhere.
+Not migration — the word is wrong for it. **Nothing of yours moves.** The
+personal account stays exactly as it is and is *linked*, which is a billing
+relationship and nothing else; 1Password's own wording is that the two accounts
+"aren't connected in any technical way". Only items you deliberately drag across
+go anywhere.
 
-One surprise worth knowing before you click: the free membership is a *Families*
+One surprise worth knowing before clicking: the free membership is a *Families*
 membership, so an existing **Individual** account gets prompted to convert to a
 family account. Prepaid time is credited. Unlinking later is graceful — the
 account drops into a complimentary trial rather than locking.
 
-With Infomaniak's box at £60–80 and the relay free, the pair comes to
-**≈£120–140/year**, which is over the original £100 and worth naming rather
-than hiding in a subtotal.
+Both of us should claim it. An unclaimed benefit is a bill someone is still
+paying.
+
+With Infomaniak's box at £60–80, the pair comes to **≈£230–250/year** before
+the personal savings and **≈£155–175** after. Either way it is over the original
+£100, and worth naming rather than hiding in a subtotal.
 
 ## One vault, three tags
 
@@ -80,33 +94,56 @@ vault, so three vaults means three permission sets to keep in sync for two
 people who both need all of it. Tags give the same organisation with none of
 the drift.
 
+Business would let us split them with proper group permissions, which is why
+the answer changes the moment there is someone who should see one and not the
+others. It does not change for two people who need everything.
+
 **Split into a real vault the moment someone should *not* see something** — a
 contractor, or a client's credentials. That is when the boundary is real and a
 vault is the right tool for it. Until then it is filing, and tags are filing.
 
-Personal items stay in the Personal vault. The shared vault is for things that
-are genuinely shared, and putting a personal login in it is how the boundary
-starts to blur.
+Personal items stay in your own **Private** vault, which nobody else can see —
+including Owners, who can recover an account but cannot read what is in it. The
+shared vault is for things that are genuinely shared, and putting a personal
+login in it is how the boundary starts to blur.
+
+Anything belonging to *you* rather than to AgentSee belongs in the linked
+Families account instead, so it survives you ever leaving the Business team.
 
 ## Rules
 
 These are the parts that matter. The product is interchangeable; these aren't.
 
-**Both of us are family organizers.** Not one organizer and one member. In
-1Password Families, account recovery is performed *by a family organizer* — so
-if only one of us holds that role, the other has no recovery path and we have
-reproduced precisely the failure this was bought to prevent. Set it on day one,
-before loading any secrets, and confirm it took.
+**Both of us are Owners.** Not one Owner and one member. Two separate reasons,
+and only the first is obvious:
 
-This is 1Password's equivalent of the emergency access we would have configured
-in Bitwarden. It is not a separate feature to switch on; it is a consequence of
-the role, which makes it easy to leave undone.
+- **Recovery.** In Business, account recovery is performed by anyone in a group
+  holding *Recover Accounts*, which the Owners and Administrators groups have by
+  default. If only one of us can recover, the other has no recovery path and we
+  have reproduced precisely the failure this was bought to prevent.
+- **Billing and deletion.** Administrator is enough to recover accounts, but
+  only an **Owner** can change billing or delete the team. A single Owner means
+  a single person who can let the subscription lapse — and a single person who
+  cannot be overruled if it comes to that.
+
+Set it as soon as Abrar accepts, before loading any secrets, and **confirm it
+took**. Nothing warns you that a team has one Owner.
+
+It is not a feature to switch on; it is a consequence of group membership,
+which is exactly what makes it easy to leave undone.
+
+*When a third person arrives:* Business can grant *Recover Accounts* through a
+custom group without any of the other administrator permissions. Use that rather
+than making a contractor an Administrator.
 
 **The Emergency Kit goes on paper, offline, both of us.** 1Password has an
 account-specific **Secret Key** as well as your password, and *you cannot sign
 in on a new device without it*. It is not recoverable by support and it is not
 in your head. Print the Emergency Kit, store it away from the passwords, and do
 it before there is anything in the vault worth losing.
+
+Administrator recovery covers the case where one of us is locked out. It does
+not cover both of us at once, or the account being gone. The paper does.
 
 **The vault's own 2FA is never in the vault.** Storing a vault's second factor
 inside itself is a circular dependency that only reveals itself when locked out.
@@ -177,16 +214,36 @@ apply, so rename deliberately and grep `infra/op.env` first.
 
 ## Order
 
-1. Create the Families plan and get both accounts in it.
-2. Promote the second account to **family organizer**. Verify — recovery
-   depends on it and nothing will warn you.
-3. Both enable 2FA on their own login; write recovery codes on paper.
-4. **Both print the Emergency Kit** and store it apart from the passwords.
-5. Create the `AgentSee` vault and the three tags.
-6. *Then* start the social signups in [SOCIAL.md](SOCIAL.md) — so each TOTP seed
-   lands in the vault as the account is made, not in a retrofit that never
-   happens.
+- [x] Create the Business account.
+- [x] Invite Abrar.
+- [ ] **Abrar accepts, then make him an Owner.** Verify it took — a team with
+      one Owner looks exactly like a team with two until you need the second.
+- [ ] Both enable 2FA on their own login; write recovery codes on paper.
+- [ ] **Both print the Emergency Kit** and store it apart from the passwords.
+- [ ] Both link a personal account and claim the free Families membership.
+- [ ] Create the shared `AgentSee` vault and the three tags. The name matters —
+      [`infra/op.env`](../infra/op.env) resolves `op://AgentSee/...` and will
+      fail on a rename.
+- [ ] Install the CLI and turn on the desktop-app integration, so `op run` can
+      unlock without a session token in the shell.
+- [ ] *Then* the social signups in [SOCIAL.md](SOCIAL.md) — so each TOTP seed
+      lands in the vault as the account is made.
 
-Step 6 is why this comes first. Sorting credentials after the accounts exist
-means transcribing seeds from a phone, which nobody does, which is how one
+The last one is why this comes first. Sorting credentials after the accounts
+exist means transcribing seeds off a phone, which nobody does, which is how one
 person ends up holding everything.
+
+## Later, not now
+
+Business unlocks two things worth knowing about before they are needed:
+
+**Service accounts.** A scoped, non-human credential that `op` can authenticate
+as. The obvious target is the Pages token in GitHub Actions secrets — but that
+swap trades one stored secret for another, since the service-account token has
+to live in GitHub too. It pays off with several secrets, or when a secret needs
+rotating without touching CI. Not yet.
+
+**The SSH agent.** 1Password can hold the key for `mail.agentsee.work` and
+require biometric confirmation per use, which is a real improvement over a key
+sitting in `~/.ssh` — the box is about to become somewhere both of us log into.
+Worth doing once the server exists.

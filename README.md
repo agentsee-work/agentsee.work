@@ -47,7 +47,7 @@ public/                       ← the only thing that gets deployed
 docs/RUNBOOK.md               where the infrastructure lives, and its traps
 docs/SOCIAL.md                the handle, and what signup will throw at you
 docs/MAIL-MIGRATION.md        proposed move to hosted mail — not yet executed
-docs/CREDENTIALS.md           1Password: the vault plan and its rules — not yet set up
+docs/CREDENTIALS.md           1Password Business: the vault, its rules, and what's left
 docs/AGENT-MAIL.md            inbound mail as an agent trigger — design only
 docs/MAIL-SELFHOST.md         own the inbox, rent the reputation — build spec
 docs/MAIL-BUILD-RUNBOOK.md    standing it up, phase by phase, with checkpoints
