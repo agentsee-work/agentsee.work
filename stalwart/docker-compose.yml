@@ -1,0 +1,43 @@
+# Stalwart on the box infra/ provisions.
+#
+# ⚠ VERIFY THE IMAGE NAME. The project renamed from `mail-server` to
+# `stalwart` and the Docker Hub tag may not have followed. Check
+# hub.docker.com/u/stalwartlabs before the first pull rather than after.
+#
+# Ports map 1:1 to the firewall rules in infra/server.tf. Note there is no
+# outbound port 25 anywhere in this design — everything leaves via SES on 465.
+
+services:
+  stalwart:
+    image: stalwartlabs/stalwart:latest
+    container_name: stalwart
+    restart: unless-stopped
+
+    ports:
+      - "25:25"     # SMTP inbound — the whole point
+      - "80:80"     # ACME http-01 challenge only
+      - "443:443"   # JMAP + WebAdmin
+      - "465:465"   # Submission, implicit TLS — our own clients
+      - "993:993"   # IMAPS — Apple Mail
+
+    volumes:
+      # Everything that matters: mail, accounts, config, DKIM private keys.
+      # This is what restic backs up, and the only thing on the box that
+      # cannot be rebuilt from this repo.
+      - /var/lib/stalwart:/opt/stalwart
+      - ./config.json:/opt/stalwart/etc/config.json:ro
+
+    environment:
+      # Referenced by the relay route as an EnvironmentVariable authSecret, so
+      # the committed plan never contains the credential. Supplied by the
+      # systemd unit or an .env file that is NOT in git — see .gitignore.
+      SES_SMTP_PASSWORD: "${SES_SMTP_PASSWORD:?set SES_SMTP_PASSWORD}"
+
+    # The server writes crash context and needs a real hostname for HELO.
+    hostname: mail.agentsee.work
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

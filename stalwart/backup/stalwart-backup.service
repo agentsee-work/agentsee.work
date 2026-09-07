@@ -1,0 +1,26 @@
+[Unit]
+Description=Back up the Stalwart datastore to R2
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+
+# Mode 0600, root-owned, NOT in git. Holds the restic passphrase path and the
+# R2 credentials. See stalwart/backup/README.md.
+EnvironmentFile=/etc/agentsee/backup.env
+
+ExecStart=/opt/agentsee/stalwart/backup/backup.sh
+
+# Backups must not compete with mail for the box.
+Nice=10
+IOSchedulingClass=idle
+
+# If it hangs, kill it — the trap in the script restarts the container.
+TimeoutStartSec=2h
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

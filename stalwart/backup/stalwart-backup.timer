@@ -1,0 +1,12 @@
+[Unit]
+Description=Nightly Stalwart backup
+
+[Timer]
+# 03:20 plus jitter. Off-peak for mail, and the jitter keeps us off the
+# top-of-hour spike at R2.
+OnCalendar=*-*-* 03:20:00
+RandomizedDelaySec=20m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,30 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+#
+# NOTHING SECRET GOES IN HERE. Credentials come from the environment:
+#
+#   export CLOUDFLARE_API_TOKEN=...    # Zone > DNS > Edit on agentsee.work
+#   export HCLOUD_TOKEN=...            # Hetzner project, read+write
+#   # AWS: profile `agentsee-ses` in ~/.aws/credentials
+#   # R2:  profile `r2-tfstate`   in ~/.aws/credentials
+#
+# All four belong in the vault's `infra` collection — see docs/CREDENTIALS.md.
+
+# A public key is public. Safe here.
+ssh_public_key = "ssh-ed25519 AAAA... you@host"
+
+# Narrow this if you have a static IP. Key-only auth is enforced regardless.
+# ssh_allowed_ips = ["203.0.113.4/32"]
+
+# ─── Left at defaults until the build says otherwise ────────────────────────
+
+# Empty on the first apply — Stalwart generates the key, so it cannot exist
+# before the server does. Fill in from the WebAdmin, then re-apply.
+# dkim_public_key = "v=DKIM1; k=rsa; p=MIIBIjANBg..."
+
+# Stays `none` through the migration. Under `reject`, our own unaligned mail is
+# discarded silently by recipients — the worst failure mode there is.
+# dmarc_policy = "none"
+
+# ⚠ THE CUTOVER. false until inbound, DKIM alignment and a real restore test
+# have all passed on the test subdomain. See infra/README.md.
+# enable_apex_mx = false

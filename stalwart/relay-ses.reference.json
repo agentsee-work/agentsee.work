@@ -1,0 +1,24 @@
+{
+  "_comment": "REFERENCE ONLY — not a plan file. JSON has no comments, so read stalwart/README.md alongside this. Field names are from the MtaRoute docs; the plan envelope must come from `stalwart-cli snapshot` against a running server, because the CLI is schema-driven and the server is the authority on its own shape.",
+
+  "@type": "Relay",
+  "address": "email-smtp.eu-west-1.amazonaws.com",
+  "port": 465,
+  "protocol": "smtp",
+  "implicitTls": true,
+  "allowInvalidCerts": false,
+
+  "authUsername": "REPLACE — `tofu output ses_smtp_username` in infra/",
+
+  "authSecret": {
+    "@type": "EnvironmentVariable",
+    "name": "SES_SMTP_PASSWORD"
+  },
+
+  "_notes": {
+    "why_environment_variable": "The `Value` variant would inline the password into a file committed to a PUBLIC repo — and deleting a secret from git does not remove it from history. EnvironmentVariable keeps the plan committable and the secret in the vault.",
+    "smtp_password_is_derived": "`ses_smtp_password_v4` from infra/ is NOT the IAM secret key. Pasting the secret key here produces an auth failure that looks like a wrong password, because it is one.",
+    "dane_and_mtasts": "Both MUST be disabled on this route. They assert properties of direct-to-MX delivery that are false with a smarthost in the path, and the resulting failures present as TLS errors — which sends you debugging certificates instead of routing. The key differs by version; confirm it in your snapshot.",
+    "region": "Must match aws_region in infra/. Mismatched region gives a connection failure, not a helpful error."
+  }
+}

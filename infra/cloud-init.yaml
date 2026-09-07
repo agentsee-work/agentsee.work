@@ -1,0 +1,52 @@
+#cloud-config
+# Base image only. Stalwart's own configuration is deliberately NOT here.
+#
+# The split: OpenTofu declares infrastructure with a real API behind it —
+# servers, firewalls, DNS, IAM. Application config is versioned separately and
+# deployed separately. Modelling a mail server's internals as Terraform
+# resources produces a bad Terraform module and a worse mail server.
+#
+# This file is in `ignore_changes` on the server, because editing it should not
+# silently mean "destroy the mailbox host". Change it, then rebuild on purpose.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - docker-compose-plugin
+  - restic
+  - fail2ban
+  - unattended-upgrades
+  - ufw
+
+write_files:
+  # Security updates apply themselves. An unpatched box holding all our mail is
+  # a worse risk than an unattended reboot.
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+  - path: /etc/ssh/sshd_config.d/99-hardening.conf
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin prohibit-password
+      KbdInteractiveAuthentication no
+
+  - path: /root/README
+    content: |
+      agentsee mail host — provisioned by infra/ (OpenTofu).
+
+      This box is disposable. Config comes from the repo, mail comes from
+      backups. If it is broken, rebuilding is a legitimate first response
+      and is expected to work — if it does not, that is the bug.
+
+      Do not hand-fix anything you have not also changed in the repo.
+      A hand-fix at 2am is how the IaC starts lying, and IaC that lies is
+      worse than none: it is confidently wrong.
+
+runcmd:
+  - systemctl enable --now docker
+  - systemctl enable --now fail2ban
+  - systemctl restart ssh

@@ -1,0 +1,28 @@
+# This repo is public. Everything here is about that.
+
+# State holds the SES SMTP password in clear. It belongs in R2.
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+crash.log
+crash.*.log
+
+# Real values — may name IPs, emails, keys.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Plan files contain full resource values, including sensitive ones.
+*.tfplan
+*.tfplan.*
+
+# Never.
+*.pem
+*.key
+*_rsa
+*_ed25519
+
+# The lock file IS committed — it pins provider checksums, and that is the
+# point of it. Not ignored, listed here so nobody "tidies" it away.
+!.terraform.lock.hcl
