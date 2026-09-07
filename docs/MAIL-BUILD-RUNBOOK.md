@@ -45,14 +45,34 @@ would leave us fine, but it does not say so about ingress. An MX is port 25 or
 nothing, and there is no workaround. Ask them first — the wording to use is in
 the checkpoint below.
 
-After signup, open the **OpenStack RC / clouds.yaml** download in the manager
-(Public Cloud > your project) but **don't save it to disk**. Copy the username,
-project and password into a `Infomaniak Public Cloud` item in the vault —
-`infra/op.env` resolves them from there at apply time, so there is no
-credentials file to leak or forget to `chmod`.
+**Public Cloud is a separate product to order**, not something the account has
+by default. Verifying your identity gets you an Infomaniak account; it does not
+get you a project. Order it, and you land on a dashboard with **Create a
+project**.
 
-Check the two `OS_*_DOMAIN_NAME` values in that RC file against `op.env`, which
-guesses `Default`. If it differs, `op.env` is where to correct it.
+Creating the project mints an OpenStack user named `PCU-XXXXXXX` — auto-
+generated, not editable — and the project itself gets `PCP-XXXXXXX`.
+
+⚠ **Set the user's password during that wizard**, and understand what it is:
+the PCU user has its **own** password, unrelated to the Infomaniak account you
+just signed into. This is the step people skip, because the wizard also offers
+to email a link instead and an email is easy to leave unread. If it was skipped,
+the manager will re-send it.
+
+Then in the manager, open the project's **user management** section, pick
+**clouds.yaml**, choose region `dc3-a`, and Download — but **don't save it to
+disk**. Read three values out of it and put them in an `Infomaniak Public Cloud`
+item in the **Engineering** vault:
+
+| Vault field | From clouds.yaml | Looks like |
+|---|---|---|
+| `username` | `username` | `PCU-XXXXXXX` |
+| `password` | `password` | the PCU password you set |
+| `project` | `project_name` | `PCP-XXXXXXX` |
+
+`infra/op.env` resolves those three at apply time, which is why there is no
+credentials file left anywhere to leak or forget to `chmod`. Everything else in
+that file — auth URL, region, both domains — is already in `op.env` and matches.
 
 **The relay is SMTP2GO.** Free tier is 1,000/month with no card, which two
 people's correspondence will not approach. It was chosen over AWS SES because
