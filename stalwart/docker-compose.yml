@@ -4,9 +4,12 @@
 # `stalwart` and the Docker Hub tag may not have followed. Check
 # hub.docker.com/u/stalwartlabs before the first pull rather than after.
 #
-# Ports map 1:1 to the firewall rules in infra/server.tf. Note there is no
-# outbound port 25 anywhere in this design — everything leaves via the relay
-# on 465.
+# Ports map 1:1 to the firewall rules in infra/server.tf, and all of them are
+# INBOUND. Host-level SMTP blocks are egress-only, so they do not affect these;
+# outbound is a separate question and the relay uses 8465 because of it.
+#
+# There is no outbound port 25 anywhere in this design — nothing is ever sent
+# direct-to-MX.
 
 services:
   stalwart:

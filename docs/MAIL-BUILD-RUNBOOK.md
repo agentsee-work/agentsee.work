@@ -20,10 +20,31 @@ worse than none, because it gets trusted.
 | Cloudflare | ✅ have | Zone, R2, Pages |
 | GitHub | ✅ have | `agentsee-work` org |
 | **Bitwarden** | needed **first** | [CREDENTIALS.md](CREDENTIALS.md). Everything below produces a credential |
-| **Hetzner** | needed | Payment card. ⚠ new accounts are often held for manual fraud review — **a day or two, and it can block phase 1** |
+| **Hetzner** | needed | Payment card **and photo ID** — see below |
 | **SMTP2GO** | needed | Free tier, no card. The outbound relay — see below |
 | healthchecks.io | needed | Free. The backup dead-man's switch |
 | Cal.com | later | Free tier. Guest booking, not on this path |
+
+### ⚠ Hetzner signup now needs government ID
+
+This entry used to warn about a manual fraud review taking a day or two. That
+is out of date. Hetzner moved cloud onboarding to iDenfy, which asks for a
+government-issued ID document and a biometric selfie, and is **automated** —
+faster than the process it replaced, though edge cases still route to a human.
+
+Two things follow that are easy to trip on:
+
+- Hetzner advises against signing up with a free email provider. Our own rule
+  says Hetzner must **not** use `@agentsee.work`, because nothing in the
+  recovery path for mail may depend on mail. A personal Gmail is the collision
+  of those two, and it is the one to expect friction from.
+- Don't sign up over a VPN.
+
+**Their network blocks outbound 25 and 465 for roughly the first month**,
+lifted by a limit request after the first invoice. Inbound 25 is open from day
+one, which is the port an MX actually needs. The outbound block is why the
+relay route uses **8465** — see phase 3. Nothing in this build waits on that
+limit request.
 
 **The relay is SMTP2GO.** Free tier is 1,000/month with no card, which two
 people's correspondence will not approach. It was chosen over AWS SES because
@@ -269,10 +290,20 @@ real message.
 > `header.d=agentsee.work`, and a message containing a link comes through with
 > that link untouched.
 
-**If outbound fails:** check the SMTP user's credentials before anything else,
-then that port 465 egress isn't blocked. SMTP2GO's dashboard logs every
-accepted message, so "nothing in the log" and "in the log but not delivered"
-point at completely different halves of the system.
+**If outbound fails:** SMTP2GO's dashboard logs every accepted message, and
+"nothing in the log" versus "in the log but not delivered" points at completely
+different halves of the system.
+
+Nothing in the log means we never got there — check the SMTP user's
+credentials, then that egress to `mail.smtp2go.com:8465` actually opens:
+
+```sh
+openssl s_client -connect mail.smtp2go.com:8465 -quiet
+```
+
+If that hangs, the host is filtering the port. **Do not "fix" it by moving to
+465** — that is the port Hetzner blocks for the first month. 2525 is the
+fallback.
 
 ---
 

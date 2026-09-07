@@ -10,7 +10,7 @@ Own the inbox, rent the reputation. The buy-instead path stays in
 ```
                  inbound                          outbound
                     │                                 │
- sender ──MX──► mail.agentsee.work            Stalwart ──465──► SMTP2GO ──► world
+ sender ──MX──► mail.agentsee.work           Stalwart ──8465──► SMTP2GO ──► world
                     │  (your VPS)                                    │
                     ▼                                          rented reputation
               Stalwart: SMTP · IMAP · JMAP
@@ -116,10 +116,17 @@ Hosts**, then point routing at it under **Outbound → Routing**.
 
 ```
 address    mail.smtp2go.com
-port       465                       (implicit TLS. 587/2525 are STARTTLS)
+port       8465                      (implicit TLS, on a port nobody filters)
 protocol   SMTP,  tls.implicit = true
 auth       an SMTP user from Sending > SMTP Users — not the account login
 ```
+
+⚠ **Use 8465, not 465.** Hetzner blocks outbound 25 and 465 on new cloud
+servers for about the first month, and most budget hosts do something similar.
+8465 is SMTP2GO's implicit-TLS port on a number nobody filters, so the relay
+path stops depending on the host's port policy at all. 2525 is the fallback.
+Don't drop to a STARTTLS port without requiring TLS on the route — a stripped
+connection would offer these credentials in clear.
 
 ⚠ **Disable DANE and MTA-STS on the relay route.** Both assert things about
 direct-to-MX delivery that are false when a smarthost is in the path, and

@@ -56,7 +56,8 @@ output "next_steps" {
 
     4. Configure the relay — Settings > SMTP > Outbound > Relay Hosts:
          host  mail.smtp2go.com
-         port  465, implicit TLS
+         port  8465, implicit TLS — NOT 465, which Hetzner blocks
+               outbound on new accounts for about a month
          user  from step 2
        Then DISABLE DANE and MTA-STS on that route. Both assert things
        about direct-to-MX delivery that are false with a smarthost in the

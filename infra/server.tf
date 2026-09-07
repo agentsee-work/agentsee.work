@@ -45,6 +45,9 @@ resource "hcloud_firewall" "mail" {
     description = "Submission (implicit TLS) — our own clients sending"
     direction   = "in"
     protocol    = "tcp"
+    # Inbound submission from our own clients. Host SMTP blocks are egress-only,
+    # so this is unaffected by them — but confirm it at checkpoint 2 rather than
+    # discovering it when Apple Mail cannot send.
     port        = "465"
     source_ips  = ["0.0.0.0/0", "::/0"]
   }
@@ -57,9 +60,14 @@ resource "hcloud_firewall" "mail" {
     source_ips  = ["0.0.0.0/0", "::/0"]
   }
 
-  # No outbound rules: Hetzner allows all egress by default, and we only need
-  # 465 out to the relay. Note we never need outbound 25 — Hetzner blocks it
-  # for new accounts, and this design does not care.
+  # No outbound rules here: Hetzner's firewall allows all egress by default.
+  #
+  # ⚠ Its NETWORK, separately, blocks outbound 25 and 465 on new accounts for
+  # roughly the first month — lifted only by a limit request after the first
+  # invoice. That is not this firewall and cannot be fixed here. It is why the
+  # relay route uses 8465 rather than 465; see stalwart/relay-smtp2go.reference.json.
+  #
+  # Outbound 25 we genuinely never need: nothing is ever sent direct-to-MX.
 }
 
 resource "hcloud_server" "mail" {
