@@ -14,6 +14,15 @@
 # a backup that has silently been covering the wrong directory for months —
 # which looks exactly like a working backup until the day it matters.
 #
+#   ./restore-test.sh              # primary   (Infomaniak Swiss Backup)
+#   ./restore-test.sh secondary    # secondary (Cloudflare R2)
+#
+# TEST BOTH. The secondary exists for the day the primary's entire account is
+# gone, which makes it the copy most likely to be reached for in an emergency
+# and the least likely to have ever been exercised. An untested second copy is
+# not redundancy, it is the belief in redundancy — worse than knowing you have
+# only one.
+#
 set -euo pipefail
 
 RESTORE_ROOT="${RESTORE_ROOT:-/var/tmp/stalwart-restore-test}"
@@ -21,15 +30,32 @@ DATA_DIR="${DATA_DIR:-/var/lib/stalwart}"
 TEST_PORT="${TEST_PORT:-18080}"
 IMAGE="${IMAGE:-stalwartlabs/stalwart:latest}"
 
+WHICH="${1:-primary}"
+case "$WHICH" in
+  primary) ;;
+  secondary)
+    : "${SECONDARY_REPOSITORY:?no secondary configured}"
+    export RESTIC_PASSWORD_FILE="${SECONDARY_PASSWORD_FILE:-${RESTIC_PASSWORD_FILE:-}}"
+    export RESTIC_REPOSITORY="$SECONDARY_REPOSITORY"
+    export AWS_ACCESS_KEY_ID="${SECONDARY_AWS_ACCESS_KEY_ID:?not set}"
+    export AWS_SECRET_ACCESS_KEY="${SECONDARY_AWS_SECRET_ACCESS_KEY:?not set}"
+    ;;
+  *) echo "usage: $0 [primary|secondary]" >&2; exit 2 ;;
+esac
+
 : "${RESTIC_REPOSITORY:?not set}"
 : "${RESTIC_PASSWORD_FILE:?not set}"
+
+# Distinct scratch path per repository, so testing one can never disturb the
+# other and both can be run back to back.
+RESTORE_ROOT="${RESTORE_ROOT}-${WHICH}"
 
 log()  { printf '%s  %s\n' "$(date -Is)" "$*"; }
 pass() { printf '\033[32m  PASS\033[0m  %s\n' "$*"; }
 fail() { printf '\033[31m  FAIL\033[0m  %s\n' "$*"; FAILED=1; }
 FAILED=0
 
-CONTAINER="stalwart-restore-test-$$"
+CONTAINER="stalwart-restore-test-${WHICH}-$$"
 cleanup() {
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
   rm -rf "$RESTORE_ROOT"
@@ -37,6 +63,7 @@ cleanup() {
 trap cleanup EXIT
 
 # ── 1. Restore ───────────────────────────────────────────────────────────────
+log "testing the ${WHICH} repository: ${RESTIC_REPOSITORY}"
 log "restoring latest snapshot to ${RESTORE_ROOT}"
 rm -rf "$RESTORE_ROOT"; mkdir -p "$RESTORE_ROOT"
 restic restore latest --target "$RESTORE_ROOT" --tag stalwart
@@ -100,10 +127,17 @@ fi
 # ── Verdict ──────────────────────────────────────────────────────────────────
 echo
 if [ "$FAILED" = 0 ]; then
-  printf '\033[32mRESTORE TEST PASSED\033[0m — %s\n' "$(date -Is)"
+  printf '\033[32mRESTORE TEST PASSED\033[0m (%s) — %s\n' "$WHICH" "$(date -Is)"
   echo "Record the date. Next test due in three months."
+  # Written as `if`, not `a && b && echo`. That chain is the last statement in
+  # the passing branch, so its status becomes the script's exit status — and
+  # when the condition is false (which is exactly the secondary run) it is
+  # non-zero. The script would print PASSED and exit 1. Verified, not guessed.
+  if [ "$WHICH" = primary ] && [ -n "${SECONDARY_REPOSITORY:-}" ]; then
+    echo "Not done yet — now run: $0 secondary"
+  fi
 else
-  printf '\033[31mRESTORE TEST FAILED\033[0m\n'
+  printf '\033[31mRESTORE TEST FAILED\033[0m (%s)\n' "$WHICH"
   echo "Per docs/MAIL-SELFHOST.md: not fixed this week means move to a hosted"
   echo "provider. That criterion exists so the decision isn't made mid-incident."
   exit 1

@@ -89,9 +89,9 @@ same question, which is how items end up findable by neither.
 
 | Vault | Holds | The test |
 |---|---|---|
-| **Engineering** | Cloudflare API token, R2 tokens, Infomaniak Public Cloud, SMTP2GO SMTP user | Read by a machine |
+| **Engineering** | Cloudflare API token, R2 tokens, Swiss Backup keys, Infomaniak Public Cloud, SMTP2GO SMTP user | Read by a machine |
 | **IT** | Cloudflare and Infomaniak account logins, registrar, GitHub org, mailboxes, healthchecks.io | Typed by a person |
-| **Security** | The restic passphrase. Where the Emergency Kits physically are — not what is in them | Losing it loses something unrecoverable |
+| **Security** | The restic passphrase — one, shared by both backup repositories. Where the Emergency Kits physically are, not what is in them | Losing it loses something unrecoverable |
 | **Social** | Platform logins and their passkeys | Obvious |
 | **Finance** | Bank, invoicing, accounting | Empty until there is money |
 | **Shared** | Nothing | See below |

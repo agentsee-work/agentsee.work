@@ -22,7 +22,8 @@ worse than none, because it gets trusted.
 | 1Password | ✅ Business, vaults created | [CREDENTIALS.md](CREDENTIALS.md) — the second Owner is still outstanding, and `op run` needs the three Engineering items to exist |
 | **Infomaniak** | needed | Payment card. Public Cloud, not the hosted mail — see below |
 | **SMTP2GO** | needed | Free tier, no card. The outbound relay — see below |
-| healthchecks.io | needed | Free. The backup dead-man's switch |
+| healthchecks.io | needed | Free. **Two** checks — one per backup repository |
+| Swiss Backup | ✅ 1 TB bought | Primary backup target. S3 protocol, not Swift |
 | Cal.com | later | Free tier. Guest booking, not on this path |
 
 ### The host is Infomaniak Public Cloud
@@ -427,15 +428,21 @@ journalctl -u stalwart-backup -n 50
 
 set -a; . /etc/agentsee/backup.env; set +a
 /opt/agentsee/stalwart/backup/restore-test.sh
+/opt/agentsee/stalwart/backup/restore-test.sh secondary
 ```
 
-The restore test must print **RESTORE TEST PASSED**. It restores to scratch and
+Both must print **RESTORE TEST PASSED**. It restores to scratch and
 boots a throwaway server against the restored data — if that server doesn't come
 up, the backup is bytes rather than a recovery.
 
-> ✅ **Checkpoint 5** — a nightly backup has run unattended at least once, the
-> restore test passes, the restic passphrase is in the vault **and on paper**,
-> and the healthcheck alerts when you deliberately skip a run.
+> ✅ **Checkpoint 5** — a nightly backup has run unattended at least once and
+> written to **both** repositories, both restore tests pass, the restic
+> passphrase is in the vault **and on paper**, and each healthcheck alerts when
+> you deliberately skip a run.
+
+Test the second healthcheck separately. A shared switch would keep reporting
+healthy while the secondary silently failed, and two copies would be false in
+the way that is only discovered when both are needed.
 
 ---
 

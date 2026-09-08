@@ -40,7 +40,7 @@ whole reason this design works:
 | Volume | 20 GB for `/var/lib/stalwart` | *confirm at signup* |
 | Server | Stalwart — SMTP, IMAP, JMAP, CalDAV, CardDAV, spam filter, ACME | £0 |
 | Relay | SMTP2GO free tier, 1,000 messages/month, no card | £0 |
-| Backups | restic → Cloudflare R2 (no egress fees, account already exists) | ≈ £1 |
+| Backups | restic → Infomaniak Swiss Backup, mirrored to R2 | see below |
 | **Total** | | **£60–80** |
 
 The €5.29 is Infomaniak's published figure for the `disk0` flavour, where the
@@ -48,6 +48,12 @@ root disk is only as large as the image. The variants with a real root disk and
 the price of block storage are **not** figures I have, so the total is a range
 rather than a number — settle it on the pricing page before committing, and
 replace this table with what you actually paid.
+
+**Backups are deliberately not in that total.** Swiss Backup was bought as a
+1 TB general backup product — laptops, `/opt/lab`, whatever else — and mail uses
+single-digit GB of it. Loading its subscription onto the mail line would make
+self-hosting look far more expensive than it is. The marginal cost of mail's
+backups is the R2 second copy, which the free tier covers.
 
 More than kSuite either way, plus your time, which is the real price and
 doesn't appear here at all. The host is essentially the entire bill, so the
@@ -178,8 +184,26 @@ nothing. **Disk loss is unrecoverable and permanent.** Everything else in this
 document is reversible; this isn't.
 
 ```
-restic → Cloudflare R2, nightly, encrypted, with a retention policy
+restic → Infomaniak Swiss Backup  (primary)   nightly, encrypted, retention
+restic → Cloudflare R2            (secondary)  same run, different company
 ```
+
+**Two copies at two companies, because the server is at one of them.** Swiss
+Backup is 1 TB already bought and Infomaniak documents restic against it, so it
+is the obvious primary. It is also the same account that runs the mail server —
+so one suspension, billing failure or compromised login would take the server
+and every copy of the mail at the same moment, which is exactly the event a
+backup exists for.
+
+R2's free tier is 10 GB-month with no egress, and this repository is well under
+it, so the independent second copy costs approximately nothing. Details and the
+`restic copy` trap are in
+[`stalwart/backup/README.md`](../stalwart/backup/README.md).
+
+⚠ **Two copies is not two kinds of protection.** Both credentials live on the
+box, and Infomaniak's immutability is Acronis-only — unavailable on the S3 and
+Swift protocols restic uses. So this defends against losing the *account*, not
+against someone owning the *box*.
 
 **Restore-test it on a schedule.** An untested backup is a hope. Put the first
 restore test in the calendar before the first real message arrives, and repeat
