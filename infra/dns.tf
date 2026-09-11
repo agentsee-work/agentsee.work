@@ -100,7 +100,7 @@ resource "cloudflare_dns_record" "dmarc" {
   type    = "TXT"
   content = "v=DMARC1; p=${var.dmarc_policy}; sp=${var.dmarc_policy}; rua=mailto:dmarc@${var.domain}; fo=1"
   ttl     = 300
-  comment = "Managed by OpenTofu. p=reject only after alignment is proven."
+  comment = "Nothing sends as @agentsee.work yet. Relax to p=none BEFORE any send-as."
 }
 
 # ─── DKIM: ours, signed by Stalwart before handoff to the relay ──────────────

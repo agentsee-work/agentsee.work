@@ -5,8 +5,13 @@ provider "registry.opentofu.org/cloudflare/cloudflare" {
   version     = "5.24.0"
   constraints = "~> 5.0"
   hashes = [
+    "h1:EdatAvZg845pGYfEdzYNkxmQfV8or5y6HDbh6CIJfI8=",
     "h1:F3V4hF42Y/Usl9OhzNFQHwUL8oNXTzbY5x6dQaDaASc=",
+    "h1:HR6WGGeB70a/yygHbNFsg+3Ko7s9AgtlkFf8PdbZfT8=",
     "h1:NxZYEFjCgaI7lGi3L8mn0KZcWPfbqUdmt5Bo4yqWMFE=",
+    "h1:PIAng5QYiHeydJm1S6sG6d1YYIjaFuIwnifvq/qEV1Q=",
+    "h1:R1Pt6vcenzSH8FDbxW1MQ3tk+/nXAfvscASTFaOmERM=",
+    "h1:ZGuBr8oAhWpWIni1jaNofXcsNUoaHuejjHcbcH72z1Q=",
     "h1:yM0PvkOY7H66+yk+vlDJOnhDQXOFT6cHlmZ/C6UjT/c=",
     "zh:2390fc5df95addfd47d3f638964a1f9f6192a8c84ad3b1eab554ef88e0ac4091",
     "zh:2b09c0afbebeb3139a3094e3debda1ba5ff3d73b6eca536549bdc903284b6798",
@@ -24,8 +29,19 @@ provider "registry.opentofu.org/terraform-provider-openstack/openstack" {
   version     = "2.0.0"
   constraints = "~> 2.0.0"
   hashes = [
+    "h1:+OrPMufvLQduenD0vazZBuVTbG0k9m4aSIq3471mDyM=",
+    "h1:57DiCWShNEtU9FZjvE9li2xYfTnJIQ72m9MqV+/HE28=",
+    "h1:FBQet5amI8KY09Iv1j90PGx/Ls4oKtrfEFaR9l3W/8A=",
+    "h1:IijcIphD3qXWMrBbykqbEXa0spz16V7iF2+pFmV3UV4=",
     "h1:OU7OgVMlRrEGbXponhW0+t/plN5MQreXWBs8l67S4DU=",
+    "h1:QIPsSmfBchsXNA0D130cGYMQUgjLziJHJeVfRPySmLY=",
+    "h1:SSs5thVwrFUwc1bAwcSCBei+b7h5jeDQTBKdCMIPAjI=",
     "h1:TlWnNG9n7MH6S7YBI0BUiQ/wkUPdNNeG2Iy68HsSS20=",
+    "h1:TuI1orDsyzWDIeygGPoYNJAV14kCQgRAbHPGqoq02/Q=",
+    "h1:XEZQ7R/XL03gVn7nNZIOudejG2ASCxlx+aLo7H0vTso=",
+    "h1:ZYBqsOlL99qnxDaY1YPmWasGbwXHqoGPt2HDydvy7yQ=",
+    "h1:mvCkckCfeNUVBArw+my4KIBR7j58/XFFlDI+SY+Kix4=",
+    "h1:o2oOXrZ1bM0Sy0K9SGmIdlsd3Lip6N+zMtJAZVkZsxQ=",
     "h1:raN7bKNdWwlAUprknjprlcP8/YluslrdVtyO+YI4PHs=",
     "zh:17dcb07e1af0bf5dfa0aa280a7ad450dffcd4c2b2fba91088eb5ec191ad8a0a0",
     "zh:2546f047d34f4372e4eb10db5ba23a45a8952327ae94d15371b2432ba477404e",
