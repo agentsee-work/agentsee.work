@@ -374,6 +374,17 @@ sudo mkfs.ext4 -L stalwart /dev/vdb    # ONLY if it has no filesystem
 sudo install -d -m 0755 /var/lib/stalwart
 echo 'LABEL=stalwart /var/lib/stalwart ext4 defaults,noatime 0 2' | sudo tee -a /etc/fstab
 sudo mount -a && df -h /var/lib/stalwart
+
+# ⚠ The container runs as uid 2000, NOT root. A root-owned volume gives
+# "Permission denied (os error 13)" from inside the setup wizard, at the point
+# it tries to save the data store settings — long after everything looked fine.
+sudo chown -R 2000:2000 /var/lib/stalwart
+```
+
+Confirm the uid rather than trusting this number; a future image could change it:
+
+```sh
+sudo docker exec stalwart id     # expect uid=2000(stalwart)
 ```
 
 Mounting by **label** rather than `/dev/vdb` on purpose: device names are

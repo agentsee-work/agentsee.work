@@ -102,7 +102,7 @@ fi
 log "booting a throwaway server against the restored data"
 if docker run -d --rm \
       --name "$CONTAINER" \
-      -v "${RESTORED}:/opt/stalwart" \
+      -v "${RESTORED}:/var/lib/stalwart" \
       -p "127.0.0.1:${TEST_PORT}:443" \
       "$IMAGE" >/dev/null 2>&1; then
 

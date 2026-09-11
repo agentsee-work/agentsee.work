@@ -46,7 +46,16 @@ services:
       # Everything that matters: mail, accounts, config, DKIM private keys.
       # This is what restic backs up, and the only thing on the box that
       # cannot be rebuilt from this repo.
-      - /var/lib/stalwart:/opt/stalwart
+      # SAME PATH ON BOTH SIDES, deliberately. Stalwart records the datastore
+      # location in its own config, and the setup wizard defaults it to
+      # /var/lib/stalwart — the host convention. With the volume mounted at
+      # /opt/stalwart instead, that path existed only inside the container's
+      # writable layer, so RocksDB wrote to somewhere that vanished on every
+      # recreate while the host volume stayed empty.
+      #
+      # Identical paths make any location the server picks valid on both sides,
+      # and make `ls /var/lib/stalwart` mean the same thing in both places.
+      - /var/lib/stalwart:/var/lib/stalwart
 
     environment:
       # Referenced by the relay route as an EnvironmentVariable authSecret, so
@@ -64,7 +73,7 @@ services:
     # config, entered bootstrap mode, and the setup wizard completed against
     # storage that did not persist — so a restart returned to a fresh wizard
     # with no error anywhere explaining why.
-    command: ["--config", "/opt/stalwart/etc/config.json"]
+    command: ["--config", "/var/lib/stalwart/etc/config.json"]
 
     # The server writes crash context and needs a real hostname for HELO.
     hostname: mail.agentsee.work

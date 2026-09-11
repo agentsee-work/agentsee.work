@@ -96,6 +96,12 @@ runcmd:
   - systemctl enable --now docker
   - systemctl enable --now fail2ban
   - systemctl restart ssh
+
+  # NOT the mail volume — that is formatted and mounted by hand in
+  # MAIL-BUILD-RUNBOOK phase 2, because a first-boot script that can reformat
+  # the disk holding the mail is a bad thing to get subtly wrong, and cloud-init
+  # reruns on rebuild. The chown to uid 2000 belongs with that step too: the
+  # Stalwart container does not run as root.
   # Experiments go here, and only here. Not backed up, deliberately.
   - install -d -m 0755 /opt/lab
   # NOT the mail volume. That is formatted and mounted by hand in phase 2 —
