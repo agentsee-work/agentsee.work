@@ -12,17 +12,33 @@
 # ⚠ The login is `debian`, not root. OpenStack images inject the keypair into
 # the image's default user; the hardening below permits root by key but nothing
 # puts a key there. Use `ssh debian@...` and sudo.
+#
+# There is deliberately no ufw. The firewall is the OpenStack security group in
+# infra/server.tf, which is declared, reviewable in a plan, and applies before
+# the box finishes booting. A second host firewall that is NOT declared is the
+# drift this repo keeps warning about — and an unconfigured ufw protects
+# nothing while looking like it does.
+#
+# ⚠ AFTER CHANGING THIS FILE, verify on a fresh box:
+#     sudo cloud-init status --long        # must say `status: done`
+# It is in ignore_changes, so editing it does not rebuild anything.
 
 package_update: true
 package_upgrade: true
 
+# ⚠ ONE MISSING PACKAGE ABORTS THE WHOLE LIST, and cloud-init reports it only
+# in `cloud-init status --long`. The box comes up, SSH works, write_files and
+# runcmd all succeed — and nothing is installed. Found the hard way on
+# 11 September 2026: `docker-compose-plugin` does not exist in Debian bookworm
+# (it is a docker.com repository package), so docker, restic, fail2ban and
+# unattended-upgrades were all silently absent.
+#
+# Compose v2 is installed as a pinned plugin binary in runcmd instead.
 packages:
   - docker.io
-  - docker-compose-plugin
   - restic
   - fail2ban
   - unattended-upgrades
-  - ufw
 
 write_files:
   # Security updates apply themselves. An unpatched box holding all our mail is
@@ -60,6 +76,14 @@ write_files:
       plus a restore is the day the mail server became a pet.
 
 runcmd:
+  # Compose v2, pinned and checksummed. Debian ships only compose v1 (1.29.2),
+  # which is end-of-life and uses `docker-compose` rather than `docker compose`
+  # — stalwart/docker-compose.yml is written for v2.
+  - install -d -m 0755 /usr/local/lib/docker/cli-plugins
+  - curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose https://github.com/docker/compose/releases/download/v5.5.1/docker-compose-linux-x86_64
+  - echo "db1889184726840f75c4f9c001048430d4f25b3be3cb084d3ddd762bc0aed576  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c -
+  - chmod 0755 /usr/local/lib/docker/cli-plugins/docker-compose
+
   - systemctl enable --now docker
   - systemctl enable --now fail2ban
   - systemctl restart ssh
