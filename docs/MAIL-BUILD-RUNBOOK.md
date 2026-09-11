@@ -58,6 +58,29 @@ dashboard directly.
 
 This is the only part of the build done by hand, and it is the tenancy rather
 than the server — see [infra/README.md](../infra/README.md#the-tenancy-is-clicked-the-vps-is-not).
+
+#### The create-project form, field by field
+
+| Field | Put in | Why |
+|---|---|---|
+| Project name | `agentsee` | Not `agentsee-mail`. The box is also the lab, and a project is a tenancy boundary — leaving the name generic keeps `client-<name>` projects available later without this one looking misnamed |
+| Access description | `opentofu` | The `PCU-` name itself is generated and not editable. The description is the only place to record what the credential is *for*, and a second one will eventually exist for console access |
+| Password | **Create now** | Not "send procedure" |
+
+**Create now, not the emailed form.** The emailed link is one more step and it
+is the step that gets left unread — and the PCU password is the credential the
+entire apply depends on.
+
+⚠ **Put the password in the vault before submitting the form.** Generate it in
+1Password, save the `Infomaniak Public Cloud` item in **Engineering**, *then*
+paste it into the browser. Generate it in the browser first and a mistyped copy
+means a password reset rather than a correction. The `username` and `project`
+fields of that item do not exist yet; add them from `clouds.yaml` afterwards.
+
+The rules are ≥8 characters with an upper, a lower, a digit and a symbol.
+1Password's generator clears that comfortably — check the generated string
+actually contains all four classes, because a random 32-character password can
+legitimately come out with no digit.
 Nothing about the box is created this way.
 
 Creating the project mints an OpenStack user named `PCU-XXXXXXX` — auto-
