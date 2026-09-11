@@ -1,8 +1,12 @@
 # Stalwart on the box infra/ provisions.
 #
-# ⚠ VERIFY THE IMAGE NAME. The project renamed from `mail-server` to
-# `stalwart` and the Docker Hub tag may not have followed. Check
-# hub.docker.com/u/stalwartlabs before the first pull rather than after.
+# Image name verified 11 September 2026: stalwartlabs/stalwart is current.
+# The old stalwartlabs/mail-server repository stops at v0.11, which predates the
+# v0.16 config model this directory is written for — pulling it would give you a
+# server that wants a config.toml.
+#
+# Pinned, not :latest. This holds the mail; an unattended major upgrade is not
+# something to discover from a container that will not start.
 #
 # Ports map 1:1 to the firewall rules in infra/server.tf, and all of them are
 # INBOUND. Host-level SMTP blocks are egress-only, so they do not affect these;
@@ -13,7 +17,7 @@
 
 services:
   stalwart:
-    image: stalwartlabs/stalwart:latest
+    image: stalwartlabs/stalwart:v0.16.21
     container_name: stalwart
     restart: unless-stopped
 

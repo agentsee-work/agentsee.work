@@ -28,7 +28,9 @@ set -euo pipefail
 RESTORE_ROOT="${RESTORE_ROOT:-/var/tmp/stalwart-restore-test}"
 DATA_DIR="${DATA_DIR:-/var/lib/stalwart}"
 TEST_PORT="${TEST_PORT:-18080}"
-IMAGE="${IMAGE:-stalwartlabs/stalwart:latest}"
+# Must match docker-compose.yml. A restore tested against a different version
+# than the one running is not a test of this server.
+IMAGE="${IMAGE:-stalwartlabs/stalwart:v0.16.21}"
 
 WHICH="${1:-primary}"
 case "$WHICH" in

@@ -299,7 +299,8 @@ requires authentication`, which names nothing it could have been. Take the
 values from a downloaded `clouds.yaml`, never from documentation.
 
 **`PCU-` and `PCP-` differ by one letter and are otherwise the same string.**
-`PCU-AU4M4J7` is the user, `PCP-AU4M4J7` the project. Pasting the project id
+`PCU-` is the user, `PCP-` the project, and the rest of the string is identical
+between them. Pasting the project id
 into both vault fields gives the same bare 401. A wrong *project* with a right
 user gives a 404 naming the project, so a 401 means the problem is the username,
 password or user domain — that distinction is the fastest way to halve the
