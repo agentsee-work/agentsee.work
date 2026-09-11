@@ -276,7 +276,28 @@ one rule, and they keep appearing because it is easy to miss:
 
 So the accounts that mail *depends on* use personal addresses. Everything else —
 social platforms, booking, anything not load-bearing — uses
-`accounts@agentsee.work`. Recorded in [MAIL-BUILD-RUNBOOK.md](MAIL-BUILD-RUNBOOK.md).
+`accounts@agentsee.work`.
+
+### When a vendor refuses a free email address
+
+SMTP2GO rejects free providers at signup — "please use an email at your own
+domain" — which collides head-on with the rule above: it is *in* mail's recovery
+path, so it must not depend on our mail.
+
+The way out is a subdomain that stays on **Cloudflare Email Routing
+permanently**, forwarding to personal inboxes:
+
+```
+smtp2go@ops.agentsee.work  →  personal inbox
+```
+
+The vendor sees a domain address; delivery is Cloudflare's, not Stalwart's. Our
+mail server can be entirely dead and the reset link still arrives.
+
+⚠ **`ops.agentsee.work` must never point at our server.** Its whole value is
+being the one part of the domain that does not depend on us. If it is ever
+migrated onto Stalwart "for tidiness", the loop closes again and nothing will
+warn you. The same applies to any future vendor with the same signup rule. Recorded in [MAIL-BUILD-RUNBOOK.md](MAIL-BUILD-RUNBOOK.md).
 
 **API tokens live in the vault, and nowhere else that persists.** Specifically:
 the full Cloudflare token, which per the runbook can repoint the domain and the

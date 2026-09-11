@@ -129,6 +129,12 @@ item in the **Engineering** vault:
 credentials file left anywhere to leak or forget to `chmod`. Everything else in
 that file — auth URL, region, both domains — is already in `op.env` and matches.
 
+⚠ **SMTP2GO refuses free email addresses at signup.** Use
+`smtp2go@ops.agentsee.work` — a subdomain kept on Cloudflare Email Routing
+forever, so it is a domain address that does not depend on our mail server. See
+[CREDENTIALS.md](CREDENTIALS.md#when-a-vendor-refuses-a-free-email-address).
+`ops.` must never point at Stalwart.
+
 **The relay is SMTP2GO.** Free tier is 1,000/month with no card, which two
 people's correspondence will not approach. It was chosen over AWS SES because
 SES starts in a sandbox and leaving it needs a support request reviewed by a
