@@ -227,9 +227,15 @@ While you are there: **Sending > SMTP Users**, create one. Those credentials go
 to the **Engineering** vault. They are not managed by OpenTofu and never enter
 state.
 
-**Turn link tracking off.** It rewrites URLs in the message body, which is both
-unwanted for correspondence and likely to invalidate the DKIM signature
-Stalwart applies before handoff.
+**Turn tracking off — it is per SMTP user, not a global switch.** Sending >
+SMTP Users > *your username* > **Tracking & Status**, and turn off **both**
+Click Tracking and Open Tracking.
+
+Both modify the message body: click tracking rewrites URLs, open tracking
+injects a pixel. Stalwart signs the body before handoff, so either should
+invalidate our DKIM signature — and both are unwanted for correspondence
+regardless. Because the setting lives on the user, a second SMTP user created
+later starts with tracking **on** again.
 
 > ✅ **Checkpoint 0** — both buckets exist, SMTP2GO shows the sender domain
 > with three CNAMEs to publish and an SMTP user created, every item named in
