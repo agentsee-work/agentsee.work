@@ -28,6 +28,20 @@ services:
       - "465:465"   # Submission, implicit TLS — our own clients
       - "993:993"   # IMAPS — Apple Mail
 
+      # Bootstrap and recovery UI, LOOPBACK ONLY. Stalwart opens 8080 when it
+      # finds no configuration, and again as "http-recovery" if it ever cannot
+      # start normally. Reach it with a tunnel:
+      #
+      #   ssh -L 8080:localhost:8080 debian@mail.agentsee.work
+      #   then browse http://localhost:8080
+      #
+      # The 127.0.0.1 prefix is the whole point — without it Docker publishes to
+      # 0.0.0.0 and, worse, writes its own iptables rules that bypass the host
+      # firewall. Here the OpenStack security group would still drop it, but
+      # relying on that would mean the container's exposure and the declared
+      # firewall disagreeing.
+      - "127.0.0.1:8080:8080"
+
     volumes:
       # Everything that matters: mail, accounts, config, DKIM private keys.
       # This is what restic backs up, and the only thing on the box that

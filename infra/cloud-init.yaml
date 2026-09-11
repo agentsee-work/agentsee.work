@@ -29,16 +29,16 @@ package_upgrade: true
 # ⚠ ONE MISSING PACKAGE ABORTS THE WHOLE LIST, and cloud-init reports it only
 # in `cloud-init status --long`. The box comes up, SSH works, write_files and
 # runcmd all succeed — and nothing is installed. Found the hard way on
-# 11 September 2026: `docker-compose-plugin` does not exist in Debian bookworm
-# (it is a docker.com repository package), so docker, restic, fail2ban and
-# unattended-upgrades were all silently absent.
+# 11 September 2026: `docker-compose-plugin` does not exist in Debian bookworm,
+# so docker, restic, fail2ban and unattended-upgrades were all silently absent.
 #
-# Compose v2 is installed as a pinned plugin binary in runcmd instead.
+# Docker is NOT in this list. It comes from docker.com in runcmd — see below.
 packages:
-  - docker.io
   - restic
   - fail2ban
   - unattended-upgrades
+  - ca-certificates
+  - curl
 
 write_files:
   # Security updates apply themselves. An unpatched box holding all our mail is
@@ -76,13 +76,22 @@ write_files:
       plus a restore is the day the mail server became a pet.
 
 runcmd:
-  # Compose v2, pinned and checksummed. Debian ships only compose v1 (1.29.2),
-  # which is end-of-life and uses `docker-compose` rather than `docker compose`
-  # — stalwart/docker-compose.yml is written for v2.
-  - install -d -m 0755 /usr/local/lib/docker/cli-plugins
-  - curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose https://github.com/docker/compose/releases/download/v5.5.1/docker-compose-linux-x86_64
-  - echo "db1889184726840f75c4f9c001048430d4f25b3be3cb084d3ddd762bc0aed576  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c -
-  - chmod 0755 /usr/local/lib/docker/cli-plugins/docker-compose
+  # ── Docker from docker.com, not from Debian ────────────────────────────────
+  # Debian bookworm ships docker.io 20.10.24, which dates from 2022 and cannot
+  # unpack the layer format modern images are pushed with. Pulling
+  # stalwartlabs/stalwart:v0.16.21 on it fails with
+  #
+  #   failed to register layer: archive/tar: invalid tar header
+  #
+  # which reads like a corrupt download and is not one. Debian also ships only
+  # compose v1 (1.29.2, end-of-life, `docker-compose` rather than
+  # `docker compose`), so the official repository settles both problems at once.
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - bash -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list'
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
   - systemctl enable --now docker
   - systemctl enable --now fail2ban
