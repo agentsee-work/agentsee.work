@@ -47,13 +47,24 @@ services:
       # This is what restic backs up, and the only thing on the box that
       # cannot be rebuilt from this repo.
       - /var/lib/stalwart:/opt/stalwart
-      - ./config.json:/opt/stalwart/etc/config.json:ro
 
     environment:
       # Referenced by the relay route as an EnvironmentVariable authSecret, so
       # the committed plan never contains the credential. Supplied by the
       # systemd unit or an .env file that is NOT in git — see .gitignore.
       RELAY_SMTP_PASSWORD: "${RELAY_SMTP_PASSWORD:?set RELAY_SMTP_PASSWORD}"
+
+    # ⚠ The image's default is `--config /etc/stalwart/config.json`, which is
+    # inside the container and therefore lost on every recreate. Pointed at the
+    # mounted volume instead, so configuration survives a rebuild and is
+    # included in the backup.
+    #
+    # This was found the hard way: config.json was originally mounted at
+    # /opt/stalwart/etc/config.json, a path nothing reads. Stalwart found no
+    # config, entered bootstrap mode, and the setup wizard completed against
+    # storage that did not persist — so a restart returned to a fresh wizard
+    # with no error anywhere explaining why.
+    command: ["--config", "/opt/stalwart/etc/config.json"]
 
     # The server writes crash context and needs a real hostname for HELO.
     hostname: mail.agentsee.work

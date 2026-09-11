@@ -57,6 +57,35 @@ Step 3 matters. The CLI is **schema-driven** — it downloads the object schema
 from the running server — so a snapshot is authoritative in a way a
 hand-written plan isn't. Generate the plan from a server; don't invent it.
 
+## There is no config.json in this directory
+
+There was, and it was wrong in a way worth recording.
+
+The image runs `--config /etc/stalwart/config.json`, a path **inside the
+container**, so anything written there disappears on the next recreate. Our
+compose mounted a read-only `config.json` at `/opt/stalwart/etc/config.json`
+instead — a path nothing reads.
+
+The result had no error in it anywhere. Stalwart found no configuration, entered
+bootstrap mode, and printed a temporary admin password. The setup wizard ran
+happily to completion against storage that did not persist, and the next restart
+produced a fresh wizard and a fresh password, as though nothing had been done.
+
+So the config now lives on the mounted volume, created by Stalwart itself:
+
+```yaml
+command: ["--config", "/opt/stalwart/etc/config.json"]
+```
+
+That path is inside `/var/lib/stalwart`, which means it survives a rebuild and
+is covered by the backup. Nothing in this repo needs to hold it — since v0.16
+the config file only says where the datastore is, and everything else lives in
+the datastore, captured by `stalwart-cli snapshot` into `plan.json`.
+
+**The tell for this class of bug:** a setup wizard that reappears. If Stalwart
+ever greets you with a bootstrap password again, it has not lost its
+configuration — it never had anywhere to put it.
+
 ## ⚠ What in here is unvalidated
 
 Being explicit, because a config that is confidently wrong costs more than one
@@ -64,8 +93,7 @@ that admits a gap:
 
 | File | State |
 |---|---|
-| `config.json` | Confident — the format is documented and trivial |
-| `docker-compose.yml` | **Check the image name.** The project renamed from `mail-server` to `stalwart`; the Docker Hub tag may not have followed. Port mappings are ours and correct |
+| `docker-compose.yml` | **Run on a real box 11 September 2026.** Image name, ports, the loopback bootstrap port and the `--config` path are all corrected from what actually happened rather than what was designed |
 | `relay-smtp2go.reference.json` | **Field names only.** Taken from the MtaRoute docs. The surrounding plan envelope must come from `snapshot` |
 
 None of this has been run. Treat it as a starting point that saves you reading,
