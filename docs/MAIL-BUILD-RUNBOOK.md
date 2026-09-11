@@ -43,11 +43,30 @@ Chosen over Hetzner on conduct rather than technology, and it costs roughly
 never need it: nothing is ever sent direct-to-MX, and the relay is reached on
 8465. Don't file the request — an unused open port is only a liability.
 
-⚠ **Inbound 25 is the one thing to confirm before building anything.** Their
-documentation describes the block as *outgoing*, which is the normal shape and
-would leave us fine, but it does not say so about ingress. An MX is port 25 or
-nothing, and there is no workaround. Ask them first — the wording to use is in
-the checkpoint below.
+✅ **Inbound 25 reaches the instance** — tested 11 September 2026, no support
+ticket required. Their docs describe the block as *outgoing* without saying
+anything about ingress, and an MX is port 25 or nothing, so this had to be
+settled before building. It can be settled in five seconds:
+
+```sh
+probe() { timeout 8 bash -c "exec 3<>/dev/tcp/mail.agentsee.work/$1"; \
+          echo "$1 -> rc=$?"; }
+probe 8080   # control: NOT in any security group
+probe 25     # the question
+```
+
+**Calibrate it, don't just run it.** A bare "connection refused" on 25 proves
+nothing on its own — it looks the same whether the port is open with nothing
+listening or you mistyped the host. The control is what makes it an answer:
+
+| Result | Means |
+|---|---|
+| timeout, ~8s (`rc=124`) | packet dropped — filtered. This is what 8080 does |
+| `Connection refused`, ~100ms | packet **reached the host**, which replied RST |
+
+25 refuses as fast as 443 and 993 do, so it is reachable and merely has nothing
+listening yet. Same method as the handle checks in [SOCIAL.md](SOCIAL.md):
+without a known-blocked control, the result is a guess.
 
 **Public Cloud is a separate product to order**, not something the account has
 by default, and **projects live inside an ordered Public Cloud** — which is why
@@ -206,20 +225,6 @@ state.
 unwanted for correspondence and likely to invalidate the DKIM signature
 Stalwart applies before handoff.
 
-**And open a ticket with Infomaniak about inbound 25.** Do it first; it gates
-everything and nothing else depends on the answer. Something like:
-
-> We are deploying a Public Cloud instance to run a mail server (Stalwart) for
-> our own domain, on `ext-net1`. Outbound mail goes via an authenticated
-> third-party relay on port 8465, so **we are not asking for outbound port 25
-> to be opened** and do not need it.
->
-> Can you confirm that **inbound** connections to port 25 reach an instance on
-> `ext-net1`, so the instance can act as the MX for our domain?
-
-The distinction matters and support will assume you mean outbound if you don't
-draw it, because that is what everyone else is asking about.
-
 > ✅ **Checkpoint 0** — both buckets exist, SMTP2GO shows the sender domain
 > with three CNAMEs to publish and an SMTP user created, every item named in
 > `infra/op.env` resolves, and **Infomaniak has confirmed inbound 25 in
@@ -235,10 +240,11 @@ cd infra && op run --env-file=op.env -- env | grep -E 'CLOUDFLARE|AWS_ACCESS|OS_
 `op run` masks the values, so this shows that each reference *resolved* without
 printing what it resolved to.
 
-**If inbound 25 turns out to be closed and they won't open it**, stop and
-re-read [MAIL-SELFHOST.md](MAIL-SELFHOST.md). Owning the inbox is the whole
-point of this path; without it there is no build, only kSuite. The box would
-still be worth having as somewhere to run things — just not this.
+**If inbound 25 had turned out to be filtered**, the answer was to stop and
+re-read [MAIL-SELFHOST.md](MAIL-SELFHOST.md): owning the inbox is the whole
+point of this path, and without it there is no build, only kSuite. It is not
+filtered — but the probe is worth re-running after any host change, because it
+is the one failure that would make everything else pointless.
 
 ---
 
