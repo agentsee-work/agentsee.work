@@ -409,14 +409,72 @@ sudo docker compose logs -f
 ⚠ **Verify the image name first.** The project renamed from `mail-server` to
 `stalwart` and the Docker Hub tag may not have followed.
 
-Complete the setup wizard at `https://mail.agentsee.work` — admin account,
-domain `agentsee.work`, listeners, and ACME so TLS renews itself. Port 80 is
-open for the challenge.
+Complete the setup wizard — admin account, domain `agentsee.work`, listeners,
+and ACME. Turn **DNS management off**: it would need Cloudflare credentials on
+the box, and anything it wrote would be drift `tofu plan` knows nothing about.
 
-> ✅ **Checkpoint 2** — `df -h /var/lib/stalwart` shows the volume mounted,
-> WebAdmin loads over **valid** TLS (not self-signed), and
-> `openssl s_client -connect mail.agentsee.work:25 -starttls smtp` completes
-> **from somewhere else on the internet**.
+### ⚠ ACME: the apex cannot validate, and empty SANs are not empty
+
+Two traps here, and together they cost an hour.
+
+**The certificate is requested for the Domain object's own name**, and SANs are
+*additional* to it — there is no way to exclude it. Our mail domain is
+`agentsee.work`, which resolves to **Cloudflare Pages**, because the apex is the
+marketing site. TLS-ALPN-01 validates by connecting to `agentsee.work:443`, so
+that identifier can never pass, and Let's Encrypt fails the **whole order** if
+any single identifier fails.
+
+So: set `agentsee.work` to **Manual** certificate management, and create a
+**second Domain object for `mail.agentsee.work`** with ACME. Its own name points
+at us, so it validates. A domain object existing for a certificate rather than
+for mail is odd, and it is still better than the alternative — DNS-01 would work
+for the apex but needs a Cloudflare DNS-edit token on an internet-facing box,
+and that token can repoint the domain.
+
+**Then set Additional Hostnames explicitly**, in full form:
+
+```
+mail.agentsee.work
+```
+
+Leaving it empty does not mean "no SANs". It means *default* SANs, which are
+`autoconfig.`, `autodiscover.`, `mta-sts.` and `ua-auto-config.` prefixed to the
+domain — four names that do not exist, four NXDOMAINs, and a failed order. A
+non-empty list replaces the defaults.
+
+**None of this appears until logging works** — see below. The only symptom is
+`WARN No TLS certificates available` every thirty seconds, which says nothing
+about why.
+
+### ⚠ Set up a tracer, or the server is silent
+
+Stalwart logs nothing to stdout by default, so `docker compose logs` shows only
+the startup banner and `docker logs` is useless for everything after it.
+
+In the admin UI, add a tracer of type **Console** — not File. A file tracer
+writes to `/var/log/stalwart/` *inside the container*, which does not exist,
+fails every startup, and is lost on recreate anyway.
+
+Do this **before** debugging anything else. Every problem in this phase was
+invisible until it was done.
+
+> ✅ **Checkpoint 2 — PASSED 11 September 2026.** Volume mounted, and a real
+> Let's Encrypt certificate (`CN=mail.agentsee.work`) served on 443, on 25 via
+> STARTTLS, and on 993.
+
+Check all three from **off the box**, not just the browser:
+
+```sh
+for p in 443 993; do
+  openssl s_client -connect mail.agentsee.work:$p </dev/null 2>/dev/null \
+    | openssl x509 -noout -issuer -subject
+done
+openssl s_client -connect mail.agentsee.work:25 -starttls smtp </dev/null 2>/dev/null \
+  | openssl x509 -noout -issuer -subject
+```
+
+`issuer=...Let's Encrypt...`, not `CN=rcgen self signed cert` — that string is
+Stalwart's built-in fallback and means ACME has not succeeded.
 
 That last one is the real test of inbound 25, and it has to be run from off the
 box. If it fails, the answer Infomaniak gave in phase 0 was about egress only,
