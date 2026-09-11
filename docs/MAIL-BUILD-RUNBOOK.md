@@ -6,10 +6,13 @@ Standing the mail server up, in order, with a checkpoint at each phase.
 why. This is the *procedure*. [RUNBOOK.md](RUNBOOK.md) stays what it is: how the
 existing infrastructure works once it's running.
 
-**Nothing here has been executed.** Every command is written from the design,
-not transcribed from a successful run. Expect to correct it as you go, and
-**correct it in this file as you do** — a runbook that drifts from reality is
-worse than none, because it gets trusted.
+**Phases 0 and 1 have been executed** — 11 September 2026. Those two are now
+transcribed from a real run rather than written from the design, and carry the
+things that actually went wrong.
+
+**Phases 2 onward have not been run.** They are still written from the design.
+Expect to correct them as you go, and **correct them in this file as you do** —
+a runbook that drifts from reality is worse than none, because it gets trusted.
 
 ## Before you start
 
@@ -274,14 +277,57 @@ op run --env-file=op.env -- tofu output smtp2go_records_present   # must be true
 Every command touching state needs `op run`, including reads — the backend
 credentials come from the vault too.
 
-> ✅ **Checkpoint 1** — `dig +short mail.agentsee.work` returns the instance
-> IPv4 and `dig +short mail.agentsee.work AAAA` the IPv6, `dig +short
-> agentsee.work MX` still returns **Cloudflare**, you can
-> `ssh debian@mail.agentsee.work`, and SMTP2GO's dashboard shows the sender
-> domain as verified rather than pending.
+> ✅ **Checkpoint 1 — PASSED 11 September 2026.** `mail.agentsee.work` resolves
+> to `188.213.129.223` and `2001:1600:10:100::7f5`, `dig +short agentsee.work MX`
+> still returns **Cloudflare**, `_dmarc` still reads `p=reject`, and
+> `ssh -i ~/.ssh/agentsee_mail debian@mail.agentsee.work` works.
+
+SMTP2GO is *not* part of this checkpoint. It is outbound, and nothing before
+phase 3 touches it.
 
 The login is **`debian`**, not root — OpenStack images inject the keypair into
 the image's default user.
+
+### What actually bit, in order
+
+All three survive a `tofu validate`, so none of them can be caught before a real
+run:
+
+**Both Keystone domains are lowercase `default`.** Not `Default`. Domain names
+are case-sensitive and the failure is a bare `401 The request you have made
+requires authentication`, which names nothing it could have been. Take the
+values from a downloaded `clouds.yaml`, never from documentation.
+
+**`PCU-` and `PCP-` differ by one letter and are otherwise the same string.**
+`PCU-AU4M4J7` is the user, `PCP-AU4M4J7` the project. Pasting the project id
+into both vault fields gives the same bare 401. A wrong *project* with a right
+user gives a 404 naming the project, so a 401 means the problem is the username,
+password or user domain — that distinction is the fastest way to halve the
+search.
+
+**`op run` masks resolved secret values in its output.** A vault field holding
+`agentsee` concealed the domain in every line of the plan. Confusing for about a
+minute, then useful: it proves at a glance when a field holds something it
+shouldn't.
+
+**Cloudflare rejects a DNS record comment over 100 characters** — error 9313,
+and it fails the apply *after* every other resource has been created.
+
+### ⚠ The DMARC record already exists — import it, don't create it
+
+The zone has carried a DMARC record since August 2026. Applying without
+importing creates a **second** TXT at `_dmarc`, and two DMARC records means
+receivers treat the domain as having no policy at all — silently switching off
+the `p=reject` the README is proud of.
+
+```sh
+op run --env-file=op.env -- tofu import cloudflare_dns_record.dmarc \
+  <zone_id>/<record_id>
+```
+
+Set `dmarc_policy = "reject"` in `terraform.tfvars` first, so the import is a
+zero diff. It drops to `none` at phase 3 — **before sending starts, not weeks
+early.** While nothing sends, `p=reject` is both true and free protection.
 
 **Rollback:** `op run --env-file=op.env -- tofu destroy`. Nothing live has changed.
 
