@@ -109,6 +109,33 @@ The same split settles GitHub: the org account is IT, a deploy token is
 Engineering. And SMTP2GO: the dashboard login is IT, the SMTP user the mail
 server authenticates with is Engineering.
 
+**When a credential is genuinely both, the machine wins.** The Infomaniak `PCU-`
+user is read by `op run` on every apply *and* is what signs into the Horizon
+dashboard, so the rule above does not settle it on its own. It goes in
+Engineering, because a person who looks in the wrong vault finds it in ten
+seconds and `op run` does not — it fails with a provider auth error that reads
+like a wrong password.
+
+### Item types are part of the contract
+
+The type decides the field names, and `infra/op.env` references fields by name:
+
+| Item | Type | Fields |
+|---|---|---|
+| Cloudflare API token | API Credential | `username`, `credential` |
+| R2 tfstate token | API Credential | `username`, `credential` |
+| Infomaniak Public Cloud | **Login** | `username`, `password`, + custom `project` |
+
+Login rather than API Credential for the last one precisely because an API
+Credential item names that field `credential`, and `OS_PASSWORD` expects
+`password`. A Login also carries a website field, so the Horizon URL autofills
+on the occasions a person does use it.
+
+⚠ **Add the custom `project` field outside any section.** A field inside a named
+section needs that section in the path, and the reference in `op.env` does not
+have one. Rather than reasoning about it: right-click the field in the app and
+**Copy Secret Reference**, which gives the authoritative form.
+
 Security is not "important things" — everything here is important. It is
 **things whose loss cannot be undone.** A leaked R2 token is a bad afternoon;
 you mint another. A lost `RESTIC_PASSWORD` turns every backup into ciphertext
