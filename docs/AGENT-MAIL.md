@@ -188,6 +188,43 @@ for:
 
 It cuts noise and cost. It is not the thing standing between you and a bad day.
 
+## ⚠ This conflicts with encryption at rest, and you have to pick
+
+Stalwart can encrypt stored messages with each account's own OpenPGP or S/MIME
+public key. The server then cannot decrypt them — only the account holder can,
+and an attacker with the disk or the backups gets ciphertext. It is a genuinely
+strong control and it is on by default at the server level, waiting for a key to
+be registered against an account.
+
+It is also close to incompatible with everything above.
+
+An agent reading a mailbox over JMAP receives what the server can produce, and
+for an encrypted message that is ciphertext. There are only two ways round it
+and neither is good:
+
+- **Give the agent the private key.** It can then read everything, forever, and
+  is exactly the kind of long-lived high-value secret sitting next to an
+  untrusted input that the rest of this document is organised against. It also
+  discards most of what encryption at rest bought — the threat model becomes
+  "attacker gets the disk but not the box", which is a narrow window.
+- **Exempt the agent-facing addresses.** Encryption is per-account, so
+  `in.agentsee.work` intake can stay plaintext while personal mailboxes are
+  encrypted. This works, and it means being honest that the mail agents touch is
+  the mail that is not protected.
+
+Server-side search goes the same way: Stalwart cannot index what it cannot read,
+so encrypted mailboxes lose search as well as agent access.
+
+**The decision, for now: not enabled.** Accounts are plaintext at rest, which is
+what every hosted provider we considered would also have given us. Revisit it
+per-account when there is mail that genuinely warrants it — a client's material,
+most likely — and take the second option, so the boundary is explicit rather
+than discovered.
+
+**And do not enable it before backups are proven.** It adds a third secret whose
+loss is unrecoverable, alongside `RESTIC_PASSWORD` and the 1Password Emergency
+Kit. A restore that returns perfect ciphertext is not a restore.
+
 ## Operational
 
 - **Rate-limit per sender and in total.** An agent run per message is a way to
