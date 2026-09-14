@@ -720,10 +720,39 @@ Both must print **RESTORE TEST PASSED**. It restores to scratch and
 boots a throwaway server against the restored data — if that server doesn't come
 up, the backup is bytes rather than a recovery.
 
-> ✅ **Checkpoint 5** — a nightly backup has run unattended at least once and
-> written to **both** repositories, both restore tests pass, the restic
-> passphrase is in the vault **and on paper**, and each healthcheck alerts when
-> you deliberately skip a run.
+### ⚠ Deploying by `git pull` needs the exec bit committed
+
+The scripts were committed `0644`, so installing them meant `chmod +x` on the
+box — which git then reports as a local modification, and the next `git pull`
+**aborts**. The old script keeps running, the fix appears not to have worked,
+and you debug something you already fixed. Mode is committed now; deployment is
+a pull and nothing else.
+
+### What the first restore test actually found
+
+It failed, and the failure was in the test rather than the backups — which is
+the good outcome, found on a Monday afternoon rather than during an incident.
+
+The throwaway container ran the image's default
+`--config /etc/stalwart/config.json`, a path absent from the restored tree, so
+it started in **bootstrap mode** with an empty datastore. Had the port check
+matched, it would have reported a healthy server and passed while proving
+nothing. There is now an explicit assertion that the bootstrap banner is
+**absent**.
+
+It also ran with a working network, and the restored datastore contains the
+**MTA queue** — a server booted on real data with real credentials would have
+re-delivered those messages. It now runs `--network none`, so the evidence is
+the startup log rather than an HTTP response. That is a more direct test anyway:
+those lines only appear once RocksDB has opened and the config has been read out
+of it.
+
+> ✅ **Checkpoint 5 — restores PASSED 14 September 2026**, both repositories:
+> snapshot restored, RocksDB intact, server booted, config read, no corruption.
+>
+> Still outstanding before cutover: the restic passphrase on **paper** as well
+> as in the vault, and a healthcheck per repository proving it alerts when a run
+> is deliberately skipped.
 
 Test the second healthcheck separately. A shared switch would keep reporting
 healthy while the secondary silently failed, and two copies would be false in
