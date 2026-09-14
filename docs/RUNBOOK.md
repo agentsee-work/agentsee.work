@@ -30,15 +30,19 @@ these are the permissions and what each is actually for:
 | Permission | Level | Needed for |
 |---|---|---|
 | Cloudflare Pages — Edit | Account | Deploying the site |
-| Email Routing Addresses — Edit | **Account** | Adding a forwarding destination |
 | Zone — Read | Zone | Resolving the zone by name at all |
 | DNS — Edit | Zone | Custom domain, MX/SPF/DKIM/DMARC |
-| Email Routing Rules — Edit | Zone | The `name@agentsee.work` rules |
 | Cache & Performance → Cache | Zone | Purging stale assets |
 | Zone Settings — Edit | Zone | Browser Cache TTL, Email Address Obfuscation |
 | Workers Scripts — Edit | Account | Deploying `workers/email-fanout` |
 
 Scope it to the `agentsee.work` zone, not "all zones".
+
+**The Email Routing scopes are gone** — the service was disabled at cutover on
+14 September 2026, so there are no rules or addresses left to manage. The
+OpenTofu token in [CREDENTIALS.md](CREDENTIALS.md) is narrower still: `DNS —
+Edit` on this zone and nothing else, which is why it could not read the routing
+rules when we went looking for them. That was the token behaving correctly.
 
 **Record the expiry date here whenever the token is rolled, and put a reminder
 somewhere you'll see it.** Deploys depend on this token, and an expired one
@@ -94,10 +98,16 @@ API rejects multiple destinations in one action (*"forward action must contain
 exactly one destination"*) and then rejects multiple actions (*"only one action
 per rule is allowed"*).
 
-The way round it is an **Email Worker**: routing hands the message to a Worker
+The way round it was an **Email Worker**: routing hands the message to a Worker
 and the Worker forwards it to everyone. That is what `workers/email-fanout` is,
-and `hello@` and `show@` now use it — their rule action is
-`{"type":"worker","value":["email-fanout"]}` rather than a forward.
+and `hello@` and `show@` used it until cutover.
+
+**That constraint no longer applies.** Mail now runs on our own server, where
+fanning one address out to several people is a first-class `MailingList` object
+and `hello@`, `show@`, `accounts@` and `dmarc@` are four of them. The Worker
+keeps running and its job has changed: it is the prototype for the agent intake
+pipeline in [AGENT-MAIL.md](AGENT-MAIL.md), and the reason that pipeline stays
+off the mail server is the quarantine boundary, not this limitation.
 
 Recipients live in the Worker's `RECIPIENTS` secret, comma-separated, **never
 in the repo** — they are personal addresses and this repo is public:
