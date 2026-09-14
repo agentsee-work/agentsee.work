@@ -1,26 +1,24 @@
 {
-  "_comment": "REFERENCE ONLY — not a plan file. JSON has no comments, so read stalwart/README.md alongside this. Field names are from the MtaRoute docs; the plan envelope must come from `stalwart-cli snapshot` against a running server, because the CLI is schema-driven and the server is the authority on its own shape.",
-
+  "_comment": "REFERENCE ONLY \u2014 not a plan file. JSON has no comments, so read stalwart/README.md alongside this. Field names are from the MtaRoute docs; the plan envelope must come from `stalwart-cli snapshot` against a running server, because the CLI is schema-driven and the server is the authority on its own shape.",
   "@type": "Relay",
   "address": "mail.smtp2go.com",
   "port": 8465,
   "protocol": "smtp",
   "implicitTls": true,
   "allowInvalidCerts": false,
-
-  "authUsername": "REPLACE — created at SMTP2GO under Sending > SMTP Users",
-
+  "authUsername": "REPLACE \u2014 created at SMTP2GO under Sending > SMTP Users",
   "authSecret": {
     "@type": "EnvironmentVariable",
     "name": "RELAY_SMTP_PASSWORD"
   },
-
   "_notes": {
-    "why_environment_variable": "The `Value` variant would inline the password into a file committed to a PUBLIC repo — and deleting a secret from git does not remove it from history. EnvironmentVariable keeps the plan committable and the secret in the vault.",
-    "why_the_name_is_generic": "RELAY_SMTP_PASSWORD, not SMTP2GO_PASSWORD. The relay is explicitly a for-now choice, and a provider-shaped name would spread that choice into the compose file, the systemd unit, the .env and the plan — turning a one-object swap into a rename across five places.",
-    "port_choice": "8465, NOT 465, and this is load-bearing. Infomaniak blocks outbound 25 by default and opens it on request; other hosts block some combination of 25, 465 and 587. We never ask, because we never need it. 8465 is SMTP2GO's implicit-TLS port on a number nobody filters, so it keeps the security property of 465 — no cleartext phase for an attacker to strip — while making the relay path independent of the host's port politics. Their TLS ports are 25/587/2525/8025/80 and their SSL ports are 465/8465/443; 2525 is the fallback if 8465 is ever unreachable. Switch to 465 only if you have confirmed egress is open, and never to a STARTTLS port without requiring TLS on the route: a stripped connection would offer these credentials in clear.",
-    "dane_and_mtasts": "Both MUST be disabled on this route. They assert properties of direct-to-MX delivery that are false with a smarthost in the path, and the resulting failures present as TLS errors — which sends you debugging certificates instead of routing. The key differs by version; confirm it in your snapshot.",
-    "link_tracking": "Turn it OFF at SMTP2GO — Sending > SMTP Users > your user > Tracking & Status, BOTH Click Tracking and Open Tracking. It is a per-user setting, so a second SMTP user created later starts with tracking on again. It rewrites URLs in the message body, and Stalwart signed that body with our DKIM key before handoff — a rewrite after signing invalidates the signature. This is a deduction from how DKIM body hashing works, not something SMTP2GO documents either way, so treat it as a thing to VERIFY at phase 4 rather than a settled fact. It is also simply unwanted: this is correspondence, not marketing.",
-    "second_signature": "SMTP2GO adds its own DKIM signature via the CNAME delegated in infra/relay.tf. Two aligned signatures is legal and DMARC passes if either validates. Ours is the one that survives changing relay."
+    "why_environment_variable": "The `Value` variant would inline the password into a file committed to a PUBLIC repo \u2014 and deleting a secret from git does not remove it from history. EnvironmentVariable keeps the plan committable and the secret in the vault.",
+    "why_the_name_is_generic": "RELAY_SMTP_PASSWORD, not SMTP2GO_PASSWORD. The relay is explicitly a for-now choice, and a provider-shaped name would spread that choice into the compose file, the systemd unit, the .env and the plan \u2014 turning a one-object swap into a rename across five places.",
+    "port_choice": "8465, NOT 465, and this is load-bearing. Infomaniak blocks outbound 25 by default and opens it on request; other hosts block some combination of 25, 465 and 587. We never ask, because we never need it. 8465 is SMTP2GO's implicit-TLS port on a number nobody filters, so it keeps the security property of 465 \u2014 no cleartext phase for an attacker to strip \u2014 while making the relay path independent of the host's port politics. Their TLS ports are 25/587/2525/8025/80 and their SSL ports are 465/8465/443; 2525 is the fallback if 8465 is ever unreachable. Switch to 465 only if you have confirmed egress is open, and never to a STARTTLS port without requiring TLS on the route: a stripped connection would offer these credentials in clear.",
+    "dane_and_mtasts": "Both MUST be disabled on this route. They assert properties of direct-to-MX delivery that are false with a smarthost in the path, and the resulting failures present as TLS errors \u2014 which sends you debugging certificates instead of routing. The key differs by version; confirm it in your snapshot.",
+    "link_tracking": "Turn it OFF at SMTP2GO \u2014 Sending > SMTP Users > your user > Tracking & Status, BOTH Click Tracking and Open Tracking. It is a per-user setting, so a second SMTP user created later starts with tracking on again. It rewrites URLs in the message body, and Stalwart signed that body with our DKIM key before handoff \u2014 a rewrite after signing invalidates the signature. This is a deduction from how DKIM body hashing works, not something SMTP2GO documents either way, so treat it as a thing to VERIFY at phase 4 rather than a settled fact. It is also simply unwanted: this is correspondence, not marketing.",
+    "second_signature": "SMTP2GO adds its own DKIM signature via the CNAME delegated in infra/relay.tf. Two aligned signatures is legal and DMARC passes if either validates. Ours is the one that survives changing relay.",
+    "signed_headers": "Sign From:Subject:To and NOTHING ELSE. SMTP2GO rewrites Message-Id and regenerates Date, so signing either produces dkim=fail at the receiver. The Date rewrite is the subtle one - the relay usually stamps the same second the message was signed, so the headers look identical. Stalwart's default set includes both; change it on the DkimSignature, not in DNS, because the published key is unaffected.",
+    "ed25519_at_gmail": "Gmail reports dkim=neutral (no key) for RFC 8463 ed25519 signatures. It is a receiver limitation, not a misconfiguration, and neutral does not fail DMARC - the RSA signature carries alignment. Keep both; other receivers do validate ed25519."
   }
 }

@@ -650,9 +650,39 @@ it and our signature cannot survive — turn link tracking off at SMTP2GO and
 re-test. The design assumes this is true; it has not been confirmed against a
 real message.
 
-> ✅ **Checkpoint 4** — inbound arrives, outbound sends, all three pass,
-> `header.d=agentsee.work`, and a message containing a link comes through with
-> that link untouched.
+### ⚠ Sign only headers the relay will not rewrite
+
+Our signatures failed for two rounds before this was understood, and the failure
+mode changes as you fix it, which is confusing in itself:
+
+| Symptom | Means |
+|---|---|
+| `permerror (no key for signature)` | DNS lookup failed — key missing, or negative caching |
+| `fail` | Key found, hash mismatch — **something was modified after signing** |
+| `neutral (no key)` | Receiver does not support the algorithm |
+
+Stalwart's default signed set is `Subject:To:From:Date:Message-ID`. SMTP2GO
+rewrites **both** `Message-Id` and `Date` — the `Date` rewrite is easy to miss
+because the relay usually stamps the same second the message was signed.
+
+Working set for relayed mail:
+
+```
+From:Subject:To
+```
+
+The body hash is the tell for narrowing this down. If `bh=` is identical across
+your signature and the relay's, and theirs passes, the body is untouched and the
+problem is in the signed headers — no need to look anywhere else.
+
+**Ed25519 will report `neutral (no key)` at Gmail.** It does not validate
+RFC 8463 signatures. Neutral does not fail DMARC and the RSA signature carries
+alignment, so this is not a fault to chase.
+
+> ✅ **Checkpoint 4 — PASSED 14 September 2026.** Inbound from Gmail ingested
+> into a mailbox; outbound routed through SMTP2GO with `spf=pass`,
+> `dmarc=pass (p=REJECT)`, and **two** passing DKIM signatures — the relay's
+> (`s989721`) and our own (`v1-rsa-20260911`), both `header.i=@agentsee.work`.
 
 **If outbound fails:** SMTP2GO's dashboard logs every accepted message, and
 "nothing in the log" versus "in the log but not delivered" points at completely
