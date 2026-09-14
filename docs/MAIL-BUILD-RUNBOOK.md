@@ -528,6 +528,34 @@ on.
 Send from an external account to `anything@test.agentsee.work`. It should
 arrive.
 
+⚠ **Give the test domain somewhere to deliver first** — a Catch-All Address on
+the domain, or an account on it. Without one, transport succeeds completely and
+then fails at the last inch with `550 Mailbox not found`, which looks like a
+delivery problem and is not one.
+
+The line that means it worked is `message-ingest.ham` with an `accountId`.
+Everything before it — IPREV, SPF, DKIM, DMARC, TLS — can pass while the message
+still goes nowhere.
+
+**Inbound proven 14 September 2026:** real mail from Gmail, over IPv6, TLS 1.3,
+all four checks passing, ingested into a mailbox.
+
+### What the first bounce taught us
+
+The `550 Mailbox not found` generated a DSN back to Gmail, and Google rejected
+*that* with:
+
+> Unauthenticated email from agentsee.work is not accepted due to domain's
+> DMARC policy
+
+Which is `p=reject` working exactly as intended — nothing is authorised to send
+as us yet. Two things follow:
+
+- **Bounces from this server are undeliverable until the relay is configured.**
+  Not a fault; worth knowing before it looks like one.
+- **The DSN went direct-to-MX**, not through SMTP2GO, which is the proof that
+  outbound routing is still unset. That is the next step, not a bug.
+
 Then reply, and open *Show original* in Gmail:
 
 ```
