@@ -55,33 +55,29 @@ variable "dmarc_policy" {
   }
 }
 
-variable "dkim_selector" {
-  description = "Selector for the DKIM key Stalwart signs with."
-  type        = string
-  default     = "stalwart"
-}
-
-variable "dkim_public_key" {
+variable "dkim_records" {
   description = <<-EOT
-    Public half of Stalwart's DKIM key, as the full TXT value
-    ("v=DKIM1; k=rsa; p=..."). Generated on the server, so it does not exist on
-    the first apply — leave empty, then fill it in and re-apply.
+    Stalwart's DKIM public keys, as { "<selector>" = "<full TXT value>" }.
 
-    The PRIVATE half never comes near this repo. It lives on the box, is
-    included in the backup, and its existence is recorded in the vault.
+    A map rather than a single key because Stalwart signs with BOTH Ed25519 and
+    RSA by default, and rotates selectors on a schedule — the selector contains
+    the date it was generated (v1-rsa-20260911). One variable could never hold
+    that, and the rotation would quietly break alignment.
 
-    Deliberately ours as well as the relay's. SMTP2GO signs too, via the DKIM
-    CNAME in relay.tf, which means they hold that private key — so that
-    signature is only as permanent as the relay is. This one is ours, published
-    in our zone, and survives a relay change. DKIM is what stands between
-    p=reject and our own mail vanishing, so it should not belong to a supplier
-    we have already said we may swap.
+    Until a key is published, its signature arrives as
+    `dkim=permerror (no key for signature)` at the receiver. Deliveries still
+    pass DMARC while the relay's own aligned signature holds, which is exactly
+    why this is easy to leave broken: nothing fails until the relay changes.
 
-    Two aligned signatures is legal and strictly better: DMARC passes if either
-    validates.
+    The PRIVATE halves never come near this repo. They live on the box, are
+    included in the backup, and their existence is recorded in the vault.
+
+    Ours as well as the relay's: SMTP2GO signs via a CNAME delegated to them, so
+    that key is theirs and leaves when they do. Two aligned signatures is legal
+    and DMARC passes if either validates.
   EOT
-  type        = string
-  default     = ""
+  type        = map(string)
+  default     = {}
 }
 
 # ─── Host ────────────────────────────────────────────────────────────────────

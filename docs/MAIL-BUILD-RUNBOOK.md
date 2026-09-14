@@ -570,13 +570,20 @@ grep -iE '"@type"\s*:\s*"(Value|Password)"|secret|password' plan.json
 password inlined itself, switch the route's `authSecret` to the
 `EnvironmentVariable` variant and re-snapshot.
 
-Publish DKIM by putting the public key in `infra/terraform.tfvars` and
-re-applying:
+Publish DKIM by putting the public keys in `infra/terraform.tfvars` and
+re-applying. **Plural** — Stalwart signs with both Ed25519 and RSA, and the
+selector carries its generation date, so there are at least two and they change
+on rotation:
 
 ```sh
-cd infra && $EDITOR terraform.tfvars   # dkim_public_key = "v=DKIM1; k=rsa; p=..."
+cd infra && $EDITOR terraform.tfvars   # dkim_records = { "v1-rsa-…" = "…" }
 op run --env-file=op.env -- tofu apply
 ```
+
+⚠ **Nothing breaks while these are missing.** Receivers report
+`dkim=permerror (no key for signature)` and DMARC still passes, because the
+relay's own aligned signature carries it. The failure only surfaces the day the
+relay changes — which is the day you are least able to investigate it.
 
 > ✅ **Checkpoint 3** — `plan.json` committed and clean, and
 > `dig +short stalwart._domainkey.agentsee.work TXT` returns the key.
@@ -728,8 +735,29 @@ apply`, re-enable Email Routing. Mail sent during the gap is not lost — sender
 
 ## Phase 7 — Re-arm DMARC
 
-Wait for aggregate reports at `dmarc@agentsee.work` to show our own mail passing
-with alignment. Days, not hours.
+**This phase turned out to be unnecessary, and that is worth understanding.**
+
+The plan assumed we would relax DMARC to `p=none` during the migration and
+restore `p=reject` afterwards, because that is what sending through Gmail's
+"send mail as" requires — it signs as Gmail, so nothing aligns.
+
+Relaying through a provider with a **verified sender domain** is different from
+the start: SMTP2GO signs as `agentsee.work` and the VERP return-path puts SPF on
+a subdomain of ours. Both align immediately. Our first outbound message scored:
+
+```
+dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=agentsee.work
+dkim=pass  header.i=@agentsee.work header.s=s989721
+spf=pass   smtp.mailfrom=…@em989721.agentsee.work
+```
+
+So `p=reject` was never relaxed, and the domain was never briefly spoofable.
+Keep this phase for the case where it is needed — a future sender that cannot
+align — but do not relax DMARC preemptively. Verify the sender domain at the
+relay first and check whether you need to at all.
+
+If you do need it: wait for aggregate reports at `dmarc@agentsee.work` to show
+our own mail passing with alignment. Days, not hours.
 
 ```sh
 cd infra

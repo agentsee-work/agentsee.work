@@ -104,16 +104,16 @@ resource "cloudflare_dns_record" "dmarc" {
 }
 
 # ─── DKIM: ours, signed by Stalwart before handoff to the relay ──────────────
-# Absent until the key exists on the server. Nothing visibly breaks without it,
-# which is exactly why it gets skipped — what breaks is invisible until
-# p=reject, at which point our own mail starts disappearing.
+# One record per selector. Absent until the keys exist on the server, and their
+# absence is invisible — the relay's own aligned signature keeps DMARC passing,
+# so nothing breaks until the day the relay changes.
 resource "cloudflare_dns_record" "dkim" {
-  count = var.dkim_public_key == "" ? 0 : 1
+  for_each = var.dkim_records
 
   zone_id = var.cloudflare_zone_id
-  name    = "${var.dkim_selector}._domainkey.${var.domain}"
+  name    = "${each.key}._domainkey.${var.domain}"
   type    = "TXT"
-  content = var.dkim_public_key
+  content = each.value
   ttl     = 300
-  comment = "Stalwart's DKIM key. Private half lives on the box and in backups."
+  comment = "Stalwart DKIM. Private half lives on the box and in backups."
 }

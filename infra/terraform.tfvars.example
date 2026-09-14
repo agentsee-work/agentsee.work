@@ -44,9 +44,19 @@ ssh_public_key = "ssh-ed25519 AAAA... you@host"
 #   "link"          = "track.smtp2go.net"
 # }
 
-# Empty on the first apply — Stalwart generates the key, so it cannot exist
-# before the server does. Fill in from the WebAdmin, then re-apply.
-# dkim_public_key = "v=DKIM1; k=rsa; p=MIIBIjANBg..."
+# Stalwart's DKIM public keys, one per selector. Empty on the first apply — the
+# keys cannot exist before the server does. Copy them from the WebAdmin's DNS
+# records view, then re-apply.
+#
+# Both algorithms by default, and the selector carries its generation date, so
+# these change on rotation. Until published, receivers report
+# "dkim=permerror (no key for signature)" — which does NOT fail DMARC while the
+# relay's own aligned signature holds, and is therefore easy to miss.
+#
+# dkim_records = {
+#   "v1-rsa-20260911"     = "v=DKIM1; k=rsa; p=MIIBIjANBg..."
+#   "v1-ed25519-20260911" = "v=DKIM1; k=ed25519; p=..."
+# }
 
 # Stays `none` through the migration. Under `reject`, our own unaligned mail is
 # discarded silently by recipients — the worst failure mode there is.
