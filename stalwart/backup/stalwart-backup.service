@@ -10,6 +10,12 @@ Type=oneshot
 # sets of object-storage credentials. See stalwart/backup/README.md.
 EnvironmentFile=/etc/agentsee/backup.env
 
+# systemd units have no HOME, so restic cannot find a cache directory and runs
+# cacheless — re-downloading the repository index on every run. Slower, and on
+# R2 it spends Class B operations to learn what it already knew last night.
+Environment=RESTIC_CACHE_DIR=/var/cache/restic
+CacheDirectory=restic
+
 ExecStart=/opt/agentsee/stalwart/backup/backup.sh
 
 # Backups must not compete with mail for the box.
