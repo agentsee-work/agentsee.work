@@ -284,20 +284,31 @@ SMTP2GO rejects free providers at signup — "please use an email at your own
 domain" — which collides head-on with the rule above: it is *in* mail's recovery
 path, so it must not depend on our mail.
 
-The way out is a subdomain that stays on **Cloudflare Email Routing
-permanently**, forwarding to personal inboxes:
+**The check is usually only at signup.** Sign up with whatever the form will
+accept, then change the account email to a personal address afterwards — this
+worked for SMTP2GO on 14 September 2026. Try that first; it costs a minute and
+leaves nothing to maintain.
+
+If a vendor enforces it on change too, the fallback is a subdomain kept on
+**Cloudflare Email Routing permanently**, forwarding to personal inboxes:
 
 ```
 smtp2go@ops.agentsee.work  →  personal inbox
 ```
 
-The vendor sees a domain address; delivery is Cloudflare's, not Stalwart's. Our
-mail server can be entirely dead and the reset link still arrives.
+The vendor sees a domain address; delivery is Cloudflare's, not Stalwart's, so
+our mail server can be entirely dead and the reset link still arrives.
 
-⚠ **`ops.agentsee.work` must never point at our server.** Its whole value is
-being the one part of the domain that does not depend on us. If it is ever
-migrated onto Stalwart "for tidiness", the loop closes again and nothing will
-warn you. The same applies to any future vendor with the same signup rule. Recorded in [MAIL-BUILD-RUNBOOK.md](MAIL-BUILD-RUNBOOK.md).
+⚠ **That fallback is load-bearing in a way that is easy to lose.** It depends on
+Cloudflare Email Routing continuing to serve a subdomain of a zone whose apex
+has been cut over to our own server — which is not clearly a supported
+configuration, and reportedly leaves subdomain MX records locked. If you rely on
+it, verify after any change to the apex that mail to it still arrives, by
+sending some. And it must never be migrated onto Stalwart "for tidiness": the
+loop would close again with no warning.
+
+`ops.agentsee.work` is not currently in any recovery path — SMTP2GO's account
+email is personal — and that is the better state to be in. Recorded in [MAIL-BUILD-RUNBOOK.md](MAIL-BUILD-RUNBOOK.md).
 
 **API tokens live in the vault, and nowhere else that persists.** Specifically:
 the full Cloudflare token, which per the runbook can repoint the domain and the
