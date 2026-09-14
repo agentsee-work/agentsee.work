@@ -3,7 +3,11 @@
 Own the inbox, rent the reputation. The buy-instead path stays in
 [MAIL-MIGRATION.md](MAIL-MIGRATION.md) and is still the fallback.
 
-**Status: spec, nothing built.**
+**Status: built and proving.** The server runs, inbound mail is delivered to
+mailboxes, and outbound is relayed and DKIM-signed with `dmarc=pass` at
+`p=reject`. The apex is still on Cloudflare Email Routing — cutover has not
+happened, and will not until backups are proven. See
+[MAIL-BUILD-RUNBOOK.md](MAIL-BUILD-RUNBOOK.md) for where it actually is.
 
 ## The shape
 
@@ -115,7 +119,7 @@ agentsee.work        MX 10  mail.agentsee.work
 agentsee.work        TXT    v=spf1 ~all             ← authorises nothing. see below
 <3 CNAMEs>                   → smtp2go                ← issued by them, per account
 <sel>._domainkey     TXT    <Stalwart's public key>
-_dmarc               TXT    v=DMARC1; p=none; … → p=reject once aligned
+_dmarc               TXT    v=DMARC1; p=reject; sp=reject; …  ← never relaxed
 ```
 
 **`mail.agentsee.work` must be grey-clouded.** Cloudflare proxies HTTP, not SMTP;
