@@ -231,9 +231,13 @@ The VPS IP is public by necessity — that's what an MX is.
   you're testing is never the same change as widening the mail server.
 - SSH key-only, no passwords. The login is `debian`, not root.
 - Unattended security upgrades on.
-- Stalwart supports **encryption at rest** with your own S/MIME or PGP key, so
-  disk access alone doesn't read the mail. Worth turning on given it holds
-  everything.
+- **Encryption at rest is available and deliberately NOT enabled.** Stalwart can
+  encrypt stored mail with each account's own PGP or S/MIME key and then cannot
+  decrypt it. That defeats the agent pipeline in
+  [AGENT-MAIL.md](AGENT-MAIL.md) — the reason for owning the inbox at all — and
+  defeats server-side search. It also adds a third unrecoverable secret: a
+  restore that returns perfect ciphertext is not a restore. The trade-off, and
+  the per-account way to take it later, are written up there.
 - The agent trigger pipeline stays on the Cloudflare Worker at
   `in.agentsee.work` — see [AGENT-MAIL.md](AGENT-MAIL.md). It could run on this
   box now, and it shouldn't: the quarantine boundary is the point, and it's
