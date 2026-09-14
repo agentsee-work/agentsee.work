@@ -46,15 +46,15 @@ public/                       ← the only thing that gets deployed
 
 docs/RUNBOOK.md               where the infrastructure lives, and its traps
 docs/SOCIAL.md                the handle, and what signup will throw at you
-docs/MAIL-MIGRATION.md        proposed move to hosted mail — not yet executed
-docs/CREDENTIALS.md           1Password Business: the vault, its rules, and what's left
+docs/MAIL-MIGRATION.md        the buy-instead path — kept as the abandonment exit
+docs/CREDENTIALS.md           1Password Business: the vaults and the rules
 docs/AGENT-MAIL.md            inbound mail as an agent trigger — design only
-docs/MAIL-SELFHOST.md         own the inbox, rent the reputation — build spec
-docs/MAIL-BUILD-RUNBOOK.md    standing it up, phase by phase, with checkpoints
-infra/                        the mail server declared — OpenTofu, not applied
-stalwart/                     mail server config — declarative plan, not applied
+docs/MAIL-SELFHOST.md         own the inbox, rent the reputation — built, running
+docs/MAIL-BUILD-RUNBOOK.md    how it was built, and everything that bit on the way
+infra/                        the mail server declared — OpenTofu, applied
+stalwart/                     mail server config, snapshotted from the running server
 tools/portraits.py            regenerates the portraits from source photos
-workers/email-fanout/         fans hello@ and show@ out to both of us
+workers/email-fanout/         was the hello@/show@ fan-out; now the agent-intake prototype
 ```
 
 There is no bundler and nothing to install:
