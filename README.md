@@ -88,42 +88,37 @@ have no business claiming taste anywhere else.
 
 ## Mail
 
-Cloudflare Email Routing forwards `@agentsee.work` to personal inboxes. The
-domain **receives only — nothing sends as `@agentsee.work`**, and the DNS says
-so:
+`@agentsee.work` runs on our own server — Stalwart on a VPS, cut over from
+Cloudflare Email Routing on **14 September 2026**. It receives directly and
+sends through a relay, so the domain both receives *and* sends.
 
 ```
-SPF    v=spf1 include:_spf.mx.cloudflare.net ~all
-DKIM   cf2024-1._domainkey            (Cloudflare's, for forwarded mail)
+MX     mail.agentsee.work              ← our server. DNS-only, never proxied
+SPF    v=spf1 ~all                     ← authorises nothing. see below
+DKIM   v1-rsa-…_domainkey              (ours, signed before handoff)
+       s989721._domainkey              (the relay's, CNAMEd to them)
 DMARC  v=DMARC1; p=reject; sp=reject; rua=mailto:dmarc@agentsee.work; fo=1
 ```
 
-`p=reject` tells the world that any mail claiming to be from us is forged.
-That is true today and it is the strongest anti-spoofing position available.
-It does not affect *inbound* forwarding — DMARC applies to the sender's domain,
-and Cloudflare rewrites the envelope on forward so SPF still passes.
+**`p=reject` was never relaxed.** The usual migration advice is to drop to
+`p=none` while you get alignment working, and it exists because sending through
+something like Gmail's "send mail as" can never align. Relaying through a
+provider with a verified sender domain aligns from the first message, so the
+domain was never briefly spoofable. Verify alignment before assuming you need to
+relax anything.
 
-### ⚠ Before you send mail as @agentsee.work
+**SPF authorises nobody, and that is correct.** The relay uses VERP: the
+return-path is a subdomain of ours CNAMEd to them, so SPF is evaluated against
+*that* name and their record. Our server never sends direct-to-MX either, so
+there is nothing at the apex to authorise.
 
-**Relax DMARC first, or your own mail will be rejected.** Free Gmail
-"Send mail as" relays through Google with a Gmail DKIM signature and envelope,
-so neither SPF nor DKIM aligns to `agentsee.work` — under `p=reject` recipients
-are being explicitly instructed to throw it away. The failure is silent from
-the sender's side, which is the worst kind.
+Two DKIM signatures, deliberately. The relay's leaves when the relay does; ours
+is published in our own zone and survives changing supplier. DMARC passes if
+either validates.
 
-The order that works:
-
-1. Set `p=none` on `_dmarc.agentsee.work` (keep `rua`).
-2. Set up sending, and add its sender to SPF — for Google that is
-   `include:_spf.google.com`; for a provider like Postmark or Fastmail, use
-   whatever they specify, and add their DKIM record too.
-3. Watch the aggregate reports at `dmarc@agentsee.work` until your own mail is
-   passing with alignment.
-4. Only then go back to `p=reject`.
-
-Aggregate reports arrive at `dmarc@agentsee.work` as daily XML attachments.
-For a domain that sends nothing they are mostly a spoofing tripwire; drop the
-`rua=` tag if the noise isn't worth it.
+The whole build — why, what broke, and every checkpoint — is in
+[docs/MAIL-SELFHOST.md](docs/MAIL-SELFHOST.md) and
+[docs/MAIL-BUILD-RUNBOOK.md](docs/MAIL-BUILD-RUNBOOK.md).
 
 ## Deploying
 

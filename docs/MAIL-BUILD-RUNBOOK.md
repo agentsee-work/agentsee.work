@@ -793,8 +793,34 @@ dig +short agentsee.work MX        # → mail.agentsee.work
 
 Send to `hello@agentsee.work` from an external account. Reply. Confirm it lands.
 
-> ✅ **Checkpoint 6** — apex MX is ours, mail flows both ways, `header.d` is
-> still `agentsee.work`.
+> ✅ **Checkpoint 6 — PASSED 14 September 2026.** Apex MX is `mail.agentsee.work`,
+> real mail from Gmail to `james@agentsee.work` arrived with SPF, DKIM, DMARC and
+> IPREV all passing, and Thunderbird pulled it over IMAPS with an app password.
+
+### What the cutover actually involved
+
+**There is no unlock, only Disable.** The settings page marks the apex MX records
+`Locked` with no unlock option — only the SPF TXT was unlocked. So Email Routing
+has to be disabled outright, and its warning is accurate: it removes the DNS
+records it manages, **including any subdomain routing**. If anything depends on
+an Email Routing subdomain, move it off first.
+
+**The SPF record is the same trap as DMARC, and it is quieter.** Email Routing's
+`v=spf1 include:_spf.mx.cloudflare.net ~all` is *unlocked*, so disabling the
+service leaves it behind. Applying would then create a second apex SPF — and two
+SPF records is a permerror, meaning SPF fails entirely. Import it:
+
+```sh
+op run --env-file=op.env -- tofu import 'cloudflare_dns_record.apex_spf[0]' \
+  <zone_id>/<record_id>
+```
+
+The plan should then read **1 to add, 1 to change, 0 to destroy** — the MX
+created, the stale SPF updated in place. Anything else, stop.
+
+**There is a window with no MX at all**, between disabling Email Routing and
+applying. Nothing is lost — senders retry for days — but do the import *before*
+disabling if you want it short.
 
 **Rollback:** set `enable_apex_mx = false`, `op run --env-file=op.env -- tofu
 apply`, re-enable Email Routing. Mail sent during the gap is not lost — senders retry for days.

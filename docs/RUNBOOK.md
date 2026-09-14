@@ -17,7 +17,7 @@ appear in dashboard URLs and are useless without a token.
 | Pages project | `agentsee` → `agentsee-6bm.pages.dev` |
 | Custom domains | apex + `www`, both CNAME → `agentsee-6bm.pages.dev`, proxied |
 | GitHub | `agentsee-work/agentsee.work` (public) |
-| Mail | Cloudflare Email Routing → personal inboxes |
+| Mail | **Our own server** — Stalwart at `mail.agentsee.work`, relay out via SMTP2GO. Cut over 14 Sep 2026 |
 | Email Worker | `email-fanout` — fans `hello@` and `show@` to both of us |
 | Repo layout | **only `public/` is deployed**; docs, tooling and the Worker are not |
 | Social | `agentseework` everywhere, `@agentsee.work` on Bluesky — see [SOCIAL.md](SOCIAL.md) |
