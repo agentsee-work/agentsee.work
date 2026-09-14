@@ -494,6 +494,69 @@ direct-to-MX delivery that are false with a smarthost in the path, and the
 failures present as TLS errors — sending you to debug certificates instead of
 routing.
 
+### ⚠ Creating the route is not enough — nothing selects it
+
+An `MtaRoute` on its own is inert. Routes are chosen by the **route expression
+on `MtaOutboundStrategy`** (Settings → MTA → Outbound → Strategies), which is a
+singleton:
+
+```
+IF    is_local_domain(rcpt_domain)
+THEN  'local'
+ELSE  'SMTP2GO'
+```
+
+**Use the route's `Name`, single-quoted, exact case.** Not its opaque id, and
+not a lowercased version. `'local'` and `'mx'` are built-in names, which is the
+clue that names are what this field takes.
+
+**An unresolvable route name falls back to MX silently.** No warning, no log
+line — mail simply goes direct, which looks identical to the route not existing.
+That single behaviour cost most of an afternoon: every wrong guess produced
+exactly the same output as the previous wrong guess.
+
+The test that tells you it worked is the delivery log:
+
+```sh
+sudo docker compose logs --since 2m | grep delivery.connect
+```
+
+`hostname = "mail.smtp2go.com"` means routed. `hostname = "gmail-smtp-in.l.google.com"`
+means it is still going direct, whatever the config page says.
+
+⚠ Stalwart's built-in **delivery test goes direct regardless** — it bypasses
+routing, so it will happily report success while the relay is unused. Send a
+real message.
+
+### ⚠ The relay username is the SMTP user, not your login
+
+SMTP2GO's SMTP users have their own generated usernames and their own passwords,
+separate from the account you sign in with. Using the account email gives
+`535 Incorrect authentication data`, which reads like a wrong password.
+
+Prove the pair independently before blaming the wiring:
+
+```sh
+python3 - <<'PY'
+import smtplib, ssl, getpass
+u = input("SMTP2GO username: ").strip()
+s = smtplib.SMTP_SSL("mail.smtp2go.com", 8465, context=ssl.create_default_context())
+try:    s.login(u, getpass.getpass("password: ")); print("AUTH OK")
+except Exception as e: print("AUTH FAILED:", e)
+PY
+```
+
+### ⚠ `docker compose restart` does not re-read `.env`
+
+`env_file` is read when the container is **created**. After editing `.env`:
+
+```sh
+sudo docker compose up -d --force-recreate
+```
+
+A plain `restart` leaves the old value in place, so a corrected password appears
+to change nothing.
+
 Then capture it, and from here it's declarative:
 
 ```sh
