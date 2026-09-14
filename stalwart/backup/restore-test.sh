@@ -27,7 +27,6 @@ set -euo pipefail
 
 RESTORE_ROOT="${RESTORE_ROOT:-/var/tmp/stalwart-restore-test}"
 DATA_DIR="${DATA_DIR:-/var/lib/stalwart}"
-TEST_PORT="${TEST_PORT:-18080}"
 # Must match docker-compose.yml. A restore tested against a different version
 # than the one running is not a test of this server.
 IMAGE="${IMAGE:-stalwartlabs/stalwart:v0.16.21}"
@@ -99,22 +98,47 @@ fi
 # ── 3. Does a server actually come up on it? ─────────────────────────────────
 # The part that makes this a test rather than a file check. A restore that
 # produces bytes but not a bootable database has told you nothing.
-log "booting a throwaway server against the restored data"
-if docker run -d --rm \
+#
+# ⚠ --network none is not caution, it is required. The restored datastore
+# contains the MTA QUEUE. A server booted on it with working network would
+# happily deliver those messages again — a restore test that re-sends last
+# night's mail is worse than no restore test.
+#
+# ⚠ --config must match docker-compose.yml. The image defaults to
+# /etc/stalwart/config.json, which is not in the restored tree, so the server
+# would start in bootstrap mode and report itself healthy while having opened
+# nothing. That is exactly the false pass this script exists to prevent.
+log "booting a throwaway server against the restored data (no network)"
+if docker run -d \
       --name "$CONTAINER" \
+      --network none \
       -v "${RESTORED}:/var/lib/stalwart" \
-      -p "127.0.0.1:${TEST_PORT}:443" \
-      "$IMAGE" >/dev/null 2>&1; then
+      "$IMAGE" --config /var/lib/stalwart/etc/config.json >/dev/null 2>&1; then
 
+  # With no network there is nothing to curl, so the evidence is the log. These
+  # lines only appear after RocksDB has opened and the configuration has been
+  # read out of it — which is the claim under test.
+  booted=0
   for i in $(seq 1 30); do
     sleep 2
-    if curl -fsS -m 5 -k "https://127.0.0.1:${TEST_PORT}/healthz" >/dev/null 2>&1 \
-    || curl -fsS -m 5 -k "https://127.0.0.1:${TEST_PORT}/" >/dev/null 2>&1; then
-      pass "server responded on restored data (after ${i} tries)"
+    if docker logs "$CONTAINER" 2>&1 | grep -qE 'MTA queue started|Network listener started'; then
+      pass "server started on restored data (after ${i} tries)"
+      booted=1
       break
     fi
-    [ "$i" = 30 ] && fail "server never responded — restored data may not be bootable"
   done
+  [ "$booted" = 1 ] || {
+    fail "server never reached startup — restored data may not be bootable"
+    docker logs "$CONTAINER" 2>&1 | tail -15
+  }
+
+  # A bootstrap banner means it found no configuration and started an empty
+  # datastore. Everything else would look like success.
+  if docker logs "$CONTAINER" 2>&1 | grep -qiE 'bootstrap'; then
+    fail "server entered BOOTSTRAP mode — it did not read the restored config"
+  else
+    pass "no bootstrap mode — restored configuration was read"
+  fi
 
   if docker logs "$CONTAINER" 2>&1 | grep -qiE 'corrupt|panic|fatal'; then
     fail "server logged corruption/panic:"
