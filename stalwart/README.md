@@ -170,15 +170,31 @@ for line in open('plan.json'):
 EOF
 ```
 
-### ⚠ Two objects have no label, and `apply` will duplicate them
+### ⚠ Some objects have no label, and `apply` would duplicate them
 
-`snapshot` warns that **`Account` and `Tracer` have no label property**, so
-`apply` matches them by value — a changed object is *created* rather than
-updated. Add a `matchOn` to those entries before the first real `apply`, or a
-rebuild produces duplicate accounts.
+`snapshot` warns when an object type has no label property. For those, `apply`
+matches by **value** — so an object whose fields changed is *created* rather
+than updated, and a rebuild produces duplicate accounts.
 
-Everything else already carries one: `matchOn: ["name"]`, `["selector"]`,
-`["emailAddress"]`, `["description"]`.
+`add-matchon.py` fixes that, and should be run over every snapshot before
+committing:
+
+```sh
+stalwart-cli ... snapshot --output plan.json ... && ./add-matchon.py plan.json
+```
+
+`Account` matches on **`name` AND `domainId`**. `name` alone would be wrong:
+`james` exists on `agentsee.work`, and nothing stops a `james` on another domain
+later — matching on name alone would quietly merge two different people.
+
+`Tracer` is not in that list on purpose. It has no field that identifies it
+either, and the right fix was to delete the broken `Log` tracer rather than
+invent a key for it — it wrote to `/var/log/stalwart/`, a directory that does
+not exist in the container, and failed on every startup. With one tracer left,
+match-by-value is harmless.
+
+Everything with a natural label already carries one from `snapshot`:
+`matchOn: ["name"]`, `["selector"]`, `["emailAddress"]`, `["description"]`.
 
 ## The relay: keeping the secret out of a public repo
 
