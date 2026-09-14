@@ -94,10 +94,91 @@ that admits a gap:
 | File | State |
 |---|---|
 | `docker-compose.yml` | **Run on a real box 11 September 2026.** Image name, ports, the loopback bootstrap port and the `--config` path are all corrected from what actually happened rather than what was designed |
-| `relay-smtp2go.reference.json` | **Field names only.** Taken from the MtaRoute docs. The surrounding plan envelope must come from `snapshot` |
+| `relay-smtp2go.reference.json` | **Superseded by `plan.json`.** Kept for its notes on ports, DANE and signed headers; the real object is in the plan |
+| `plan.json` | **Snapshotted from the running server 14 September 2026.** Describes what is actually running |
 
-None of this has been run. Treat it as a starting point that saves you reading,
-not as a tested artifact.
+## `plan.json` — the running server, as a file
+
+Everything configured through the WebAdmin, captured with `stalwart-cli
+snapshot`. This is what makes the IaC claim honest: the clicking happened once,
+and the next server is an `apply`.
+
+### The CLI is a separate download
+
+It is **not in the Docker image** — the maintainers moved it to its own
+repository, [`stalwartlabs/cli`](https://github.com/stalwartlabs/cli), with its
+own version line (v1.0.12 while the server was v0.16.21). There is no CLI asset
+in the server's releases, which is a confusing place to spend ten minutes.
+
+```sh
+V=v1.0.12
+curl -fsSL -O "https://github.com/stalwartlabs/cli/releases/download/$V/stalwart-cli-x86_64-unknown-linux-gnu.tar.xz"
+curl -fsSL "https://github.com/stalwartlabs/cli/releases/download/$V/stalwart-cli-x86_64-unknown-linux-gnu.tar.xz.sha256" \
+  | sed 's|$|  stalwart-cli-x86_64-unknown-linux-gnu.tar.xz|' | sha256sum -c -
+tar xf stalwart-cli-x86_64-unknown-linux-gnu.tar.xz
+sudo install -m 0755 "$(find . -name stalwart-cli -type f | head -1)" /usr/local/bin/
+```
+
+### Taking a snapshot
+
+```sh
+stalwart-cli --url https://mail.agentsee.work --user admin@agentsee.work \
+  snapshot --output plan.json \
+  --allow-unresolved Directory,Tenant,DnsServer,Role,PublicKey \
+  Domain Account MailingList AcmeProvider DkimSignature \
+  MtaRoute MtaOutboundStrategy Tracer NetworkListener
+```
+
+**Expect to build that `--allow-unresolved` list by trial.** The tool refuses to
+emit a plan with references it cannot resolve, and tells you one at a time.
+`Role` and `PublicKey` in particular *cannot* be added — they form reference
+cycles — so allow-unresolved is the only route. We use none of the five.
+
+The object list is deliberately configuration only. Most of the 120-odd types
+are state — queued messages, logs, metrics, spam samples, received reports —
+and belong in the backup, not in a plan.
+
+### ⚠ It captures structure, not secrets
+
+Secrets are stripped by default, which is the right default and worth not
+overriding. What survives is the shape:
+
+```
+authSecret  {"@type":"EnvironmentVariable","variableName":"RELAY_SMTP_PASSWORD"}
+privateKey  {"@type":"Text"}          ← DKIM key, no value
+credentials types and descriptions, no passwords
+```
+
+So **`apply` alone does not rebuild this server.** A rebuild is `apply` plus the
+restored datastore, or `apply` plus re-entering credentials from the vault. Say
+that plainly rather than claiming the plan is sufficient — it is exactly the
+kind of thing that would be believed until the day it was tested.
+
+Verify before every commit, on values rather than keys — a `grep` for `secret`
+matches nearly every line of NDJSON and tells you nothing:
+
+```sh
+python3 - <<'EOF'
+import json
+for line in open('plan.json'):
+    if not line.strip(): continue
+    o = json.loads(line)
+    for _, body in o.get("value", {}).items():
+        if not isinstance(body, dict): continue
+        for k in ("credentials", "authSecret", "privateKey", "secret"):
+            if k in body: print(o.get("object"), k, "=", json.dumps(body[k])[:160])
+EOF
+```
+
+### ⚠ Two objects have no label, and `apply` will duplicate them
+
+`snapshot` warns that **`Account` and `Tracer` have no label property**, so
+`apply` matches them by value — a changed object is *created* rather than
+updated. Add a `matchOn` to those entries before the first real `apply`, or a
+rebuild produces duplicate accounts.
+
+Everything else already carries one: `matchOn: ["name"]`, `["selector"]`,
+`["emailAddress"]`, `["description"]`.
 
 ## The relay: keeping the secret out of a public repo
 
