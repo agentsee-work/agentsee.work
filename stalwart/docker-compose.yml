@@ -57,11 +57,21 @@ services:
       # and make `ls /var/lib/stalwart` mean the same thing in both places.
       - /var/lib/stalwart:/var/lib/stalwart
 
-    environment:
-      # Referenced by the relay route as an EnvironmentVariable authSecret, so
-      # the committed plan never contains the credential. Supplied by the
-      # systemd unit or an .env file that is NOT in git — see .gitignore.
-      RELAY_SMTP_PASSWORD: "${RELAY_SMTP_PASSWORD:?set RELAY_SMTP_PASSWORD}"
+    # Everything in .env is passed to the container. That file is NOT in git —
+    # see .gitignore — and holds:
+    #
+    #   RELAY_SMTP_PASSWORD      referenced by the relay route as an
+    #                            EnvironmentVariable authSecret, so the
+    #                            committed plan never contains the credential.
+    #
+    #   STALWART_RECOVERY_ADMIN  admin:<password>, optional. A standing
+    #                            break-glass login for when the real admin
+    #                            account is lost. ⚠ REMOVE IT once you are back
+    #                            in: left in place it is a permanent second
+    #                            administrator whose password is in a file on
+    #                            disk rather than in the vault.
+    env_file:
+      - .env
 
     # ⚠ The image's default is `--config /etc/stalwart/config.json`, which is
     # inside the container and therefore lost on every recreate. Pointed at the
