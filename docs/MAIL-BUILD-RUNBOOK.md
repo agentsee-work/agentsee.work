@@ -750,9 +750,18 @@ of it.
 > ✅ **Checkpoint 5 — restores PASSED 14 September 2026**, both repositories:
 > snapshot restored, RocksDB intact, server booted, config read, no corruption.
 >
+**Healthchecks: one per repository**, both proven 14 September 2026 — green on a
+real run, and `/fail` produces an alert that arrives at a **personal** address.
+Settings are *Simple*, period 1 day, grace 2 hours: the timer is 03:20 with 20
+minutes of deliberate jitter, so a tighter grace would cry wolf, and a check
+that cries wolf gets muted.
+
+Two checks rather than one because a shared check stays green on the primary's
+ping while the secondary fails silently — and "we have two copies" would then be
+false in the way that is only discovered when both are needed.
+
 > Still outstanding before cutover: the restic passphrase on **paper** as well
-> as in the vault, and a healthcheck per repository proving it alerts when a run
-> is deliberately skipped.
+> as in the vault.
 
 Test the second healthcheck separately. A shared switch would keep reporting
 healthy while the secondary silently failed, and two copies would be false in
