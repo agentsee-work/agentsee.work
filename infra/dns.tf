@@ -93,6 +93,31 @@ resource "cloudflare_dns_record" "apex_spf" {
   ttl     = 300
 }
 
+# ─── Client auto-configuration ───────────────────────────────────────────────
+# Stalwart answers Mozilla autoconfig, Microsoft autodiscover and Apple
+# mobileconfig itself; it only needs these names to reach it. Without them a
+# client guesses, and Apple Mail's guess is port 25 — which is the MX listener,
+# offers no authentication, and fails in a way that looks like a password
+# problem. Abrar hit exactly that on 14 September 2026.
+#
+# CNAMEs rather than A/AAAA so the server's address lives in one place.
+#
+# ⚠ These must also be added to the mail.agentsee.work domain's Additional
+# Hostnames in Stalwart, or the certificate will not cover them and every client
+# will refuse the config it fetches. DNS first, then the SANs — ACME validates
+# by connecting to the name.
+resource "cloudflare_dns_record" "autoconfig" {
+  for_each = toset(["autoconfig", "autodiscover"])
+
+  zone_id = var.cloudflare_zone_id
+  name    = "${each.key}.${var.domain}"
+  type    = "CNAME"
+  content = local.mail_fqdn
+  ttl     = 300
+  proxied = false
+  comment = "Mail client auto-configuration. Served by Stalwart."
+}
+
 # ─── DMARC ───────────────────────────────────────────────────────────────────
 resource "cloudflare_dns_record" "dmarc" {
   zone_id = var.cloudflare_zone_id
