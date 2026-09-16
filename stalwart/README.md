@@ -122,6 +122,22 @@ sudo install -m 0755 "$(find . -name stalwart-cli -type f | head -1)" /usr/local
 ### Taking a snapshot
 
 ```sh
+./snapshot.sh
+```
+
+That is the whole interface, and it is a script rather than a documented
+sequence because the sequence was skipped the first time it was used — the
+snapshot was taken, committed, and lost its `matchOn` keys in the process.
+
+It does three things and refuses to write `plan.json` if the third fails:
+
+1. snapshots the configuration object types (not state)
+2. runs `add-matchon.py` for the keys the CLI cannot infer
+3. **checks for secret values and aborts rather than writing them**
+
+The underlying command, for reference:
+
+```sh
 stalwart-cli --url https://mail.agentsee.work --user admin@agentsee.work \
   snapshot --output plan.json \
   --allow-unresolved Directory,Tenant,DnsServer,Role,PublicKey \
