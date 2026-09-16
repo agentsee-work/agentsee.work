@@ -446,6 +446,42 @@ non-empty list replaces the defaults.
 `WARN No TLS certificates available` every thirty seconds, which says nothing
 about why.
 
+### ⚠ Changing SANs does not re-issue, and deleting the certificate strands it
+
+Adding hostnames to a domain's **Additional Hostnames** does not trigger a new
+order. Renewal is time-based (`renewBefore` on the provider), so the existing
+certificate is served unchanged until it nears expiry — which can be months.
+
+Deleting the stored certificate to force the issue is the obvious next move and
+it is a trap: the server then has **no certificate at all**, and the renewal
+task does not necessarily run. We spent an hour at `No TLS certificates
+available, total = 0` with the site insecure.
+
+What was actually wrong, in order, and only the first was our own fault:
+
+1. **A typo in the SAN list** — `main.agentsee.work` for `mail.agentsee.work`.
+   The UI showed it happily; `stalwart-cli get Domain <id>` is what exposed it.
+   **Read objects with the CLI, not the forms** — that is twice it settled a
+   question the UI had obscured.
+2. **A `Failed` AcmeRenewal task** left over from the typo, plus an orphaned one
+   pointing at the deleted certificate. `query Task` shows them; `delete Task
+   --ids …` clears them.
+3. **The remaining task stayed `Pending` and overdue and never ran**, through
+   several restarts. No error, no log line.
+
+What fixed it was deleting and recreating the Domain object. That refuses while
+anything references it — clear its `Task` entries first, then its auto-generated
+`DkimSignature` rows (`query DkimSignature` shows which domain each belongs to).
+
+⚠ **Delete only the signatures belonging to that domain.** The ones on
+`agentsee.work` are published in DNS and signing live mail; removing them breaks
+alignment at `p=reject`, which is a far worse day than a missing certificate.
+
+**Do this before the certificate matters.** Inbound and outbound mail were
+unaffected throughout — SMTP uses opportunistic TLS and a self-signed
+certificate is accepted — so the blast radius was IMAP clients and the admin UI.
+It would be a different afternoon at renewal time.
+
 ### ⚠ Set up a tracer, or the server is silent
 
 Stalwart logs nothing to stdout by default, so `docker compose logs` shows only
