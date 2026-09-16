@@ -175,15 +175,26 @@ resource "cloudflare_dns_record" "ua_auto_config" {
   comment = "PACC discovery. Hash pins the config document."
 }
 
-# ─── CAA: who may issue certificates for this domain ─────────────────────────
-# Without this, any CA in the world can be persuaded to issue for agentsee.work.
-# With it, only Let's Encrypt can, and only for our ACME account.
+# ─── CAA: who may issue certificates for the MAIL HOST ───────────────────────
+# On mail.agentsee.work, NOT the apex, and that is not a detail.
+#
+# Cloudflare manages CAA at the apex itself, because the apex serves the Pages
+# site and Cloudflare needs its own certificates for it. The zone already
+# carries ten issue/issuewild records for digicert, pki.goog, ssl.com, comodoca
+# and letsencrypt. An apex CAA record of ours was simply dropped — not merged,
+# not rejected loudly, just absent afterwards.
+#
+# That is fine, because CAA is evaluated at the most specific name and a CNAME
+# defers to its target. A record here therefore governs mail.agentsee.work and
+# every name that CNAMEs to it: autoconfig, autodiscover, mta-sts and
+# ua-auto-config. Which is precisely where Stalwart's own generated zone file
+# put it, before we moved it to the apex and learned why it had not.
 #
 # ⚠ Adding a second ACME provider or moving CA means changing this FIRST, or
 # issuance fails with an error that does not mention CAA.
 resource "cloudflare_dns_record" "caa_issue" {
   zone_id = var.cloudflare_zone_id
-  name    = var.domain
+  name    = local.mail_fqdn
   type    = "CAA"
   ttl     = 300
   comment = "Only Let's Encrypt, only our account, may issue."
@@ -197,7 +208,7 @@ resource "cloudflare_dns_record" "caa_issue" {
 
 resource "cloudflare_dns_record" "caa_iodef" {
   zone_id = var.cloudflare_zone_id
-  name    = var.domain
+  name    = local.mail_fqdn
   type    = "CAA"
   ttl     = 300
   comment = "Where to report attempted mis-issuance."
