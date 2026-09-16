@@ -118,6 +118,97 @@ resource "cloudflare_dns_record" "autoconfig" {
   comment = "Mail client auto-configuration. Served by Stalwart."
 }
 
+# ─── MTA-STS, TLS-RPT and modern autoconfig ──────────────────────────────────
+# All three are served by Stalwart over HTTPS on their own hostnames, so they
+# need the same treatment autoconfig did: a CNAME here, and the name added to
+# the certificate's Subject Alternative Names in Stalwart. A name that resolves
+# but has no certificate is worse than one that does not resolve — senders that
+# honour MTA-STS will refuse to deliver rather than fall back.
+resource "cloudflare_dns_record" "policy_hosts" {
+  for_each = toset(["mta-sts", "ua-auto-config"])
+
+  zone_id = var.cloudflare_zone_id
+  name    = "${each.key}.${var.domain}"
+  type    = "CNAME"
+  content = local.mail_fqdn
+  ttl     = 300
+  proxied = false
+  comment = "Policy host served by Stalwart over HTTPS."
+}
+
+# ⚠ The id must change whenever the POLICY changes, or senders keep serving the
+# cached one. Stalwart generates it; take the current value from
+# `stalwart-cli get Domain <apex-id>` rather than inventing one.
+resource "cloudflare_dns_record" "mta_sts" {
+  count = var.mta_sts_id == "" ? 0 : 1
+
+  zone_id = var.cloudflare_zone_id
+  name    = "_mta-sts.${var.domain}"
+  type    = "TXT"
+  content = "v=STSv1; id=${var.mta_sts_id}"
+  ttl     = 300
+  comment = "MTA-STS policy version. Bump when the policy changes."
+}
+
+# Reports from other servers about TLS failures reaching us. The only way we
+# would hear about a problem that is invisible from this side.
+resource "cloudflare_dns_record" "tls_rpt" {
+  zone_id = var.cloudflare_zone_id
+  name    = "_smtp._tls.${var.domain}"
+  type    = "TXT"
+  content = "v=TLSRPTv1; rua=mailto:dmarc@${var.domain}"
+  ttl     = 300
+  comment = "TLS-RPT. Reports land with the DMARC ones."
+}
+
+# PACC — the standardised successor to Mozilla autoconfig and Microsoft
+# autodiscover, covering mail, calendar and contacts in one document. Clients
+# that speak it need no per-vendor hostname; the hash pins the document.
+resource "cloudflare_dns_record" "ua_auto_config" {
+  count = var.ua_auto_config_hash == "" ? 0 : 1
+
+  zone_id = var.cloudflare_zone_id
+  name    = "_ua-auto-config.${var.domain}"
+  type    = "TXT"
+  content = "v=UAAC1; a=sha256; d=${var.ua_auto_config_hash}"
+  ttl     = 300
+  comment = "PACC discovery. Hash pins the config document."
+}
+
+# ─── CAA: who may issue certificates for this domain ─────────────────────────
+# Without this, any CA in the world can be persuaded to issue for agentsee.work.
+# With it, only Let's Encrypt can, and only for our ACME account.
+#
+# ⚠ Adding a second ACME provider or moving CA means changing this FIRST, or
+# issuance fails with an error that does not mention CAA.
+resource "cloudflare_dns_record" "caa_issue" {
+  zone_id = var.cloudflare_zone_id
+  name    = var.domain
+  type    = "CAA"
+  ttl     = 300
+  comment = "Only Let's Encrypt, only our account, may issue."
+
+  data = {
+    flags = 0
+    tag   = "issue"
+    value = "letsencrypt.org;accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/${var.acme_account_id}"
+  }
+}
+
+resource "cloudflare_dns_record" "caa_iodef" {
+  zone_id = var.cloudflare_zone_id
+  name    = var.domain
+  type    = "CAA"
+  ttl     = 300
+  comment = "Where to report attempted mis-issuance."
+
+  data = {
+    flags = 0
+    tag   = "iodef"
+    value = "mailto:dmarc@${var.domain}"
+  }
+}
+
 # ─── DMARC ───────────────────────────────────────────────────────────────────
 resource "cloudflare_dns_record" "dmarc" {
   zone_id = var.cloudflare_zone_id

@@ -178,3 +178,36 @@ variable "smtp2go_cname_records" {
   type        = map(string)
   default     = {}
 }
+
+# ─── Policy records ──────────────────────────────────────────────────────────
+variable "mta_sts_id" {
+  description = <<-EOT
+    Version id for the MTA-STS policy, from `stalwart-cli get Domain <apex-id>`.
+
+    Senders cache the policy against this id, so it MUST change whenever the
+    policy does — otherwise they keep enforcing a stale one. Empty disables the
+    record, which is the right state until the policy host has a certificate.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "ua_auto_config_hash" {
+  description = <<-EOT
+    sha256 of the PACC configuration document, from the same place. Pins the
+    document clients fetch. Empty disables the record.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "acme_account_id" {
+  description = <<-EOT
+    Let's Encrypt account id, used to bind CAA to our account specifically —
+    so a CA compromise elsewhere cannot issue for this domain even via
+    Let's Encrypt. Shown on the AcmeProvider object as the accounturi.
+
+    Not a secret; it is published in DNS by design.
+  EOT
+  type        = string
+}

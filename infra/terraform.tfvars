@@ -34,3 +34,16 @@ dkim_records = {
 
 # ⚠ THE CUTOVER — 14 September 2026. Apex MX moves to our own server.
 enable_apex_mx = true
+
+# Let's Encrypt account, from the AcmeProvider's accounturi. Public by design —
+# it goes into the CAA record so only our account can issue for this domain.
+acme_account_id = "3736679926"
+
+# ⚠ Both empty until mta-sts.agentsee.work and ua-auto-config.agentsee.work are
+# in the certificate's SANs. Publishing an MTA-STS policy on a hostname without
+# a valid certificate makes senders REFUSE to deliver rather than fall back —
+# strictly worse than not publishing at all.
+#
+# Fill from `stalwart-cli get Domain b`:
+#   mta_sts_id          = "4410731174407226804"
+#   ua_auto_config_hash = "jvR8LcNlYIuK3QEJm8c2IMoEUNoKwhQYUs2uCq55j+E="
