@@ -446,6 +446,38 @@ non-empty list replaces the defaults.
 `WARN No TLS certificates available` every thirty seconds, which says nothing
 about why.
 
+### Autoconfig: what it does and does not fix
+
+`autoconfig.` and `autodiscover.` are published and Stalwart answers on both,
+plus PACC at `/.well-known/user-agent-configuration.json`. Verified:
+
+```sh
+curl -sI https://autoconfig.agentsee.work/mail/config-v1.1.xml?emailaddress=you@agentsee.work
+curl -sI https://mail.agentsee.work/.well-known/user-agent-configuration.json
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  https://autodiscover.agentsee.work/autodiscover/autodiscover.xml   # POST-only; GET returns 404
+```
+
+⚠ **This does not help Apple.** Stalwart does not generate `.mobileconfig`
+profiles — there is an open feature request for it — and iOS Mail does not use
+Mozilla autoconfig. Apple devices are configured by hand, and that is the
+current answer rather than a misconfiguration to chase. Thunderbird already
+worked by probing ports; the real beneficiary is Outlook and whatever speaks
+PACC later.
+
+**Manual settings**, which are what Apple clients need:
+
+| | Incoming | Outgoing |
+|---|---|---|
+| Host | `mail.agentsee.work` | `mail.agentsee.work` |
+| Port | 993, SSL | **465**, SSL |
+| Username | the bare local part, e.g. `abrar` | same |
+| Password | an app password, not the account password | same |
+
+⚠ **Turn off "Automatically manage connection settings".** Left on, Apple Mail
+picks port **25** — the MX listener, which offers no authentication — and the
+failure looks exactly like a wrong password.
+
 ### ⚠ Changing SANs DESTROYS the certificate and does not re-issue it
 
 Confirmed twice, on 16 September 2026. Editing a domain's **Additional
