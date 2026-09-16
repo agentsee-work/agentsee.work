@@ -446,7 +446,48 @@ non-empty list replaces the defaults.
 `WARN No TLS certificates available` every thirty seconds, which says nothing
 about why.
 
-### ⚠ Changing SANs does not re-issue, and deleting the certificate strands it
+### ⚠ Changing SANs DESTROYS the certificate and does not re-issue it
+
+Confirmed twice, on 16 September 2026. Editing a domain's **Additional
+Hostnames** invalidates the stored certificate — the names no longer match, so
+it is discarded — and **no new order is placed**, through any number of
+restarts. The server is left serving a self-signed certificate with no warning
+that anything is required of you.
+
+So adding a hostname to a mail server's certificate is a destructive operation,
+which is not how it reads in the UI.
+
+**The procedure that works**, and there is no gentler one we could find:
+
+```sh
+S="stalwart-cli --url https://mail.agentsee.work --user admin@agentsee.work -k"
+
+$S query Domain          # the mail host's id
+$S query Task            # its AcmeRenewal ids
+$S query DkimSignature   # the ids on THAT DOMAIN only
+
+$S delete Task           --ids <task-ids>
+$S delete DkimSignature  --ids <that-domain's-ids>
+$S delete Domain         --ids <domain-id>
+```
+
+Then recreate the domain with ACME, the existing provider, and the **full** SAN
+list in one go. It orders all names at once on the next restart.
+
+⚠ **Delete only the DKIM signatures belonging to that domain.** The ones on
+`agentsee.work` are published in DNS and signing live mail; removing those
+breaks alignment at `p=reject`, which is a far worse afternoon than a missing
+certificate. `query DkimSignature` prints the domain for each — read it, don't
+match by eye.
+
+**Batch every hostname you might want.** Each addition costs this whole dance,
+so adding `mta-sts` and `ua-auto-config` separately from `autoconfig` and
+`autodiscover` meant doing it twice.
+
+`-k` is required throughout, because by the time you are running these the
+server has no valid certificate.
+
+### ⚠ Deleting the certificate alone does not help either
 
 Adding hostnames to a domain's **Additional Hostnames** does not trigger a new
 order. Renewal is time-based (`renewBefore` on the provider), so the existing

@@ -44,6 +44,10 @@ acme_account_id = "3736679926"
 # a valid certificate makes senders REFUSE to deliver rather than fall back —
 # strictly worse than not publishing at all.
 #
-# Fill from `stalwart-cli get Domain b`:
-#   mta_sts_id          = "4410731174407226804"
-#   ua_auto_config_hash = "jvR8LcNlYIuK3QEJm8c2IMoEUNoKwhQYUs2uCq55j+E="
+# Enabled 16 September 2026, once the certificate covered both policy hosts and
+# https://mta-sts.agentsee.work/.well-known/mta-sts.txt served in `testing` mode.
+#
+# ⚠ Bump mta_sts_id whenever the POLICY changes, or senders keep enforcing the
+# cached one. Take both values from `stalwart-cli get Domain b`.
+mta_sts_id          = "4410731174407226804"
+ua_auto_config_hash = "jvR8LcNlYIuK3QEJm8c2IMoEUNoKwhQYUs2uCq55j+E="
