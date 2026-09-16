@@ -9,10 +9,24 @@
 crash.log
 crash.*.log
 
-# Real values — may name IPs, emails, keys.
+# terraform.tfvars IS committed, and that is a deliberate reversal.
+#
+# The rule below was written assuming tfvars is where credentials live. It is
+# not: every credential comes from op.env via `op run`, and what is left is an
+# SSH PUBLIC key, DKIM PUBLIC keys, DNS records that are world-readable by
+# definition, and two flags.
+#
+# Leaving it ignored made the defaults the effective configuration on any
+# machine that had not been used before — so a plan from a second laptop offered
+# to destroy the apex MX, both DKIM records and all three relay CNAMEs, and to
+# downgrade DMARC to p=none. A plan that differs by machine is not a plan.
+#
+# ⚠ Nothing secret goes in it. If that ever stops being true, the fix is to move
+# the secret to op.env, not to ignore the file again.
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
+!terraform.tfvars
 
 # Plan files contain full resource values, including sensitive ones.
 *.tfplan
