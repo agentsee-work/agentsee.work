@@ -1,15 +1,18 @@
-# Draft — "We built our own mail server. Here is what it cost."
+# Working notes — "We built our own mail server. Here is what it cost."
 
-**Status: draft, not published.** Lives in `docs/` so it stays out of `public/`.
-When it is ready it becomes Issue No. 2 under `public/issues/` and gets a row in
-the register, per the rule in the README: never list an issue that has not been
-published.
+**Published as Issue No. 2**:
+[`public/issues/02-mail.html`](../public/issues/02-mail.html). That is the
+version that ships, cut shorter and with the meta stripped.
 
-Written to inform a podcast on the same subject.
+This file is the longer argument it was cut from, plus the notes for the
+podcast. It stays in `docs/` because only `public/` is published — so it can go
+on being edited without anything appearing on the site.
+
+If the two ever disagree, the published page wins. This is the workings.
 
 ---
 
-## The shape of the piece
+## The argument, at length
 
 Owning your own mail is a reasonable thing to do again. Working with an AI made
 it three afternoons of actual work, spread over a fortnight because that is how
