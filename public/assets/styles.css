@@ -528,6 +528,21 @@ footer {
 .pupil      { fill: var(--ink); }
 .glint      { fill: var(--paper); opacity: .92; }
 .glint.sm   { opacity: .5; }
+
+/* The pupil and the glint must NOT follow the theme swap.
+   Everything else in the mark should: the hat takes --ink and flips from black
+   to bone, which is the whole point of newsprint-by-day and noir-by-night. But
+   --ink and --paper trade places after dark, and these two are the only fills
+   whose meaning is their lightness rather than their role. Left alone, the
+   pupil turns white and the glint turns black — a specular highlight that
+   absorbs light, and an eye rendered as its own negative.
+   Pinned, so the pupil is always the darkest thing in the eye and the glint is
+   always the lightest. This is what brand/avatar-noir.png has always done; the
+   stylesheet was the one out of step. */
+@media (prefers-color-scheme: dark) {
+  .pupil { fill: var(--paper); }
+  .glint { fill: var(--ink); }
+}
 .iris { transition: transform .09s linear; }
 
 .eye { transform-origin: 120px 142px; animation: blink 7.4s infinite; }

@@ -66,11 +66,14 @@ THEMES = {
         paper="#0a0a0b", paper_2="#131211", ink="#efe9e0", ink_2="#a89e91",
         ink_3="#6a625a", rule="#efe9e0", hair="#2b2722", signal="#e0923f",
         wash="rgba(224,146,63,.09)", glow="rgba(224,146,63,.34)",
+        # Pinned, not swapped — see the note beside .pupil in styles.css.
+        pupil="#0a0a0b", glint="#efe9e0",
     ),
     "newsprint": dict(
         paper="#f7f3ea", paper_2="#efe9dc", ink="#1a1712", ink_2="#4a4238",
         ink_3="#7d7365", rule="#1a1712", hair="#cfc4b0", signal="#a8431d",
         wash="rgba(168,67,29,.07)", glow="transparent",
+        pupil="#1a1712", glint="#f7f3ea",
     ),
 }
 
@@ -151,8 +154,8 @@ body::before {{
                 stroke-width: calc(var(--mark-w) * .025); stroke-linejoin: round; }}
 .iris-outer {{ fill: {signal}; }}
 .iris-inner {{ fill: {signal}; filter: brightness(.82); }}
-.pupil      {{ fill: {ink}; }}
-.glint      {{ fill: {paper}; opacity: .92; }}
+.pupil      {{ fill: {pupil}; }}
+.glint      {{ fill: {glint}; opacity: .92; }}
 .glint.sm   {{ opacity: .5; }}
 </style>
 <div class="stack">

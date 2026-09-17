@@ -197,3 +197,11 @@ The rules that keep it honest, all of which are load-bearing:
 - The register never lists an issue that has not been published.
 - Copy does not claim more than the infrastructure delivers. When Email
   Routing turned out not to support fan-out, the sentence changed.
+- **The pupil and the glint are pinned against the theme swap.** Everything
+  else in the mark follows `--ink` and `--paper` and flips after dark, which is
+  the point. Those two are the only fills whose meaning is their lightness
+  rather than their role, so letting them swap gave the noir eye a white pupil
+  and a black specular highlight — the eye as its own negative. It shipped that
+  way and went unnoticed until a profile banner put the mark next to the
+  avatar, which had always drawn it correctly. If the mark ever looks wrong in
+  one theme only, this is the first thing to check.
