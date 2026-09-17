@@ -51,6 +51,7 @@ docs/CREDENTIALS.md           1Password Business: the vaults and the rules
 docs/AGENT-MAIL.md            inbound mail as an agent trigger — design only
 docs/MAIL-SELFHOST.md         own the inbox, rent the reputation — built, running
 docs/MAIL-BUILD-RUNBOOK.md    how it was built, and everything that bit on the way
+docs/POST-DRAFT-MAIL.md       draft of Issue No. 2 — not published, stays in docs/
 infra/                        the mail server declared — OpenTofu, applied
 stalwart/                     mail server config, snapshotted from the running server
 tools/portraits.py            regenerates the portraits from source photos
