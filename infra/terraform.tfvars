@@ -51,3 +51,5 @@ acme_account_id = "3736679926"
 # cached one. Take both values from `stalwart-cli get Domain b`.
 mta_sts_id          = "4410731174407226804"
 ua_auto_config_hash = "jvR8LcNlYIuK3QEJm8c2IMoEUNoKwhQYUs2uCq55j+E="
+
+bluesky_did = "did:plc:6247kupcnwvc4lu5vmbf4fni"

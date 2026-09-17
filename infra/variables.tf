@@ -211,3 +211,14 @@ variable "acme_account_id" {
   EOT
   type        = string
 }
+
+variable "bluesky_did" {
+  description = <<-EOT
+    The Bluesky account's decentralised identifier, published as
+    _atproto.<domain> TXT so the handle can be the domain itself.
+
+    Not a secret. resolveHandle returns it to anyone who asks and
+    plc.directory publishes the full DID document.
+  EOT
+  type        = string
+}

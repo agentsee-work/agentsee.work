@@ -244,3 +244,29 @@ resource "cloudflare_dns_record" "dkim" {
   ttl     = 300
   comment = "Stalwart DKIM. Private half lives on the box and in backups."
 }
+
+# ─── Bluesky ────────────────────────────────────────────────────────────────
+#
+# Bluesky verifies handles by DNS, so owning the domain lets us be
+# @agentsee.work outright rather than @agentseework.bsky.social. The TXT record
+# IS the verification — there is no token exchange and no second step.
+#
+# The DID is an identifier, not a credential. It is already public: anyone can
+# read it off the account with resolveHandle, and plc.directory serves the whole
+# document to the world. Committing it leaks nothing.
+#
+# Verified before publishing, both directions:
+#   resolveHandle(agentseework.bsky.social) -> did:plc:6247kupcnwvc4lu5vmbf4fni
+#   plc.directory/<did> alsoKnownAs         -> at://agentseework.bsky.social
+#
+# If the account is ever recreated the DID changes and this record must change
+# with it. A stale DID here does not fail loudly — the handle just silently
+# stops verifying.
+resource "cloudflare_dns_record" "bluesky" {
+  zone_id = var.cloudflare_zone_id
+  name    = "_atproto.${var.domain}"
+  type    = "TXT"
+  content = "did=${var.bluesky_did}"
+  ttl     = 300
+  comment = "Bluesky handle verification for @agentsee.work"
+}
