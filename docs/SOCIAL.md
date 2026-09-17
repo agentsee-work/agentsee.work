@@ -26,14 +26,15 @@ Two deliberate exceptions:
 | GitHub org | `agentsee-work` | Already exists, already in the runbook. Leave it. |
 | Bluesky | `agentsee.work` | Bluesky lets a domain *be* the handle. See below. |
 
-### Bluesky gets the name for free
+### Bluesky gets the name for free — **done, 17 September 2026**
 
 Bluesky verifies handles by DNS, so owning `agentsee.work` means we can be
 `@agentsee.work` outright — the exact brand, no suffix, no compromise, and it
 reads as its own proof of ownership. This is the one platform where we don't
-have to settle. Still unclaimed as of 17 September 2026.
+have to settle.
 
-Create the account on `agentseework.bsky.social` first, then:
+`did:plc:6247kupcnwvc4lu5vmbf4fni`, declared in `infra/dns.tf` as
+`_atproto.agentsee.work`. How it was done, for when we do it again:
 
 ```sh
 # Get the DID from the account, then publish it as a TXT record.
@@ -41,9 +42,32 @@ curl -s "https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?han
 # TXT  _atproto.agentsee.work  ->  did=did:plc:xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-Then change the handle to `agentsee.work` in Bluesky's settings, which releases
-`agentseework.bsky.social` back to the pool. The existing Cloudflare token
-already has **DNS — Edit** on this zone, so this needs no new permission.
+Then change the handle to `agentsee.work` in Bluesky's settings. The existing
+Cloudflare token already has **DNS — Edit** on this zone, so this needs no new
+permission.
+
+**Verifying the record and changing the handle are two separate steps, and the
+app will happily tell you it did the first while you believe it did both.** Ours
+sat verified-but-unchanged until we went looking. The app is not the place to
+check — ask the network:
+
+```sh
+# Authoritative. This is what the PDS believes, not what the UI last rendered.
+curl -s "https://bsky.social/xrpc/com.atproto.repo.describeRepo?repo=<did>" \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["handle"])'
+
+# A handle change writes a second entry here. One entry means it never happened.
+curl -s "https://plc.directory/<did>/log/audit"
+```
+
+Note that `resolveHandle(agentsee.work)` starts succeeding the moment the TXT
+record is live — **before** the handle has been changed, and regardless of
+whether it ever is. It proves DNS answered, nothing more. We briefly read it as
+proof of success; it isn't.
+
+**The old `agentseework.bsky.social` was not released.** Immediately after the
+change it still resolved to the same DID. Whether it frees up later is untested
+— don't count on recovering it, and don't count on nobody else getting it.
 
 ### Three defensive registrations of bare `agentsee`
 
