@@ -206,7 +206,34 @@ Already in the repo, already the right shape:
 |---|---|---|
 | `public/assets/brand/avatar-newsprint.png` | 1000×1000 | Avatar, light platforms |
 | `public/assets/brand/avatar-noir.png` | 1000×1000 | Avatar, dark platforms |
-| `public/assets/og.png` | 1200×630 | Banner / share card |
+| `public/assets/brand/banner-bluesky.png` | 1500×500 | Bluesky header |
+| `public/assets/brand/banner-x.png` | 1500×500 | X header |
+| `public/assets/brand/banner-linkedin.png` | 1128×191 | LinkedIn company page |
+| `public/assets/brand/banner-youtube.png` | 2560×1440 | YouTube channel art |
+| `public/assets/og.png` | 1200×630 | **Share card only** — not a banner |
+
+Banners come from `tools/banner.py`, which renders them through headless Chrome
+against the stylesheet's own palette and the self-hosted typeface. Don't edit the
+PNGs; change the tool and re-run, or they drift from the site the first time a
+colour changes and nobody notices, because nobody diffs a PNG.
+
+```sh
+./tools/banner.py --list
+./tools/banner.py bluesky              # noir, the default
+./tools/banner.py bluesky --newsprint  # light platforms
+```
+
+**`og.png` is not a banner** and was the wrong thing to reach for. It is 1.9:1
+and a banner slot is 3:1, so it crops. It is also a different composition — a
+three-column dateline and the headline — which is right for a share card and
+wrong for a profile header.
+
+Each preset is checked against a centred safe area by measuring the bounding box
+of what was actually drawn, not by trusting the layout arithmetic. YouTube is
+why: it renders at 2560×1440 and guarantees only the centre 1235×338, under 12%
+of the area, so type scaled off the canvas height walks straight out of frame on
+a phone. The check is calibrated — it passes the shipped layout and fails a
+deliberately oversized one, reporting which edge went over and by how much.
 
 Bio, everywhere, so it stays the same everywhere:
 

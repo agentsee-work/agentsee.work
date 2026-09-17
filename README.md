@@ -41,7 +41,7 @@ public/                       ← the only thing that gets deployed
   assets/eye.js               pointer tracking, saccades, day counter
   assets/og.png               social card, rendered from the site's own CSS
   assets/*-hartt|mahmood.jpg  portraits (see tools/portraits.py)
-  assets/brand/               org avatars, not used by the page
+  assets/brand/               avatars and profile banners, not used by the page
   fonts/newsreader-latin.woff2  self-hosted display face (SIL OFL)
 
 docs/RUNBOOK.md               where the infrastructure lives, and its traps
@@ -55,6 +55,7 @@ infra/                        the mail server declared — OpenTofu, applied
 stalwart/                     mail server config, snapshotted from the running server
 tools/portraits.py            regenerates the portraits from source photos
 tools/handle-probe.sh         is a social handle free? calibrated, so the answer means something
+tools/banner.py               profile banners, rendered from the site's own palette
 workers/email-fanout/         was the hello@/show@ fan-out; now the agent-intake prototype
 ```
 
