@@ -54,6 +54,7 @@ docs/MAIL-BUILD-RUNBOOK.md    how it was built, and everything that bit on the w
 infra/                        the mail server declared — OpenTofu, applied
 stalwart/                     mail server config, snapshotted from the running server
 tools/portraits.py            regenerates the portraits from source photos
+tools/handle-probe.sh         is a social handle free? calibrated, so the answer means something
 workers/email-fanout/         was the hello@/show@ fan-out; now the agent-intake prototype
 ```
 
