@@ -358,19 +358,27 @@ apply, so rename deliberately and grep `infra/op.env` first.
 - [ ] **Abrar accepts, then make him an Owner.** Verify it took — a team with
       one Owner looks exactly like a team with two until you need the second.
 - [ ] Both enable 2FA on their own login; write recovery codes on paper.
-- [ ] **Both print the Emergency Kit** and store it apart from the passwords.
+- [x] James: Emergency Kit written out by hand, **and verified by signing out
+      and back in with it**. That verification is worth more than printing one
+      and filing it unread.
+- [ ] Abrar does the same.
 - [x] James: personal account linked, free Families membership claimed.
 - [ ] Abrar does the same — it is per-member, not something you can grant him.
 - [x] Create the vaults: Engineering, Finance, IT, Security, Social, plus the
       Shared one that came with the account.
 - [ ] Empty `Shared` and keep it that way.
-- [ ] File the existing secrets by the machine-read/human-typed rule above.
-      [`infra/op.env`](../infra/op.env) resolves `op://Engineering/...`, so
-      those three items must be in **Engineering** under exactly those names.
-- [ ] Install the CLI and turn on the desktop-app integration, so `op run` can
-      unlock without a session token in the shell.
-- [ ] *Then* the social signups in [SOCIAL.md](SOCIAL.md) — so each TOTP seed
-      lands in the vault as the account is made.
+- [x] Install the CLI and turn on the desktop-app integration. Every `tofu`
+      command since has gone through `op run`, so this is proven rather than
+      configured.
+- [x] File the infrastructure secrets in **Engineering**: the Cloudflare token,
+      the R2 state token, Infomaniak Public Cloud, the SMTP2GO SMTP user, the R2
+      backup token and the Swiss Backup keys. `op.env` resolves the first three
+      on every apply, which is a stronger check than a tick.
+- [x] The restic passphrase in **Security**, and on paper with the Emergency
+      Kit. The one whose loss cannot be undone.
+- [ ] **The social signups in [SOCIAL.md](SOCIAL.md)** — still not started, and
+      the reason this checklist came first. Each TOTP seed goes in the vault as
+      the account is made, not in a retrofit that never happens.
 
 The last one is why this comes first. Sorting credentials after the accounts
 exist means transcribing seeds off a phone, which nobody does, which is how one
