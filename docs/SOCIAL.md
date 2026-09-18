@@ -65,9 +65,10 @@ record is live — **before** the handle has been changed, and regardless of
 whether it ever is. It proves DNS answered, nothing more. We briefly read it as
 proof of success; it isn't.
 
-**The old `agentseework.bsky.social` was not released.** Immediately after the
-change it still resolved to the same DID. Whether it frees up later is untested
-— don't count on recovering it, and don't count on nobody else getting it.
+**The old `agentseework.bsky.social` is released, but not immediately.** Right
+after the change it still resolved to our DID; by the next day it had stopped
+resolving at all. So the release is real and lagged by roughly a day — long
+enough that checking straight afterwards tells you the opposite of the truth.
 
 ### Three defensive registrations of bare `agentsee`
 
@@ -99,9 +100,17 @@ mastodon.social, Substack, Patreon, LinkedIn, Hugging Face, Docker Hub, and as a
 package name on npm and PyPI.
 
 **Could not be verified, and the signup form is the only authority:** Instagram,
-Threads, TikTok, Reddit, Facebook. They bot-wall or rate-limit datacentre IPs
-and return an identical response for a real account and a nonsense one. Treat
-these as *unknown*, not as free. Grab them by hand, TikTok first.
+Threads, Reddit, Facebook. They bot-wall or rate-limit datacentre IPs and return
+an identical response for a real account and a nonsense one. Treat these as
+*unknown*, not as free.
+
+**TikTok is now probeable after all.** Its profile pages return `200` for real
+and invented handles alike, which is what made it look hopeless. Its **oEmbed**
+endpoint does not: `tiktok.com/oembed?url=…/@handle` returns `200` for an account
+that exists and `400` for one that doesn't, and it answers for an account with no
+posts, so it detects existence rather than content. Calibrated against two
+known-taken and four invented handles. The lesson is that one endpoint being
+useless doesn't make a platform unprobeable — it makes that endpoint useless.
 
 ### Why the probe is a script and not a list
 
@@ -146,6 +155,10 @@ already decided not to build on.
 
 ## Registering, in order
 
+**Registered so far:** Bluesky (`@agentsee.work`), X, Instagram and TikTok, all
+17–18 September 2026. Outstanding: YouTube, Twitch, and the three defensive
+reservations.
+
 1. **`accounts@agentsee.work` — done.** It is a `MailingList` on our own mail
    server, fanning to both of us, and has been since cutover on 14 September
    2026. Not `hello@`: platform mail is high-volume and mostly noise and must
@@ -178,6 +191,16 @@ The residual risk moved rather than vanished: recovery for the *mail* itself
 must never depend on mail. Infomaniak, SMTP2GO, Cloudflare and 1Password all use
 personal addresses on purpose. Platform accounts are a different tier and
 `accounts@` is the right home for them.
+
+**TikTok may never have given you a password.** Signing up with a phone number
+or an emailed code — or with Continue-with-Google — creates an account that has
+no password at all, so "forgot password" has nothing to reset and appears
+broken. The way in is the login *code*, not the password flow; a password can
+then be set afterwards under Manage account, where the option reads **Set**
+password rather than Change. Do set one: an account reachable only through
+someone's personal Google login is the single point of failure this section is
+about. TikTok's captcha is also unreliable in Firefox on Linux, which makes a
+working flow look like a broken one.
 
 **Phone verification ties an account to a person.** X, TikTok and Instagram will
 ask, and Twitch requires 2FA before it will let you stream at all — not at

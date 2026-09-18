@@ -75,6 +75,19 @@ bluesky_probe() {
   esac
 }
 
+tiktok_probe() {
+  # TikTok returns 200 for a real profile and 200 for nonsense, so the obvious
+  # probe is useless. oEmbed is not: it 400s on a handle that does not exist.
+  # Calibrated against tiktok/nasa (200) and four invented handles (400).
+  local r
+  r=$(code "https://www.tiktok.com/oembed?url=https://www.tiktok.com/@$TARGET")
+  case "$r" in
+    200) say tiktok TAKEN ;;
+    400) say tiktok FREE ;;
+    *)   say tiktok UNKNOWN "oembed returned $r — neither control value" ;;
+  esac
+}
+
 twitch_probe() {
   local q r
   q="{\"query\":\"{user(login:\\\"$TARGET\\\"){id}}\"}"
@@ -112,10 +125,11 @@ for TARGET in "${TARGETS[@]}"; do
   http_probe npm-pkg     'https://registry.npmjs.org/%s'                          express
   http_probe pypi-pkg    'https://pypi.org/pypi/%s/json'                          requests
 
+  tiktok_probe
+
   # Known-dead probes, listed so nobody assumes they were forgotten.
   say instagram UNKNOWN "web_profile_info returns 401 for everything since ~Sep 2026"
   say threads   UNKNOWN "Instagram's namespace — same answer"
-  say tiktok    UNKNOWN "200 for real and nonsense alike"
   say reddit    UNKNOWN "403 from datacentre IPs"
   say facebook  UNKNOWN "never probeable"
 done
