@@ -210,9 +210,40 @@ account. Put TOTP in the shared vault — see [CREDENTIALS.md](CREDENTIALS.md) �
 and write down which number was used where.
 
 **YouTube: the handle and the channel name are separate things**, and a channel
-created under a personal Google account is owned by that person. Create it as a
-**Brand Account** so both of us can be managers without sharing a login.
-Retrofitting this later means migrating the channel.
+created under a personal Google account is owned by that person. A Brand Account
+is a Google account for the business that several people manage from their own
+logins, which is what we want — but there is no "make this a Brand Account"
+option anywhere. It is decided entirely by where you start:
+
+    youtube.com/channel_switcher  ->  Create a new channel
+                                  ->  name, handle, picture  ->  Create channel
+
+Starting there produces a Brand Account. Starting from "create a channel" on
+your own account produces a personal one, silently, and the two look identical
+afterwards. Set the **name** (AgentSee) and the **handle** (`agentseework`)
+separately — they are different fields and the handle is the addressable one.
+
+Then add the second person, two places, both worth doing:
+
+| Where | What it grants |
+|---|---|
+| `studio.youtube.com` → Settings → Permissions → Invite | Channel permissions. Granular, and what Google now recommends. |
+| `myaccount.google.com/brandaccounts` → the account → Manage permissions | The Brand Account roles themselves: Owner, Manager, Communications manager. |
+
+**Invite the second owner immediately, not when you need one.** You must have
+been an owner for **seven days or more** before you can make yourself primary
+owner. That clock only starts once, so an invitation sent today is the
+difference between a seven-day wait and a seven-day wait *beginning* on the day
+something has already gone wrong.
+
+**Deleting the primary owner's Google account deletes the channel.** Not
+transfers it, not orphans it — deletes it. Whichever personal Google account
+creates this is load-bearing for as long as the channel exists, so use one that
+is going to outlive our enthusiasm, and write down which one it is.
+
+Converting a personal channel afterwards is possible (Settings → Advanced
+settings → Move channel) but it is a migration, and migrations are the thing we
+are avoiding by getting this right at creation.
 
 **Threads is Instagram's namespace.** Securing `agentseework` on Instagram
 secures it on Threads. Don't count it as a second win, and don't let the
