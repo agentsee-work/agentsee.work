@@ -162,9 +162,17 @@ already decided not to build on.
 
 ## Registering, in order
 
-**Registered so far:** Bluesky (`@agentsee.work`), X, Instagram and TikTok, all
-17–18 September 2026. Outstanding: YouTube, Twitch, and the three defensive
-reservations.
+**Registered:** Bluesky (`@agentsee.work`), X, Instagram, TikTok, YouTube
+(Brand Account), Twitch, PyPI and mastodon.social — 17–21 September 2026.
+
+**Outstanding:** Docker Hub, blocked by the platform's own address validation
+and not by anything of ours (see the trap below); bare `agentsee` on
+mastodon.social as the remaining defensive reservation; and profile furniture —
+display name, bio and banner — on Mastodon, which registers empty.
+
+**TikTok is held but locked.** The account exists and the handle is secured,
+which was the time-sensitive part. Signing in is a separate problem: the signup
+never set a password, and the reset flow returns a security failure. Leave it.
 
 1. **`accounts@agentsee.work` — done.** It is a `MailingList` on our own mail
    server, fanning to both of us, and has been since cutover on 14 September

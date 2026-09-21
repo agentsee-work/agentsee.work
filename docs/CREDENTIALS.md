@@ -355,9 +355,13 @@ apply, so rename deliberately and grep `infra/op.env` first.
 
 - [x] Create the Business account.
 - [x] Invite Abrar.
-- [ ] **Abrar accepts, then make him an Owner.** Verify it took — a team with
-      one Owner looks exactly like a team with two until you need the second.
-- [ ] Both enable 2FA on their own login; write recovery codes on paper.
+- [x] **Abrar accepts, then make him an Owner.** Note that accepting has its own
+      confirmation step after the invite, which is easy to miss and looks
+      identical to an invitation nobody opened. Verify with `op user list` and
+      read the `TYPE` column — a team with one Owner looks exactly like a team
+      with two until you need the second.
+- [x] James: 2FA on his own login; recovery codes on paper.
+- [ ] Abrar does the same.
 - [x] James: Emergency Kit written out by hand, **and verified by signing out
       and back in with it**. That verification is worth more than printing one
       and filing it unread.
@@ -366,19 +370,26 @@ apply, so rename deliberately and grep `infra/op.env` first.
 - [ ] Abrar does the same — it is per-member, not something you can grant him.
 - [x] Create the vaults: Engineering, Finance, IT, Security, Social, plus the
       Shared one that came with the account.
-- [ ] Empty `Shared` and keep it that way.
-- [x] Install the CLI and turn on the desktop-app integration. Every `tofu`
-      command since has gone through `op run`, so this is proven rather than
-      configured.
+- [x] Empty `Shared` and keep it that way.
+- [x] Install the CLI. Every `tofu` command since has gone through `op run`, so
+      that much is proven rather than configured.
+- [ ] **Turn on the desktop-app integration** — this line used to claim it was
+      already done and proven. It isn't: `op run` fails with `You are not
+      currently signed in` once the session token expires, which is the CLI
+      session model, not app integration. Until it is on, every apply needs an
+      interactive `op signin` first and cannot be run by anything that isn't a
+      human at a terminal.
 - [x] File the infrastructure secrets in **Engineering**: the Cloudflare token,
       the R2 state token, Infomaniak Public Cloud, the SMTP2GO SMTP user, the R2
       backup token and the Swiss Backup keys. `op.env` resolves the first three
       on every apply, which is a stronger check than a tick.
 - [x] The restic passphrase in **Security**, and on paper with the Emergency
       Kit. The one whose loss cannot be undone.
-- [ ] **The social signups in [SOCIAL.md](SOCIAL.md)** — still not started, and
-      the reason this checklist came first. Each TOTP seed goes in the vault as
-      the account is made, not in a retrofit that never happens.
+- [~] **The social signups in [SOCIAL.md](SOCIAL.md)** — under way, and the
+      reason this checklist came first. Bluesky, X, Instagram, TikTok, YouTube,
+      Twitch, PyPI and Mastodon are registered; Docker Hub is blocked on the
+      platform's own address validation rather than on us. Each TOTP seed goes
+      in the vault as the account is made, not in a retrofit that never happens.
 
 The last one is why this comes first. Sorting credentials after the accounts
 exist means transcribing seeds off a phone, which nobody does, which is how one
