@@ -45,6 +45,8 @@ PRESETS = {
     "x":        (1500, 500,  500, "3:1. Avatar overlaps bottom-left."),
     "linkedin": (1128, 191,  300, "5.9:1. Very letterboxed — mark only."),
     "youtube":  (2560, 1440, 790, "16:9, but only the centre 1235x338 is safe everywhere."),
+    "twitch":   (1200, 480,  480, "5:2 profile banner. Avatar sits over the left."),
+    "twitch-offline": (1920, 1080, 850, "The offline video player screen. Never animated."),
 }
 # No `og` preset on purpose. assets/og.png is a different composition — masthead,
 # three-column dateline, headline — and a preset of that name here would quietly
@@ -59,6 +61,8 @@ SAFE = {
     "x":        (1400, 420),
     "linkedin": (980, 165),
     "youtube":  (1235, 338),
+    "twitch":   (1080, 400),
+    "twitch-offline": (1600, 900),
 }
 
 THEMES = {

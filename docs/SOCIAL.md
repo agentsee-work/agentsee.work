@@ -204,7 +204,9 @@ working flow look like a broken one.
 
 **Phone verification ties an account to a person.** X, TikTok and Instagram will
 ask, and Twitch requires 2FA before it will let you stream at all — not at
-signup, so it is easy to hit the first time you actually try to go live. A
+signup, so it is easy to hit the first time you actually try to go live. Do it
+on signup night while the vault is already open, not at the point of going
+live. A
 personal mobile number means one of us is a single point of failure for the
 account. Put TOTP in the shared vault — see [CREDENTIALS.md](CREDENTIALS.md) —
 and write down which number was used where.
@@ -286,6 +288,8 @@ Already in the repo, already the right shape:
 | `public/assets/brand/banner-x.png` | 1500×500 | X header |
 | `public/assets/brand/banner-linkedin.png` | 1128×191 | LinkedIn company page |
 | `public/assets/brand/banner-youtube.png` | 2560×1440 | YouTube channel art |
+| `public/assets/brand/banner-twitch.png` | 1200×480 | Twitch profile banner |
+| `public/assets/brand/banner-twitch-offline.png` | 1920×1080 | Twitch offline screen |
 | `public/assets/og.png` | 1200×630 | **Share card only** — not a banner |
 
 Banners come from `tools/banner.py`, which renders them through headless Chrome
