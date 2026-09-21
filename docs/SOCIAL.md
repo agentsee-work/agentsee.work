@@ -209,6 +209,15 @@ someone's personal Google login is the single point of failure this section is
 about. TikTok's captcha is also unreliable in Firefox on Linux, which makes a
 working flow look like a broken one.
 
+**A signup can fail because our domain is new, with nothing wrong at our end.**
+Docker Hub ran a callback verification against `accounts@agentsee.work`, got a
+clean 250, and then never sent the code. Repeating it against `james@` — a plain
+mailbox rather than a list — produced the same probe and the same silence, which
+ruled out anything of ours. The domain was five weeks old, on `.work`, behind a
+self-hosted MX; that is enough for a validator to score it as risk. Use the
+GitHub or Google sign-in where a platform offers one, and decouple it afterwards.
+See the log-reading section in [MAIL-BUILD-RUNBOOK.md](MAIL-BUILD-RUNBOOK.md).
+
 **Phone verification ties an account to a person.** X, TikTok and Instagram will
 ask, and Twitch requires 2FA before it will let you stream at all — not at
 signup, so it is easy to hit the first time you actually try to go live. Do it

@@ -997,3 +997,95 @@ because this is where you'll look:
 Any of those: [MAIL-MIGRATION.md](MAIL-MIGRATION.md) moves us to kSuite. Same
 addresses, same domain, about an hour. That exit staying cheap is what made this
 worth trying.
+
+
+## Reading the logs when mail "doesn't arrive"
+
+Written after an afternoon spent debugging a message nobody had sent.
+
+### The only line that means a message arrived
+
+`Queued message for delivery`. Nothing before it does.
+
+A sender can complete EHLO, TLS, IPREV, MAIL FROM and RCPT TO and still never
+transmit a message, and every one of those lines will be logged. Grepping for
+the recipient address shows a healthy-looking session that delivered nothing.
+Grep for the queue line, or for the remote IP so you see the whole session and
+can spot what is missing from the end.
+
+### Callback verification looks exactly like a failed delivery
+
+This is a probe, not a message:
+
+```
+EHLO      scope-client-v2-027.usw1.mailgun.co
+SPF From  soft fail   from = "132e241f-…@mailgun.co"
+IPREV     pass
+MAIL FROM 132e241f-…@mailgun.co
+RCPT TO   james@agentsee.work
+<connection ends>
+```
+
+Three tells, all present at once:
+
+- **No DATA.** So no DKIM line, no DMARC line, no queue line — those are all
+  logged after the body arrives.
+- **The envelope sender is a bare UUID at the validator's own domain**, not at
+  the domain of whoever is signing you up.
+- **The connecting host belongs to a validation service**, not a sending one.
+
+It is [callback verification](https://en.wikipedia.org/wiki/Callback_verification):
+the sender is asking whether the address exists and hanging up on the answer.
+Our server said 250. The message that was supposed to follow never came, and no
+amount of looking at our own configuration was going to reveal that, because
+nothing on our side went wrong.
+
+**Prove it with a control.** We re-ran the signup against `james@` — a plain
+mailbox — having first seen it against `accounts@`, a `MailingList`. Identical
+probe, identical silence. That exonerated the list expansion, which had been the
+leading theory, in one test. When a delivery fails, change one thing about the
+recipient and repeat: it separates "our server mishandled it" from "it was never
+sent" faster than any amount of log reading.
+
+### A new domain can pass every check and still be refused
+
+Nothing was misconfigured. SPF, DKIM, DMARC, IPREV, TLS and MTA-STS all pass,
+and unknown addresses are correctly rejected with 550 rather than accepted,
+so we are not even flagged as a catch-all. The domain was simply five weeks old,
+on `.work`, behind an MX no reputation service has heard of — and a validator
+scored that as risk.
+
+This is a real cost of self-hosting and it is worth stating plainly: you can own
+your mail, configure it impeccably, and still be refused by senders who will not
+talk to a domain that has not yet aged. It gets better on its own. Until then,
+sign up through an SSO route where one exists, and keep a personal address for
+the platforms that won't have you.
+
+### The spam classifier is not running
+
+```
+Spam classifier model not ready   reason = "Not enough samples for training"
+                                  details = [1, 0]   limit = [100, 100]
+```
+
+It needs 100 spam **and** 100 ham before it does anything, and it has been
+sitting at one and zero since the day we cut over. So every verdict is coming
+from heuristics with nothing learned from our actual mail, and the heuristics
+have been wrong about 1Password, Instagram and Linear — filing them all to
+mailbox 2.
+
+At two people's mail volume that threshold is months away. Moving messages out
+of Junk feeds it ham and is worth doing, but it is not the fix. Adjust the
+threshold or allow-list the senders, and check `message-ingest.spam` in the logs
+occasionally rather than trusting that quiet means correct.
+
+### The File tracer is still there
+
+```
+Failed to create log file  path = "/var/log/stalwart/stalwart.2026-09-14"
+```
+
+Every startup, plus `x:Log/query` errors from the admin UI's log viewer. The
+Console tracer was added when the server was silent; the broken File tracer was
+never removed. Remove it — see the tracer section above for why File cannot
+work in this container.
