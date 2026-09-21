@@ -1079,13 +1079,25 @@ of Junk feeds it ham and is worth doing, but it is not the fix. Adjust the
 threshold or allow-list the senders, and check `message-ingest.spam` in the logs
 occasionally rather than trusting that quiet means correct.
 
-### The File tracer is still there
+### `docker compose logs -f` replays the entire history first
 
-```
-Failed to create log file  path = "/var/log/stalwart/stalwart.2026-09-14"
+This bit us, and it is worth more than the thing it made us believe.
+
+`--since 30m` scopes correctly. **`-f` on its own does not** — it prints every
+line the container has ever written and *then* follows. Seven days of startup
+errors scroll past looking exactly like this morning's, because the only thing
+distinguishing them is a timestamp nobody reads when they are scanning for a
+pattern.
+
+On that basis this section previously claimed the broken File tracer was still
+configured and erroring on every startup. It was not. Every one of those lines
+was dated the day it was set up and removed, and `stalwart/plan.json` says so
+plainly: one `Tracer`, type `Stdout`. The fix had worked weeks earlier.
+
+Always pair `-f` with `--since`:
+
+```sh
+sudo docker compose logs -f --since 5m | grep -iE '…'
 ```
 
-Every startup, plus `x:Log/query` errors from the admin UI's log viewer. The
-Console tracer was added when the server was silent; the broken File tracer was
-never removed. Remove it — see the tracer section above for why File cannot
-work in this container.
+And before concluding that anything in a log is current, read the date on it.
