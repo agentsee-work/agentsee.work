@@ -45,6 +45,7 @@ PRESETS = {
     "x":        (1500, 500,  500, "3:1. Avatar overlaps bottom-left."),
     "linkedin": (1128, 191,  300, "5.9:1. Very letterboxed — mark only."),
     "youtube":  (2560, 1440, 790, "16:9, but only the centre 1235x338 is safe everywhere."),
+    "mastodon": (1500, 500,  500, "3:1 header, same as Bluesky. 2MB ceiling."),
     "twitch":   (1200, 480,  480, "5:2 profile banner. Avatar sits over the left."),
     "twitch-offline": (1920, 1080, 850, "The offline video player screen. Never animated."),
 }
@@ -61,6 +62,7 @@ SAFE = {
     "x":        (1400, 420),
     "linkedin": (980, 165),
     "youtube":  (1235, 338),
+    "mastodon": (1400, 420),
     "twitch":   (1080, 400),
     "twitch-offline": (1600, 900),
 }
