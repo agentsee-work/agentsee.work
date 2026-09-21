@@ -223,12 +223,27 @@ your own account produces a personal one, silently, and the two look identical
 afterwards. Set the **name** (AgentSee) and the **handle** (`agentseework`)
 separately — they are different fields and the handle is the addressable one.
 
-Then add the second person, two places, both worth doing:
+Then add the second person. There are two systems and Google is moving everyone
+off the old one, so use the new one:
 
-| Where | What it grants |
-|---|---|
-| `studio.youtube.com` → Settings → Permissions → Invite | Channel permissions. Granular, and what Google now recommends. |
-| `myaccount.google.com/brandaccounts` → the account → Manage permissions | The Brand Account roles themselves: Owner, Manager, Communications manager. |
+```
+studio.youtube.com → Settings → Permissions → (migrate, if prompted) → Invite
+```
+
+Migration copies existing Brand Account users across but does **not** set their
+level or send their invite — you do both by hand, so a migration that looks
+finished may have granted nobody anything.
+
+Pick **Owner**, not Manager. Manager covers everything day to day and stops
+short of deleting the channel or holding ownership, which makes it the wrong
+role for the person whose entire job here is to be able to act if the other one
+can't.
+
+**Owner is not primary owner.** There is exactly one primary owner and it is
+whichever personal Google account created the thing. A second Owner is
+resilience, not a transfer — and transferring primary ownership needs the
+recipient to have been owner or manager for **seven days** first, so the
+invitation has to exist before the emergency, not during it.
 
 **Invite the second owner immediately, not when you need one.** You must have
 been an owner for **seven days or more** before you can make yourself primary
@@ -239,7 +254,14 @@ something has already gone wrong.
 **Deleting the primary owner's Google account deletes the channel.** Not
 transfers it, not orphans it — deletes it. Whichever personal Google account
 creates this is load-bearing for as long as the channel exists, so use one that
-is going to outlive our enthusiasm, and write down which one it is.
+is going to outlive our enthusiasm, and write down which one it is. That account
+needs a recovery address and a recovery phone on it, and Google will mention
+this only as a tooltip while you are busy reading about something else.
+
+**Don't point that recovery address at `@agentsee.work`.** Same rule as the mail
+build: nothing in a recovery path should depend on infrastructure we operate and
+might be trying to recover at the same time. Our mail is one VPS. Use a provider
+we don't run, and a phone as well.
 
 Converting a personal channel afterwards is possible (Settings → Advanced
 settings → Move channel) but it is a migration, and migrations are the thing we
