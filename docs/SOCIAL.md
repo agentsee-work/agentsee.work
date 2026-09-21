@@ -70,15 +70,22 @@ after the change it still resolved to our DID; by the next day it had stopped
 resolving at all. So the release is real and lagged by roughly a day — long
 enough that checking straight afterwards tells you the opposite of the truth.
 
-### Three defensive registrations of bare `agentsee`
+### Two defensive registrations of bare `agentsee`
 
 Not vanity — we are not using these, and should never post from them.
 
 | Where | Why it is worth holding |
 |---|---|
-| PyPI | A guessable package name published by someone who isn't us is a supply-chain trap for anyone who reaches for the obvious thing. |
-| Docker Hub | Same argument, same blast radius. |
+| Docker Hub | A Docker ID *is* the namespace, so the account holds the name. Someone else publishing `agentsee/…` is a supply-chain trap for anyone who guesses the obvious thing. |
 | mastodon.social | No identity verification anywhere in the network, so impersonation costs an attacker nothing and costs us the benefit of the doubt. |
+
+**PyPI was on this list and should not have been.** A PyPI *account* reserves no
+names at all: a project name is claimed by uploading a distribution, so holding
+`agentsee` would mean publishing an empty placeholder. PEP 541 names that case
+exactly — "name squatting (package has no functionality or is empty)" is an
+invalid project and removable — so the reservation would be both against policy
+and not durable. Have the account, because you need one to publish. Do not
+upload anything to hold a name.
 
 `agentsee` is also free on Kick, Bluesky, Substack, Patreon and LinkedIn. We are
 deliberately **not** taking those: none of them is a namespace where someone
@@ -169,7 +176,7 @@ reservations.
 3. **GitHub** — the org exists; nothing to do but keep it.
 4. **X, Instagram, TikTok** — phone verification, see the trap below.
 5. **YouTube and Twitch** — the streaming pair, both with their own traps.
-6. **The three defensive reservations** — PyPI, Docker Hub, mastodon.social.
+6. **The two defensive reservations** — Docker Hub and mastodon.social.
    Reserve, set the avatar, never post.
 7. **Everything else** — LinkedIn, Kick, Substack, Reddit — as and when there is
    something to put on them.
@@ -275,6 +282,14 @@ Instagram handle go on the assumption Threads is separate.
 
 **Hugging Face and Docker Hub are case-insensitive.** `AgentSEE` and `agentsee`
 are the same account. Don't read a case variant as an available handle.
+
+**A Docker Hub organisation cannot share a name with an existing Docker ID.** So
+taking `agentseework` as a personal Docker ID forecloses an organisation of that
+name later, and free Team organisations have been phased out — an org is now a
+paid plan. For two people publishing occasionally a personal namespace is the
+right shape, and Docker does support converting a user account into an
+organisation if that changes. Verify that conversion still exists before relying
+on it; it is the kind of escape hatch that quietly disappears.
 
 ## Assets
 
