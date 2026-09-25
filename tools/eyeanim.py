@@ -242,6 +242,12 @@ i svg {{ width:100%; height:100%; display:block; overflow:visible; }}
 <div class="grid">{cells}</div>""", cols, rows
 
 
+def frame_key(fr):
+    """Identity of a rendered frame: its axis values, rounded past what a
+    pixel can show."""
+    return tuple(round(float(fr[k]), 3) for k in sorted(fr))
+
+
 def merge(ims):
     """Average sub-frames into one, through premultiplied alpha.
 
@@ -282,22 +288,31 @@ def render_frames(frames, theme, cell, glow, ss, frames_dir, tmp, blur=1, jobs=8
     from concurrent.futures import ThreadPoolExecutor
     from PIL import Image
 
-    def one(idx_frame):
-        i, fr = idx_frame
+    # A hold is the same frame over and over, and this was paying a Chrome
+    # launch for each one: across a full run three quarters of every render
+    # reproduced a picture already made. Key on the axis values and the
+    # duplicates cost nothing.
+    uniq = {}
+    for fr in frames:
+        uniq.setdefault(frame_key(fr), fr)
+
+    def one(item):
+        k, fr = item
         html, _, _ = sheet_html([fr], theme, cell, glow)
-        out = tmp.parent / f"_sub_{i:05d}.png"
+        out = tmp.parent / f"_sub_{abs(hash(k)) % 10**9:09d}.png"
         render_alpha(html, out, cell, cell, ss)
         im = Image.open(out).convert("RGBA")
         if ss != 1:
             im = im.resize((cell, cell), Image.LANCZOS)
         im.load()
         out.unlink(missing_ok=True)
-        return i, im
+        return k, im
 
-    subs = {}
+    cache = {}
     with ThreadPoolExecutor(max_workers=jobs) as ex:
-        for i, im in ex.map(one, enumerate(frames)):
-            subs[i] = im
+        for k, im in ex.map(one, uniq.items()):
+            cache[k] = im
+    subs = {i: cache[frame_key(fr)] for i, fr in enumerate(frames)}
 
     n = 0
     for start in range(0, len(frames) - blur + 1, blur):
@@ -427,18 +442,29 @@ def build_reel(theme, cell, fps, blur, ss, blink, jobs, hold_ends=0.9):
         for f in fr:
             jobs_list.append((slug, f))
 
-    def one(job):
-        i, (slug, fr) = job
-        out = out_dir / f"r_{i:05d}.png"
-        html = reel_html(fr, theme, cell, slug)
-        render_alpha(html, out, cell, reel_h(cell), ss)
-        if ss != 1:
-            im = Image.open(out).convert("RGB")
-            im.resize((cell, reel_h(cell)), Image.LANCZOS).save(out)
-        return i
+    # The reel pads each clip with a long still at both ends, so 81% of its
+    # frames repeat. Render each distinct (chain, pose) once.
+    uniq = {}
+    for slug, fr in jobs_list:
+        uniq.setdefault((slug, frame_key(fr)), (slug, fr))
 
+    def one(item):
+        k, (slug, fr) = item
+        out = out_dir / f"u_{abs(hash(k)) % 10**9:09d}.png"
+        render_alpha(reel_html(fr, theme, cell, slug), out, cell, reel_h(cell), ss)
+        if ss != 1:
+            Image.open(out).convert("RGB").resize(
+                (cell, reel_h(cell)), Image.LANCZOS).save(out)
+        return k, out
+
+    cache = {}
     with ThreadPoolExecutor(max_workers=jobs) as ex:
-        list(ex.map(one, enumerate(jobs_list)))
+        for k, path in ex.map(one, uniq.items()):
+            cache[k] = path
+    for i, (slug, fr) in enumerate(jobs_list):
+        shutil.copyfile(cache[(slug, frame_key(fr))], out_dir / f"r_{i:05d}.png")
+    for path in set(cache.values()):
+        path.unlink(missing_ok=True)
 
     # average sub-frames down, in place
     files = sorted(out_dir.glob("r_*.png"))
