@@ -100,8 +100,8 @@ CHAINS = {
     # what the first attempt did.
     "eyeroll":     dict(seq=["attentive", "attentive", "unimpressed"],
                         hold=0.22, trans=0.24,
-                        roll=dict(dur=0.60, rx=15, ry=9.5, turns=1.0),
-                        note="One unbroken sweep, eye open. Lands deadpan."),
+                        roll=dict(dur=0.72, rx=14, ry=13, a0=-35, a1=-145),
+                        note="Up, across the top, a beat, back. Then deadpan."),
     "scrutinise":  dict(seq=["curious", "scrutiny"], note="Into the technical section."),
     "reveal":      dict(seq=["scrutiny", "surprised", "alert"], trans=0.22,
                         note="Found something. Quick."),
@@ -136,31 +136,53 @@ def lerp(a, b, t):
     return {k: a[k] + (b[k] - a[k]) * t for k in AXES}
 
 
-def arc_frames(a, b, roll, fps, n_default=0.62):
-    """One continuous sweep of the iris, superimposed on an ordinary ease.
+def arc_frames(a, b, roll, fps):
+    """A disapproving eye roll: up to one side, across the top, a beat, back.
 
-    An eye roll built from waypoints is not an eye roll: the iris stops and
-    restarts at every one, easing out and back in each time, and with blinks
-    enabled it blinks between each pair. Sarcasm needs a single unbroken
-    movement, so this is a real arc — the lids, hat and pupil ease from a to b
-    underneath while the iris travels a circle on top of them.
+    Not a circle. A full turn takes the pupil through the bottom of its range,
+    and looking *down* is no part of rolling your eyes — that was the first
+    version and it read as a cartoon spin rather than contempt. The movement is
+    four phases on one continuous path:
 
-    The circle's amplitude fades in and out at the ends so the iris leaves and
-    rejoins its underlying position rather than snapping onto the path."""
-    n = max(6, round(roll.get("dur", n_default) * fps))
-    rx, ry = roll.get("rx", 12), roll.get("ry", 9)
-    turns, out = roll.get("turns", 1.0), []
+        rise    centre out to the first corner, quickly
+        sweep   across the top, the long part
+        dwell   a beat held at the far side, which is where the disapproval is
+        fall    back to centre
+
+    Angles are degrees in screen space, so -90 is straight up. Defaults go up
+    and to the right, track left across the top, and hold there before
+    returning. The lids never move — the base pose is held throughout, since an
+    eye roll under a descending lid is invisible.
+    """
+    n = max(8, round(roll.get("dur", 0.62) * fps))
+    # ry is well past the site's own 10-unit tracking cap on purpose: that
+    # limit keeps a pointer-following iris from sliding under the outline,
+    # and here the clipping is the point. Looking up is what a disapproving
+    # roll is *for*, and at 9.5 it tracked sideways more than it rolled. At
+    # 16 the iris becomes a crescent behind the lid and stops reading.
+    rx, ry = roll.get("rx", 14), roll.get("ry", 13)
+    a0 = math.radians(roll.get("a0", -35))
+    a1 = math.radians(roll.get("a1", -145))
+    rise, sweep, dwell = 0.20, 0.70, 0.84    # phase boundaries, as fractions
+
+    def smooth(x):
+        x = min(1.0, max(0.0, x))
+        return x * x * (3 - 2 * x)
+
+    out = []
     for f in range(1, n):
         t = f / n
-        fr = lerp(a, b, ease(t))
-        # Start at the top: an eye roll goes up first, always.
-        ang = -math.pi / 2 + 2 * math.pi * turns * ease(t)
-        edge = 0.10
-        env = (min(1.0, t / edge) if t < edge else
-               min(1.0, (1 - t) / edge) if t > 1 - edge else 1.0)
-        env = env * env * (3 - 2 * env)          # smoothstep the envelope
-        fr["ix"] += rx * math.cos(ang) * env
-        fr["iy"] += ry * math.sin(ang) * env
+        if t < rise:
+            ang, env = a0, smooth(t / rise)
+        elif t < sweep:
+            ang, env = a0 + (a1 - a0) * ease((t - rise) / (sweep - rise)), 1.0
+        elif t < dwell:
+            ang, env = a1, 1.0
+        else:
+            ang, env = a1, 1.0 - smooth((t - dwell) / (1 - dwell))
+        fr = dict(a)                      # pose held; only the iris travels
+        fr["ix"] = a["ix"] + rx * math.cos(ang) * env
+        fr["iy"] = a["iy"] + ry * math.sin(ang) * env
         out.append(fr)
     return out
 
