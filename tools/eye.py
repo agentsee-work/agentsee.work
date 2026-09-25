@@ -152,7 +152,12 @@ def mark_css(t):
 .pupil {{ transform-box: fill-box; transform-origin: center;
           transform: scale(var(--pupil-s, 1)); }}
 /* A lid is two things: a fill that hides the iris, and the line that *is* the
-   eyelid. Only the fill used to exist, so the edge read purely as the boundary
+   eyelid. Both are pinned rather than swapped, like the pupil and the glint:
+   the lid is a lit surface, so it takes the light end of whichever palette is
+   running and its margin takes the dark end. Filled with `paper` instead it
+   vanished in noir, where paper and paper_2 are three points apart, and the
+   eye read as a hole with a line across it. Filled with `ink` in both, the
+   light theme got a heavy black bar competing with the hat. Only the fill used to exist, so the edge read purely as the boundary
    between two fills — visible in noir where paper is near-black against the
    sclera, invisible on newsprint where the two are a shade apart. The mark is
    drawn in line; its lid should be too.
@@ -161,8 +166,8 @@ def mark_css(t):
    running the full width of the shape it belongs to. Same weight and same
    non-scaling-stroke as eye-outline, or a closing eye changes line weight
    halfway down. */
-.lid-fill {{ fill: {t['paper']}; }}
-.lid-edge {{ fill: none; stroke: {t['ink']}; stroke-linecap: round;
+.lid-fill {{ fill: {t['lid']}; }}
+.lid-edge {{ fill: none; stroke: {t['lid_edge']}; stroke-linecap: round;
              stroke-width: calc(var(--mark-w) * .025); }}
 /* At rest a lid edge lies exactly on eye-outline, and two coincident
    antialiased strokes composite heavier than one — 170 pixels' worth on a
