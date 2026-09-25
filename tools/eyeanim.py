@@ -100,8 +100,8 @@ CHAINS = {
     # what the first attempt did.
     "eyeroll":     dict(seq=["attentive", "attentive", "unimpressed"],
                         hold=0.22, trans=0.24,
-                        roll=dict(dur=0.72, rx=14, ry=13, a0=-35, a1=-145),
-                        note="Up, across the top, a beat, back. Then deadpan."),
+                        roll=dict(dur=1.5, rx=19, ry=19, a0=-38, a1=-142),
+                        note="Snap up, hold, track across, hold, back. Then deadpan."),
     "scrutinise":  dict(seq=["curious", "scrutiny"], note="Into the technical section."),
     "reveal":      dict(seq=["scrutiny", "surprised", "alert"], trans=0.22,
                         note="Found something. Quick."),
@@ -137,33 +137,31 @@ def lerp(a, b, t):
 
 
 def arc_frames(a, b, roll, fps):
-    """A disapproving eye roll: up to one side, across the top, a beat, back.
+    """A disapproving eye roll: snap up, hold, track across, hold, return.
 
-    Not a circle. A full turn takes the pupil through the bottom of its range,
-    and looking *down* is no part of rolling your eyes — that was the first
-    version and it read as a cartoon spin rather than contempt. The movement is
-    four phases on one continuous path:
+    Not a circle — a full turn takes the pupil through the bottom of its range,
+    and looking down is no part of rolling your eyes. Five phases:
 
-        rise    centre out to the first corner, quickly
-        sweep   across the top, the long part
-        dwell   a beat held at the far side, which is where the disapproval is
-        fall    back to centre
+        rise     centre to the first corner, fast. This is a snap, not a drift
+        hold A   a beat up there, before anything else happens
+        sweep    across the top, slowly. The long part
+        hold B   the longer beat, at the far side. The disapproval lives here
+        fall     back to centre
 
-    Angles are degrees in screen space, so -90 is straight up. Defaults go up
-    and to the right, track left across the top, and hold there before
-    returning. The lids never move — the base pose is held throughout, since an
-    eye roll under a descending lid is invisible.
+    Both holds matter and both were far too short at first: a tenth of a second
+    is three frames, which reads as a hesitation rather than a pause. They are
+    now a third of the movement between them.
+
+    Amplitude is deliberately past anything an eye does casually. This is a
+    performed gesture, so it wants to look performed — the iris rides up under
+    the outline and gets cut by it, which is exactly what happens when someone
+    makes a show of looking at the ceiling.
     """
-    n = max(8, round(roll.get("dur", 0.62) * fps))
-    # ry is well past the site's own 10-unit tracking cap on purpose: that
-    # limit keeps a pointer-following iris from sliding under the outline,
-    # and here the clipping is the point. Looking up is what a disapproving
-    # roll is *for*, and at 9.5 it tracked sideways more than it rolled. At
-    # 16 the iris becomes a crescent behind the lid and stops reading.
-    rx, ry = roll.get("rx", 14), roll.get("ry", 13)
-    a0 = math.radians(roll.get("a0", -35))
-    a1 = math.radians(roll.get("a1", -145))
-    rise, sweep, dwell = 0.20, 0.70, 0.84    # phase boundaries, as fractions
+    n = max(10, round(roll.get("dur", 1.5) * fps))
+    rx, ry = roll.get("rx", 19), roll.get("ry", 19)
+    a0 = math.radians(roll.get("a0", -38))
+    a1 = math.radians(roll.get("a1", -142))
+    p1, p2, p3, p4 = roll.get("phases", (0.12, 0.32, 0.64, 0.88))
 
     def smooth(x):
         x = min(1.0, max(0.0, x))
@@ -172,14 +170,16 @@ def arc_frames(a, b, roll, fps):
     out = []
     for f in range(1, n):
         t = f / n
-        if t < rise:
-            ang, env = a0, smooth(t / rise)
-        elif t < sweep:
-            ang, env = a0 + (a1 - a0) * ease((t - rise) / (sweep - rise)), 1.0
-        elif t < dwell:
+        if t < p1:                                   # rise, sharply
+            ang, env = a0, smooth(t / p1) ** 0.7
+        elif t < p2:                                 # hold at the first corner
+            ang, env = a0, 1.0
+        elif t < p3:                                 # track across the top
+            ang, env = a0 + (a1 - a0) * ease((t - p2) / (p3 - p2)), 1.0
+        elif t < p4:                                 # the long beat
             ang, env = a1, 1.0
-        else:
-            ang, env = a1, 1.0 - smooth((t - dwell) / (1 - dwell))
+        else:                                        # and back
+            ang, env = a1, 1.0 - smooth((t - p4) / (1 - p4))
         fr = dict(a)                      # pose held; only the iris travels
         fr["ix"] = a["ix"] + rx * math.cos(ang) * env
         fr["iy"] = a["iy"] + ry * math.sin(ang) * env
