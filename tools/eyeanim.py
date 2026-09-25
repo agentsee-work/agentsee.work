@@ -191,7 +191,14 @@ def main():
     ap.add_argument("--trans", type=float, default=0.38, help="seconds between them")
     ap.add_argument("--size", type=int, default=480, help="frame size, square")
     ap.add_argument("--blink", action="store_true", help="blink through each change")
-    ap.add_argument("--no-glow", action="store_true")
+    # Off by default, unlike every other asset here. The glow is a
+    # background-dependent effect: against noir it reads as the mark catching
+    # light, but it is a drop-shadow, so on a transparent frame it becomes a
+    # translucent amber cloud reaching ~48px past the mark and covering 39% of
+    # the frame in partial alpha. Over footage that is an unmotivated halo.
+    # Opt in for a composite you know sits on the theme background.
+    ap.add_argument("--glow", action="store_true",
+                    help="amber bloom — only for frames that will sit on the theme background")
     ap.add_argument("--newsprint", action="store_true")
     ap.add_argument("--format", choices=["mov", "webm", "mp4", "none"], default="mov")
     ap.add_argument("--list-chains", action="store_true")
@@ -216,7 +223,7 @@ def main():
 
     theme = "newsprint" if a.newsprint else "noir"
     frames = timeline(chain, a.fps, a.hold, a.trans, a.blink)
-    html, cols, rows = sheet_html(frames, theme, a.size, not a.no_glow)
+    html, cols, rows = sheet_html(frames, theme, a.size, a.glow)
 
     d = OUT / f"{slug}{'' if theme == 'noir' else '-newsprint'}"
     if d.exists():
