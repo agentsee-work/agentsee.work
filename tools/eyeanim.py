@@ -43,7 +43,10 @@ from banner import ROOT, THEMES  # noqa: E402
 from eye import EXPRESSIONS, font_b64, mark_css, mark_svg  # noqa: E402
 
 
-def render_alpha(html, out, w, h):
+MAX_GRID = 8000   # px per side; Chrome will go further, but not happily
+
+
+def render_alpha(html, out, w, h, ss=1):
     """banner.render() deliberately paints an opaque page — a banner with a
     transparent background is a bug. Overlays are the opposite, so this is the
     same call plus --default-background-color=00000000. Without it Chrome
@@ -56,7 +59,8 @@ def render_alpha(html, out, w, h):
         src = f.name
     try:
         sp.run(["google-chrome", "--headless=new", "--disable-gpu", "--hide-scrollbars",
-                "--default-background-color=00000000", "--force-device-scale-factor=1",
+                "--default-background-color=00000000",
+                f"--force-device-scale-factor={ss}",
                 f"--window-size={w},{h}", f"--screenshot={out}", f"file://{src}"],
                check=True, capture_output=True)
     finally:
@@ -67,12 +71,25 @@ OUT = ROOT / "build" / "eye"
 # Chains worth having to hand. Named so they can be asked for by intent rather
 # than reconstructed from memory every time.
 CHAINS = {
-    "intro":    (["asleep", "attentive", "curious"], "Wake up and pay attention. Opening title."),
-    "doubt":    (["attentive", "sceptical"], "Into a steel-man beat."),
-    "reveal":   (["scrutiny", "surprised", "attentive"], "Found something."),
-    "signoff":  (["attentive", "thinking", "closed"], "End card."),
-    "deadpan":  (["attentive", "unimpressed"], "Comedy beat."),
-    "idle":     (["attentive", "curious", "thinking", "attentive"], "Loopable filler."),
+    # Named for the moment they serve, not the expressions they contain — the
+    # point of having them is to ask for a beat rather than reconstruct one.
+    "blink":       (["attentive", "attentive"], "Just a blink. Pure filler, loops."),
+    "listen":      (["attentive", "curious", "attentive"], "Workhorse cutaway. Loops."),
+    "idle":        (["attentive", "curious", "thinking", "attentive"], "Longer filler. Loops."),
+    "intro":       (["asleep", "attentive", "curious"], "Wake up and pay attention. Opening title."),
+    "startle":     (["asleep", "surprised", "attentive"], "Woken suddenly. Good for going live."),
+    "consider":    (["attentive", "thinking", "sceptical"], "Weighing a claim."),
+    "concede":     (["sceptical", "thinking", "attentive"], "Coming round. The reverse of consider."),
+    "doubt":       (["attentive", "sceptical"], "Into a steel-man beat."),
+    "unconvinced": (["curious", "sceptical", "unimpressed"], "Doubt hardening."),
+    "scrutinise":  (["curious", "scrutiny"], "Going into the technical section."),
+    "reveal":      (["scrutiny", "surprised", "attentive"], "Found something."),
+    "doubletake":  (["attentive", "surprised", "scrutiny", "surprised"], "Comedy. Did that say what I think."),
+    "deadpan":     (["attentive", "unimpressed"], "Comedy beat."),
+    "lose-interest": (["attentive", "thinking", "asleep"], "Drifting off. The Docker Hub beat."),
+    "hardno":      (["curious", "scrutiny", "unimpressed", "closed"], "A rejection, in four steps."),
+    "signoff":     (["attentive", "thinking", "closed"], "End card."),
+    "sleep":       (["attentive", "asleep"], "Into the standby card."),
 }
 
 AXES = ("lid_top", "lid_bottom", "iris_x", "iris_y", "pupil_s")
@@ -148,14 +165,60 @@ i svg {{ width:100%; height:100%; display:block; overflow:visible; }}
 <div class="grid">{cells}</div>""", cols, rows
 
 
-def slice_grid(path, n, cols, cell):
+def merge(ims):
+    """Average sub-frames into one, through premultiplied alpha.
+
+    Averaging straight alpha blends RGB across pixels that are transparent and
+    therefore carry no meaningful colour — black, here — which drags a dark
+    fringe into every soft edge. Premultiply first and the transparent pixels
+    contribute nothing, which is the point of them."""
+    import numpy as np
+    acc = None
+    for im in ims:
+        a = np.asarray(im, dtype=np.float64) / 255.0
+        pm = np.dstack([a[..., :3] * a[..., 3:4], a[..., 3:4]])
+        acc = pm if acc is None else acc + pm
+    acc /= len(ims)
+    al = acc[..., 3:4]
+    rgb = np.divide(acc[..., :3], al, out=np.zeros_like(acc[..., :3]), where=al > 1e-6)
     from PIL import Image
-    im = Image.open(path).convert("RGBA")
-    out = []
-    for i in range(n):
-        x, y = (i % cols) * cell, (i // cols) * cell
-        out.append(im.crop((x, y, x + cell, y + cell)))
-    return out
+    out = np.clip(np.dstack([rgb, al]) * 255.0 + 0.5, 0, 255).astype("uint8")
+    return Image.fromarray(out, "RGBA")
+
+
+def render_frames(frames, theme, cell, glow, ss, frames_dir, tmp, blur=1):
+    """Frames to disk, in as few Chrome launches as the grid limit allows.
+
+    One launch per frame is most of a minute of process spawning for a two
+    second clip. One launch for everything stops working the moment a cell is
+    big enough to be useful in a timeline: 65 frames at 1080px is a 9720px
+    grid before supersampling. So: as many frames per launch as fit, then the
+    next batch."""
+    from PIL import Image
+    phys = cell * ss
+    per_side = max(1, MAX_GRID // phys)
+    per_chunk = max(1, per_side * per_side)
+    rendered, n = [], 0
+
+
+    for start in range(0, len(frames), per_chunk):
+        chunk = frames[start:start + per_chunk]
+        html, cols, rows = sheet_html(chunk, theme, cell, glow)
+        render_alpha(html, tmp, cols * cell, rows * cell, ss)
+        im = Image.open(tmp).convert("RGBA")
+        for i in range(len(chunk)):
+            x, y = (i % cols) * phys, (i // cols) * phys
+            cellim = im.crop((x, y, x + phys, y + phys))
+            if ss != 1:
+                cellim = cellim.resize((cell, cell), Image.LANCZOS)
+            rendered.append(cellim)
+            while len(rendered) >= blur:
+                out = rendered[0] if blur == 1 else merge(rendered[:blur])
+                del rendered[:blur]
+                out.save(frames_dir / f"f_{n:04d}.png")
+                n += 1
+    tmp.unlink(missing_ok=True)
+    return n
 
 
 def encode(frames_dir, n, fps, fmt, slug):
@@ -182,6 +245,32 @@ def encode(frames_dir, n, fps, fmt, slug):
     return out, None
 
 
+def contact_sheet(made, theme, per_row=9, cell=118):
+    """One filmstrip per chain, evenly sampled, on a mid grey.
+
+    Grey rather than the theme background on purpose: these are alpha assets
+    and the point of reviewing them is to see what the alpha does. A halo hides
+    perfectly against the dark ground they were authored on, which is how one
+    survived several rounds of review here."""
+    from PIL import Image, ImageDraw
+    pad, gutter, label_h = 22, 8, 17
+    w = pad * 2 + per_row * cell
+    h = pad * 2 + len(made) * (cell + label_h + gutter)
+    sheet = Image.new("RGB", (w, h), (92, 90, 88))
+    draw = ImageDraw.Draw(sheet)
+    for r, (slug, d, n) in enumerate(made):
+        y = pad + r * (cell + label_h + gutter)
+        draw.text((pad, y), f"{slug}   {n} frames", fill=(232, 230, 226))
+        idx = [round(i * (n - 1) / (per_row - 1)) for i in range(per_row)]
+        for c, i in enumerate(idx):
+            f = d / "frames" / f"f_{i:04d}.png"
+            im = Image.open(f).convert("RGBA").resize((cell, cell), Image.LANCZOS)
+            sheet.paste(im, (pad + c * cell, y + label_h), im)
+    out = OUT / f"contact{'' if theme == 'noir' else '-newsprint'}.png"
+    sheet.save(out)
+    return f"{out.relative_to(ROOT)}  {len(made)} chains"
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -189,7 +278,15 @@ def main():
     ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--hold", type=float, default=0.5, help="seconds on each expression")
     ap.add_argument("--trans", type=float, default=0.38, help="seconds between them")
-    ap.add_argument("--size", type=int, default=480, help="frame size, square")
+    ap.add_argument("--size", type=int, default=1080,
+                    help="frame size, square. Match the timeline, or it gets "
+                         "upscaled and the antialiasing turns to stair-steps")
+    ap.add_argument("--blur", type=int, default=3,
+                    help="sub-frames averaged per output frame. 1 disables it, "
+                         "and the edges then crawl as each frame antialiases "
+                         "independently of the last")
+    ap.add_argument("--ss", type=int, default=1, choices=[1, 2, 3],
+                    help="spatial supersample. Costs a lot at 1080 because the grid shrinks to 3x3 a launch; worth it for a hero asset, not a batch")
     ap.add_argument("--blink", action="store_true", help="blink through each change")
     # Off by default, unlike every other asset here. The glow is a
     # background-dependent effect: against noir it reads as the mark catching
@@ -201,49 +298,61 @@ def main():
                     help="amber bloom — only for frames that will sit on the theme background")
     ap.add_argument("--newsprint", action="store_true")
     ap.add_argument("--format", choices=["mov", "webm", "mp4", "none"], default="mov")
+    ap.add_argument("--all", action="store_true", help="render every named chain")
+    ap.add_argument("--contact", action="store_true",
+                    help="one filmstrip row per chain, for reviewing a batch")
     ap.add_argument("--list-chains", action="store_true")
     a = ap.parse_args()
 
-    if a.list_chains or not a.chain:
+    if a.list_chains or not (a.chain or a.all):
+        w = max(len(k) for k in CHAINS)
         print("named chains:")
         for k, (seq, note) in CHAINS.items():
-            print(f"  {k:<9} {' → '.join(seq):<46} {note}")
+            print(f"  {k:<{w}}  {' → '.join(seq):<46} {note}")
         print("\nexpressions:", ", ".join(EXPRESSIONS))
         return 0
 
-    if len(a.chain) == 1 and a.chain[0] in CHAINS:
-        slug, chain = a.chain[0], CHAINS[a.chain[0]][0]
+    if a.all:
+        jobs = [(k, seq) for k, (seq, _) in CHAINS.items()]
+    elif len(a.chain) == 1 and a.chain[0] in CHAINS:
+        jobs = [(a.chain[0], CHAINS[a.chain[0]][0])]
     else:
-        chain = a.chain
-        slug = "-".join(chain)
-    bad = [c for c in chain if c not in EXPRESSIONS]
+        jobs = [("-".join(a.chain), a.chain)]
+    bad = sorted({c for _, seq in jobs for c in seq if c not in EXPRESSIONS})
     if bad:
         print(f"unknown expression: {', '.join(bad)}", file=sys.stderr)
         return 2
 
     theme = "newsprint" if a.newsprint else "noir"
-    frames = timeline(chain, a.fps, a.hold, a.trans, a.blink)
-    html, cols, rows = sheet_html(frames, theme, a.size, a.glow)
+    suffix = "" if theme == "noir" else "-newsprint"
+    made = []
 
-    d = OUT / f"{slug}{'' if theme == 'noir' else '-newsprint'}"
-    if d.exists():
-        shutil.rmtree(d)
-    (d / "frames").mkdir(parents=True)
+    for slug, chain in jobs:
+        # Sub-frames are just a timeline at blur x the rate; averaging groups
+        # of `blur` back down is what turns per-frame antialiasing into motion
+        # blur, and with it the edge crawl into smooth movement.
+        frames = timeline(chain, a.fps * a.blur, a.hold, a.trans, a.blink)
 
-    grid = d / "_grid.png"
-    render_alpha(html, grid, cols * a.size, rows * a.size)
-    for i, im in enumerate(slice_grid(grid, len(frames), cols, a.size)):
-        im.save(d / "frames" / f"f_{i:04d}.png")
-    grid.unlink()
+        d = OUT / f"{slug}{suffix}"
+        if d.exists():
+            shutil.rmtree(d)
+        (d / "frames").mkdir(parents=True)
 
-    dur = len(frames) / a.fps
-    print(f"{d.relative_to(ROOT)}/frames/  {len(frames)} frames  "
-          f"{a.size}x{a.size}  {a.fps}fps  {dur:.2f}s  alpha")
+        n = render_frames(frames, theme, a.size, a.glow, a.ss,
+                          d / "frames", d / "_grid.png", a.blur)
+        made.append((slug, d, n))
 
-    if a.format != "none":
-        out, err = encode(d / "frames", len(frames), a.fps, a.format, slug)
-        print(f"  {out.relative_to(ROOT)}  {out.stat().st_size:,} bytes" if out
-              else f"  {err}")
+        line = (f"{d.relative_to(ROOT)}/frames/  {n} frames  "
+                f"{a.size}x{a.size}  {a.fps}fps  {n/a.fps:.2f}s  alpha"
+                + (f"  blur x{a.blur}" if a.blur > 1 else ""))
+        if a.format != "none":
+            out, err = encode(d / "frames", n, a.fps, a.format, slug)
+            line += (f"\n  {out.relative_to(ROOT)}  {out.stat().st_size:,} bytes"
+                     if out else f"\n  {err}")
+        print(line)
+
+    if a.contact:
+        print(contact_sheet(made, theme))
     return 0
 
 
