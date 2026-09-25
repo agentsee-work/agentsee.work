@@ -98,8 +98,10 @@ CHAINS = {
     # stays out of the way, and only then does it land on unimpressed. Rolling
     # straight into a lowered lid hides the whole movement behind it, which is
     # what the first attempt did.
-    "eyeroll":     dict(seq=["attentive", "attentive", "unimpressed"],
-                        hold=0.22, trans=0.24,
+    # Two steps, not three. A middle step meant a hold between the roll
+    # finishing and the landing, and the eye visibly parked at centre before
+    # closing. The arc now carries the landing itself.
+    "eyeroll":     dict(seq=["attentive", "unimpressed"], hold=0.26,
                         roll=dict(dur=1.6, rx=31, ry=31, a0=-38, a1=-142),
                         note="Snap up, hold, track across, hold, back. Then deadpan."),
     "scrutinise":  dict(seq=["curious", "scrutiny"], note="Into the technical section."),
@@ -137,55 +139,70 @@ def lerp(a, b, t):
 
 
 def arc_frames(a, b, roll, fps):
-    """A disapproving eye roll: snap up, hold, track across, hold, return.
+    """A disapproving eye roll: one unbroken movement, lingering at the corners.
 
     Not a circle — a full turn takes the pupil through the bottom of its range,
-    and looking down is no part of rolling your eyes. Five phases:
+    and looking down is no part of rolling your eyes.
 
-        rise     centre to the first corner, fast. This is a snap, not a drift
-        hold A   a beat up there, before anything else happens
-        sweep    across the top, slowly. The long part
-        hold B   the longer beat, at the far side. The disapproval lives here
-        fall     back to centre
+    The path is separate from the pace, which is what the earlier versions got
+    wrong. Position is a single continuous curve: out from centre to the first
+    corner, around the top to the second, back to centre. Nothing in it stops.
 
-    Both holds matter and both were far too short at first: a tenth of a second
-    is three frames, which reads as a hesitation rather than a pause. They are
-    now a third of the movement between them.
-
-    Amplitude is deliberately far past anything an eye does casually, and past
-    what looked sensible in isolation. This is a performed gesture and it wants
-    to look performed. At 31 the corner drives the iris into the narrowing of
-    the almond and the apex leaves only the lower arc of the pupil showing —
-    which is what a real eye roll looks like and what three more conservative
-    settings failed to be. Past about 37 the pupil leaves the aperture entirely
-    and the eye stops reading as an eye.
+    The lingering comes from a speed profile instead — a curve that dips where
+    the corners are and never reaches zero. Built as literal holds, those
+    corners were dead stops, and no amount of smoothing bridges a pause thirty
+    frames wide; the eye visibly parked twice. Slowing to a tenth speed reads
+    as the same beat without breaking the movement.
     """
-    n = max(10, round(roll.get("dur", 1.5) * fps))
+    n = max(12, round(roll.get("dur", 1.6) * fps))
     rx, ry = roll.get("rx", 31), roll.get("ry", 31)
     a0 = math.radians(roll.get("a0", -38))
     a1 = math.radians(roll.get("a1", -142))
-    p1, p2, p3, p4 = roll.get("phases", (0.12, 0.32, 0.64, 0.88))
+    out_s, in_s = 0.17, 0.83          # where the radius is fully extended
+    cA, cB = roll.get("corners", (0.19, 0.81))
+    width = roll.get("linger", 0.12)  # how wide each slow patch is
+    floor = roll.get("floor", 0.10)   # speed at the bottom of a dip
 
     def smooth(x):
         x = min(1.0, max(0.0, x))
         return x * x * (3 - 2 * x)
 
+    def pos(s):
+        if s < out_s:
+            env, ang = smooth(s / out_s), a0
+        elif s < in_s:
+            env, ang = 1.0, a0 + (a1 - a0) * (s - out_s) / (in_s - out_s)
+        else:
+            env, ang = smooth((1 - s) / (1 - in_s)), a1
+        return rx * math.cos(ang) * env, ry * math.sin(ang) * env
+
+    def speed(t):
+        dip = 1 - floor
+        for c in (cA, cB):
+            dip -= (1 - floor) * math.exp(-0.5 * ((t - c) / width) ** 2)
+        return max(floor, dip + floor)
+
+    # Integrate the speed profile, then read positions off the normalised
+    # distance travelled: time passes evenly, the path does not.
+    steps = n * 4
+    cum, acc = [0.0], 0.0
+    for i in range(1, steps + 1):
+        acc += speed(i / steps)
+        cum.append(acc)
+    total = cum[-1]
+
     out = []
     for f in range(1, n):
         t = f / n
-        if t < p1:                                   # rise, sharply
-            ang, env = a0, smooth(t / p1) ** 0.7
-        elif t < p2:                                 # hold at the first corner
-            ang, env = a0, 1.0
-        elif t < p3:                                 # track across the top
-            ang, env = a0 + (a1 - a0) * ease((t - p2) / (p3 - p2)), 1.0
-        elif t < p4:                                 # the long beat
-            ang, env = a1, 1.0
-        else:                                        # and back
-            ang, env = a1, 1.0 - smooth((t - p4) / (1 - p4))
-        fr = dict(a)                      # pose held; only the iris travels
-        fr["ix"] = a["ix"] + rx * math.cos(ang) * env
-        fr["iy"] = a["iy"] + ry * math.sin(ang) * env
+        s = cum[min(steps, int(t * steps))] / total
+        ix, iy = pos(s)
+        # The pose holds open for the whole roll and only begins easing toward
+        # the landing as the iris comes home. Closing any earlier hides the
+        # movement behind the lid; closing later needs a pause to do it in, and
+        # a pause is the one thing this must not have.
+        fr = lerp(a, b, smooth(max(0.0, (s - in_s) / (1 - in_s))))
+        fr["ix"] += ix
+        fr["iy"] += iy
         out.append(fr)
     return out
 
