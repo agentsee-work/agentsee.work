@@ -87,7 +87,7 @@ CHAINS = {
     "idle":        dict(seq=["attentive", "curious", "thinking", "attentive"], note="Longer filler. Loops."),
     "intro":       dict(seq=["asleep", "attentive", "alert"], note="Wake and focus. Opening title."),
     "startle":     dict(seq=["asleep", "surprised", "alert"], hold=0.30, trans=0.14,
-                        jitter=0.9, note="Woken suddenly. Fast, with a tremor."),
+                        jitter=0.66, note="Woken suddenly. Fast, with a tremor."),
     "consider":    dict(seq=["attentive", "thinking", "wry"], trans=0.46,
                         note="Weighing it, and landing somewhere knowing."),
     "concede":     dict(seq=["sceptical", "closed", "amused"], trans=0.30,
@@ -108,7 +108,7 @@ CHAINS = {
                           hold=0.60, trans=0.55,
                           note="Attention wanders, then droops. Not the same as going to sleep."),
     "hardno":      dict(seq=["curious", "angry", "angry"], hold=0.34, trans=0.16,
-                        jitter=1.1, note="A refusal, with the hat down and a tremor."),
+                        jitter=0.80, note="A refusal, with the hat down and a tremor."),
     "signoff":     dict(seq=["attentive", "amused", "closed"], note="End card, on a warm note."),
     "sleep":       dict(seq=["attentive", "asleep"], trans=0.55, note="Into the standby card."),
 }
@@ -142,7 +142,14 @@ def timeline(chain, fps, hold, trans, blink, jitter=0.0):
 
     `jitter` adds a fast, small iris tremor. It runs at a fixed frequency
     rather than per-frame noise, which would read as the rasterisation fault
-    this tool spent a while removing rather than as a deliberate shake."""
+    this tool spent a while removing rather than as a deliberate shake.
+
+    Amplitude is in viewBox units, where the eye is 152 wide — so 0.8 is about
+    half a percent of the eye. Motion blur then damps it further, averaging
+    sub-frames across roughly half a cycle, so the pupil lands near 2px of
+    actual swing at 1080. It wants to be
+    near the threshold of being seen. Anything you can clearly track stops
+    reading as tension and starts reading as a wobble."""
     frames = []
     hold_n, trans_n = max(1, round(hold * fps)), max(2, round(trans * fps))
     for i, name in enumerate(chain):
