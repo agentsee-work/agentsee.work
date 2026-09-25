@@ -83,30 +83,10 @@ THEMES = {
     ),
 }
 
-MARK = """
-<svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
-  <defs><clipPath id="eyeclip">
-    <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
-  </clipPath></defs>
-  <g class="hat">
-    <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
-    <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
-    <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
-    <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
-  </g>
-  <g class="eye">
-    <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
-    <g clip-path="url(#eyeclip)">
-      <circle class="iris-outer" cx="120" cy="142" r="31"/>
-      <circle class="iris-inner" cx="120" cy="142" r="22"/>
-      <circle class="pupil"      cx="120" cy="142" r="13.5"/>
-      <circle class="glint"      cx="109" cy="131" r="6"/>
-      <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
-    </g>
-    <path class="eye-outline" vector-effect="non-scaling-stroke"
-          d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
-  </g>
-</svg>"""
+# The mark lives in eye.py, which owns the lids. Keeping a second copy here is
+# how the two quietly diverge — this file rendered an eye with no eyelids for
+# exactly as long as nobody looked. Imported inside build() rather than at the
+# top because eye.py imports this module for THEMES and render().
 
 PAGE = """<!doctype html><meta charset="utf-8"><title>banner</title>
 <style>
@@ -160,6 +140,15 @@ body::before {{
                 stroke-width: calc(var(--mark-w) * .025); stroke-linejoin: round; }}
 .iris-outer {{ fill: {signal}; }}
 .iris-inner {{ fill: {signal}; filter: brightness(.82); }}
+.lid-fill   {{ fill: {paper}; }}
+.lid-edge   {{ fill: none; stroke: {ink}; stroke-linecap: round;
+               stroke-width: calc(var(--mark-w) * .025);
+               opacity: clamp(0, calc(var(--lid, 0) * 40), 1); }}
+/* At rest the lid edge lies exactly on eye-outline, and two coincident
+   antialiased strokes composite heavier than one — 170 pixels' worth on a
+   1500x500 banner. Fading it in over the first sliver of travel makes a
+   fully-open eye byte-identical to one with no lids at all, which is what
+   lets banner.py share this markup without changing a single existing PNG. */
 .pupil      {{ fill: {pupil}; }}
 .glint      {{ fill: {glint}; opacity: .92; }}
 .glint.sm   {{ opacity: .5; }}
@@ -175,6 +164,11 @@ body::before {{
 </div>"""
 
 
+def _mark():
+    from eye import mark_svg
+    return mark_svg()
+
+
 def build(preset, theme, minimal=False):
     w, h, basis = PRESETS[preset][:3]
     t = THEMES[theme]
@@ -186,7 +180,7 @@ def build(preset, theme, minimal=False):
 
     return PAGE.format(
         font=base64.b64encode(FONT.read_bytes()).decode(),
-        w=w, h=h, mark_svg=MARK,
+        w=w, h=h, mark_svg=_mark(),
         wordmark='<p class="wordmark">AgentSee</p>',
         rule_el='' if tight else '<div class="rule"></div>',
         hair_el='' if tight else '<div class="rule hair"></div>',

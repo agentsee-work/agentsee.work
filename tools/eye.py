@@ -46,7 +46,7 @@ from banner import FONT, OUTDIR, ROOT, THEMES, render  # noqa: E402
 EXPRESSIONS = {
     "attentive":   (0.00, 0.00,   0,   0, 1.00, "Default. Lower thirds, wordmark lockups."),
     "curious":     (0.00, 0.00,  -9,  -6, 1.00, "Chapter marks, question cards."),
-    "thinking":    (0.14, 0.00,  -6,  -9, 1.00, "Going into a question."),
+    "thinking":    (0.19, 0.00,  -6,  -9, 1.00, "Going into a question."),
     "sceptical":   (0.34, 0.05,  11,   2, 1.00, "The steel-man beats."),
     "scrutiny":    (0.26, 0.20,   0,   0, 1.00, "Technical sections. Reading something closely."),
     "surprised":   (0.00, 0.00,   0,  -1, 0.55, "Reveals. The pupil does this, not the lids."),
@@ -55,21 +55,43 @@ EXPRESSIONS = {
     # iris is the difference between dozing and switched off.
     "unimpressed": (0.40, 0.00,   0,   5, 1.00, "Comedy beat. The Docker Hub section."),
     "asleep":      (0.64, 0.14,   0,   6, 1.00, "Standby card, 'starting soon'."),
-    "closed":      (1.00, 0.00,   0,   0, 1.00, "End card. Sign-off."),
+    # Just short of 1.0: at exactly 1.0 the lid edge lands on the lower
+    # outline and disappears into it, and a shut eye reads as a dark hole.
+    # Stopping short leaves the lid margin visible as its own line.
+    "closed":      (0.94, 0.00,   0,   0, 1.00, "End card. Sign-off."),
 }
 
-# How far a lid travels at 1.0, in viewBox units. Each lid starts life sitting
-# exactly on its own half of the outline, so at 0 it is invisible; 57 units is
-# apex to nadir, which lands the travelling edge precisely on the opposite
-# curve. That makes 1.0 a genuinely shut eye and 0.5 a true half-lid, rather
-# than two numbers someone has to learn by feel.
-LID_TRAVEL = 57
+# The eye's corners. Both lids are pinned here and only their middles travel,
+# which is what an eyelid does — it pivots at the canthi.
+#
+# Translating a lid instead, as this first did, drags the corners with it: at
+# a modest squint the upper lid's corners sit *below* the lower lid's, so the
+# two cross and the top appears to fold underneath the bottom. Nothing about
+# that is recoverable by tuning the numbers; the motion itself was wrong.
+#
+# So a lid is a cubic from corner to corner whose two control points slide
+# between the open curve and the opposite one. Corners are fixed, so the lids
+# can only meet, never cross — and they meet exactly when lid_top + lid_bottom
+# reaches 1, which is a property of the geometry rather than a rule to obey.
+LID_OPEN, LID_SHUT = 104, 178   # control-point y, open and fully closed
 
 
-def mark_svg(expr="attentive"):
-    """The mark, with lids. Expression comes from CSS custom properties, so the
-    same markup serves every state and callers can override individual axes."""
-    return """
+def lid_paths(lid_top, lid_bottom):
+    """(top_fill, top_edge, bottom_fill, bottom_edge) for a given pair."""
+    ty = LID_OPEN + (LID_SHUT - LID_OPEN) * lid_top
+    by = LID_SHUT - (LID_SHUT - LID_OPEN) * lid_bottom
+    top = f"M44 142C72 {ty:.2f} 168 {ty:.2f} 196 142"
+    bot = f"M44 142C72 {by:.2f} 168 {by:.2f} 196 142"
+    # Each fill closes away from the aperture, so at rest it sits outside the
+    # clip entirely and costs nothing.
+    return top + " L196 -60 L44 -60 Z", top, bot + " L196 340 L44 340 Z", bot
+
+
+def mark_svg(lid_top=0.0, lid_bottom=0.0):
+    """The mark. Lid geometry is computed here; iris and pupil stay as CSS
+    custom properties, because those really are transforms."""
+    tf, te, bf, be = lid_paths(lid_top, lid_bottom)
+    return f"""
 <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
   <defs><clipPath id="eyeclip">
     <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
@@ -90,10 +112,14 @@ def mark_svg(expr="attentive"):
         <circle class="glint"      cx="109" cy="131" r="6"/>
         <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
       </g>
-      <path class="lid lid-top"
-            d="M44 142C72 104 168 104 196 142 L196 10 L44 10 Z"/>
-      <path class="lid lid-bottom"
-            d="M44 142C72 178 168 178 196 142 L196 272 L44 272 Z"/>
+      <g class="lid lid-top" style="--lid:{lid_top:.4f}">
+        <path class="lid-fill" d="{tf}"/>
+        <path class="lid-edge" vector-effect="non-scaling-stroke" d="{te}"/>
+      </g>
+      <g class="lid lid-bottom" style="--lid:{lid_bottom:.4f}">
+        <path class="lid-fill" d="{bf}"/>
+        <path class="lid-edge" vector-effect="non-scaling-stroke" d="{be}"/>
+      </g>
     </g>
     <path class="eye-outline" vector-effect="non-scaling-stroke"
           d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
@@ -119,21 +145,44 @@ def mark_css(t):
 .glint      {{ fill: {t['glint']}; opacity: .92; }}
 .glint.sm   {{ opacity: .5; }}
 
-/* The expression, in four axes plus the pupil. */
+/* Iris and pupil really are transforms, so they stay in CSS. Lid geometry
+   does not — see lid_paths(). */
 .iris {{ transform: translate(calc(var(--iris-x, 0) * 1px),
                               calc(var(--iris-y, 0) * 1px)); }}
 .pupil {{ transform-box: fill-box; transform-origin: center;
           transform: scale(var(--pupil-s, 1)); }}
-.lid {{ fill: {t['paper']}; }}
-.lid-top    {{ transform: translateY(calc(var(--lid-top, 0)    * {LID_TRAVEL}px)); }}
-.lid-bottom {{ transform: translateY(calc(var(--lid-bottom, 0) * -{LID_TRAVEL}px)); }}
+/* A lid is two things: a fill that hides the iris, and the line that *is* the
+   eyelid. Only the fill used to exist, so the edge read purely as the boundary
+   between two fills — visible in noir where paper is near-black against the
+   sclera, invisible on newsprint where the two are a shade apart. The mark is
+   drawn in line; its lid should be too.
+
+   The edge sits inside the clip, so it stops at the aperture rather than
+   running the full width of the shape it belongs to. Same weight and same
+   non-scaling-stroke as eye-outline, or a closing eye changes line weight
+   halfway down. */
+.lid-fill {{ fill: {t['paper']}; }}
+.lid-edge {{ fill: none; stroke: {t['ink']}; stroke-linecap: round;
+             stroke-width: calc(var(--mark-w) * .025); }}
+/* At rest a lid edge lies exactly on eye-outline, and two coincident
+   antialiased strokes composite heavier than one — 170 pixels' worth on a
+   1500x500 banner. Fading it in over the first sliver of travel keeps a
+   fully-open eye pixel-identical to one with no lids at all, which is what
+   lets banner.py share this markup without changing a single existing PNG. */
+.lid-edge {{ opacity: clamp(0, calc(var(--lid, 0) * 40), 1); }}
 """
 
 
 def expr_vars(name):
-    lt, lb, ix, iy, ps, _ = EXPRESSIONS[name]
-    return (f"--lid-top:{lt}; --lid-bottom:{lb}; "
-            f"--iris-x:{ix}; --iris-y:{iy}; --pupil-s:{ps};")
+    """Only the axes that are still CSS. Lids come from mark_svg()."""
+    _lt, _lb, ix, iy, ps, _ = EXPRESSIONS[name]
+    return f"--iris-x:{ix}; --iris-y:{iy}; --pupil-s:{ps};"
+
+
+def expr_mark(name):
+    """The markup for an expression, lids baked in."""
+    lt, lb, *_ = EXPRESSIONS[name]
+    return mark_svg(lt, lb)
 
 
 def font_b64():
@@ -167,7 +216,7 @@ def build_single(name, theme, size):
         font=font_b64(), w=size, h=size, paper=t["paper"], ink=t["ink"],
         mark_css=mark_css(t),
         extra=f".mark {{ --mark-w: {size - pad * 2}px; width: var(--mark-w); }}",
-        body=f'<div class="mark" style="{expr_vars(name)}">{mark_svg()}</div>',
+        body=f'<div class="mark" style="{expr_vars(name)}">{expr_mark(name)}</div>',
     )
 
 
@@ -179,7 +228,7 @@ def build_sheet(theme, cell=300):
     cols, rows = 3, 3
     w, h = cols * cell, rows * (cell + 54)
     cells = "".join(
-        f'<figure><div class="mark" style="{expr_vars(n)}">{mark_svg()}</div>'
+        f'<figure><div class="mark" style="{expr_vars(n)}">{expr_mark(n)}</div>'
         f'<figcaption><b>{n}</b>{EXPRESSIONS[n][5]}</figcaption></figure>'
         for n in EXPRESSIONS
     )
@@ -229,7 +278,12 @@ def main():
         out = pathlib.Path(a.out) if a.out else OUTDIR / f"eye-{a.expression}{suffix}.png"
 
     render(html, out, w, h)
-    print(f"{out.relative_to(ROOT)}  {w}x{h}  {theme}  {out.stat().st_size:,} bytes")
+    # --out may point anywhere, so relative_to(ROOT) is not safe to assume.
+    try:
+        shown = out.relative_to(ROOT)
+    except ValueError:
+        shown = out
+    print(f"{shown}  {w}x{h}  {theme}  {out.stat().st_size:,} bytes")
     return 0
 
 

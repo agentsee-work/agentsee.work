@@ -120,8 +120,8 @@ def timeline(chain, fps, hold, trans, blink):
 
 
 def style(fr):
-    return (f"--lid-top:{fr['lid_top']:.4f}; --lid-bottom:{fr['lid_bottom']:.4f}; "
-            f"--iris-x:{fr['iris_x']:.3f}; --iris-y:{fr['iris_y']:.3f}; "
+    """Lids are geometry now, so only the transform axes come through here."""
+    return (f"--iris-x:{fr['iris_x']:.3f}; --iris-y:{fr['iris_y']:.3f}; "
             f"--pupil-s:{fr['pupil_s']:.4f};")
 
 
@@ -129,7 +129,8 @@ def sheet_html(frames, theme, cell, glow):
     t = THEMES[theme]
     cols = math.ceil(math.sqrt(len(frames)))
     rows = math.ceil(len(frames) / cols)
-    cells = "".join(f'<i style="{style(f)}">{mark_svg()}</i>' for f in frames)
+    cells = "".join(f'<i style="{style(f)}">'
+                f'{mark_svg(f["lid_top"], f["lid_bottom"])}</i>' for f in frames)
     return f"""<!doctype html><meta charset="utf-8"><title>frames</title>
 <style>
 @font-face {{ font-family:'Newsreader';

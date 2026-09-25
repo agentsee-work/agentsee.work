@@ -27,7 +27,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from banner import FONT, OUTDIR, ROOT, THEMES, render  # noqa: E402
-from eye import EXPRESSIONS, expr_vars, font_b64, mark_css, mark_svg  # noqa: E402
+from eye import EXPRESSIONS, expr_mark, expr_vars, font_b64, mark_css  # noqa: E402
 
 # name -> (w, h, basis, expression, note)
 #
@@ -87,7 +87,7 @@ def page(name, theme, w, h, basis, expr, layout, body):
 
 
 def _mark(expr, extra=""):
-    return f'<div class="mark" style="{expr_vars(expr)}{extra}">{mark_svg()}</div>'
+    return f'<div class="mark" style="{expr_vars(expr)}{extra}">{expr_mark(expr)}</div>'
 
 
 # ─────────────────────────────────────────────────────────────────────────────
