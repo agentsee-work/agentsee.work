@@ -100,7 +100,7 @@ CHAINS = {
     # what the first attempt did.
     "eyeroll":     dict(seq=["attentive", "attentive", "unimpressed"],
                         hold=0.22, trans=0.24,
-                        roll=dict(dur=1.5, rx=19, ry=19, a0=-38, a1=-142),
+                        roll=dict(dur=1.6, rx=31, ry=31, a0=-38, a1=-142),
                         note="Snap up, hold, track across, hold, back. Then deadpan."),
     "scrutinise":  dict(seq=["curious", "scrutiny"], note="Into the technical section."),
     "reveal":      dict(seq=["scrutiny", "surprised", "alert"], trans=0.22,
@@ -152,13 +152,16 @@ def arc_frames(a, b, roll, fps):
     is three frames, which reads as a hesitation rather than a pause. They are
     now a third of the movement between them.
 
-    Amplitude is deliberately past anything an eye does casually. This is a
-    performed gesture, so it wants to look performed — the iris rides up under
-    the outline and gets cut by it, which is exactly what happens when someone
-    makes a show of looking at the ceiling.
+    Amplitude is deliberately far past anything an eye does casually, and past
+    what looked sensible in isolation. This is a performed gesture and it wants
+    to look performed. At 31 the corner drives the iris into the narrowing of
+    the almond and the apex leaves only the lower arc of the pupil showing —
+    which is what a real eye roll looks like and what three more conservative
+    settings failed to be. Past about 37 the pupil leaves the aperture entirely
+    and the eye stops reading as an eye.
     """
     n = max(10, round(roll.get("dur", 1.5) * fps))
-    rx, ry = roll.get("rx", 19), roll.get("ry", 19)
+    rx, ry = roll.get("rx", 31), roll.get("ry", 31)
     a0 = math.radians(roll.get("a0", -38))
     a1 = math.radians(roll.get("a1", -142))
     p1, p2, p3, p4 = roll.get("phases", (0.12, 0.32, 0.64, 0.88))
