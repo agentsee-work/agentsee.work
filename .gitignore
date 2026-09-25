@@ -11,3 +11,6 @@ node_modules/
 # Python bytecode. Tracked by accident; the tools are scripts, not a package.
 __pycache__/
 *.pyc
+
+# Rendered video. The recipe belongs in the repo; the output does not.
+build/
