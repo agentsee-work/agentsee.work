@@ -7,3 +7,7 @@ node_modules/
 .env
 .env.*
 .dev.vars
+
+# Python bytecode. Tracked by accident; the tools are scripts, not a package.
+__pycache__/
+*.pyc
