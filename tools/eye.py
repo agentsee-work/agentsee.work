@@ -75,6 +75,13 @@ EXPRESSIONS = {
 # reaches 1, which is a property of the geometry rather than a rule to obey.
 LID_OPEN, LID_SHUT = 104, 178   # control-point y, open and fully closed
 
+# The lid margin as a fraction of the outline's weight. At parity the two lines
+# compete: the outline is structure and the margin is detail, and drawing them
+# the same says they matter equally. It shows up worst in noir, where the
+# margin is dark on a light lid while the outline is light on dark — opposite
+# polarity, so equal width does not read as equal weight.
+LID_EDGE_W = 0.68
+
 
 def lid_paths(lid_top, lid_bottom):
     """(top_fill, top_edge, bottom_fill, bottom_edge) for a given pair."""
@@ -168,7 +175,7 @@ def mark_css(t):
    halfway down. */
 .lid-fill {{ fill: {t['lid']}; }}
 .lid-edge {{ fill: none; stroke: {t['lid_edge']}; stroke-linecap: round;
-             stroke-width: calc(var(--mark-w) * .025); }}
+             stroke-width: calc(var(--mark-w) * .025 * {LID_EDGE_W}); }}
 /* At rest a lid edge lies exactly on eye-outline, and two coincident
    antialiased strokes composite heavier than one — 170 pixels' worth on a
    1500x500 banner. Fading it in over the first sliver of travel keeps a

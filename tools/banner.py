@@ -144,7 +144,7 @@ body::before {{
 .iris-inner {{ fill: {signal}; filter: brightness(.82); }}
 .lid-fill   {{ fill: {paper}; }}
 .lid-edge   {{ fill: none; stroke: {ink}; stroke-linecap: round;
-               stroke-width: calc(var(--mark-w) * .025);
+               stroke-width: calc(var(--mark-w) * .025 * .68);
                opacity: clamp(0, calc(var(--lid, 0) * 40), 1); }}
 /* At rest the lid edge lies exactly on eye-outline, and two coincident
    antialiased strokes composite heavier than one — 170 pixels' worth on a
