@@ -47,8 +47,11 @@ from banner import FONT, OUTDIR, ROOT, THEMES, render  # noqa: E402
 #            symmetric arc can say. Without it every lid is the same lid.
 #   hat      degrees of hat rotation. The fedora is the only brow this mark has.
 #   ix, iy   iris offset, viewBox units, capped near the site's own 19 x 10
-#   ps       pupil scale
-REST = dict(lt=0.0, lb=0.0, tilt=0.0, hat=0.0, ix=0, iy=0, ps=1.0)
+#   ps       pupil scale. Under 1 is a hard, contracted pupil; over 1 reads as
+#            warmth, eagerness, dawning interest. Nothing used over 1 until now.
+#   gl       catchlight scale. 0 removes it, which is how animation says cold
+#            or dead; over 1 says wet, and therefore feeling.
+REST = dict(lt=0.0, lb=0.0, tilt=0.0, hat=0.0, ix=0, iy=0, ps=1.0, gl=1.0)
 AXES = tuple(REST)
 
 
@@ -74,6 +77,22 @@ EXPRESSIONS = {
     "unimpressed": dict(lt=0.30, tilt=0.15, iy=1, note="Deadpan. Level, and still."),
     "sad":         dict(lt=0.30, tilt=-0.34, iy=7, hat=1.5,
                         note="The tilt inverted. Downcast, unlike deadpan."),
+    "puzzled":     dict(lt=0.12, tilt=-0.35, hat=4.0, ix=-4, iy=-3,
+                        note="Hat cocked one way, lid the other. I do not follow."),
+    "realising":   dict(hat=2.0, iy=-2, ps=1.18, gl=1.25,
+                        note="The ah. Opening up — not the shock of surprised."),
+    "delighted":   dict(lb=0.34, tilt=0.20, hat=1.5, ps=1.22, gl=1.35,
+                        note="Warmth. Dilated pupil and a wet glint do the work."),
+    "bored":       dict(lt=0.44, tilt=0.10, ix=-10, iy=3, gl=0.70,
+                        note="Heavy, and looking elsewhere. Deadpan is level; this is away."),
+    "resolute":    dict(lt=0.22, lb=0.12, hat=-2.5, ps=0.90,
+                        note="Narrowed and level, no tilt. Doing it anyway."),
+    "wince":       dict(lt=0.46, lb=0.30, tilt=0.35, hat=-1.0, ix=-7,
+                        note="Squeezed, looking away. For when the log says what you feared."),
+    "cold":        dict(lt=0.16, ps=0.88, gl=0.0,
+                        note="No catchlight. Unnerving, and the cheapest effect here."),
+    "weary":       dict(lt=0.52, tilt=-0.15, hat=1.0, iy=5, gl=0.75,
+                        note="Three in the morning. Heavy rather than sad."),
     "asleep":      dict(lt=0.64, lb=0.14, iy=6, note="Standby card."),
     "closed":      dict(lt=0.94, note="End card. Sign-off."),
 }
@@ -191,6 +210,8 @@ def mark_css(t):
                               calc(var(--iris-y, 0) * 1px)); }}
 .pupil {{ transform-box: fill-box; transform-origin: center;
           transform: scale(var(--pupil-s, 1)); }}
+.glint {{ transform-box: fill-box; transform-origin: center;
+          transform: scale(var(--glint-s, 1)); }}
 /* A lid is two things: a fill that hides the iris, and the line that *is* the
    eyelid. Both are pinned rather than swapped, like the pupil and the glint:
    the lid is a lit surface, so it takes the light end of whichever palette is
@@ -221,7 +242,8 @@ def mark_css(t):
 def expr_vars(name):
     """Only the axes that are still CSS. Lids come from mark_svg()."""
     a = axes(name)
-    return f"--iris-x:{a['ix']}; --iris-y:{a['iy']}; --pupil-s:{a['ps']};"
+    return (f"--iris-x:{a['ix']}; --iris-y:{a['iy']}; "
+            f"--pupil-s:{a['ps']}; --glint-s:{a['gl']};")
 
 
 def expr_mark(name):
