@@ -230,6 +230,32 @@ def render_frames(frames, theme, cell, glow, ss, frames_dir, tmp, blur=1, jobs=8
     return n
 
 
+def encode(frames_dir, n, fps, fmt, slug):
+    """ffmpeg if it is here. The PNG sequence is the deliverable either way —
+    every editor takes one — so this is the convenience layer, not the product."""
+    src = str(frames_dir / "f_%04d.png")
+    ff = shutil.which("ffmpeg")
+    if not ff:
+        return None, "ffmpeg not on PATH — PNG sequence only"
+    recipes = {
+        # VP9 with alpha. Plays in browsers and OBS. ffmpeg writes alpha_mode=1
+        # but cannot read its own alpha back, so this path is offered unverified.
+        "webm": ["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0",
+                 "-b:v", "0", "-crf", "28"],
+        # ProRes 4444. What an NLE wants for an alpha overlay, and its alpha
+        # survives a round-trip, which is why it is the default.
+        "mov":  ["-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le"],
+        # Flattened preview. No alpha.
+        "mp4":  ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18"],
+    }
+    out = frames_dir.parent / f"{slug}.{fmt}"
+    r = subprocess.run([ff, "-y", "-framerate", str(fps), "-i", src,
+                        *recipes[fmt], str(out)], capture_output=True)
+    if r.returncode != 0:
+        return None, r.stderr.decode()[-400:]
+    return out, None
+
+
 def contact_sheet(made, theme, per_row=9, cell=118):
     """One filmstrip per chain, evenly sampled, on a mid grey.
 
