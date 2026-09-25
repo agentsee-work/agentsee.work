@@ -94,9 +94,14 @@ CHAINS = {
                         note="Resistance, a beat shut, then warmth. Concession needs the beat."),
     "doubt":       dict(seq=["attentive", "sceptical"], trans=0.26, note="One sharp turn into doubt."),
     "unconvinced": dict(seq=["curious", "sceptical", "unimpressed"], note="Doubt hardening."),
-    "eyeroll":     dict(seq=["attentive", dict(ix=7, iy=-9), dict(ix=0, iy=-11),
-                             dict(ix=-8, iy=-7), "unimpressed"],
-                        hold=0.10, trans=0.16, note="Up, over and back down. Lands deadpan."),
+    # Three steps, not two: the arc runs attentive -> attentive so the lid
+    # stays out of the way, and only then does it land on unimpressed. Rolling
+    # straight into a lowered lid hides the whole movement behind it, which is
+    # what the first attempt did.
+    "eyeroll":     dict(seq=["attentive", "attentive", "unimpressed"],
+                        hold=0.22, trans=0.24,
+                        roll=dict(dur=0.60, rx=15, ry=9.5, turns=1.0),
+                        note="One unbroken sweep, eye open. Lands deadpan."),
     "scrutinise":  dict(seq=["curious", "scrutiny"], note="Into the technical section."),
     "reveal":      dict(seq=["scrutiny", "surprised", "alert"], trans=0.22,
                         note="Found something. Quick."),
@@ -131,13 +136,42 @@ def lerp(a, b, t):
     return {k: a[k] + (b[k] - a[k]) * t for k in AXES}
 
 
+def arc_frames(a, b, roll, fps, n_default=0.62):
+    """One continuous sweep of the iris, superimposed on an ordinary ease.
+
+    An eye roll built from waypoints is not an eye roll: the iris stops and
+    restarts at every one, easing out and back in each time, and with blinks
+    enabled it blinks between each pair. Sarcasm needs a single unbroken
+    movement, so this is a real arc — the lids, hat and pupil ease from a to b
+    underneath while the iris travels a circle on top of them.
+
+    The circle's amplitude fades in and out at the ends so the iris leaves and
+    rejoins its underlying position rather than snapping onto the path."""
+    n = max(6, round(roll.get("dur", n_default) * fps))
+    rx, ry = roll.get("rx", 12), roll.get("ry", 9)
+    turns, out = roll.get("turns", 1.0), []
+    for f in range(1, n):
+        t = f / n
+        fr = lerp(a, b, ease(t))
+        # Start at the top: an eye roll goes up first, always.
+        ang = -math.pi / 2 + 2 * math.pi * turns * ease(t)
+        edge = 0.10
+        env = (min(1.0, t / edge) if t < edge else
+               min(1.0, (1 - t) / edge) if t > 1 - edge else 1.0)
+        env = env * env * (3 - 2 * env)          # smoothstep the envelope
+        fr["ix"] += rx * math.cos(ang) * env
+        fr["iy"] += ry * math.sin(ang) * env
+        out.append(fr)
+    return out
+
+
 def blink_shape(t):
     """Closed at the midpoint, open at both ends. Sine rather than a triangle
     because a lid that reverses direction at a sharp corner reads as a glitch."""
     return math.sin(math.pi * t) ** 0.7
 
 
-def timeline(chain, fps, hold, trans, blink, jitter=0.0):
+def timeline(chain, fps, hold, trans, blink, jitter=0.0, roll=None):
     """Every frame's axis values, in order.
 
     `jitter` adds a fast, small iris tremor. It runs at a fixed frequency
@@ -157,6 +191,11 @@ def timeline(chain, fps, hold, trans, blink, jitter=0.0):
         frames += [dict(a) for _ in range(hold_n)]
         if i + 1 < len(chain):
             b = step_axes(chain[i + 1])
+            if roll and i == 0:
+                # The arc *is* the transition. No blink — you cannot roll your
+                # eyes with them shut.
+                frames += arc_frames(a, b, roll, fps)
+                continue
             for f in range(1, trans_n):
                 t = ease(f / trans_n)
                 fr = lerp(a, b, t)
@@ -294,6 +333,47 @@ def encode(frames_dir, n, fps, fmt, slug):
     return out, None
 
 
+REEL_TITLE_H = 170
+
+
+def reel_h(cell):
+    return round(cell * 0.88 * 210 / 240) + 2 * round(cell * 0.06) + REEL_TITLE_H
+
+
+def reel_html(frame, theme, cell, title):
+    """One reel frame: the chain's name in a band above, the mark below it.
+
+    The band is its own row rather than an overlay, so nothing ever sits on
+    top of the eye — the point of a review reel is to see the animation, not
+    a caption competing with it."""
+    t = THEMES[theme]
+    return f"""<!doctype html><meta charset="utf-8">
+<style>
+@font-face {{{{ font-family:'Newsreader';
+  src:url('data:font/woff2;base64,{{font}}') format('woff2'); font-weight:300 700; }}}}
+* {{{{ box-sizing:border-box; margin:0; }}}}
+html,body {{{{ width:{{w}}px; height:{{h}}px; background:{{paper}}; overflow:hidden; }}}}
+.band {{{{ height:{REEL_TITLE_H}px; display:flex; align-items:center;
+          justify-content:center; font-family:ui-monospace,Menlo,monospace;
+          font-size:{{fs}}px; letter-spacing:.22em; text-transform:uppercase;
+          color:{{signal}}; }}}}
+i {{{{ display:block; width:{{cell}}px; height:{{ih}}px; padding:{{pad}}px;
+      --mark-w:{{mark}}px; }}}}
+i svg {{{{ width:100%; height:100%; display:block; overflow:visible; }}}}
+{{mark_css}}
+</style>
+<div class="band">{{title}}</div>
+<i style="{{st}}">{{svg}}</i>""".format(
+        font=font_b64(), w=cell,
+        h=round(cell * 0.88 * 210 / 240) + 2 * round(cell * 0.06) + REEL_TITLE_H,
+        paper=t["paper"],
+        signal=t["signal"], fs=round(cell * 0.035), cell=cell,
+        pad=round(cell * 0.06), mark=round(cell * 0.88),
+        ih=round(cell * 0.88 * 210 / 240) + 2 * round(cell * 0.06),
+        mark_css=mark_css(t), title=title, st=style(frame),
+        svg=mark_svg(frame["lt"], frame["lb"], frame["tilt"], frame["hat"]))
+
+
 def contact_sheet(made, theme, per_row=9, cell=118):
     """One filmstrip per chain, evenly sampled, on a mid grey.
 
@@ -320,6 +400,64 @@ def contact_sheet(made, theme, per_row=9, cell=118):
     return f"{out.relative_to(ROOT)}  {len(made)} chains"
 
 
+def build_reel(theme, cell, fps, blur, ss, blink, jobs, hold_ends=0.9):
+    """Every chain end to end, labelled, as one flattened video for review.
+
+    Each clip is bracketed by a longer hold on its first and last frame:
+    reviewing a cut of eighteen animations, the hardest part is telling where
+    one stops and the next begins, and a still moment does that better than a
+    caption change.
+
+    Flattened on purpose — this is for watching, not compositing."""
+    from concurrent.futures import ThreadPoolExecutor
+    from PIL import Image
+
+    out_dir = OUT / "_reel"
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    out_dir.mkdir(parents=True)
+    pad_n = max(1, round(hold_ends * fps * blur))
+
+    jobs_list, n_out = [], 0
+    for slug, c in CHAINS.items():
+        fr = timeline(c["seq"], fps * blur, c.get("hold", 0.5),
+                      c.get("trans", 0.38), blink, c.get("jitter", 0.0),
+                      c.get("roll"))
+        fr = [fr[0]] * pad_n + fr + [fr[-1]] * pad_n
+        for f in fr:
+            jobs_list.append((slug, f))
+
+    def one(job):
+        i, (slug, fr) = job
+        out = out_dir / f"r_{i:05d}.png"
+        html = reel_html(fr, theme, cell, slug)
+        render_alpha(html, out, cell, reel_h(cell), ss)
+        if ss != 1:
+            im = Image.open(out).convert("RGB")
+            im.resize((cell, reel_h(cell)), Image.LANCZOS).save(out)
+        return i
+
+    with ThreadPoolExecutor(max_workers=jobs) as ex:
+        list(ex.map(one, enumerate(jobs_list)))
+
+    # average sub-frames down, in place
+    files = sorted(out_dir.glob("r_*.png"))
+    for k in range(len(files) // blur):
+        group = [Image.open(files[k * blur + j]).convert("RGBA") for j in range(blur)]
+        (group[0] if blur == 1 else merge(group)).convert("RGB").save(
+            out_dir / f"f_{k:05d}.png")
+    for f in files:
+        f.unlink()
+
+    out = OUT / f"reel{'' if theme == 'noir' else '-newsprint'}.mp4"
+    subprocess.run([shutil.which("ffmpeg"), "-y", "-framerate", str(fps),
+                    "-i", str(out_dir / "f_%05d.png"),
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "17",
+                    str(out)], check=True, capture_output=True)
+    shutil.rmtree(out_dir)
+    return out, len(files) // blur
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -334,7 +472,7 @@ def main():
                     help="sub-frames averaged per output frame. 1 disables it, "
                          "and the edges then crawl as each frame antialiases "
                          "independently of the last")
-    ap.add_argument("--ss", type=int, default=1, choices=[1, 2, 3],
+    ap.add_argument("--ss", type=int, default=2, choices=[1, 2, 3],
                     help="spatial supersample. Costs a lot at 1080 because the grid shrinks to 3x3 a launch; worth it for a hero asset, not a batch")
     ap.add_argument("--blink", action="store_true", help="blink through each change")
     # Off by default, unlike every other asset here. The glow is a
@@ -350,10 +488,20 @@ def main():
     ap.add_argument("--all", action="store_true", help="render every named chain")
     ap.add_argument("--contact", action="store_true",
                     help="one filmstrip row per chain, for reviewing a batch")
+    ap.add_argument("--reel", action="store_true",
+                    help="every chain end to end, labelled, as one video for review")
     ap.add_argument("--jobs", type=int, default=8,
                     help="parallel Chrome launches")
     ap.add_argument("--list-chains", action="store_true")
     a = ap.parse_args()
+
+    if a.reel:
+        theme = "newsprint" if a.newsprint else "noir"
+        out, n = build_reel(theme, a.size, a.fps, a.blur, a.ss,
+                            a.blink, a.jobs)
+        print(f"{out.relative_to(ROOT)}  {n} frames  {n/a.fps:.1f}s  "
+              f"{len(CHAINS)} chains")
+        return 0
 
     if a.list_chains or not (a.chain or a.all):
         w = max(len(k) for k in CHAINS)
@@ -389,7 +537,8 @@ def main():
         # Sub-frames are just a timeline at blur x the rate; averaging groups
         # of `blur` back down is what turns per-frame antialiasing into motion
         # blur, and with it the edge crawl into smooth movement.
-        frames = timeline(chain, a.fps * a.blur, hold, trans, a.blink, jit)
+        frames = timeline(chain, a.fps * a.blur, hold, trans, a.blink, jit,
+                          conf.get('roll'))
 
         d = OUT / f"{slug}{suffix}"
         if d.exists():
