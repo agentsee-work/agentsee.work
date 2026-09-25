@@ -37,29 +37,51 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from banner import FONT, OUTDIR, ROOT, THEMES, render  # noqa: E402
 
-# name -> (lid_top, lid_bottom, iris_x, iris_y, pupil_scale, note)
+# The axes an expression can move, and where each rests. Expressions below
+# name only what they change, so a glance down the table shows what each one is
+# actually doing rather than a row of mostly-zeros.
 #
-# Lids are 0 (clear of the eye) to 1 (met at the centreline). Iris offsets are
-# viewBox units, and the site caps its own tracking at 19 x 10 — going past
-# that pushes the iris under the outline and looks like a bug rather than a
-# glance, so nothing here exceeds it.
+#   lt, lb   lid travel, 0 open to 1 shut
+#   tilt     skews the lid curve: one end rises as the other falls. This is the
+#            axis that carries wry, suspicious, angry and sad, none of which a
+#            symmetric arc can say. Without it every lid is the same lid.
+#   hat      degrees of hat rotation. The fedora is the only brow this mark has.
+#   ix, iy   iris offset, viewBox units, capped near the site's own 19 x 10
+#   ps       pupil scale
+REST = dict(lt=0.0, lb=0.0, tilt=0.0, hat=0.0, ix=0, iy=0, ps=1.0)
+AXES = tuple(REST)
+
+
 EXPRESSIONS = {
-    "attentive":   (0.00, 0.00,   0,   0, 1.00, "Default. Lower thirds, wordmark lockups."),
-    "curious":     (0.00, 0.00,  -9,  -6, 1.00, "Chapter marks, question cards."),
-    "thinking":    (0.19, 0.00,  -6,  -9, 1.00, "Going into a question."),
-    "sceptical":   (0.34, 0.05,  11,   2, 1.00, "The steel-man beats."),
-    "scrutiny":    (0.26, 0.20,   0,   0, 1.00, "Technical sections. Reading something closely."),
-    "surprised":   (0.00, 0.00,   0,  -1, 0.55, "Reveals. The pupil does this, not the lids."),
-    # The pupil has to survive, or a lowered lid reads as blank rather than
-    # unimpressed. Same reason asleep stops short of closed: two slivers of
-    # iris is the difference between dozing and switched off.
-    "unimpressed": (0.40, 0.00,   0,   5, 1.00, "Comedy beat. The Docker Hub section."),
-    "asleep":      (0.64, 0.14,   0,   6, 1.00, "Standby card, 'starting soon'."),
-    # Just short of 1.0: at exactly 1.0 the lid edge lands on the lower
-    # outline and disappears into it, and a shut eye reads as a dark hole.
-    # Stopping short leaves the lid margin visible as its own line.
-    "closed":      (0.94, 0.00,   0,   0, 1.00, "End card. Sign-off."),
+    "attentive":   dict(note="Default. Lower thirds, wordmark lockups."),
+    "alert":       dict(hat=2.0, ps=0.92,
+                        note="Sharper than attentive. Hat lifts, pupil tightens."),
+    "curious":     dict(ix=-9, iy=-6, note="Chapter marks, question cards."),
+    "thinking":    dict(lt=0.19, ix=-6, iy=-9, note="Going into a question."),
+    "amused":      dict(lb=0.30, tilt=0.18, ix=-3, iy=2, hat=1.0,
+                        note="A smile, from below. One eye cannot grin any other way."),
+    "wry":         dict(lt=0.26, tilt=0.55, ix=5, hat=-1.0,
+                        note="Knowing. The tilt does all of it."),
+    "sceptical":   dict(lt=0.34, lb=0.05, tilt=0.40, ix=11, iy=2, hat=-1.5,
+                        note="The steel-man beats."),
+    "scrutiny":    dict(lt=0.26, lb=0.20, note="Technical sections. Reading closely."),
+    "surprised":   dict(iy=-1, ps=0.55, hat=2.5, note="Reveals. The pupil does this."),
+    "angry":       dict(lt=0.22, lb=0.18, tilt=0.62, hat=-5.0, ps=0.80,
+                        note="Hat down like a brow, lids converging, pupil hard."),
+    # Was lt .40 with the iris at +5, which reads sad rather than deadpan:
+    # downcast is sadness, deadpan is level and entirely still. The comedy is
+    # in the stillness, so it takes a slow hold and barely any lid.
+    "unimpressed": dict(lt=0.30, tilt=0.15, iy=1, note="Deadpan. Level, and still."),
+    "sad":         dict(lt=0.30, tilt=-0.34, iy=7, hat=1.5,
+                        note="The tilt inverted. Downcast, unlike deadpan."),
+    "asleep":      dict(lt=0.64, lb=0.14, iy=6, note="Standby card."),
+    "closed":      dict(lt=0.94, note="End card. Sign-off."),
 }
+
+
+def axes(name):
+    return {**REST, **{k: v for k, v in EXPRESSIONS[name].items() if k != "note"}}
+
 
 # The eye's corners. Both lids are pinned here and only their middles travel,
 # which is what an eyelid does — it pivots at the canthi.
@@ -83,27 +105,36 @@ LID_OPEN, LID_SHUT = 104, 178   # control-point y, open and fully closed
 LID_EDGE_W = 0.68
 
 
-def lid_paths(lid_top, lid_bottom):
-    """(top_fill, top_edge, bottom_fill, bottom_edge) for a given pair."""
-    ty = LID_OPEN + (LID_SHUT - LID_OPEN) * lid_top
-    by = LID_SHUT - (LID_SHUT - LID_OPEN) * lid_bottom
-    top = f"M44 142C72 {ty:.2f} 168 {ty:.2f} 196 142"
-    bot = f"M44 142C72 {by:.2f} 168 {by:.2f} 196 142"
+def lid_paths(lid_top, lid_bottom, tilt=0.0):
+    """(top_fill, top_edge, bottom_fill, bottom_edge) for a given pair.
+
+    `tilt` pushes the curve's two control points in opposite directions, so the
+    lid comes down further at one end than the other. The corners stay pinned
+    either way — tilt changes the shape of the lid, never where it hinges."""
+    span = LID_SHUT - LID_OPEN
+    ty = LID_OPEN + span * lid_top
+    by = LID_SHUT - span * lid_bottom
+    t = tilt * span * 0.42
+    # The lower lid takes half the skew: matching it fully reads as the whole
+    # eye rotating, which is a different thing entirely.
+    top = f"M44 142C72 {ty - t:.2f} 168 {ty + t:.2f} 196 142"
+    bot = f"M44 142C72 {by - t * .5:.2f} 168 {by + t * .5:.2f} 196 142"
     # Each fill closes away from the aperture, so at rest it sits outside the
     # clip entirely and costs nothing.
     return top + " L196 -60 L44 -60 Z", top, bot + " L196 340 L44 340 Z", bot
 
 
-def mark_svg(lid_top=0.0, lid_bottom=0.0):
+def mark_svg(lid_top=0.0, lid_bottom=0.0, tilt=0.0, hat=0.0):
     """The mark. Lid geometry is computed here; iris and pupil stay as CSS
     custom properties, because those really are transforms."""
-    tf, te, bf, be = lid_paths(lid_top, lid_bottom)
+    tf, te, bf, be = lid_paths(lid_top, lid_bottom, tilt)
+    hat_deg = f"{hat:.3f}"
     return f"""
 <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
   <defs><clipPath id="eyeclip">
     <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
   </clipPath></defs>
-  <g class="hat">
+  <g class="hat" style="--hat:{hat_deg}">
     <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
     <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
     <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
@@ -154,6 +185,8 @@ def mark_css(t):
 
 /* Iris and pupil really are transforms, so they stay in CSS. Lid geometry
    does not — see lid_paths(). */
+.hat {{ transform: rotate(calc(var(--hat, 0) * 1deg));
+         transform-origin: 120px 100px; }}
 .iris {{ transform: translate(calc(var(--iris-x, 0) * 1px),
                               calc(var(--iris-y, 0) * 1px)); }}
 .pupil {{ transform-box: fill-box; transform-origin: center;
@@ -187,14 +220,14 @@ def mark_css(t):
 
 def expr_vars(name):
     """Only the axes that are still CSS. Lids come from mark_svg()."""
-    _lt, _lb, ix, iy, ps, _ = EXPRESSIONS[name]
-    return f"--iris-x:{ix}; --iris-y:{iy}; --pupil-s:{ps};"
+    a = axes(name)
+    return f"--iris-x:{a['ix']}; --iris-y:{a['iy']}; --pupil-s:{a['ps']};"
 
 
 def expr_mark(name):
     """The markup for an expression, lids baked in."""
-    lt, lb, *_ = EXPRESSIONS[name]
-    return mark_svg(lt, lb)
+    a = axes(name)
+    return mark_svg(a["lt"], a["lb"], a["tilt"], a["hat"])
 
 
 def font_b64():
@@ -237,11 +270,12 @@ def build_sheet(theme, cell=300):
     a contact sheet is the only honest way to review them — one at a time you
     talk yourself into anything."""
     t = THEMES[theme]
-    cols, rows = 3, 3
+    cols = 4
+    rows = -(-len(EXPRESSIONS) // cols)
     w, h = cols * cell, rows * (cell + 54)
     cells = "".join(
         f'<figure><div class="mark" style="{expr_vars(n)}">{expr_mark(n)}</div>'
-        f'<figcaption><b>{n}</b>{EXPRESSIONS[n][5]}</figcaption></figure>'
+        f'<figcaption><b>{n}</b>{EXPRESSIONS[n]["note"]}</figcaption></figure>'
         for n in EXPRESSIONS
     )
     extra = f"""
@@ -273,8 +307,11 @@ def main():
     a = ap.parse_args()
 
     if a.list or not (a.expression or a.sheet):
-        for k, (lt, lb, ix, iy, ps, note) in EXPRESSIONS.items():
-            print(f"  {k:<12} lid {lt:>4}/{lb:<4} iris {ix:>3},{iy:<3} pupil {ps}   {note}")
+        w = max(len(k) for k in EXPRESSIONS)
+        for k in EXPRESSIONS:
+            a = axes(k)
+            moved = " ".join(f"{x}={a[x]:g}" for x in AXES if a[x] != REST[x]) or "rest"
+            print(f"  {k:<{w}}  {moved:<44} {EXPRESSIONS[k]['note']}")
         return 0
 
     theme = "newsprint" if a.newsprint else "noir"

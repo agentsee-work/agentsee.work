@@ -40,7 +40,8 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from banner import ROOT, THEMES  # noqa: E402
-from eye import EXPRESSIONS, font_b64, mark_css, mark_svg  # noqa: E402
+from eye import (AXES, EXPRESSIONS, REST, axes as eye_axes,
+                 font_b64, mark_css, mark_svg)  # noqa: E402
 
 
 MAX_GRID = 8000   # px per side; Chrome will go further, but not happily
@@ -70,34 +71,55 @@ OUT = ROOT / "build" / "eye"
 
 # Chains worth having to hand. Named so they can be asked for by intent rather
 # than reconstructed from memory every time.
+# Chains carry their own pace. Timing is part of an emotion, not a global
+# setting: a double take that eases like a sign-off is not a double take, and
+# deadpan is funny precisely because nothing happens quickly.
+#
+#   hold/trans  seconds, overriding the defaults
+#   jitter      iris tremor amplitude in viewBox units. Small and fast; this is
+#               the difference between angry and merely squinting.
+#
+# A step is an expression name, or a dict of axis overrides for a waypoint that
+# does not deserve a name of its own — which is how the eye roll is built.
 CHAINS = {
-    # Named for the moment they serve, not the expressions they contain — the
-    # point of having them is to ask for a beat rather than reconstruct one.
-    "blink":       (["attentive", "attentive"], "Just a blink. Pure filler, loops."),
-    "listen":      (["attentive", "curious", "attentive"], "Workhorse cutaway. Loops."),
-    "idle":        (["attentive", "curious", "thinking", "attentive"], "Longer filler. Loops."),
-    "intro":       (["asleep", "attentive", "curious"], "Wake up and pay attention. Opening title."),
-    "startle":     (["asleep", "surprised", "attentive"], "Woken suddenly. Good for going live."),
-    "consider":    (["attentive", "thinking", "sceptical"], "Weighing a claim."),
-    "concede":     (["sceptical", "thinking", "attentive"], "Coming round. The reverse of consider."),
-    "doubt":       (["attentive", "sceptical"], "Into a steel-man beat."),
-    "unconvinced": (["curious", "sceptical", "unimpressed"], "Doubt hardening."),
-    "scrutinise":  (["curious", "scrutiny"], "Going into the technical section."),
-    "reveal":      (["scrutiny", "surprised", "attentive"], "Found something."),
-    "doubletake":  (["attentive", "surprised", "scrutiny", "surprised"], "Comedy. Did that say what I think."),
-    "deadpan":     (["attentive", "unimpressed"], "Comedy beat."),
-    "lose-interest": (["attentive", "thinking", "asleep"], "Drifting off. The Docker Hub beat."),
-    "hardno":      (["curious", "scrutiny", "unimpressed", "closed"], "A rejection, in four steps."),
-    "signoff":     (["attentive", "thinking", "closed"], "End card."),
-    "sleep":       (["attentive", "asleep"], "Into the standby card."),
+    "blink":       dict(seq=["attentive", "attentive"], note="Just a blink. Loops."),
+    "listen":      dict(seq=["attentive", "curious", "attentive"], note="Workhorse cutaway. Loops."),
+    "idle":        dict(seq=["attentive", "curious", "thinking", "attentive"], note="Longer filler. Loops."),
+    "intro":       dict(seq=["asleep", "attentive", "alert"], note="Wake and focus. Opening title."),
+    "startle":     dict(seq=["asleep", "surprised", "alert"], hold=0.30, trans=0.14,
+                        jitter=0.9, note="Woken suddenly. Fast, with a tremor."),
+    "consider":    dict(seq=["attentive", "thinking", "wry"], trans=0.46,
+                        note="Weighing it, and landing somewhere knowing."),
+    "concede":     dict(seq=["sceptical", "closed", "amused"], trans=0.30,
+                        note="Resistance, a beat shut, then warmth. Concession needs the beat."),
+    "doubt":       dict(seq=["attentive", "sceptical"], trans=0.26, note="One sharp turn into doubt."),
+    "unconvinced": dict(seq=["curious", "sceptical", "unimpressed"], note="Doubt hardening."),
+    "eyeroll":     dict(seq=["attentive", dict(ix=7, iy=-9), dict(ix=0, iy=-11),
+                             dict(ix=-8, iy=-7), "unimpressed"],
+                        hold=0.10, trans=0.16, note="Up, over and back down. Lands deadpan."),
+    "scrutinise":  dict(seq=["curious", "scrutiny"], note="Into the technical section."),
+    "reveal":      dict(seq=["scrutiny", "surprised", "alert"], trans=0.22,
+                        note="Found something. Quick."),
+    "doubletake":  dict(seq=["attentive", "surprised", "scrutiny", "surprised"],
+                        hold=0.26, trans=0.15, note="Did that say what I think. Fast."),
+    "deadpan":     dict(seq=["attentive", "unimpressed"], hold=1.10, trans=0.60,
+                        note="Comedy beat. The stillness is the joke."),
+    "lose-interest": dict(seq=["attentive", "curious", "unimpressed", "asleep"],
+                          hold=0.60, trans=0.55,
+                          note="Attention wanders, then droops. Not the same as going to sleep."),
+    "hardno":      dict(seq=["curious", "angry", "angry"], hold=0.34, trans=0.16,
+                        jitter=1.1, note="A refusal, with the hat down and a tremor."),
+    "signoff":     dict(seq=["attentive", "amused", "closed"], note="End card, on a warm note."),
+    "sleep":       dict(seq=["attentive", "asleep"], trans=0.55, note="Into the standby card."),
 }
 
-AXES = ("lid_top", "lid_bottom", "iris_x", "iris_y", "pupil_s")
 
 
-def axes(name):
-    lt, lb, ix, iy, ps, _ = EXPRESSIONS[name]
-    return dict(lid_top=lt, lid_bottom=lb, iris_x=ix, iris_y=iy, pupil_s=ps)
+def step_axes(step):
+    """A chain step is an expression name, or a dict of overrides on rest."""
+    if isinstance(step, str):
+        return eye_axes(step)
+    return {**REST, **step}
 
 
 def ease(t):
@@ -115,15 +137,19 @@ def blink_shape(t):
     return math.sin(math.pi * t) ** 0.7
 
 
-def timeline(chain, fps, hold, trans, blink):
-    """Every frame's five numbers, in order."""
+def timeline(chain, fps, hold, trans, blink, jitter=0.0):
+    """Every frame's axis values, in order.
+
+    `jitter` adds a fast, small iris tremor. It runs at a fixed frequency
+    rather than per-frame noise, which would read as the rasterisation fault
+    this tool spent a while removing rather than as a deliberate shake."""
     frames = []
     hold_n, trans_n = max(1, round(hold * fps)), max(2, round(trans * fps))
     for i, name in enumerate(chain):
-        a = axes(name)
+        a = step_axes(name)
         frames += [dict(a) for _ in range(hold_n)]
         if i + 1 < len(chain):
-            b = axes(chain[i + 1])
+            b = step_axes(chain[i + 1])
             for f in range(1, trans_n):
                 t = ease(f / trans_n)
                 fr = lerp(a, b, t)
@@ -131,15 +157,20 @@ def timeline(chain, fps, hold, trans, blink):
                     # Drive the upper lid shut and back rather than adding to
                     # it, or an already-lowered lid overshoots past closed.
                     s = blink_shape(f / trans_n)
-                    fr["lid_top"] = fr["lid_top"] * (1 - s) + 1.0 * s
+                    fr["lt"] = fr["lt"] * (1 - s) + 1.0 * s
                 frames.append(fr)
+    if jitter:
+        for i, fr in enumerate(frames):
+            ph = i / max(1, fps) * 17.0 * 2 * math.pi
+            fr["ix"] += jitter * math.sin(ph)
+            fr["iy"] += jitter * 0.55 * math.sin(ph * 1.7 + 1.1)
     return frames
 
 
 def style(fr):
     """Lids are geometry now, so only the transform axes come through here."""
-    return (f"--iris-x:{fr['iris_x']:.3f}; --iris-y:{fr['iris_y']:.3f}; "
-            f"--pupil-s:{fr['pupil_s']:.4f};")
+    return (f"--iris-x:{fr['ix']:.3f}; --iris-y:{fr['iy']:.3f}; "
+            f"--pupil-s:{fr['ps']:.4f};")
 
 
 def sheet_html(frames, theme, cell, glow):
@@ -147,7 +178,7 @@ def sheet_html(frames, theme, cell, glow):
     cols = math.ceil(math.sqrt(len(frames)))
     rows = math.ceil(len(frames) / cols)
     cells = "".join(f'<i style="{style(f)}">'
-                f'{mark_svg(f["lid_top"], f["lid_bottom"])}</i>' for f in frames)
+                f'{mark_svg(f["lt"], f["lb"], f["tilt"], f["hat"])}</i>' for f in frames)
     return f"""<!doctype html><meta charset="utf-8"><title>frames</title>
 <style>
 @font-face {{ font-family:'Newsreader';
@@ -320,18 +351,21 @@ def main():
     if a.list_chains or not (a.chain or a.all):
         w = max(len(k) for k in CHAINS)
         print("named chains:")
-        for k, (seq, note) in CHAINS.items():
-            print(f"  {k:<{w}}  {' → '.join(seq):<46} {note}")
+        for k, c in CHAINS.items():
+            seq = " → ".join(x if isinstance(x, str) else "·" for x in c["seq"])
+            pace = "".join(f" {n}={c[n]}" for n in ("hold", "trans", "jitter") if n in c)
+            print(f"  {k:<{w}}  {seq:<44}{pace:<26} {c['note']}")
         print("\nexpressions:", ", ".join(EXPRESSIONS))
         return 0
 
     if a.all:
-        jobs = [(k, seq) for k, (seq, _) in CHAINS.items()]
+        jobs = [(k, c) for k, c in CHAINS.items()]
     elif len(a.chain) == 1 and a.chain[0] in CHAINS:
-        jobs = [(a.chain[0], CHAINS[a.chain[0]][0])]
+        jobs = [(a.chain[0], CHAINS[a.chain[0]])]
     else:
-        jobs = [("-".join(a.chain), a.chain)]
-    bad = sorted({c for _, seq in jobs for c in seq if c not in EXPRESSIONS})
+        jobs = [("-".join(a.chain), dict(seq=list(a.chain)))]
+    bad = sorted({x for _, c in jobs for x in c["seq"]
+                  if isinstance(x, str) and x not in EXPRESSIONS})
     if bad:
         print(f"unknown expression: {', '.join(bad)}", file=sys.stderr)
         return 2
@@ -340,11 +374,15 @@ def main():
     suffix = "" if theme == "noir" else "-newsprint"
     made = []
 
-    for slug, chain in jobs:
+    for slug, conf in jobs:
+        chain = conf["seq"]
+        hold = conf.get("hold", a.hold)
+        trans = conf.get("trans", a.trans)
+        jit = conf.get("jitter", 0.0)
         # Sub-frames are just a timeline at blur x the rate; averaging groups
         # of `blur` back down is what turns per-frame antialiasing into motion
         # blur, and with it the edge crawl into smooth movement.
-        frames = timeline(chain, a.fps * a.blur, a.hold, a.trans, a.blink)
+        frames = timeline(chain, a.fps * a.blur, hold, trans, a.blink, jit)
 
         d = OUT / f"{slug}{suffix}"
         if d.exists():
