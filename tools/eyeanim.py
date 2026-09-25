@@ -186,63 +186,48 @@ def merge(ims):
     return Image.fromarray(out, "RGBA")
 
 
-def render_frames(frames, theme, cell, glow, ss, frames_dir, tmp, blur=1):
-    """Frames to disk, in as few Chrome launches as the grid limit allows.
+def render_frames(frames, theme, cell, glow, ss, frames_dir, tmp, blur=1, jobs=8):
+    """One Chrome launch per sub-frame, run in parallel.
 
-    One launch per frame is most of a minute of process spawning for a two
-    second clip. One launch for everything stops working the moment a cell is
-    big enough to be useful in a timeline: 65 frames at 1080px is a 9720px
-    grid before supersampling. So: as many frames per launch as fit, then the
-    next batch."""
+    This began as one launch for the whole animation, laid out as a grid and
+    sliced — ninety frames through ninety launches is most of a minute of
+    process spawning. That optimisation was the direct cause of the flicker it
+    was meant to help. Identical SVG in two cells of the *same* screenshot
+    rasterises differently (948px of 360x360 differ, at full contrast), while
+    the same content in two *separate* launches is bit-identical. So every
+    static edge — the hat, which does not move at all — shimmered frame to
+    frame for free.
+
+    The arrangement does not matter: a single column still diverges. Only one
+    frame per launch is stable. The cost comes back through parallelism
+    instead, which is free correctness-wise and suits a 32-core desk.
+    """
+    from concurrent.futures import ThreadPoolExecutor
     from PIL import Image
-    phys = cell * ss
-    per_side = max(1, MAX_GRID // phys)
-    per_chunk = max(1, per_side * per_side)
-    rendered, n = [], 0
 
+    def one(idx_frame):
+        i, fr = idx_frame
+        html, _, _ = sheet_html([fr], theme, cell, glow)
+        out = tmp.parent / f"_sub_{i:05d}.png"
+        render_alpha(html, out, cell, cell, ss)
+        im = Image.open(out).convert("RGBA")
+        if ss != 1:
+            im = im.resize((cell, cell), Image.LANCZOS)
+        im.load()
+        out.unlink(missing_ok=True)
+        return i, im
 
-    for start in range(0, len(frames), per_chunk):
-        chunk = frames[start:start + per_chunk]
-        html, cols, rows = sheet_html(chunk, theme, cell, glow)
-        render_alpha(html, tmp, cols * cell, rows * cell, ss)
-        im = Image.open(tmp).convert("RGBA")
-        for i in range(len(chunk)):
-            x, y = (i % cols) * phys, (i // cols) * phys
-            cellim = im.crop((x, y, x + phys, y + phys))
-            if ss != 1:
-                cellim = cellim.resize((cell, cell), Image.LANCZOS)
-            rendered.append(cellim)
-            while len(rendered) >= blur:
-                out = rendered[0] if blur == 1 else merge(rendered[:blur])
-                del rendered[:blur]
-                out.save(frames_dir / f"f_{n:04d}.png")
-                n += 1
-    tmp.unlink(missing_ok=True)
+    subs = {}
+    with ThreadPoolExecutor(max_workers=jobs) as ex:
+        for i, im in ex.map(one, enumerate(frames)):
+            subs[i] = im
+
+    n = 0
+    for start in range(0, len(frames) - blur + 1, blur):
+        group = [subs[start + k] for k in range(blur)]
+        (group[0] if blur == 1 else merge(group)).save(frames_dir / f"f_{n:04d}.png")
+        n += 1
     return n
-
-
-def encode(frames_dir, n, fps, fmt, slug):
-    """ffmpeg if it is here, APNG via Pillow if it is not. The PNG sequence is
-    the deliverable either way — this is the convenience layer."""
-    src = str(frames_dir / "f_%04d.png")
-    ff = shutil.which("ffmpeg")
-    if not ff:
-        return None, ("ffmpeg not installed — PNG sequence only. "
-                      "`sudo apt install ffmpeg` to get video.")
-    recipes = {
-        # VP9 with alpha. Plays in browsers and OBS, keeps transparency.
-        "webm": ["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-b:v", "0", "-crf", "28"],
-        # ProRes 4444. What an NLE actually wants for an alpha overlay.
-        "mov":  ["-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le"],
-        # Flattened. Preview only — no alpha, so it carries the theme background.
-        "mp4":  ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18"],
-    }
-    out = frames_dir.parent / f"{slug}.{fmt}"
-    cmd = [ff, "-y", "-framerate", str(fps), "-i", src, *recipes[fmt], str(out)]
-    r = subprocess.run(cmd, capture_output=True)
-    if r.returncode != 0:
-        return None, r.stderr.decode()[-400:]
-    return out, None
 
 
 def contact_sheet(made, theme, per_row=9, cell=118):
@@ -301,6 +286,8 @@ def main():
     ap.add_argument("--all", action="store_true", help="render every named chain")
     ap.add_argument("--contact", action="store_true",
                     help="one filmstrip row per chain, for reviewing a batch")
+    ap.add_argument("--jobs", type=int, default=8,
+                    help="parallel Chrome launches")
     ap.add_argument("--list-chains", action="store_true")
     a = ap.parse_args()
 
@@ -339,7 +326,7 @@ def main():
         (d / "frames").mkdir(parents=True)
 
         n = render_frames(frames, theme, a.size, a.glow, a.ss,
-                          d / "frames", d / "_grid.png", a.blur)
+                          d / "frames", d / "_grid.png", a.blur, a.jobs)
         made.append((slug, d, n))
 
         line = (f"{d.relative_to(ROOT)}/frames/  {n} frames  "
