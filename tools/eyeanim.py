@@ -457,13 +457,20 @@ def contact_sheet(made, theme, per_row=9, cell=118):
     return f"{out.relative_to(ROOT)}  {len(made)} chains"
 
 
-def build_reel(theme, cell, fps, blur, ss, blink, jobs, hold_ends=0.9):
+def build_reel(theme, cell, fps, blur, ss, blink, jobs,
+               hold_ends=0.56, ease_ends=0.34):
     """Every chain end to end, labelled, as one flattened video for review.
 
-    Each clip is bracketed by a longer hold on its first and last frame:
-    reviewing a cut of eighteen animations, the hardest part is telling where
-    one stops and the next begins, and a still moment does that better than a
-    caption change.
+    Each clip is bracketed by a hold on its first and last frame: reviewing a
+    cut of eighteen animations, the hardest part is telling where one ends and
+    the next begins, and a still moment does that better than a caption change.
+
+    Around those holds, every clip eases out of and back into the default pose,
+    so consecutive clips meet at the same state instead of cutting between two
+    different ones. Without it the reel snaps — from a closed eye straight to a
+    sleeping one, from deadpan straight to a stare — and every join reads as a
+    glitch in the animation rather than the edit it is. The ease is taken out
+    of the hold rather than added to it, so the reel keeps its length.
 
     Flattened on purpose — this is for watching, not compositing."""
     from concurrent.futures import ThreadPoolExecutor
@@ -474,13 +481,17 @@ def build_reel(theme, cell, fps, blur, ss, blink, jobs, hold_ends=0.9):
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True)
     pad_n = max(1, round(hold_ends * fps * blur))
+    ease_n = max(2, round(ease_ends * fps * blur))
+    home = eye_axes("attentive")
 
-    jobs_list, n_out = [], 0
+    jobs_list = []
     for slug, c in CHAINS.items():
         fr = timeline(c["seq"], fps * blur, c.get("hold", 0.5),
                       c.get("trans", 0.38), blink, c.get("jitter", 0.0),
                       c.get("roll"))
-        fr = [fr[0]] * pad_n + fr + [fr[-1]] * pad_n
+        lead = [lerp(home, fr[0], ease(i / ease_n)) for i in range(ease_n)]
+        tail = [lerp(fr[-1], home, ease(i / ease_n)) for i in range(1, ease_n + 1)]
+        fr = lead + [fr[0]] * pad_n + fr + [fr[-1]] * pad_n + tail
         for f in fr:
             jobs_list.append((slug, f))
 
