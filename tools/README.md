@@ -1,6 +1,7 @@
 # tools
 
-Everything that draws the brand, plus one script that checks handles.
+Everything that draws the brand, one script that cuts up the theme music, and
+one that checks handles.
 
 | | |
 |---|---|
@@ -9,6 +10,7 @@ Everything that draws the brand, plus one script that checks handles.
 | `show.py` | The show's furniture — cover art, cards, thumbnail, 9:16 plate. |
 | `eyeanim.py` | The mark moving: expression chains as frames and video. |
 | `portraits.py` | Contributor portraits, toned to one ink/paper ramp. |
+| `score.py` | Bar ranges out of the theme, as standalone MusicXML. |
 | `handle-probe.sh` | Handle availability. Nothing to do with the rest. |
 
 Everything is rendered through headless Chrome against the real stylesheet
@@ -53,6 +55,18 @@ iris tremor; `roll` replaces a transition with a continuous arc.
 ./tools/eyeanim.py --reel --blink         # all 18 end to end, for watching
 ./tools/eyeanim.py --all --blink          # all 18 as alpha video
 ```
+
+The theme is one 26-bar score; the show needs six sounds out of it.
+
+```sh
+./tools/score.py theme.mxl sting.musicxml --bars 5-7 --truncate 1
+./tools/score.py theme.mxl bed.musicxml   --bars 1-2 --parts 'Acoustic Bass'
+./tools/score.py theme.mxl outro.musicxml --bars 19-26 --title 'AgentSee — outro'
+```
+
+`--truncate 1` keeps the first beat of the last bar and fills the rest with
+rests, which is how a sting lands: on a downbeat, then out of the way. Like
+`portraits.py`, the source is not in the repo — pass your own `.mxl`.
 
 Defaults are final quality: 1080px, `--ss 2`, `--blur 3`, ProRes 4444 with
 alpha. For iterating, `--size 540 --blur 1 --ss 1 --format none` is roughly
@@ -101,6 +115,29 @@ the two cross. Both lids are pinned at the canthi and only their middles move.
 and the glint, because a lid is a lit surface and its meaning is its lightness
 rather than its role. Filled with `paper` it vanishes in noir; filled with
 `ink` it becomes a black bar on newsprint.
+
+**MusicXML states the important things exactly once.** `divisions`, `key`,
+`time`, `clef` and `transpose` appear in bar 1 and are assumed ever after. Cut
+bars 19-26 out on their own and the result is a well-formed file that opens
+without complaint and plays at the wrong speed, in the wrong key, an octave
+out — because the bass's `transpose` went with bar 1. The last written dynamic
+has the same shape of problem. `score.py` walks the bars ahead of the range to
+collect all of it.
+
+**`divisions` is not 4.** It is whatever the score says — 6 in this one. Any
+arithmetic that assumes ticks-per-quarter passes its tests on a score that
+happens to agree and is wrong on the next one.
+
+**Find the title credit by its `credit-type`.** MusicXML holds the title
+twice, as metadata and as engraved text, and the engraved one is a
+`credit-words` among others. Every heuristic for picking it out — longest
+string, first on the page, above some font size — also matches the composer
+credit, so retitling an excerpt quietly took the composer's name off the page.
+
+**Export MusicXML, not MIDI.** MIDI drops enharmonic spelling, so D♯ comes
+back as E♭ and the key stops making sense on the page. It also drops
+articulations, the distinction between a slur and a tie, dynamics as marks
+rather than velocities, and written-versus-sounding transposition.
 
 **Pace is not part of the path.** Build lingering as literal holds and the
 movement stops dead; no amount of smoothing bridges a pause thirty frames wide.
