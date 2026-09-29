@@ -36,6 +36,14 @@ import zipfile
 # to be carried forward into an excerpt or the excerpt is silently wrong.
 CARRIED = ("divisions", "key", "time", "clef", "transpose", "staff-details")
 
+# Tone-colour and playing-technique marks persist until cancelled, so an
+# excerpt starting after one has to inherit it — same problem as dynamics.
+TECHNIQUE = {"sul tasto", "tasto", "dolce", "sul ponticello", "sul pont.",
+             "ponticello", "pont.", "pont", "metallico", "metal.",
+             "pizz.", "pizzicato", "arco", "con sordino", "senza sordino"}
+CANCEL = {"ord.", "ordinario", "modo ordinario", "nat.", "naturale", "natural",
+          "normale", "pos. nat.", "sonido natural"}
+
 # Rest durations in quarter notes, longest first — used to pad a truncated bar.
 REST_TYPES = (("whole", 4), ("half", 2), ("quarter", 1),
               ("eighth", .5), ("16th", .25), ("32nd", .125))
@@ -67,6 +75,46 @@ def single_type(ticks, div):
         if ticks == beats * div:
             return name
     return None
+
+
+def classify_first(measure):
+    """Whether this measure already opens with a technique mark of its own."""
+    for d in measure.findall("direction"):
+        if classify(d) in ("technique", "cancel"):
+            return "technique"
+    return None
+
+
+def classify(direction):
+    """What kind of persistent state this direction sets, if any."""
+    if direction.find(".//dynamics") is not None:
+        return "dynamics"
+    if direction.find(".//metronome") is not None or \
+       direction.find("sound[@tempo]") is not None:
+        return "tempo"
+    words = " ".join(w.text or "" for w in direction.iter("words")).strip().lower()
+    if words in CANCEL:
+        return "cancel"
+    if words in TECHNIQUE:
+        return "technique"
+    return None
+
+
+def tempo_before(root, first):
+    """The last tempo direction at or before bar `first`, from any part.
+
+    MuseScore writes tempo into the first part only, so a bass-only excerpt
+    has to look outside the part it keeps or it renders at the default 120.
+    """
+    found = None
+    for part in root.findall("part"):
+        for m in part.findall("measure"):
+            if int(m.get("number")) > first:
+                break
+            for d in m.findall("direction"):
+                if classify(d) == "tempo":
+                    found = copy.deepcopy(d)
+    return found
 
 
 def tempo_of(root):
@@ -134,6 +182,10 @@ def truncate_bar(measure, beat, div, beats, beat_type):
 def excerpt(root, first, last, keep_parts=None, truncate_beat=None, title=None):
     out = copy.deepcopy(root)
     beats, beat_type = metre_of(out)
+    # Always, even from bar 1: MuseScore writes tempo into the first part only,
+    # so a bass-only excerpt needs it injected however early it starts.
+    tempo = tempo_before(out, first)
+    tempo_placed = False
 
     if title:
         # The title lives in two places: work-title metadata, and engraved
@@ -166,7 +218,7 @@ def excerpt(root, first, last, keep_parts=None, truncate_beat=None, title=None):
             continue
 
         # Walk everything before the range, remembering what it established.
-        state, dynamics, div = {}, None, 1
+        state, dynamics, technique, div = {}, None, None, 1
         for m in part.findall("measure"):
             if int(m.get("number")) >= first:
                 break
@@ -178,8 +230,13 @@ def excerpt(root, first, last, keep_parts=None, truncate_beat=None, title=None):
                 if a.findtext("divisions"):
                     div = int(a.findtext("divisions"))
             for d in m.findall("direction"):
-                if d.find(".//dynamics") is not None:
+                kind = classify(d)
+                if kind == "dynamics":
                     dynamics = copy.deepcopy(d)
+                elif kind == "technique":
+                    technique = copy.deepcopy(d)
+                elif kind == "cancel":
+                    technique = None          # back to ordinario; nothing to carry
         for m in part.findall("measure"):    # divisions may only appear later
             if m.findtext(".//divisions"):
                 div = int(m.findtext(".//divisions"))
@@ -201,6 +258,13 @@ def excerpt(root, first, last, keep_parts=None, truncate_beat=None, title=None):
         for tag in CARRIED:
             if tag in state and attrs.find(tag) is None:
                 attrs.append(state[tag])
+        if any(classify(d) == "tempo" for d in kept[0].findall("direction")):
+            tempo_placed = True               # this part already states it
+        elif tempo is not None and not tempo_placed:
+            kept[0].insert(0, tempo)          # once only, or both staves show it
+            tempo_placed = True
+        if technique is not None and classify_first(kept[0]) != "technique":
+            kept[0].insert(1, technique)
         if dynamics is not None and kept[0].find(".//dynamics") is None:
             kept[0].insert(1, dynamics)
 
