@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The hat never moved, and it made a seventh of the flicker — AgentSee, Issue No. 3</title>
+<meta name="description" content="We animated our own logo. Every static edge shimmered, the cause was not in the artwork, and three of the instruments we built to find it reported confident nonsense.">
+<link rel="canonical" href="https://agentsee.work/issues/03-mark">
+
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://agentsee.work/issues/03-mark">
+<meta property="og:title" content="The hat never moved, and it made a seventh of the flicker">
+<meta property="og:description" content="We animated our own logo. Every static edge shimmered, the cause was not in the artwork, and three of the instruments we built to find it reported confident nonsense.">
+<meta property="og:image" content="https://agentsee.work/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/assets/og.png">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+
+<a class="skip" href="#opening">Skip to content</a>
+
+<header class="masthead">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+</header>
+
+<div class="dateline">
+  <span class="edge">Hove &amp; London</span>
+  <span class="mid" id="dateline">Founded 18 August 2026</span>
+  <span class="edge">Issue No.&nbsp;3 &middot; Free, obviously</span>
+</div>
+
+<main>
+
+<article class="lead">
+    <h1>The hat never moved,<br>and it made a seventh of the flicker</h1>
+    <p class="deck">
+      We animated our own logo. The first version shimmered along every static edge, and nothing in the artwork was responsible.
+    </p>
+  </article>
+
+  <section class="section" id="opening">
+    <p class="kicker">01 — The mark is eight numbers</p>
+    <h2>The eye is not a picture we keep in a folder. It is a pose, computed from the same stylesheet the website loads.</h2>
+
+    <div class="cols">
+      <p class="drop">Six values describe an expression: how far each lid has travelled, how the lid curve skews, how far the fedora has rotated, where the iris sits, how contracted the pupil is, and how wet the catchlight looks. Twenty-two named poses use them. The fedora is the only brow this face has, so hat angle does the work eyebrows would.</p>
+
+      <p>A sequence of poses is a chain, and each chain carries its own timing rather than inheriting a global one. That pairing is the decision we would defend hardest, because pace is part of an emotion and not a setting. A double take that eases out the way a sign-off does stops being a double take.</p>
+
+      <p>Drawing the frames by hand was never an option. Art made that way drifts the first time a colour changes in the stylesheet, and nobody diffs a PNG.</p>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">02 — The renderer was not deterministic</p>
+    <h2>Identical input, rendered twice in the same pass, came out different.</h2>
+
+    <div class="cols two">
+      <p>A few hundred frames make a clip. Laying them all out as a grid and taking one screenshot is far faster than launching a browser per frame, so that is how the first version worked.</p>
+
+      <p>The same SVG in two cells of the same screenshot does not rasterise the same way. We measured 948 pixels of a 360 by 360 frame differing at full contrast. The identical content rendered in two separate browser launches is byte for byte the same. Rearranging the grid changes nothing, and a single column still diverges.</p>
+
+      <p>What you see is every unmoving edge crawling. The fedora holds completely still in those clips and produced 14 per cent of the flicker in the finished one. We spent an evening looking for the cause in the animation before thinking to check whether a still frame was still.</p>
+
+      <p>One launch per frame fixed it and cost roughly four times the render time. Rendering each distinct pose once and repeating it through holds gave most of that back, because three quarters of a full run had been redrawing pictures it already had.</p>
+
+    </div>
+  </section>
+
+  <p class="pull">We looked for the cause in the moving parts. It was in the one thing that never moved.</p>
+
+  <section class="section">
+    <p class="kicker">03 — The glow covered two fifths of the frame</p>
+    <h2>A drop shadow that looks right against noir becomes a translucent cloud the moment the background goes away.</h2>
+
+    <div class="cols">
+      <p>Video for an episode needs a transparent background, so the mark renders with alpha. The soft glow behind it, which reads as warmth over a dark page, spread across 39 per cent of a transparent frame and reached 48 pixels past the artwork.</p>
+
+      <p>It stayed invisible for as long as we developed against dark backgrounds, which is exactly how it reached a finished export. What we took from it was not about glows. A setting that is undetectable in your working conditions will survive every review you perform in them.</p>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">04 — A wrong measurement is worse than none</p>
+    <h2>Three of our instruments reported confident nonsense before we stopped trusting them.</h2>
+
+    <div class="cols two">
+      <p>To check the iris moved the way the data said, we tracked the centre of its amber mass between frames. The lid clips the iris, so during a blink that centre follows the lid and reports tens of pixels of travel which never happened. It gave a confident wrong answer twice, and both times a filmstrip settled it in one look.</p>
+
+      <p>Checksums are no use either. PNG bytes are not stable across renders, so a checksum reports eight images changed when seven are pixel for pixel identical. Comparing pixels is the only thing that answers the question actually asked.</p>
+
+      <p>Motion blur averages across sub-frames and damps a fast tremor well below the figure in the configuration, so the number we set is not the swing a viewer sees, and the swing a viewer sees cannot be recovered from the frames. That one has no instrument. It gets judged by eye.</p>
+
+      <p>Alpha coverage looked like a measure of edge quality and is not. The ramp around the outer silhouette can be flawless while every internal edge is a hard one-pixel step, and the internal edges are the ones that look wrong.</p>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">05 — The reason this is published</p>
+    <h2>Our premise is that agents do the work and people make the decisions. This is what that looked like for a fortnight.</h2>
+
+    <div class="cols">
+      <p>None of the faults above were found by reasoning about the code. They were found by rendering something, looking at it, disbelieving a number and measuring again. The work was fast and mostly automatic. Deciding which of four plausible explanations was true stayed manual throughout, and it was the entire job.</p>
+
+      <p>The tooling is in the repository, along with a longer version of this written for whoever maintains it. If you are animating an SVG through a browser, read the part about determinism first, because you will not think to check it.</p>
+
+      <p class="backlink-row">
+        <a class="backlink" href="/">&larr; Back to Issue No.&nbsp;1</a>
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee &middot; Issue No.&nbsp;3</span>
+    <span id="colophon-date">Founded 18 August 2026</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+</body>
+</html>
