@@ -24,7 +24,11 @@ Usage:
     python3 tools/cues.py masters/ -o delivery/ --bed-lufs -28
     python3 tools/cues.py masters/ --dry-run
 
-Needs ffmpeg on PATH. Reads any format ffmpeg reads, writes 48 kHz 24-bit WAV.
+Needs ffmpeg on PATH. Reads any format ffmpeg reads, writes 24-bit WAV at
+--rate, which defaults to 48 kHz because that is what video wants. Any
+resampling is reported rather than done quietly: if a cue is going to be
+looped, cut the loop *after* resampling, since a resampler has no data beyond
+the file's edges and the ends are exactly where a loop joins.
 """
 
 import argparse
@@ -77,11 +81,22 @@ def peak_dbfs(path):
     return float(hit.group(1)) if hit else None
 
 
-def write(path, out, filt):
-    subprocess.run(
-        ["ffmpeg", "-nostdin", "-y", "-i", str(path), "-af", filt,
-         "-ar", "48000", "-c:a", "pcm_s24le", str(out)],
-        capture_output=True, text=True, check=True)
+def ffprobe_rate(path):
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "a:0",
+         "-show_entries", "stream=sample_rate", "-of", "default=nw=1:nk=1",
+         str(path)], capture_output=True, text=True, check=True)
+    return int(out.stdout.strip())
+
+
+def write(path, out, filt, rate):
+    cmd = ["ffmpeg", "-nostdin", "-y", "-i", str(path), "-af", filt]
+    if rate:
+        # soxr rather than the default resampler: 44.1 -> 48 is 160:147, an
+        # awkward ratio, and this is the one place quality is free.
+        cmd += ["-ar", str(rate), "-resampler", "soxr", "-precision", "28"]
+    cmd += ["-c:a", "pcm_s24le", str(out)]
+    subprocess.run(cmd, capture_output=True, text=True, check=True)
 
 
 def main():
@@ -96,6 +111,8 @@ def main():
                     help="target for anything named *bed* (default: -30)")
     ap.add_argument("--tp", type=float, default=-1.0,
                     help="true-peak ceiling in dBTP (default: -1)")
+    ap.add_argument("--rate", type=int, default=48000,
+                    help="output sample rate (default: 48000; 0 keeps the input's)")
     ap.add_argument("--dry-run", action="store_true",
                     help="measure and report, write nothing")
     a = ap.parse_args()
@@ -114,6 +131,7 @@ def main():
     if not a.dry_run:
         out_dir.mkdir(parents=True, exist_ok=True)
 
+    resampled = []
     print(f"{'cue':28} {'role':5} {'secs':>5} {'in LUFS':>8} "
           f"{'target':>7} {'out':>7}  note")
     for f in files:
@@ -121,12 +139,15 @@ def main():
         target = a.bed_lufs if role == "bed" else a.lufs
         secs = ffprobe_duration(f)
         out = out_dir / (f.stem + ".wav")
+        in_rate = ffprobe_rate(f)
+        if a.rate and in_rate != a.rate:
+            resampled.append((f.name, in_rate))
 
         if secs < MIN_DURATION:
             pk = peak_dbfs(f)
             gain = SHORT_PEAK_DBFS - pk if pk is not None else 0.0
             if not a.dry_run:
-                write(f, out, f"volume={gain:+.2f}dB")
+                write(f, out, f"volume={gain:+.2f}dB", a.rate)
             print(f"{f.name:28} {role:5} {secs:>5.1f} {'peak':>8} "
                   f"{SHORT_PEAK_DBFS:>6.1f}dB {pk + gain:>6.1f}dB  "
                   f"too short to gate; peak-normalised")
@@ -142,15 +163,22 @@ def main():
                 f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:"
                 f"offset={m['target_offset']}")
         if not a.dry_run:
-            write(f, out, filt)
+            write(f, out, filt, a.rate)
         print(f"{f.name:28} {role:5} {secs:>5.1f} {float(m['input_i']):>8.1f} "
               f"{target:>7.1f} {float(m['output_i']):>7.1f}  "
               f"TP {float(m['output_tp']):+.1f} dBTP")
 
+    if resampled:
+        print(f"\nRESAMPLED to {a.rate} Hz:")
+        for name, r in resampled:
+            print(f"  {name} was {r} Hz")
+        print("  If any of these get looped, cut the loop from the resampled\n"
+              "  file, not the master — a resampler has nothing beyond the\n"
+              "  file's edges and that is where a loop joins.")
     if a.dry_run:
         print("\n(dry run — nothing written)")
     else:
-        print(f"\nwrote 48 kHz 24-bit WAV to {out_dir}/")
+        print(f"\nwrote {a.rate or 'source-rate'} 24-bit WAV to {out_dir}/")
 
 
 if __name__ == "__main__":
