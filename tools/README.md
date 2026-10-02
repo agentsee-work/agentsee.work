@@ -1,7 +1,7 @@
 # tools
 
-Everything that draws the brand, one script that cuts up the theme music, and
-one that checks handles.
+Everything that draws the brand, two scripts for the theme music, and one
+that checks handles.
 
 | | |
 |---|---|
@@ -11,6 +11,7 @@ one that checks handles.
 | `eyeanim.py` | The mark moving: expression chains as frames and video. |
 | `portraits.py` | Contributor portraits, toned to one ink/paper ramp. |
 | `score.py` | Bar ranges out of the theme, as standalone MusicXML. |
+| `cues.py` | Rendered cues normalised to consistent levels. |
 | `handle-probe.sh` | Handle availability. Nothing to do with the rest. |
 
 Everything is rendered through headless Chrome against the real stylesheet
@@ -68,6 +69,19 @@ The theme is one 26-bar score; the show needs six sounds out of it.
 rests, which is how a sting lands: on a downbeat, then out of the way. Like
 `portraits.py`, the source is not in the repo — pass your own `.mxl`.
 
+Once the cues are recorded and exported, `cues.py` sets their levels:
+
+```sh
+./tools/cues.py masters/ --dry-run        # measure everything, write nothing
+./tools/cues.py masters/ -o delivery/     # 48 kHz 24-bit WAV, levelled
+./tools/cues.py masters/ -o delivery/ --bed-lufs -28
+```
+
+It targets −16 LUFS for cues that play alone and −30 for anything with `bed`
+in its name, because a bed plays under speech and has to sit below it. The gap
+is the point: setting it by ear per episode is how a show ends up burying the
+dialogue one week and losing the music the next.
+
 Defaults are final quality: 1080px, `--ss 2`, `--blur 3`, ProRes 4444 with
 alpha. For iterating, `--size 540 --blur 1 --ss 1 --format none` is roughly
 twenty times faster and fine for judging a pose or a path. Do not judge edge
@@ -115,6 +129,17 @@ the two cross. Both lids are pinned at the canthi and only their middles move.
 and the glint, because a lid is a lit surface and its meaning is its lightness
 rather than its role. Filled with `paper` it vanishes in noir; filled with
 `ink` it becomes a black bar on newsprint.
+
+**Audacity has no CLI, and Audacity 4 has less than 3 did.** Macros and the
+scripting pipe are both absent from 4.0, listed as not yet implemented, and
+`mod-script-pipe` was 3-only. A converted `.aup4` cannot be saved back to
+`.aup3` either, so there is no downgrade path once a project has been opened.
+Treat the export as a manual step and automate everything after it.
+
+**Integrated loudness needs about three seconds to mean anything.** EBU R128
+gates on 3-second blocks, so a one-bar button measures as near-silence and
+normalises to a scream. `cues.py` peak-normalises anything shorter instead,
+which is the right treatment for a button regardless.
 
 **MusicXML states the important things exactly once.** `divisions`, `key`,
 `time`, `clef` and `transpose` appear in bar 1 and are assumed ever after. Cut
