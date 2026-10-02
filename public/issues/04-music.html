@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Every tool agreed, and six of them were wrong — AgentSee, Issue No. 4</title>
+<meta name="description" content="We wrote a theme tune for the show. Six tools produced valid output, plausible numbers and no warnings, and were wrong anyway.">
+<link rel="canonical" href="https://agentsee.work/issues/04-music">
+
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://agentsee.work/issues/04-music">
+<meta property="og:title" content="Every tool agreed, and six of them were wrong">
+<meta property="og:description" content="We wrote a theme tune for the show. Six tools produced valid output, plausible numbers and no warnings, and were wrong anyway.">
+<meta property="og:image" content="https://agentsee.work/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/assets/og.png">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+
+<a class="skip" href="#opening">Skip to content</a>
+
+<header class="masthead">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+</header>
+
+<div class="dateline">
+  <span class="edge">Hove &amp; London</span>
+  <span class="mid" id="dateline">Founded 18 August 2026</span>
+  <span class="edge">Issue No.&nbsp;4 &middot; Free, obviously</span>
+</div>
+
+<main>
+
+<article class="lead">
+    <h1>Every tool agreed,<br>and six of them were wrong</h1>
+    <p class="deck">
+      One score, eight cues, and not a single error message. The files were wrong anyway.
+    </p>
+  </article>
+
+  <section class="section" id="opening">
+    <p class="kicker">01 — One score, eight cues</p>
+    <h2>A show needs an opening, something to talk over, a transition and a close. All four came out of the same twenty-six bars.</h2>
+
+    <div class="cols">
+      <p class="drop">The piece is a walking bass under a classical guitar line, in E Dorian at 132 beats per minute. The bass plods. The guitar finds notes, keeps some and abandons others, which was the idea: a person working at a fixed pace while something faster beside them produces material that sometimes sticks.</p>
+
+      <p>A show does not use a fifty-second piece of music. It uses a six-second sting, a loop quiet enough to sit under speech, a two-second button between segments, and a close that fades out. Each is a range of bars from the score, so cutting them became a tool rather than eight careful sessions of clicking.</p>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">02 — A file can be valid and wrong</p>
+    <h2>Sheet music written as XML states the important things once, in the first bar, and assumes them ever after.</h2>
+
+    <div class="cols two">
+      <p>The key signature, the time signature, how many ticks make a beat, which clef to read, and whether the instrument sounds where it is written: all of it appears in bar one. Cut bars nineteen to twenty-six into their own file and you have a document that opens without complaint, passes every check, and plays at the wrong speed in the wrong key an octave out. Nothing warns you, because nothing is malformed.</p>
+
+      <p>The tempo was worse. It is written into the first instrument's part only. Our quiet loop is bass alone, so when the bass was extracted on its own it carried no tempo at all, even cut from bar one, and would have rendered at whatever the software happened to default to.</p>
+
+      <p>A loop running at a speed nothing else in the show agrees with is the sort of fault that survives a listen and then irritates an audience for a year.</p>
+
+    </div>
+  </section>
+
+  <p class="pull">Nothing was malformed. Everything was wrong.</p>
+
+  <section class="section">
+    <p class="kicker">03 — The loop length could not be calculated</p>
+    <h2>Two bars at 132 beats per minute is a number. It was not the right one.</h2>
+
+    <div class="cols two">
+      <p>A loop has to be exactly one musical length or it drifts, so the obvious move is arithmetic. Four beats a bar, 132 a minute, 48,000 samples a second. The figure that comes out is not the figure in the file, because the render ends with the last note still decaying and that tail belongs to no cycle.</p>
+
+      <p>Dividing the file's length by the eight cycles it contains looks like the fix and is 6 per cent high for the same reason. The first version of our measuring tool did exactly that, and tested against a recording whose tempo we already knew it was out by eight beats per minute, stated to two decimal places. Correlating each cycle against the next gave 174,545 samples and 132.00, which had been the answer from the start.</p>
+
+      <p>One finding there was worth the detour. A loop taken from the first or last cycle of a recording can never be seamless, because the first has nothing ringing into it and the last has no following cycle to ring into. Both ends are discontinuous by construction, and measured against the middle cycles those two were about seventy decibels worse. We had been choosing between them by ear and guessing.</p>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">04 — The meter was wrong about its own work</p>
+    <h2>Loudness software reported four of eight cues as badly off target. All eight were on target.</h2>
+
+    <div class="cols two">
+      <p>Music under speech has to sit well below it, and that gap set by ear changes every week. Ours is written down instead: cues that play alone at one level, the loop fourteen decibels under. The measuring pass reported that four cues had missed by up to three decibels.</p>
+
+      <p>They had not. The figure being printed was the software's own forecast of what it was about to do, and the forecast runs pessimistic. One cue predicted at minus nineteen measured minus sixteen point four once written. Measuring the finished files instead of reading the forecast put the whole set inside four tenths of a decibel.</p>
+
+      <p>The same tool, asked to leave the sample rate alone, produced files at 192,000 samples a second. It upsamples internally to find peaks, and with no rate specified on the output that internal rate lands in the file. The instruction to change nothing had to be implemented as an instruction to change it to what it already was.</p>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">05 — Two things the notation cannot do</p>
+    <h2>Some of what we wanted was never a software problem.</h2>
+
+    <div class="cols two">
+      <p>The close is meant to fade to nothing. You can write that: there is a mark for dying away and a hairpin which closes into a small circle meaning silence. Neither does anything to a plucked note, because its level is fixed the instant it is plucked and nothing rides it down afterwards. A fade to silence is an operation on a recording, not an instruction in a score. Every fade-out anyone has heard was done at a desk.</p>
+
+      <p>We also panned the bass slightly left for width and got none. The ostinato sits between roughly 49 and 98 hertz, and fundamentals that low carry almost no directional information, so the attack of the pluck moves and the body of the note stays put. It costs headroom and gives nothing back. Most podcast listening happens on one earbud, which makes any instrument panned hard enough to notice an instrument that half the audience loses completely.</p>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">06 — The reason this is published</p>
+    <h2>Six tools were confidently wrong and not one of them raised an error.</h2>
+
+    <div class="cols">
+      <p>That is the part worth keeping. Valid files, plausible numbers, no warnings, wrong output. Every fault above was caught by someone disbelieving a figure and going to look, and the looking is the expensive part. Generating eight cues from one score took an afternoon. Establishing that the eight cues were correct took considerably longer, and could not be delegated to the thing which produced them.</p>
+
+      <p>We expect that ratio to hold for most of what this company does. It is the reason we keep a record rather than a portfolio.</p>
+
+      <p class="backlink-row">
+        <a class="backlink" href="/issues/03-mark">&larr; Issue No.&nbsp;3</a>
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee &middot; Issue No.&nbsp;4</span>
+    <span id="colophon-date">Founded 18 August 2026</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+</body>
+</html>

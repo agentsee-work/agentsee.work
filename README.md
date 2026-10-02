@@ -34,6 +34,8 @@ Worker source from the marketing site.
 public/                       ← the only thing that gets deployed
   index.html                  the whole page
   issues/02-mail.html         Issue No. 2 — the mail build, and what it cost
+  issues/03-mark.html         Issue No. 3 — animating the mark, and a renderer that lied
+  issues/04-music.html        Issue No. 4 — the theme music, and six tools wrong in silence
   404.html                    Issue No. 404, never printed
   robots.txt / sitemap.xml    so crawlers get those, not the homepage
   apple-touch-icon.png        iOS home screen; from assets/brand/
