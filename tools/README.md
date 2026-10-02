@@ -1,6 +1,6 @@
 # tools
 
-Everything that draws the brand, two scripts for the theme music, and one
+Everything that draws the brand, three scripts for the theme music, and one
 that checks handles.
 
 | | |
@@ -12,6 +12,7 @@ that checks handles.
 | `portraits.py` | Contributor portraits, toned to one ink/paper ramp. |
 | `score.py` | Bar ranges out of the theme, as standalone MusicXML. |
 | `cues.py` | Rendered cues normalised to consistent levels. |
+| `loop.py` | A rendered loop's true length, measured and cut. |
 | `handle-probe.sh` | Handle availability. Nothing to do with the rest. |
 
 Everything is rendered through headless Chrome against the real stylesheet
@@ -77,8 +78,18 @@ Once the cues are recorded and exported, `cues.py` sets their levels:
 ./tools/cues.py masters/ -o delivery/ --bed-lufs -28
 ```
 
-It targets −16 LUFS for cues that play alone and −30 for anything with `bed`
-in its name, because a bed plays under speech and has to sit below it. The gap
+And `loop.py` turns the ×8 bed into a seamless loop:
+
+```sh
+./tools/loop.py bed-x8.wav --cycles 8                    # measure only
+./tools/loop.py bed-x8.wav --cycles 8 --cut bed-loop.wav
+```
+
+It prints the period in samples, the tempo that implies, and a seam score per
+candidate cycle, then cuts from the cleanest one.
+
+`cues.py` targets −16 LUFS for cues that play alone and −30 for anything with
+`bed` in its name, because a bed plays under speech and has to sit below it. The gap
 is the point: setting it by ear per episode is how a show ends up burying the
 dialogue one week and losing the music the next.
 
@@ -129,6 +140,27 @@ the two cross. Both lids are pinned at the canthi and only their middles move.
 and the glint, because a lid is a lit surface and its meaning is its lightness
 rather than its role. Filled with `paper` it vanishes in noir; filled with
 `ink` it becomes a black bar on newsprint.
+
+**Do not calculate a loop's length from the score's tempo.** MuseScore's
+audio export does not reliably come out at the written tempo — a bed written
+at 132 rendered at 126, and every figure derived from the score was then 4%
+wrong. `loop.py` measures the audio, which is the only thing that is true.
+
+**Length / cycles is not the period.** It is an upper bound. The render ends
+with the last note still decaying and that tail belongs to no cycle, so on the
+×8 bed the naive figure came out 6% high — far enough that a narrow refinement
+search could not get back and the tool confidently reported the wrong tempo.
+Autocorrelate the envelope and use length/cycles only to bound the search.
+
+**A loop cut from the first or last cycle will always have a seam.** The first
+has nothing ringing into it and the last has no following cycle to ring into,
+so both ends are discontinuous by construction. On synthetic bass those two
+measured 20 dB worse than any middle cycle. Cut from the middle, and let the
+seam score pick which middle.
+
+**Audacity reads a sample selection in the *project* rate, not the clip's.**
+A 44.1 kHz clip in a 48 kHz project will silently disagree with the figures
+you type, which is reason enough to cut with `ffmpeg atrim` instead.
 
 **Audacity has no CLI, and Audacity 4 has less than 3 did.** Macros and the
 scripting pipe are both absent from 4.0, listed as not yet implemented, and
