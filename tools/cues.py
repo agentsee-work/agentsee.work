@@ -73,6 +73,20 @@ def measure(path, target, tp):
     return m
 
 
+def verify(path, target):
+    """Measure what was actually written.
+
+    loudnorm's first pass reports a predicted output_i, and it is pessimistic
+    — it under-reported a delivered -16.4 LUFS file as -19.0. The point of
+    this tool is to guarantee levels, so it measures the result rather than
+    trusting the forecast.
+    """
+    m = measure(path, target, -1.0)
+    if m is None:
+        return None, None
+    return float(m["input_i"]), float(m["input_tp"])
+
+
 def peak_dbfs(path):
     r = subprocess.run(
         ["ffmpeg", "-nostdin", "-i", str(path), "-af", "volumedetect",
@@ -138,8 +152,9 @@ def main():
         out_dir.mkdir(parents=True, exist_ok=True)
 
     resampled = []
+    out_label = "predicted" if a.dry_run else "measured"
     print(f"{'cue':28} {'role':5} {'secs':>5} {'in LUFS':>8} "
-          f"{'target':>7} {'out':>7}  note")
+          f"{'target':>7} {out_label:>9} {'dBTP':>6}  note")
     for f in files:
         role = "bed" if BED.search(f.name) else "fore"
         target = a.bed_lufs if role == "bed" else a.lufs
@@ -156,24 +171,29 @@ def main():
             if not a.dry_run:
                 write(f, out, f"volume={gain:+.2f}dB", rate)
             print(f"{f.name:28} {role:5} {secs:>5.1f} {'peak':>8} "
-                  f"{SHORT_PEAK_DBFS:>6.1f}dB {pk + gain:>6.1f}dB  "
+                  f"{SHORT_PEAK_DBFS:>7.1f} {pk + gain:>9.1f} {'':>6}  "
                   f"too short to gate; peak-normalised")
             continue
 
         m = measure(f, target, a.tp)
         if m is None:
-            print(f"{f.name:28} {role:5} {secs:>5.1f} {'-':>8} {'-':>7} {'-':>7}  "
-                  f"SKIPPED: no measurable loudness (silent?)")
+            print(f"{f.name:28} {role:5} {secs:>5.1f} {'-':>8} {'-':>7} "
+                  f"{'-':>9} {'-':>6}  SKIPPED: no measurable loudness (silent?)")
             continue
         filt = (f"loudnorm=I={target}:TP={a.tp}:LRA=11:linear=true:"
                 f"measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
                 f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:"
                 f"offset={m['target_offset']}")
-        if not a.dry_run:
+        if a.dry_run:
+            got, got_tp = float(m["output_i"]), float(m["output_tp"])
+            note = ""
+        else:
             write(f, out, filt, rate)
+            got, got_tp = verify(out, target)
+            note = "" if got is None or abs(got - target) <= 1.0 \
+                   else f"OFF TARGET by {got - target:+.1f} dB"
         print(f"{f.name:28} {role:5} {secs:>5.1f} {float(m['input_i']):>8.1f} "
-              f"{target:>7.1f} {float(m['output_i']):>7.1f}  "
-              f"TP {float(m['output_tp']):+.1f} dBTP")
+              f"{target:>7.1f} {got:>9.1f} {got_tp:>6.1f}  {note}")
 
     if resampled:
         print("\nRESAMPLED:")
