@@ -90,13 +90,19 @@ def ffprobe_rate(path):
 
 
 def write(path, out, filt, rate):
-    cmd = ["ffmpeg", "-nostdin", "-y", "-i", str(path), "-af", filt]
-    if rate:
-        # soxr rather than the default resampler: 44.1 -> 48 is 160:147, an
-        # awkward ratio, and this is the one place quality is free.
-        cmd += ["-ar", str(rate), "-resampler", "soxr", "-precision", "28"]
-    cmd += ["-c:a", "pcm_s24le", str(out)]
-    subprocess.run(cmd, capture_output=True, text=True, check=True)
+    """Render to `rate`, which must always be stated explicitly.
+
+    loudnorm oversamples to 192 kHz internally to find true peaks, and that
+    rate leaks into the output if -ar is left off — so "keep the source rate"
+    still has to pass the source rate, not nothing.
+    """
+    # soxr rather than the default resampler: 44.1 -> 48 is 160:147, an
+    # awkward ratio, and this is the one place quality is free.
+    subprocess.run(
+        ["ffmpeg", "-nostdin", "-y", "-i", str(path), "-af", filt,
+         "-ar", str(rate), "-resampler", "soxr", "-precision", "28",
+         "-c:a", "pcm_s24le", str(out)],
+        capture_output=True, text=True, check=True)
 
 
 def main():
@@ -140,14 +146,15 @@ def main():
         secs = ffprobe_duration(f)
         out = out_dir / (f.stem + ".wav")
         in_rate = ffprobe_rate(f)
-        if a.rate and in_rate != a.rate:
-            resampled.append((f.name, in_rate))
+        rate = a.rate or in_rate          # 0 means "whatever came in"
+        if rate != in_rate:
+            resampled.append((f.name, in_rate, rate))
 
         if secs < MIN_DURATION:
             pk = peak_dbfs(f)
             gain = SHORT_PEAK_DBFS - pk if pk is not None else 0.0
             if not a.dry_run:
-                write(f, out, f"volume={gain:+.2f}dB", a.rate)
+                write(f, out, f"volume={gain:+.2f}dB", rate)
             print(f"{f.name:28} {role:5} {secs:>5.1f} {'peak':>8} "
                   f"{SHORT_PEAK_DBFS:>6.1f}dB {pk + gain:>6.1f}dB  "
                   f"too short to gate; peak-normalised")
@@ -163,22 +170,23 @@ def main():
                 f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:"
                 f"offset={m['target_offset']}")
         if not a.dry_run:
-            write(f, out, filt, a.rate)
+            write(f, out, filt, rate)
         print(f"{f.name:28} {role:5} {secs:>5.1f} {float(m['input_i']):>8.1f} "
               f"{target:>7.1f} {float(m['output_i']):>7.1f}  "
               f"TP {float(m['output_tp']):+.1f} dBTP")
 
     if resampled:
-        print(f"\nRESAMPLED to {a.rate} Hz:")
-        for name, r in resampled:
-            print(f"  {name} was {r} Hz")
+        print("\nRESAMPLED:")
+        for name, was, now in resampled:
+            print(f"  {name}: {was} -> {now} Hz")
         print("  If any of these get looped, cut the loop from the resampled\n"
               "  file, not the master — a resampler has nothing beyond the\n"
               "  file's edges and that is where a loop joins.")
     if a.dry_run:
         print("\n(dry run — nothing written)")
     else:
-        print(f"\nwrote {a.rate or 'source-rate'} 24-bit WAV to {out_dir}/")
+        print(f"\nwrote 24-bit WAV to {out_dir}/"
+              + (f" at {a.rate} Hz" if a.rate else " at each source's own rate"))
 
 
 if __name__ == "__main__":
