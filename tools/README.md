@@ -15,6 +15,12 @@ that checks handles.
 | `loop.py` | A rendered loop's true length, measured and cut. |
 | `handle-probe.sh` | Handle availability. Nothing to do with the rest. |
 
+How the mark's animation and the theme music were actually built — the
+decisions, and what each one cost to learn — is in
+[docs/BRAND-ANIMATION.md](../docs/BRAND-ANIMATION.md) and
+[docs/THEME-MUSIC.md](../docs/THEME-MUSIC.md). This file is the reference for
+running the tools.
+
 Everything is rendered through headless Chrome against the real stylesheet
 values, for the reason `banner.py` says: art drawn by hand in an editor drifts
 the first time a colour changes, and nobody diffs a PNG.

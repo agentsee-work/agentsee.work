@@ -51,8 +51,11 @@ docs/CREDENTIALS.md           1Password Business: the vaults and the rules
 docs/AGENT-MAIL.md            inbound mail as an agent trigger — design only
 docs/MAIL-SELFHOST.md         own the inbox, rent the reputation — built, running
 docs/MAIL-BUILD-RUNBOOK.md    how it was built, and everything that bit on the way
+docs/BRAND-ANIMATION.md       the mark animated — the model, and what a bad measurement looks like
+docs/THEME-MUSIC.md           one score cut into eight cues, rendered and levelled
 infra/                        the mail server declared — OpenTofu, applied
 stalwart/                     mail server config, snapshotted from the running server
+tools/README.md               every tool, the model behind the mark, and the traps
 tools/portraits.py            regenerates the portraits from source photos
 tools/handle-probe.sh         is a social handle free? calibrated, so the answer means something
 tools/banner.py               profile banners, rendered from the site's own palette
