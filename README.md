@@ -33,6 +33,7 @@ Worker source from the marketing site.
 ```
 public/                       ← the only thing that gets deployed
   index.html                  the whole page
+  issues/02-mail.html         Issue No. 2 — the mail build, and what it cost
   404.html                    Issue No. 404, never printed
   robots.txt / sitemap.xml    so crawlers get those, not the homepage
   apple-touch-icon.png        iOS home screen; from assets/brand/
@@ -51,6 +52,7 @@ docs/CREDENTIALS.md           1Password Business: the vaults and the rules
 docs/AGENT-MAIL.md            inbound mail as an agent trigger — design only
 docs/MAIL-SELFHOST.md         own the inbox, rent the reputation — built, running
 docs/MAIL-BUILD-RUNBOOK.md    how it was built, and everything that bit on the way
+docs/POST-DRAFT-MAIL.md       the long version of Issue No. 2, and podcast notes
 docs/BRAND-ANIMATION.md       the mark animated — the model, and what a bad measurement looks like
 docs/THEME-MUSIC.md           one score cut into eight cues, rendered and levelled
 infra/                        the mail server declared — OpenTofu, applied

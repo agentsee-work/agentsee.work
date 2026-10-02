@@ -175,12 +175,12 @@ deliberately rather than as a side effect of an unrelated apply.
 
 Before flipping it, all of:
 
-- [ ] Real inbound mail arrives at `test.agentsee.work`
-- [ ] Gmail → *Show original* shows `dkim=pass` with **`header.d=agentsee.work`**
-- [ ] `dkim_public_key` is set and applied
-- [ ] Backups run nightly to R2
-- [ ] **A restore has actually restored.** Not "the job exited 0"
-- [ ] Cloudflare Email Routing disabled for the apex — it locks its own MX
+- [x] Real inbound mail arrives at `test.agentsee.work`
+- [x] Gmail → *Show original* shows `dkim=pass` with **`header.d=agentsee.work`**
+- [x] `dkim_public_key` is set and applied
+- [x] Backups run nightly to R2
+- [x] **A restore has actually restored.** Not "the job exited 0"
+- [x] Cloudflare Email Routing disabled for the apex — it locks its own MX
       records and the API will refuse the write otherwise
 
 ## Rebuilding is the normal repair

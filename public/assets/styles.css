@@ -558,3 +558,16 @@ footer {
   .pulse { animation: none; }
   .iris { transition: none; }
 }
+
+/* ═══════════════  ISSUE PAGES  ═══════════════ */
+
+/* The register lists published issues as links and unwritten ones as plain
+   divs, so `a.issue` needs the same box as `div.issue` and none of the default
+   link decoration. */
+a.issue {
+  text-decoration: none;
+  color: inherit;
+}
+a.issue:hover .issue-title { color: var(--signal); }
+
+.backlink-row { margin-top: clamp(1.6rem, 3vw, 2.4rem); }

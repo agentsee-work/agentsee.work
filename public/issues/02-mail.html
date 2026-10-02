@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>We built our own mail server — AgentSee, Issue No. 2</title>
+<meta name="description" content="Three afternoons, sixty-five commits, and an honest accounting of what owning your own mail costs — including where working with an AI helped and where it was confidently wrong.">
+<link rel="canonical" href="https://agentsee.work/issues/02-mail">
+
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://agentsee.work/issues/02-mail">
+<meta property="og:title" content="We built our own mail server. Here is what it cost.">
+<meta property="og:description" content="Three afternoons, sixty-five commits, and an honest accounting of what owning your own mail costs — including where working with an AI helped and where it was confidently wrong.">
+<meta property="og:image" content="https://agentsee.work/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/assets/og.png">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+
+<a class="skip" href="#opening">Skip to content</a>
+
+<!-- ═══════════════  MASTHEAD  ═══════════════ -->
+<header class="masthead">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+</header>
+
+<!-- ═══════════════  DATELINE  ═══════════════ -->
+<div class="dateline">
+  <span class="edge">Hove &amp; London</span>
+  <span class="mid" id="dateline">Founded 18 August 2026</span>
+  <span class="edge">Issue No.&nbsp;2 &middot; Free, obviously</span>
+</div>
+
+<main>
+
+  <article class="lead">
+    <h1>We built our own mail server.<br>Here is what it cost.</h1>
+    <p class="deck">
+      Three afternoons, sixty-five commits, and an honest accounting of what owning
+      your own mail buys you. It is not money.
+    </p>
+  </article>
+
+  <section class="section" id="opening">
+    <p class="kicker">01 — The premise</p>
+    <h2>Owning your own mail is a reasonable thing to do again.</h2>
+
+    <div class="cols">
+      <p class="drop">Two people, building in public. The pitch involves deploying client
+      work as infrastructure-as-code, and that claim is worth much less if your own first
+      server was clicked together in a dashboard.</p>
+
+      <p>The starting position was worse than nothing. Cloudflare Email Routing forwarded
+      everything at our domain to personal inboxes and could not send at all. Every account
+      signup, every reply to a guest, every password reset went out from a personal Gmail.
+      The domain published a DMARC policy of <em>reject</em>, which was true: nothing was
+      authorised to send as us, because nothing could.</p>
+
+      <p>The design that emerged was to own the inbox and rent the reputation. Stalwart on
+      a VPS handles inbound and stores the mail. Everything outbound goes to a relay over
+      authenticated submission. That removes the unwinnable part of self-hosting, which is
+      that a fresh IP address has no sending history, and no history looks identical to a
+      spammer who rented the address an hour ago.</p>
+
+      <p>Working with an AI made this three afternoons of actual work, spread over a
+      fortnight because that is how evenings go. What it did not do is make it cheaper.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">02 — The decisions</p>
+    <h2>Two of the three choices that mattered had nothing to do with email.</h2>
+
+    <div class="cols two">
+      <p>Amazon SES is cheaper per message and was the first choice. It lost on a property
+      unrelated to mail: new accounts start in a sandbox, and leaving it needs a support
+      request reviewed by a human, with no API and no timebox. That put an unbounded wait on
+      the critical path of everything else. SMTP2GO's free tier is a thousand messages a
+      month with no card, which is more than two people write.</p>
+
+      <p>Hetzner was the obvious host and roughly £47 a year. Vultr was on the shortlist
+      too, mostly for the spread of datacentre locations, until we read what happened to
+      GreatFire. Vultr took their FreeWeChat project offline after a complaint instigated by
+      Tencent, ignored a claim-by-claim rebuttal, ignored a letter co-signed by seventeen
+      press-freedom organisations, then terminated the account without cause.</p>
+
+      <p>That put provider conduct on the table as a selection criterion, and once it was
+      there Hetzner had its own problem, having terminated a non-profit that ran
+      censorship-evasion services.</p>
+
+      <p>The criterion has two sides that have to be held together. A host should refuse to
+      carry fascists and organised harassment of marginalised people. A host should also
+      hold the line when a state or a corporation leans on legitimate journalism. Those are
+      not in tension, and the second is not a licence for the first.</p>
+
+      <p>We went to Infomaniak: a certified B Corp, employee-owned, never took outside
+      investment, runs on renewable energy and offsets twice what it uses. It costs about
+      £15 to £30 a year more than Hetzner and buys nothing technical. That is a values
+      purchase, and saying so plainly seems better than dressing it up as risk mitigation.
+      Nothing we host will ever attract a takedown at that scale.</p>
+
+      <p>The whole thing runs at around £60 to £80 a year, against about £37 for hosted mail
+      from the same company we chose as our host. Self-hosting is more expensive at two
+      users. It wins on control and on learning.</p>
+    </div>
+  </section>
+
+  <p class="pull">Every failure looked like one thing and was another.</p>
+
+  <section class="section">
+    <p class="kicker">03 — What went wrong</p>
+    <h2>The useful content is the failures, and they share a shape.</h2>
+
+    <div class="cols">
+      <p><strong>One missing package emptied the whole box.</strong> Cloud-init installs its
+      package list atomically. One name that does not exist in Debian took out docker,
+      restic, fail2ban and unattended-upgrades along with it. The instance came up. SSH
+      worked. Files were written. The only evidence was in a status command nothing prompts
+      you to run.</p>
+
+      <p><strong>The setup wizard kept reappearing.</strong> Stalwart reads its configuration
+      from a path inside the container; ours was mounted somewhere nothing reads. So it found
+      no configuration, entered bootstrap mode, and the wizard ran to completion against
+      storage that did not persist. Restart, fresh wizard, fresh password, as though nothing
+      had happened. There is no error anywhere in that sequence.</p>
+
+      <p>The same class of bug appeared one layer down. The volume was mounted at one path
+      while the server defaulted its datastore to another, which existed only inside the
+      container's ephemeral layer. The database wrote happily to somewhere that vanished on
+      every recreate.</p>
+
+      <p><strong>The mail server banned the entire internet.</strong> Docker's published
+      ports rewrite the source address, so Stalwart saw every external connection as coming
+      from the same bridge gateway. It did what a mail server should do with an address
+      making repeated half-open connections, and banned it. That address was everyone. We
+      found out because our own monitoring got blocked; the unlucky version is one spammer
+      taking inbound mail down for the world.</p>
+
+      <p><strong>Certificates, three times.</strong> Our apex domain serves a static site
+      through Cloudflare, so the usual challenge can never validate it, and Let's Encrypt
+      fails an entire order if any single name fails. Then: leaving the certificate's
+      alternative names empty does not mean none, it means a default set of four hostnames
+      that do not exist. Then, days later, editing that list destroyed the working
+      certificate without ordering a replacement.</p>
+
+      <p><strong>Silence by default.</strong> None of the above was visible until we added a
+      console logger, because the server writes nothing to standard output out of the box.
+      The obvious alternative writes to a directory that does not exist in the container and
+      fails on every startup. Every problem in that phase was invisible until logging worked.
+      If there is one habit to take from this, it is to make a system able to tell you things
+      before you need it to.</p>
+
+      <p><strong>A silent fallback made every wrong guess identical.</strong> The outbound
+      relay would not engage. The route existed, the configuration referenced it, and mail
+      kept going direct. An unresolvable route name falls back with no warning and no log
+      line, so four consecutive wrong hypotheses produced the same output. Reading the object
+      with the command line instead of the web form broke the deadlock, and the same move
+      later exposed a hostname with one letter wrong sitting in a field the interface had
+      displayed without complaint.</p>
+
+      <p><strong>The plan that differed by machine.</strong> One file, holding every value
+      that decides what the infrastructure looks like, was excluded from version control on
+      an assumption that had quietly stopped being true. It existed on exactly one laptop. A
+      plan run from the second offered to destroy the mail records of a live server.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">04 — Working with a model</p>
+    <h2>It was good at some things and confidently wrong about others.</h2>
+
+    <div class="cols two">
+      <p>The model read widely and quickly, wrote configuration with the reasoning attached,
+      recognised the class of a problem from a log line, and recorded why a decision was made
+      while the reason was still known. Sixty-five commit messages that explain themselves
+      turned out to be a better artefact than the configuration they describe.</p>
+
+      <p>It was also wrong in ways worth naming. It claimed the server generates Apple
+      configuration profiles, which it does not; that came from documentation for a different
+      product built on top of it. It moved a certificate-authority record to the apex, where
+      Cloudflare silently drops it, having taken it from the place the tool had correctly put
+      it. It asserted without checking that a service's subdomains survive disabling it. It
+      wrote a backup restore test that could not have passed, and that would have re-sent the
+      mail queue if it had.</p>
+
+      <p>Every one of those is a confident claim about how a system behaves that had not been
+      tested. The things that went well have the opposite shape: probes calibrated against
+      known-good and known-bad controls, reading objects rather than forms, checking that a
+      fix had landed before concluding it had failed.</p>
+
+      <p>A division of labour emerged without being designed. The model proposes and writes.
+      The human supplies anomaly detection, the "that looks wrong" that precedes any
+      investigation, and the authority for anything irreversible. The near-miss with the
+      destroyed records is the clearest case: someone noticed a plan looked odd and did not
+      explain it away, and the investigation turned up a fault nobody was hunting for.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">05 — What we have now</p>
+    <h2>The assets outlast the afternoon that produced them.</h2>
+
+    <div class="cols">
+      <p>Infrastructure that applies cleanly, with credentials resolved from a password
+      manager at the moment of use. Nothing is exported into a shell and there are no
+      plaintext credential files on disk.</p>
+
+      <p>A configuration snapshot taken from the running server by one command that refuses
+      to write the file if it finds a secret value in it. The clicking happened once.</p>
+
+      <p>A runbook transcribed from what actually happened rather than from the design. Every
+      trap above is in it, in the file where the next person will look.</p>
+
+      <p>Backups at two companies, nightly, alerting separately, with restores proven to
+      boot. That included discovering the restore test itself was broken.</p>
+
+      <p>And understanding. DKIM alignment, certificate challenge types, transport security
+      policies, why an SPF record can correctly authorise nobody at all. Bought expensively
+      and not otherwise obtainable.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">06 — Whether you should</p>
+    <h2>Decide what would make you stop before you start.</h2>
+
+    <div class="cols two">
+      <p>Worth it if you want to understand the system, or if your positioning requires the
+      receipts. Not worth it if you want cheaper mail.</p>
+
+      <p>What made it defensible was writing the abandonment criteria before starting: a
+      failed restore test not fixed within a week, two silent delivery failures in a quarter,
+      or it stops being interesting and becomes a chore. Any of those and we move to hosted
+      mail.</p>
+
+      <p>And keeping that exit costed and current. Same addresses, same domain, about an
+      hour. An escape route you have never priced is not an escape route.</p>
+
+      <p>Everything described here is in the open, including the mistakes. The repository is
+      public and the commit messages are the honest version.</p>
+    </div>
+
+    <p class="backlink-row">
+      <a class="backlink" href="/">&larr; Back to Issue No.&nbsp;1</a>
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee &middot; Issue No.&nbsp;2</span>
+    <span id="colophon-date">Founded 18 August 2026</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+</body>
+</html>
