@@ -48,6 +48,7 @@ public/                       ← the only thing that gets deployed
   fonts/newsreader-latin.woff2  self-hosted display face (SIL OFL)
   media/video/reel.mp4        18s of the mark moving, for Issue No. 3
   media/audio/theme.mp3       the theme, for Issue No. 4. Outside assets/ — see _headers
+  assets/score/*.musicxml     the theme itself, light and minor. What tools/score.py reads
 
 docs/RUNBOOK.md               where the infrastructure lives, and its traps
 docs/SOCIAL.md                the handle, and what signup will throw at you
