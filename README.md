@@ -129,14 +129,26 @@ The whole build — why, what broke, and every checkpoint — is in
 
 ## Deploying
 
-Deploys go straight from a working copy to Cloudflare Pages. They do **not** pass
-through a git host, so no forge outage can block a deploy:
+**Pushing to `main` publishes the site.** `.github/workflows/deploy.yml` runs
+`wrangler pages deploy public`, then polls the live URL until it serves 200, so
+a green tick means the page is actually up rather than that the upload
+returned. It also refuses to deploy if anything credential-shaped is in the
+tree, and warns when the Cloudflare token is within three weeks of expiry.
+
+Merging a pull request is therefore a publish. There is no separate step.
+
+**The working copy remains the path that cannot be blocked.** The workflow is a
+convenience, not the source of truth. If it is red, or GitHub is down, or you
+need to ship something that is not on `main`:
 
 ```sh
 export CLOUDFLARE_ACCOUNT_ID=...
 export CLOUDFLARE_API_TOKEN=...        # needs Account > Cloudflare Pages > Edit
 npx wrangler pages deploy public --project-name=agentsee --commit-dirty=true
 ```
+
+That path never touches a git host, which is the whole reason it is documented
+rather than deleted now that CI exists.
 
 Git remotes are for reading and for history. Push targets can be mirrored so
 that no single host is a dependency:
