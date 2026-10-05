@@ -571,3 +571,42 @@ a.issue {
 a.issue:hover .issue-title { color: var(--signal); }
 
 .backlink-row { margin-top: clamp(1.6rem, 3vw, 2.4rem); }
+
+/* ── media plates ───────────────────────────────────────────────────────
+   A video or an audio player set the way a newspaper sets a photograph:
+   hairline rule, caption beneath in the small type. Both elements carry
+   preload="none", so a plate costs a reader nothing until they press play
+   and the page stays as light as it reads. */
+
+.plate {
+  margin: clamp(1.8rem, 3.4vw, 2.8rem) 0;
+}
+
+.plate video {
+  display: block;
+  width: 100%;
+  max-width: 29rem;
+  height: auto;
+  margin: 0 auto;
+  border: 1px solid var(--hair);
+  background: var(--paper-2);
+}
+
+.plate audio {
+  display: block;
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+}
+
+.plate figcaption {
+  margin: .8rem auto 0;
+  max-width: 46ch;
+  font-family: var(--mono);
+  font-size: .8rem;
+  line-height: 1.5;
+  letter-spacing: .01em;
+  color: var(--ink-3);
+  text-align: center;
+  text-wrap: pretty;
+}

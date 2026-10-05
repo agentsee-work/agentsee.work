@@ -3,14 +3,24 @@
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer
   Permissions-Policy: geolocation=(), microphone=(), camera=(), interest-cohort=()
-  Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; media-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Media lives outside /assets/ deliberately. Pages applies *every* matching
+# rule, in file order, and comma-joins a header that appears twice — so a
+# /assets/audio/* rule alongside the /assets/* rule below would have produced
+# `Cache-Control: public, max-age=31536000, immutable, public, max-age=600,
+# must-revalidate`: two contradictory max-ages, and a must-revalidate that
+# defeats the point of the year. Non-overlapping paths need no detach operator.
+/media/*
+  Cache-Control: public, max-age=31536000, immutable
+
 # Short, because the site is under active development and a stale stylesheet
-# is worse than a revalidation request. The fonts above never change, so they
-# get a year. Requires the zone's Browser Cache TTL to be "Respect Existing
-# Headers" — otherwise Cloudflare overrides all of this. See docs/RUNBOOK.md.
+# is worse than a revalidation request. The fonts and media above never change,
+# so they get a year. Requires the zone's Browser Cache TTL to be "Respect
+# Existing Headers" — otherwise Cloudflare overrides all of this. See
+# docs/RUNBOOK.md.
 /assets/*
   Cache-Control: public, max-age=600, must-revalidate

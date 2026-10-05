@@ -46,6 +46,8 @@ public/                       ← the only thing that gets deployed
   assets/*-hartt|mahmood.jpg  portraits (see tools/portraits.py)
   assets/brand/               avatars and profile banners, not used by the page
   fonts/newsreader-latin.woff2  self-hosted display face (SIL OFL)
+  media/video/reel.mp4        18s of the mark moving, for Issue No. 3
+  media/audio/theme.mp3       the theme, for Issue No. 4. Outside assets/ — see _headers
 
 docs/RUNBOOK.md               where the infrastructure lives, and its traps
 docs/SOCIAL.md                the handle, and what signup will throw at you
