@@ -130,11 +130,15 @@
     <div class="cols two">
       <p>A few hundred frames make a clip. Laying them all out as a grid and taking one screenshot is far faster than launching a browser per frame, so that is how the first version worked.</p>
 
-      <p>The same SVG in two cells of the same screenshot does not rasterise the same way. We measured 948 pixels of a 360 by 360 frame differing at full contrast. The identical content rendered in two separate browser launches is byte for byte the same. Rearranging the grid changes nothing, and a single column still diverges.</p>
+      <p>Then the same SVG, placed in two cells of one screenshot, came out different. Not subtly: 948 pixels of a 360 by 360 frame differed at full contrast.</p>
 
-      <p>What you see is every unmoving edge crawling. The fedora holds completely still in those clips and produced 14 per cent of the flicker in the finished one. We spent an evening looking for the cause in the animation before thinking to check whether a still frame was still.</p>
+      <p>The grid was the cause, not the drawing. Render that same content in two separate browser launches and it is byte for byte identical. We tried rearranging the cells, then a single column. It still diverged.</p>
 
-      <p>One launch per frame fixed it and cost roughly four times the render time. Rendering each distinct pose once and repeating it through holds gave most of that back, because three quarters of a full run had been redrawing pictures it already had.</p>
+      <p>What you see is every unmoving edge crawling. The fedora is the tell. It holds completely still in those clips, and it produced 14 per cent of the flicker in the finished one.</p>
+
+      <p>We spent an evening hunting through the animation. It took that long to think of checking whether a still frame was still.</p>
+
+      <p>One launch per frame fixed it. It also cost roughly four times the render time. Most of that came back by rendering each distinct pose once and repeating it through holds — three quarters of a full run had been redrawing pictures it already had.</p>
 
     </div>
   </section>
@@ -158,13 +162,17 @@
     <h2>Three of our instruments reported confident nonsense before we stopped trusting them.</h2>
 
     <div class="cols two">
-      <p>To check the iris moved the way the data said, we tracked the centre of its amber mass between frames. The lid clips the iris, so during a blink that centre follows the lid and reports tens of pixels of travel which never happened. It gave a confident wrong answer twice, and both times a filmstrip settled it in one look.</p>
+      <p>To check the iris moved the way the data said, we tracked the centre of its amber mass between frames. Then the eye blinked.</p>
 
-      <p>Checksums are no use either. PNG bytes are not stable across renders, so a checksum reports eight images changed when seven are pixel for pixel identical. Comparing pixels is the only thing that answers the question actually asked.</p>
+      <p>The lid clips the iris. So the centre of whatever is left follows the lid, and the tool reports tens of pixels of travel that never happened. It gave us a confident wrong answer twice. Both times a filmstrip settled it in one look.</p>
 
-      <p>Motion blur averages across sub-frames and damps a fast tremor well below the figure in the configuration, so the number we set is not the swing a viewer sees, and the swing a viewer sees cannot be recovered from the frames. That one has no instrument. It gets judged by eye.</p>
+      <p>Checksums are no use either. PNG bytes are not stable across renders. So a checksum reports eight images changed when seven of them are pixel for pixel identical, and only comparing pixels answers the question actually being asked.</p>
 
-      <p>Alpha coverage looked like a measure of edge quality and is not. The ramp around the outer silhouette can be flawless while every internal edge is a hard one-pixel step, and the internal edges are the ones that look wrong.</p>
+      <p>The third is worse, because there is nothing to fix. Motion blur averages across sub-frames, and that damps a fast tremor well below the figure in the configuration. So the number we set is not the swing a viewer sees — and the swing a viewer sees cannot be recovered from the frames.</p>
+
+      <p>That one has no instrument. It gets judged by eye.</p>
+
+      <p>Alpha coverage looked like a measure of edge quality. It is not. The ramp around the outer silhouette can be flawless while every internal edge is a hard one-pixel step, and the internal edges are the ones that look wrong.</p>
 
     </div>
   </section>
