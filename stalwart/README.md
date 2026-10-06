@@ -3,7 +3,10 @@
 Mail server configuration, versioned. Deployed onto the box that
 [`infra/`](../infra/) provisions.
 
-**Status: scaffold. Not applied, and partly unvalidated — see below.**
+**Status: live.** `plan.json` describes the running server. `stalwart-cli apply`
+has been used against it — but only ever on a hand-carved subset, never on the
+whole file; see "A full `apply` is not a safe way to change one thing" below for
+why that distinction matters.
 
 ## How Stalwart configuration actually works now
 
@@ -95,7 +98,7 @@ that admits a gap:
 |---|---|
 | `docker-compose.yml` | **Run on a real box 11 September 2026.** Image name, ports, the loopback bootstrap port and the `--config` path are all corrected from what actually happened rather than what was designed |
 | `relay-smtp2go.reference.json` | **Superseded by `plan.json`.** Kept for its notes on ports, DANE and signed headers; the real object is in the plan |
-| `plan.json` | **Snapshotted from the running server 14 September 2026.** Describes what is actually running |
+| `plan.json` | **Snapshotted from the running server 14 September 2026, re-snapshotted 6 October 2026 and verified identical.** The 6 October snapshot was taken after the hand edit that added `reports` and changed the `dmarc@` member, and matched the committed file field for field across all twelve lines — so the hand edit was indistinguishable from what the server would have produced. This describes what is running, and that is now checked rather than asserted |
 
 ## `plan.json` — the running server, as a file
 
@@ -212,6 +215,26 @@ match-by-value is harmless.
 Everything with a natural label already carries one from `snapshot`:
 `matchOn: ["name"]`, `["selector"]`, `["emailAddress"]`, `["description"]`.
 
+### ⚠ And it sorts the keys, which is not cosmetic
+
+`snapshot` does not emit object keys in a stable order between runs. Each line
+is one JSON object holding up to thirty sub-objects, so a key that moved
+rewrites the whole line.
+
+The 6 October snapshot reported **11 of 12 lines changed** and was semantically
+identical to the committed plan — checked field by field, zero differences. A
+diff that large with nothing in it is worse than no diff at all, because the
+next snapshot that *does* carry real drift looks exactly the same and nobody
+reads eleven unreadable lines twice.
+
+So `add-matchon.py` serialises with `sort_keys`, which it can do for free
+because it already rewrites every line. From here a diff in `plan.json` means a
+change. Reading one is worth the time.
+
+Don't reach for `git diff` alone when a snapshot does show changes — compare the
+two files as parsed JSON. One moved key still looks like a rewritten line in a
+terminal.
+
 ## The relay: keeping the secret out of a public repo
 
 `MtaRoute`'s `Relay` variant takes `authSecret`, which supports variants
@@ -301,17 +324,76 @@ is the obvious guard, but the field shape is not something to guess at in a file
 that gets applied to a live server — take it from a snapshot after setting one in
 the WebAdmin.
 
-### Applying it
+### Applied 6 October 2026
+
+Not with `plan.json`, but with a two-object subset carved out of it — for the
+reason in the next section, which is the more useful half of this change.
+
+## ⚠ A full `apply` is not a safe way to change one thing
+
+`plan.json` upserts every account, and the `Account` object carries
+`credentials` — for all five, with the secrets stripped, because that is the
+right default:
+
+```
+james   Password + AppPassword "Thunderbird" + AppPassword "iOS Mail"
+abrar   Password + AppPassword "Email client access"
+admin   Password
+```
+
+Structure, no values. The limitation is recorded above as a *rebuild* caveat —
+"`apply` plus re-entering credentials from the vault" — which reads like a
+cold-start problem. It is not only that. **Upserting a stripped credential onto
+an account that has a real one is untested**, and if it replaces rather than
+patches, the cost is both mailboxes and the admin login in the same second.
+
+So the blast radius of a twelve-line apply is thirty objects, three of which
+are the only way anyone gets into this server. Changing one mailing list member
+does not need that.
+
+### Carving a subset out of the plan
+
+Extract only the objects that change, into their own file:
 
 ```sh
 stalwart-cli --url https://mail.agentsee.work --user admin@agentsee.work \
-  apply --file plan.json
+  apply --file subset.json --dry-run
 ```
 
-Expect `0 destroy, 1 update, 1 create`. **A destroy in that summary means
-something else is wrong** — nothing here removes an object. If the update lands
-before the create, the list will reference a recipient that does not exist yet;
-run the apply again rather than reaching for the WebAdmin.
+**Rewrite `#`-prefixed references to literal ids first.** They resolve *within
+one plan file only* — drop the line that declares the target and apply refuses,
+with an unusually clear error:
+
+```
+error: Account: match property `domainId` references unresolved id `#domain-b`
+       (no create, upsert, or reconcile operation in this plan produced it)
+```
+
+`#domain-b` looks like it encodes the real server id, because `snapshot` names
+keys `<type>-<id>` and the live ids really are `b`, `d`, `e`, `f`. It does not
+resolve that way. `query Domain` gives the id; write `"b"`.
+
+### Reading the summary
+
+```
+Plan: 0 destroy, 0 update, 0 create, 2 upsert, 0 reconcile (2 objects)
+```
+
+It counts **what the plan asks for, by `@type`** — not a computed diff of what
+will change. `snapshot` emits `upsert` for everything, so a brand-new object
+shows up under `upsert` and `create` stays at `0`. The full file reports
+`11 upsert … (30 objects), 1 update` whatever state the server is in.
+
+Two things it is still good for: `destroy` and the object count. Nothing here
+removes objects, so **any destroy means you are applying the wrong file** — and
+the count is specific enough to identify which file parsed. Adding the `reports`
+account took the full plan from 29 objects to 30.
+
+### `--dry-run` needs credentials
+
+Its help says "without calling the server". It still refuses without them,
+because the CLI is schema-driven and fetches the schema it validates against.
+Worth knowing before you conclude the flag is broken.
 
 ## Backups
 
