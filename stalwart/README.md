@@ -244,10 +244,11 @@ for the route, and confirm it in your snapshot before cutover.
 Roughly in this order:
 
 1. **Domain** `agentsee.work`, plus `test.agentsee.work` for the proving stage.
-2. **Accounts** — `james@`, `abrar@` as real accounts; `hello@`, `show@`,
-   `accounts@`, `dmarc@` as aliases delivering to both. (Fanning one address to
-   two people is the thing Cloudflare Email Routing refused to do and why
+2. **Accounts** — `james@`, `abrar@` as real accounts; `hello@`, `show@` and
+   `accounts@` as lists delivering to both. (Fanning one address to two people
+   is the thing Cloudflare Email Routing refused to do and why
    `workers/email-fanout` exists — see [RUNBOOK](../docs/RUNBOOK.md).)
+   `dmarc@` is a list too, but with a single member — see below.
 3. **DkimSignature** — generate it here, then publish the public half via
    `dkim_public_key` in [`infra/`](../infra/). Ours *as well as* the relay's:
    SMTP2GO signs via a CNAME delegated to them, so that key is theirs and
@@ -257,6 +258,60 @@ Roughly in this order:
    which `infra/server.tf` already allows.
 5. **MtaRoute** — the SMTP2GO relay, per the reference file.
 6. **Spam filter** — Stalwart's is built in; the defaults are sane.
+
+## `dmarc@` delivers to a sink, not to people
+
+It used to have two members, so every daily report arrived **twice** — one real
+copy into each personal mailbox. Three things land there, not one:
+
+| Source | Shape |
+|---|---|
+| DMARC `rua` | gzipped aggregate XML, daily, from every receiver that gets mail claiming to be us |
+| TLS-RPT `rua` | JSON, daily |
+| CAA `iodef` | certificate-issuance incident mail, rare |
+
+The list now has one member: the `reports` account.
+
+**It stays a list rather than becoming a mailbox** because those three things are
+*DNS records* — `_dmarc`, `_smtp._tls` and the CAA `iodef` tag, all in
+[`infra/dns.tf`](../infra/dns.tf), all naming `dmarc@agentsee.work`. Keep the
+address and who reads the reports is a one-word config change. Turn the address
+into a mailbox and it becomes a DNS change, and the moment a second `rua` URI
+lives on someone else's domain it also becomes an RFC 7489 §7.1 external
+destination verification — a `<our-domain>._report._dmarc.<their-domain>` TXT
+record that receivers check before they will send. When that record is missing,
+reporting **stops silently**. The failure is indistinguishable from the problem
+being solved.
+
+**The account is `reports`, not `dmarc`,** because two of the three things
+arriving are not DMARC.
+
+### ⚠ Nothing reads it yet
+
+`credentials` is `{}` — the plan carries no secrets, so the mailbox receives mail
+and no one can log in to it. That is fine as a resting state and **not** fine as
+an end state: under `p=reject` the aggregate reports are the only way we find out
+that a legitimate sender of ours is being rejected somewhere, and we are adding
+senders. Set a password in the WebAdmin, store it in 1Password, attach it as a
+second account in a client — or point a second `rua` URI at an analyser and
+accept the verification step above.
+
+`quotas` is `{}`, like every other account here. A sink grows forever and a quota
+is the obvious guard, but the field shape is not something to guess at in a file
+that gets applied to a live server — take it from a snapshot after setting one in
+the WebAdmin.
+
+### Applying it
+
+```sh
+stalwart-cli --url https://mail.agentsee.work --user admin@agentsee.work \
+  apply --file plan.json
+```
+
+Expect `0 destroy, 1 update, 1 create`. **A destroy in that summary means
+something else is wrong** — nothing here removes an object. If the update lands
+before the create, the list will reference a recipient that does not exist yet;
+run the apply again rather than reaching for the WebAdmin.
 
 ## Backups
 
