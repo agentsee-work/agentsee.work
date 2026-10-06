@@ -1,9 +1,20 @@
-# Mail migration — plan, not yet done
+# Mail migration — the buy-instead path
 
-**Status: proposed. Nothing here has been executed.** When it has, this file
-folds into the README's "Mail" section and gets deleted. Until then the live
-setup is still Cloudflare Email Routing, forward-only, and the README describes
-what is actually true.
+**Status: not taken, kept on purpose.** We self-hosted instead. The apex moved
+off Cloudflare Email Routing to our own server on **14 September 2026** — see
+[MAIL-SELFHOST.md](MAIL-SELFHOST.md) for the shape and
+[MAIL-BUILD-RUNBOOK.md](MAIL-BUILD-RUNBOOK.md) for what it took.
+
+Nothing in this file has been executed, and that is the point of it. It is the
+runbook for the day running our own mail server stops being worth it: the
+provider comparison, the costs, and the DNS sequencing to get out. Read
+"Decision: Infomaniak kSuite Standard" below as a decision that was recorded and
+then not taken, not as one in flight.
+
+⚠ This file said "the live setup is still Cloudflare Email Routing" for three
+weeks after it wasn't. A document only read when something has gone wrong is a
+document whose status line nobody checks — so when the escape hatch is next
+opened, verify the DNS against `dig` before trusting any record written here.
 
 ## Why we're moving
 
@@ -152,7 +163,7 @@ change MX yet. Everything so far is reversible.
 ### 1. DMARC to `p=none` — first, and alone
 
 ```
-_dmarc.agentsee.work   TXT   v=DMARC1; p=none; sp=none; rua=mailto:dmarc@agentsee.work; fo=1
+_dmarc.agentsee.work   TXT   v=DMARC1; p=none; sp=none; rua=mailto:dmarc@agentsee.work
 ```
 
 Both `p` and `sp` — the current record sets `sp=reject` too. Keep `rua`; the
@@ -231,7 +242,7 @@ and we can genuinely go back to `p=reject` rather than living at `p=none`.
 Watch the aggregate reports at `dmarc@` for a few days, then restore:
 
 ```
-_dmarc.agentsee.work   TXT   v=DMARC1; p=reject; sp=reject; rua=mailto:dmarc@agentsee.work; fo=1
+_dmarc.agentsee.work   TXT   v=DMARC1; p=reject; sp=reject; rua=mailto:dmarc@agentsee.work
 ```
 
 ### 6. Clean up

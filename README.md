@@ -104,7 +104,7 @@ MX     mail.agentsee.work              ← our server. DNS-only, never proxied
 SPF    v=spf1 ~all                     ← authorises nothing. see below
 DKIM   v1-rsa-…_domainkey              (ours, signed before handoff)
        s989721._domainkey              (the relay's, CNAMEd to them)
-DMARC  v=DMARC1; p=reject; sp=reject; rua=mailto:dmarc@agentsee.work; fo=1
+DMARC  v=DMARC1; p=reject; sp=reject; rua=mailto:dmarc@agentsee.work
 ```
 
 **`p=reject` was never relaxed.** The usual migration advice is to drop to
