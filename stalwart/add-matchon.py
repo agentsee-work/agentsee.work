@@ -18,6 +18,20 @@ merge two different people.
 
 Types with a natural label already carry one from snapshot (`name`, `selector`,
 `emailAddress`, `description`) and are left alone.
+
+AND IT SORTS THE KEYS
+---------------------
+`snapshot` does not emit object keys in a stable order between runs. Each line
+here is one JSON object holding up to thirty sub-objects, so a key that moved
+rewrites the whole line, and `git diff` reported 11 of 12 lines changed for a
+snapshot that was semantically identical to the committed one — verified field
+by field, zero differences.
+
+A diff that large with nothing in it is worse than no diff at all: the next
+snapshot that *does* contain real drift will look exactly the same, and nobody
+reads 11 unreadable lines twice. Sorting makes the serialisation canonical, so
+a diff means a change. `@type` still sorts first — `@` is 0x40, below the
+letters.
 """
 import json
 import sys
@@ -35,15 +49,10 @@ def main(path: str) -> int:
         obj = json.loads(line)
         want = MATCH_ON.get(obj.get("object"))
         if want and obj.get("matchOn") != want:
-            # Rebuild the dict so matchOn sits where snapshot puts it, keeping
-            # the diff between successive snapshots readable.
-            obj = {
-                **{k: v for k, v in obj.items() if k != "value"},
-                "matchOn": want,
-                "value": obj["value"],
-            }
+            obj = {**obj, "matchOn": want}
             changed += 1
-        out.append(json.dumps(obj, separators=(",", ":")))
+        # sort_keys is load-bearing — see the module docstring.
+        out.append(json.dumps(obj, separators=(",", ":"), sort_keys=True))
 
     with open(path, "w") as fh:
         fh.write("\n".join(out) + "\n")
