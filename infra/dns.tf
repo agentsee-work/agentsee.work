@@ -221,13 +221,24 @@ resource "cloudflare_dns_record" "caa_iodef" {
 }
 
 # ─── DMARC ───────────────────────────────────────────────────────────────────
+# `fo=1` was here and did nothing. `fo` selects when a receiver generates a
+# FAILURE report, and failure reports go to `ruf=`. With no `ruf=` there are no
+# failure reports for it to govern, so the tag was published, parsed and
+# discarded by every receiver on the internet.
+#
+# There is no `ruf=` on purpose: failure reports carry headers and sometimes
+# content of individual messages, most receivers never send them, and the ones
+# that do would add volume to an address we have just finished quietening.
+#
+# So `rua=` alone. What arrives there is daily aggregate XML, and it goes to the
+# `reports` account rather than to a person — see stalwart/README.md.
 resource "cloudflare_dns_record" "dmarc" {
   zone_id = var.cloudflare_zone_id
   name    = "_dmarc.${var.domain}"
   type    = "TXT"
-  content = "v=DMARC1; p=${var.dmarc_policy}; sp=${var.dmarc_policy}; rua=mailto:dmarc@${var.domain}; fo=1"
+  content = "v=DMARC1; p=${var.dmarc_policy}; sp=${var.dmarc_policy}; rua=mailto:dmarc@${var.domain}"
   ttl     = 300
-  comment = "Nothing sends as @agentsee.work yet. Relax to p=none BEFORE any send-as."
+  comment = "rua only: fo= governs ruf=, and there is deliberately no ruf=."
 }
 
 # ─── DKIM: ours, signed by Stalwart before handoff to the relay ──────────────

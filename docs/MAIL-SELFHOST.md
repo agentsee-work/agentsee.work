@@ -3,11 +3,11 @@
 Own the inbox, rent the reputation. The buy-instead path stays in
 [MAIL-MIGRATION.md](MAIL-MIGRATION.md) and is still the fallback.
 
-**Status: built and proving.** The server runs, inbound mail is delivered to
+**Status: built and cut over.** The server runs, inbound mail is delivered to
 mailboxes, and outbound is relayed and DKIM-signed with `dmarc=pass` at
-`p=reject`. The apex is still on Cloudflare Email Routing — cutover has not
-happened, and will not until backups are proven. See
-[MAIL-BUILD-RUNBOOK.md](MAIL-BUILD-RUNBOOK.md) for where it actually is.
+`p=reject`. The apex moved off Cloudflare Email Routing on **14 September
+2026** — `dig +short MX agentsee.work` returns `mail.agentsee.work`. See
+[MAIL-BUILD-RUNBOOK.md](MAIL-BUILD-RUNBOOK.md) for how it got there.
 
 ## The shape
 
