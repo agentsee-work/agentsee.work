@@ -98,7 +98,7 @@ that admits a gap:
 |---|---|
 | `docker-compose.yml` | **Run on a real box 11 September 2026.** Image name, ports, the loopback bootstrap port and the `--config` path are all corrected from what actually happened rather than what was designed |
 | `relay-smtp2go.reference.json` | **Superseded by `plan.json`.** Kept for its notes on ports, DANE and signed headers; the real object is in the plan |
-| `plan.json` | **Snapshotted from the running server 14 September 2026**, plus one hand edit on 6 October 2026 (the `dmarc@` member and the `reports` account) that was applied as a subset and verified against the server. So it describes what is running, but it is no longer a pure snapshot — the next `./snapshot.sh` makes it one again |
+| `plan.json` | **Snapshotted from the running server 14 September 2026, re-snapshotted 6 October 2026 and verified identical.** The 6 October snapshot was taken after the hand edit that added `reports` and changed the `dmarc@` member, and matched the committed file field for field across all twelve lines — so the hand edit was indistinguishable from what the server would have produced. This describes what is running, and that is now checked rather than asserted |
 
 ## `plan.json` — the running server, as a file
 
@@ -214,6 +214,26 @@ match-by-value is harmless.
 
 Everything with a natural label already carries one from `snapshot`:
 `matchOn: ["name"]`, `["selector"]`, `["emailAddress"]`, `["description"]`.
+
+### ⚠ And it sorts the keys, which is not cosmetic
+
+`snapshot` does not emit object keys in a stable order between runs. Each line
+is one JSON object holding up to thirty sub-objects, so a key that moved
+rewrites the whole line.
+
+The 6 October snapshot reported **11 of 12 lines changed** and was semantically
+identical to the committed plan — checked field by field, zero differences. A
+diff that large with nothing in it is worse than no diff at all, because the
+next snapshot that *does* carry real drift looks exactly the same and nobody
+reads eleven unreadable lines twice.
+
+So `add-matchon.py` serialises with `sort_keys`, which it can do for free
+because it already rewrites every line. From here a diff in `plan.json` means a
+change. Reading one is worth the time.
+
+Don't reach for `git diff` alone when a snapshot does show changes — compare the
+two files as parsed JSON. One moved key still looks like a rewritten line in a
+terminal.
 
 ## The relay: keeping the secret out of a public repo
 
