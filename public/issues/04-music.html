@@ -128,9 +128,13 @@
     <h2>Sheet music written as XML states the important things once, in the first bar, and assumes them ever after.</h2>
 
     <div class="cols two">
-      <p>The key signature, the time signature, how many ticks make a beat, which clef to read, and whether the instrument sounds where it is written: all of it appears in bar one. Cut bars nineteen to twenty-six into their own file and you have a document that opens without complaint, passes every check, and plays at the wrong speed in the wrong key an octave out. Nothing warns you, because nothing is malformed.</p>
+      <p>The key signature. The time signature. How many ticks make a beat, which clef to read, whether the instrument sounds where it is written. All of it appears in bar one, and nowhere else.</p>
 
-      <p>The tempo was worse. It is written into the first instrument's part only. Our quiet loop is bass alone, so when the bass was extracted on its own it carried no tempo at all, even cut from bar one, and would have rendered at whatever the software happened to default to.</p>
+      <p>So cut bars nineteen to twenty-six into their own file and you get a document that opens without complaint and passes every check. It also plays at the wrong speed, in the wrong key, an octave out. Nothing warns you, because nothing is malformed.</p>
+
+      <p>The tempo was worse. It is written into the first instrument's part only.</p>
+
+      <p>Our quiet loop is bass alone. Extracted on its own it carried no tempo at all — even cut from bar one — and would have rendered at whatever the software happened to default to.</p>
 
       <p>A loop running at a speed nothing else in the show agrees with is the sort of fault that survives a listen and then irritates an audience for a year.</p>
 
@@ -144,11 +148,17 @@
     <h2>Two bars at 132 beats per minute is a number. It was not the right one.</h2>
 
     <div class="cols two">
-      <p>A loop has to be exactly one musical length or it drifts, so the obvious move is arithmetic. Four beats a bar, 132 a minute, 48,000 samples a second. The figure that comes out is not the figure in the file, because the render ends with the last note still decaying and that tail belongs to no cycle.</p>
+      <p>A loop has to be exactly one musical length or it drifts. So the obvious move is arithmetic: four beats a bar, 132 a minute, 48,000 samples a second.</p>
 
-      <p>Dividing the file's length by the eight cycles it contains looks like the fix and is 6 per cent high for the same reason. The first version of our measuring tool did exactly that, and tested against a recording whose tempo we already knew it was out by eight beats per minute, stated to two decimal places. Correlating each cycle against the next gave 174,545 samples and 132.00, which had been the answer from the start.</p>
+      <p>The figure that comes out is not the figure in the file. The render ends with the last note still decaying, and that tail belongs to no cycle.</p>
 
-      <p>One finding there was worth the detour. A loop taken from the first or last cycle of a recording can never be seamless, because the first has nothing ringing into it and the last has no following cycle to ring into. Both ends are discontinuous by construction, and measured against the middle cycles those two were about seventy decibels worse. We had been choosing between them by ear and guessing.</p>
+      <p>Dividing the file's length by the eight cycles it contains looks like the fix. It is 6 per cent high, for the same reason.</p>
+
+      <p>The first version of our measuring tool did exactly that. Tested against a recording whose tempo we already knew, it was out by eight beats per minute — and stated that to two decimal places. Correlating each cycle against the next gave 174,545 samples and 132.00, which had been the answer from the start.</p>
+
+      <p>One finding there was worth the detour. A loop taken from the first or last cycle of a recording can never be seamless. The first has nothing ringing into it; the last has no following cycle to ring into.</p>
+
+      <p>Both ends are discontinuous by construction. Measured against the middle cycles, those two were about seventy decibels worse. We had been choosing between them by ear, and guessing.</p>
 
     </div>
   </section>
@@ -158,11 +168,17 @@
     <h2>Loudness software reported four of eight cues as badly off target. All eight were on target.</h2>
 
     <div class="cols two">
-      <p>Music under speech has to sit well below it, and that gap set by ear changes every week. Ours is written down instead: cues that play alone at one level, the loop fourteen decibels under. The measuring pass reported that four cues had missed by up to three decibels.</p>
+      <p>Music under speech has to sit well below it. Set that gap by ear and it changes every week, so ours is written down: cues that play alone at one level, the loop fourteen decibels under.</p>
 
-      <p>They had not. The figure being printed was the software's own forecast of what it was about to do, and the forecast runs pessimistic. One cue predicted at minus nineteen measured minus sixteen point four once written. Measuring the finished files instead of reading the forecast put the whole set inside four tenths of a decibel.</p>
+      <p>The measuring pass then reported that four of the cues had missed by up to three decibels.</p>
 
-      <p>The same tool, asked to leave the sample rate alone, produced files at 192,000 samples a second. It upsamples internally to find peaks, and with no rate specified on the output that internal rate lands in the file. The instruction to change nothing had to be implemented as an instruction to change it to what it already was.</p>
+      <p>They had not. The figure being printed was the software's own forecast of what it was about to do, and that forecast runs pessimistic. One cue predicted at minus nineteen measured minus sixteen point four once written.</p>
+
+      <p>Measuring the finished files instead of reading the forecast put the whole set inside four tenths of a decibel.</p>
+
+      <p>The same tool, asked to leave the sample rate alone, produced files at 192,000 samples a second. It upsamples internally to find peaks. With no rate specified on the output, that internal rate lands in the file.</p>
+
+      <p>So the instruction to change nothing had to be written as an instruction to change it to what it already was.</p>
 
     </div>
   </section>
