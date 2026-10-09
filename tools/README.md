@@ -15,7 +15,25 @@ that checks handles.
 | `loop.py` | A rendered loop's true length, measured and cut. |
 | `handle-probe.sh` | Handle availability. Nothing to do with the rest. |
 
-How the mark's animation and the theme music were actually built — the
+The podcast pipeline, one tool per stage, driven by `episode.py`:
+
+| | |
+|---|---|
+| `episode.py` | One episode start to finish: `new` writes episode.json and ingests, `run` does the rest. |
+| `ingest.py` | A Riverside timeline package → `manifest.json`: who is on which track, offsets, layout, chapters. |
+| `transcribe.py` | faster-whisper per track, on the GPU: every word timed, speaker known. |
+| `fillers.py` | erm per track: a verbatim transcript with every um as a timed token, and its acoustic cut list. Feeds `cut.py`. |
+| `verbatim_words.py` | Run by `fillers.py` inside venv-erm: the verbatim transcript, then a second look at any speech-level sound it has no word for. |
+| `align.py` | Forced alignment of the verbatim words to the whole track: boundaries to a frame, which Whisper's are not; words with no sound under them marked as ghosts. |
+| `cut.py` | The edit as data: fillers, stammers, pauses, chapter cards, review notes. Writes `edl.json`. |
+| `cards.py` | Title and end cards animated through `eyeanim.py`'s chains; chapter cards. |
+| `assemble.py` | Gate, match and mix the voices, lay the cues, cut and compose the video. Every deliverable. |
+| `clips.py` | Vertical clips from `clips.json`, both hosts stacked, captions lit word by word. |
+| `variants.py` | Every cut setting rendered as audio, side by side, with what each one removed. |
+| `eplib.py` | What those share: paths, ffprobe, loudness measurement, the edit-list arithmetic. |
+
+How the podcast pipeline fits together is in
+[docs/PODCAST-PIPELINE.md](../docs/PODCAST-PIPELINE.md). How the mark's animation and the theme music were actually built — the
 decisions, and what each one cost to learn — is in
 [docs/BRAND-ANIMATION.md](../docs/BRAND-ANIMATION.md) and
 [docs/THEME-MUSIC.md](../docs/THEME-MUSIC.md). This file is the reference for
@@ -93,6 +111,56 @@ And `loop.py` turns the ×8 bed into a seamless loop:
 
 It prints the period in samples, the tempo that implies, and a seam score per
 candidate cycle, then cuts from the cleanest one.
+
+An episode, from the Riverside download to the deliverables:
+
+```sh
+./tools/episode.py new ep1 ~/Downloads/timeline.zip --number 1 \
+    --title "Running our own mail server, on purpose" \
+    --names 6ac4c0cd="James Hartt",6ac4c0ce="Abrar Mahmood"
+./tools/episode.py run ep1                 # transcribe, cut, cards, assemble
+./tools/episode.py run ep1 --from assemble # after changing the edit
+./tools/episode.py status ep1
+```
+
+Each stage is its own tool with its own options; the ones worth knowing:
+
+```sh
+./tools/cut.py ep1 --show                               # read the edit
+./tools/cut.py ep1 --slate-in rolling --slate-out "that's a wrap"
+./tools/cut.py ep1 --start 12.4 --end 540.2 --max-pause 1 --pause 0.5
+./tools/cut.py ep1 --fillers all --stammers clean --max-pause 0.7 --pause 0.4   # the defaults
+./tools/cut.py ep1 --fillers off --stammers off --max-pause 1.5          # the loose cut
+./tools/variants.py ep1                                  # every setting, as mp3s, to compare
+./tools/assemble.py ep1 --edl build/episodes/ep1/out/variants/tight.edl.json
+./tools/assemble.py ep1 --audio-only                    # the feed only
+./tools/assemble.py ep1 --fast                          # check the cut, cheaply
+./tools/assemble.py ep1 --dialogue-in 6.0 --bed-out 24 --no-bed
+./tools/variants.py ep1 --choose tightest               # make that variant the episode's cut
+./tools/clips.py ep1 --propose 8                        # candidates, with text
+./tools/clips.py ep1                                    # render clips.json
+```
+
+The pipeline needs numpy, scipy, soundfile, Pillow and fontTools in the
+system Python, plus ffmpeg and headless Chrome. Two files in the episode folder steer the cut by hand, when a rule is not the
+answer: `chapters.json` (`[{title, at: "first words of the section", after:
+"last words of the one before"}]`, quoted from the transcript, with `card:
+false` for a marker without a card; `{title, t0}` in source seconds is the
+old seam-finder and `exact: true` cuts right there) and `removals.json` (`[{phrase, near}]` or
+`[{t0, t1}]`, and `{keep: true, t0, t1}` for a span no rule may touch) for the
+"take that bit out" and "leave that alone" notes from a review.
+
+Transcription and erm each run in their
+own venv, because their CUDA wheels do not belong in the system Python:
+
+```sh
+python3 -m venv build/venv-transcribe
+build/venv-transcribe/bin/pip install faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12
+python3 -m venv build/venv-erm
+build/venv-erm/bin/pip install erm "av<16" nvidia-cublas-cu12 nvidia-cudnn-cu12
+python3 -m venv build/venv-align
+build/venv-align/bin/pip install torch transformers     # the CUDA build; align.py runs here
+```
 
 `cues.py` targets −16 LUFS for cues that play alone and −30 for anything with
 `bed` in its name, because a bed plays under speech and has to sit below it. The gap
