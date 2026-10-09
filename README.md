@@ -61,6 +61,7 @@ docs/POST-DRAFT-MAIL.md       the long version of Issue No. 2, and podcast notes
 docs/BRAND-ANIMATION.md       the mark animated — the model, and what a bad measurement looks like
 docs/THEME-MUSIC.md           one score cut into eight cues, rendered and levelled
 docs/PODCAST-PIPELINE.md      a recording in, the episode out, by script — and every trap on the way
+docs/POST-DRAFT-PODCAST.md    the long version of Issue No. 5, and notes for the next recording
 infra/                        the mail server declared — OpenTofu, applied
 stalwart/                     mail server config, snapshotted from the running server
 tools/README.md               every tool, the model behind the mark, and the traps
