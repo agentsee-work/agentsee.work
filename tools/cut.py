@@ -869,7 +869,7 @@ def main():
         src = load_json(a.chapters) if a.chapters else m.get("chapters", [])
         kw = [words[i] for i in kept]
 
-        def find_phrase(phrase, near, what):
+        def find_quote(phrase, near, what):
             """The word indexes (first, last) of a quoted phrase, matched on
             one speaker's own run of words so a backchannel from the other
             person in the middle of it does not break the match."""
@@ -904,10 +904,10 @@ def main():
                 # the editor quotes the first words of the section, and,
                 # with `after`, the last words of the one before: the card
                 # goes between, and whatever was said between goes
-                i_at, _ = find_phrase(c["at"], c.get("t0"), f"chapter {c['title']!r} start")
+                i_at, _ = find_quote(c["at"], c.get("t0"), f"chapter {c['title']!r} start")
                 w_at = words[i_at]
                 if c.get("after"):
-                    _, i_af = find_phrase(c["after"], c.get("t0"), f"chapter {c['title']!r} end of the previous")
+                    _, i_af = find_quote(c["after"], c.get("t0"), f"chapter {c['title']!r} end of the previous")
                     w_af = words[i_af]
                     if w_af["t1"] >= w_at["t0"]:
                         die(f"chapter {c['title']!r}: 'after' {c['after']!r} ({hms(w_af['t1'])}) "
