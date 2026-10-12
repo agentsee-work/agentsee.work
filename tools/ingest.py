@@ -85,11 +85,17 @@ def read_xml(path):
         for track in seq.findall(f"media/{kind}/track"):
             for c in track.findall("clipitem"):
                 name = c.find("name").text
-                st = int(c.find("start").text)
-                entry = info["clips"].setdefault(name, {})
-                entry["start"] = st / fps
-                entry["in"] = int(c.find("in").text) / fps
-                entry["out"] = int(c.find("out").text) / fps
+                st = int(c.find("start").text) / fps
+                i_, o_ = int(c.find("in").text) / fps, int(c.find("out").text) / fps
+                entry = info["clips"].setdefault(name, {"segments": []})
+                # Riverside exports its own edit as many clips per track —
+                # 580 on episode 1 — each a stretch of the source placed on
+                # the timeline. The track's alignment is the first clip's
+                # start less its in-point; every later clip is behind it by
+                # whatever was cut out before it.
+                entry["segments"].append((st, i_, o_))
+                if "start" not in entry or st < entry["start"]:
+                    entry["start"], entry["align"] = st, st - i_
                 eff = c.find("filter/effect")
                 if eff is not None:
                     p = {x.find("parameterid").text: x for x in eff.findall("parameter")}
@@ -125,13 +131,21 @@ def participants(source, xml):
                 ids.setdefault(p.stem, {})[kind] = p.name
     out = []
     for pid, files in sorted(ids.items()):
-        clip = {}
+        clip, edit = {}, None
         if xml:
             for name, c in xml["clips"].items():
                 if name.startswith(pid):
-                    clip.update(c)
-        out.append({"id": pid, "offset": round(clip.get("start", 0.0), 4),
-                    "layout": clip.get("layout"), **files})
+                    clip.update({k: v for k, v in c.items() if k != "segments"})
+                    # the audio track carries the content edit; the video
+                    # track's clips are the camera switching
+                    if name.endswith((".wav", ".m4a", ".mp3")) or edit is None:
+                        edit = sorted(c["segments"])
+        out.append({"id": pid, "offset": round(clip.get("align", 0.0), 4),
+                    "layout": clip.get("layout"), "edit": edit, **files})
+    # offsets are relative to the earliest track, never negative
+    base = min(p["offset"] for p in out)
+    for p in out:
+        p["offset"] = round(p["offset"] - base, 4)
     return out
 
 
@@ -178,17 +192,36 @@ def main():
 
     names = parse_names(a.names)
     if manifest_path.exists() and not names:
-        names = {p["id"][:8]: p["name"] for p in load_json(manifest_path)["participants"]}
+        names = {p["id"]: p["name"] for p in load_json(manifest_path)["participants"]}
+
+    found = participants(src, xml)
+    ids = [p["id"] for p in found]
+
+    def handle(id_):
+        """The shortest prefix of this id that no other track shares. Two
+        tracks in one package began with the same eight characters, and
+        eight was what the fallback used."""
+        for n in range(8, len(id_) + 1):
+            if sum(1 for o in ids if o.startswith(id_[:n])) == 1:
+                return id_[:n]
+        return id_
 
     parts, warnings = [], []
-    for p in participants(src, xml):
+    for p in found:
         name = next((v for k, v in names.items() if p["id"].startswith(k)), None)
         if not name:
-            warnings.append(f"no name for {p['id']} — pass --names {p['id'][:8]}=\"Full Name\"")
-            name = p["id"][:8]
+            warnings.append(f"no name for {p['id']} — pass --names {handle(p['id'])}=\"Full Name\"")
+            name = handle(p["id"])
         short = re.sub(r"[^a-z0-9]", "", name.split()[0].lower())
         entry = {"id": p["id"], "name": name, "short": short, "offset": p["offset"],
                  "layout": p["layout"]}
+        if p.get("edit") and len(p["edit"]) > 1:
+            # Riverside's own cut, kept for the record and not applied: the
+            # pipeline cuts from the raw track. Stretches of the raw track
+            # that its edit kept, in this episode's time.
+            kept = [(round(i_ + p["offset"], 3), round(o_ + p["offset"], 3)) for _, i_, o_ in p["edit"]]
+            entry["riverside_edit"] = {"clips": len(kept), "kept_seconds": round(sum(b - a for a, b in kept), 1),
+                                       "kept": kept}
         if "audio" in p:
             info = ffprobe(src / p["audio"])
             au = info["audio"]
@@ -223,15 +256,31 @@ def main():
         die(f"no tracks found in {src}")
 
     fps = xml["fps"] if xml else parts[0].get("video", {}).get("fps", 24)
-    duration = (xml["frames"] / fps if xml else
-                max(p["offset"] + p["audio"]["duration"] for p in parts if "audio" in p))
+    # the raw tracks' length, not the XML sequence's: an edited timeline is
+    # shorter than what was recorded
+    duration = max(p["offset"] + p["audio"]["duration"] for p in parts if "audio" in p)
+    chapters = xml["chapters"] if xml else []
+    first = next((p for p in participants(src, xml) if p.get("edit")), None)
+    if first and len(first["edit"]) > 1 and chapters:
+        # Riverside's chapter marks are in its edited sequence's time;
+        # bring them back to this episode's time through its clip list
+        segs = first["edit"]
+
+        def to_src(t):
+            for st, i_, o_ in segs:
+                if st <= t < st + (o_ - i_):
+                    return i_ + (t - st) + first["offset"]
+            return None
+
+        chapters = [{**c, "t0": round(to_src(c["t0"]) or 0.0, 3), "t1": round(to_src(c["t1"]) or duration, 3)}
+                    for c in chapters]
     manifest = {
         "slug": a.slug, "package": package,
         "xml": f"source/{xml_path.name}" if xml_path else None,
         "fps": fps, "duration": round(duration, 4),
         "sequence": {"width": xml["width"], "height": xml["height"]} if xml else None,
         "participants": parts,
-        "chapters": xml["chapters"] if xml else [],
+        "chapters": chapters,
         "warnings": warnings,
     }
     save_json(manifest_path, manifest)
