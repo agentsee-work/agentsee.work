@@ -50,6 +50,14 @@ What it does not give, and why the pipeline does these itself:
 - **No cut list on any plan we would pay for.** Timeline export is XML or
   AAF, carries trims and chapters only, and is a Business-plan feature. We do
   not need it to be more: the edit is decided here, from the transcript.
+- **Its own edit comes along uninvited.** If the studio's editor has been
+  used on the recording, the XML is that edit: on episode 1, 580 clips per
+  audio track (its filler and pause removal, 346 s of 46 minutes) and a
+  video track cut to whoever was speaking. Ingest takes the track alignment
+  from the first audio clip, records the edit in the manifest as the
+  stretches it kept, and does not apply it; the cut here starts from the raw
+  track. Riverside's chapter marks are in the edited sequence's time and are
+  mapped back through the clip list.
 - **No programmatic download.** The API is Business-only and on request, the
   MCP returns no file links, and the terms forbid automating the button. The
   download is the one manual step and it is one click.
@@ -415,6 +423,20 @@ a nine-minute episode runs from the transcripts to the deliverables in
 about nine minutes, two of them the animated cards: both tracks go through
 erm at once (90 s), the aligner runs on the GPU (20 s), the picture is one
 encode (under 3 min), and the clips render in a pool alongside it (60 s).
+The picture is encoded by the card's NVENC when ffmpeg can reach it
+(`--cpu-encode` forces x264): episode 1, forty-six minutes recorded and
+thirty-seven cut, took 44 minutes to assemble on x264's slow preset, 35 of
+them the two 1080p encodes. NVENC's quantiser is calibrated against x264
+by PSNR (cq 24 for the deliverable, 20 for the two-up). The episode's
+graph opens the two-up once per chapter, seeked to it and read only across
+it: one trim branch per kept stretch made every frame visit all 680 of
+them, and one select per chapter over a single decode let the decoder run
+the whole file ahead of the encoder — fifty gigabytes of frames waiting on
+the concat, and the machine out of memory. A clip's renderer seeks the
+source the same way; it used to decode forty minutes of 1080p to reach a
+clip near the end, and six clips now take a minute instead of four. The
+audio stage of a long episode is the next thing to look at: twelve
+minutes, most of it loudness passes over the full length.
 Re-running the transcription is not bit-reproducible — Whisper on the GPU
 returns a word or two more or fewer each time, and the cut moves by a
 second — so a chosen edit is re-rendered with `episode.py run <slug>

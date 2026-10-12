@@ -174,6 +174,40 @@ def normalise(src, dst, target=-16.0, tp=-1.0, limiter=False, compress=False):
     return measure(dst, target, tp)
 
 
+_GPU_ENCODER = None
+
+
+def gpu_encoder():
+    """NVENC, if ffmpeg has it and a card answers. Checked once per process
+    with a one-frame encode, because the encoder can be listed on a machine
+    with no usable GPU."""
+    global _GPU_ENCODER
+    if _GPU_ENCODER is None:
+        r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i", "color=size=256x256:rate=1",
+                            "-frames:v", "1", "-c:v", "h264_nvenc", "-f", "null", "-"],
+                           capture_output=True, text=True)
+        _GPU_ENCODER = "h264_nvenc" if r.returncode == 0 else ""
+    return _GPU_ENCODER
+
+
+def video_codec(fast=False, cpu=False, final=True):
+    """The encoder arguments for a picture. On the workstation the 2080 Ti's
+    NVENC does 1080p at eight times real time where x264's slow preset on
+    32 threads does two and a half; episode 1's 83 minutes of encoding took
+    35 minutes on the CPU. NVENC's quantiser is not x264's: measured on
+    thirty seconds of episode 1 against a lossless reference, x264 crf 18
+    gave 46.6 dB at 50 MB and NVENC cq 22/25/28 gave 44.0/41.8/39.9 dB at
+    42/29/20 MB, so the deliverable takes cq 24 and an intermediate (not
+    `final`) cq 20, where the generation costs nothing. `cpu` forces x264;
+    `fast` is the preview setting."""
+    if fast:
+        return ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "23"]
+    if not cpu and gpu_encoder():
+        return ["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", "24" if final else "20", "-b:v", "0",
+                "-spatial-aq", "1", "-temporal-aq", "1", "-rc-lookahead", "20"]
+    return ["-c:v", "libx264", "-preset", "slow" if final else "fast", "-crf", "18" if final else "14"]
+
+
 def hms(t, frac=True):
     t = max(0.0, float(t))
     h, rem = divmod(t, 3600)

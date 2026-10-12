@@ -50,7 +50,7 @@ import soundfile as sf
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from eplib import (CUES, RATE, ROOT, caption_cues, cut_with_crossfades, die,  # noqa: E402
                    ep_dir, hms, level_to, load_json, map_words, measure, need, normalise,
-                   run, save_json, speech_intervals, write_srt)
+                   run, save_json, speech_intervals, video_codec, write_srt)
 
 CUE = {"sting": "01-sting.wav", "bed": "bed-loop.wav", "button": "04-button.wav",
        "outro": "02-outro.wav"}
@@ -335,8 +335,7 @@ def two_up(d, m, args):
     filt.append("".join(f"[p{i}]" for i in range(n)) +
                 (f"hstack=inputs={n}[v]" if n > 1 else "null[v]"))
     cmd += ["-filter_complex", ";".join(filt), "-map", "[v]", "-t", m["duration"],
-            "-c:v", "libx264", "-preset", "ultrafast" if args.fast else "fast",
-            "-crf", "20" if args.fast else "14", "-pix_fmt", "yuv420p", out]
+            *video_codec(args.fast, args.cpu_encode, final=False), "-pix_fmt", "yuv420p", out]
     run(cmd)
     return out
 
@@ -355,7 +354,7 @@ def frame_plan(items, fps):
     return plan
 
 
-def episode_video(d, edl, twoup, wav, timings, chapters_path, args, m):
+def episode_video(d, edl, twoup, wav, timings, chapters_path, args, m, out=None, limit=None):
     """The whole picture in one encode: the kept stretches of the two-up
     trimmed frame-exact and joined, chapter cards held for their length,
     the title and end cards faded in and out, the mixed audio and the
@@ -368,38 +367,64 @@ def episode_video(d, edl, twoup, wav, timings, chapters_path, args, m):
     for p in (title, end):
         if not p.exists():
             die(f"{p.relative_to(ROOT)} missing — run cards.py first")
-    out = d / "out" / "episode.mp4"
+    out = out or d / "out" / "episode.mp4"
     fps = m["fps"]
     din, total, outro = timings["dialogue_in"], timings["total"], timings["outro_start"]
+    if limit:
+        total = min(total, limit)   # a bounded render, for checks
     pad = OUTRO_GAP + XF_END
-    cmd = ["ffmpeg", "-nostdin", "-y", "-i", twoup, "-i", title, "-i", end, "-i", wav,
-           "-i", chapters_path]
+    cmd = ["ffmpeg", "-nostdin", "-y", "-i", title, "-i", end, "-i", wav, "-i", chapters_path]
     filt, labels = [], []
-    k = 5
+    k = 4
     plan = frame_plan(edl["items"], fps)
-    for i, (it, nf) in enumerate(zip(edl["items"], plan)):
+    # The kept stretches between two cards are one branch: the two-up opened
+    # once more as its own input, seeked to the chapter and read only across
+    # it, with the chapter's frames chosen by number and re-timed to run
+    # on. One decoder per chapter, each bounded to its own stretch of the
+    # file, is what keeps the memory flat: one trim branch per stretch (680
+    # on episode 1) made every frame visit every branch, and one select per
+    # chapter over a single decode let the decoder run the whole file ahead
+    # of the encoder, fifty gigabytes of frames waiting on a concat.
+    groups, cur = [], []
+    for it, nf in zip(edl["items"], plan):
         if it["type"] == "src":
-            sf_ = round(it["t0"] * fps)
-            filt.append(f"[0:v]trim=start_frame={sf_}:end_frame={sf_ + nf},"
-                        f"setpts=PTS-STARTPTS[s{i}]")
+            cur.append((round(it["t0"] * fps), nf))
         else:
+            if cur:
+                groups.append(("src", cur))
+                cur = []
+            groups.append(("card", (it, nf)))
+    if cur:
+        groups.append(("src", cur))
+    for i, (kind, g) in enumerate(groups):
+        if kind == "src":
+            first = g[0][0]
+            last = g[-1][0] + g[-1][1] - 1
+            # half a frame early, so the first frame decoded is `first` exactly
+            cmd += ["-ss", f"{(first - 0.5) / fps:.6f}" if first else "0",
+                    "-t", f"{(last - first + 1.5) / fps:.6f}", "-i", twoup]
+            expr = "+".join(f"between(n,{sf_ - first},{sf_ + nf - 1 - first})" for sf_, nf in g)
+            total_frames = sum(nf for _, nf in g)
+            filt.append(f"[{k}:v]select='{expr}',setpts=N/FRAME_RATE/TB,"
+                        f"trim=end_frame={total_frames}[s{i}]")
+        else:
+            it, nf = g
             cmd += ["-loop", "1", "-framerate", str(fps), "-t", str(it["dur"]),
                     "-i", cards / f"{it['name']}.png"]
             filt.append(f"[{k}:v]format=yuv420p,setsar=1,trim=start_frame=0:end_frame={nf},"
                         f"setpts=PTS-STARTPTS[s{i}]")
-            k += 1
+        k += 1
         labels.append(f"[s{i}]")
     # one timebase and format for the three streams xfade sees
     filt.append("".join(labels) + f"concat=n={len(labels)}:v=1:a=0,format=yuv420p,fps={fps},"
                 f"tpad=stop_mode=clone:stop_duration={pad}[cut]")
-    filt.append(f"[1:v]format=yuv420p,fps={fps}[title]")
-    filt.append(f"[2:v]format=yuv420p,fps={fps}[end]")
+    filt.append(f"[0:v]format=yuv420p,fps={fps}[title]")
+    filt.append(f"[1:v]format=yuv420p,fps={fps}[end]")
     filt.append(f"[title][cut]xfade=transition=fade:duration={XF_IN}:offset={din}[a]")
     filt.append(f"[a][end]xfade=transition=fade:duration={XF_END}:offset={outro}[v]")
-    cmd += ["-filter_complex", ";".join(filt), "-map", "[v]", "-map", "3:a",
-            "-map_metadata", "4", "-map_chapters", "4",
-            "-c:v", "libx264", "-preset", "ultrafast" if args.fast else "slow",
-            "-crf", "23" if args.fast else "18", "-pix_fmt", "yuv420p", "-r", str(fps),
+    cmd += ["-filter_complex", ";".join(filt), "-map", "[v]", "-map", "2:a",
+            "-map_metadata", "3", "-map_chapters", "3",
+            *video_codec(args.fast, args.cpu_encode), "-pix_fmt", "yuv420p", "-r", str(fps),
             "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-t", total, out]
     run(cmd)
     return out
@@ -441,6 +466,7 @@ def main():
     ap.add_argument("--bed-fade", type=float, default=6.0)
     ap.add_argument("--bed-gain", type=float, default=0.0, help="dB on top of the bed's -30 LUFS")
     ap.add_argument("--no-bed", action="store_true")
+    ap.add_argument("--cpu-encode", action="store_true", help="x264 even when the GPU encoder is there")
     ap.add_argument("--target", type=float, default=-16.0)
     ap.add_argument("--tp", type=float, default=-1.0)
     ap.add_argument("--speaker-lufs", type=float, default=-18.0)

@@ -35,7 +35,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from banner import THEMES, render  # noqa: E402
 from eplib import (RATE, ROOT, caption_cues, caption_words, cut_with_crossfades, dialogue_sum,  # noqa: E402
                    die, edl_finalise, ep_dir, hms, load_json, map_words, measure, need,
-                   normalise, run, save_json, speech_intervals, wrap_two)
+                   normalise, run, save_json, speech_intervals, video_codec, wrap_two)
 from assemble import frame_plan  # noqa: E402
 from show import CLIP_ZONES, build  # noqa: E402
 
@@ -231,13 +231,20 @@ def render_clip(d, m, words, bus, clip, idx, args, theme, plate, fontdir, edl):
            "-t", f"{dur:.3f}", "-i", plate]
     filt = []
     for i, p in enumerate(parts):
-        cmd += ["-i", d / p["video"]["file"]]
+        # seek the source to just before the first frame the clip needs.
+        # Without it ffmpeg decodes the whole file from the top to reach a
+        # trim — forty minutes of 1080p for a clip near the end — and that,
+        # not the encode, was the clip's time. The seek lands half a frame
+        # early so the first frame decoded is exactly the one counted on.
+        first = min(max(0, round((it["t0"] - p["offset"]) * m["fps"])) for it in local["items"])
+        skip = max(0, first - m["fps"])
+        cmd += ["-ss", f"{(skip - 0.5) / m['fps']:.6f}" if skip else "0", "-i", d / p["video"]["file"]]
         w, h = p["video"]["width"], p["video"]["height"]
         cw = min(w, int(h * pw / ph))
         ch = min(h, int(w * ph / pw))
         pieces = []
         for k, (it, nf) in enumerate(zip(local["items"], plan)):
-            sf_ = max(0, round((it["t0"] - p["offset"]) * m["fps"]))
+            sf_ = max(0, round((it["t0"] - p["offset"]) * m["fps"])) - skip
             filt.append(f"[{i + 1}:v]trim=start_frame={sf_}:end_frame={sf_ + nf},"
                         f"setpts=PTS-STARTPTS[q{i}_{k}]")
             pieces.append(f"[q{i}_{k}]")
@@ -258,8 +265,7 @@ def render_clip(d, m, words, bus, clip, idx, args, theme, plate, fontdir, edl):
     filt.append(f"[{n + 1}:a]aformat=channel_layouts=stereo[a]")
     cmd += ["-filter_complex", ";".join(filt), "-map", "[v]", "-map", "[a]",
             "-r", str(m["fps"]), "-t", f"{dur:.3f}",
-            "-c:v", "libx264", "-preset", "ultrafast" if args.fast else "slow",
-            "-crf", "23" if args.fast else "18", "-pix_fmt", "yuv420p",
+            *video_codec(args.fast, args.cpu_encode), "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-b:a", "160k", "-ar", str(RATE), "-movflags", "+faststart", out]
     run(cmd)
     tmp_n.unlink(missing_ok=True)
@@ -281,6 +287,7 @@ def main():
     ap.add_argument("--fast", action="store_true")
     ap.add_argument("--raw", action="store_true", help="ignore edl.json; the clip is the raw range")
     ap.add_argument("--jobs", type=int, default=4, help="clips rendered at once")
+    ap.add_argument("--cpu-encode", action="store_true", help="x264 even when the GPU encoder is there")
     ap.add_argument("--newsprint", action="store_true")
     a = ap.parse_args()
     need("ffmpeg", "ffprobe")
