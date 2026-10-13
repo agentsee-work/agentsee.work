@@ -14,3 +14,6 @@ __pycache__/
 
 # Rendered video. The recipe belongs in the repo; the output does not.
 build/
+
+# Claude Code local permissions, per machine
+.claude/settings.local.json

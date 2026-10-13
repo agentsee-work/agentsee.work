@@ -4,7 +4,8 @@ The show's furniture — cover art, cards, thumbnail, clip plate.
 
     ./tools/show.py --all                    # render the set
     ./tools/show.py cover                    # one asset
-    ./tools/show.py titlecard --title "Running our own mail server"
+    ./tools/show.py titlecard --title "Running our own mail server" --number 1
+    ./tools/show.py chapter --title "Why mail at all" --number 2 --out build/x.png
     ./tools/show.py --sheet                  # contact sheet for approval
     ./tools/show.py --list
 
@@ -14,7 +15,9 @@ asset at once instead of leaving eight PNGs to drift apart in a folder.
 
 Expressions come from eye.py. Each asset has a default that matches its job —
 the standby card dozes, the end card closes, the title card is curious — which
-is the whole reason the lids exist.
+is the whole reason the lids exist. A layout can also be given the eye's axes
+directly, as a dict, which is how cards.py animates a card frame by frame
+without a second copy of the layout.
 
 Cover art is the one with a hard external constraint. Podcast apps draw it at
 about 55px in a list, so `--proof` renders it at the sizes that actually matter
@@ -27,7 +30,12 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from banner import FONT, OUTDIR, ROOT, THEMES, render  # noqa: E402
-from eye import EXPRESSIONS, expr_mark, expr_vars, font_b64, mark_css  # noqa: E402
+from eye import EXPRESSIONS, expr_mark, expr_vars, font_b64, mark_css, mark_svg  # noqa: E402
+
+# The standing credits. A guest is an argument; the hosts are the show.
+HOSTS = "James Hartt & Abrar Mahmood"
+EMAIL = "hello@agentsee.work"
+SITE = "agentsee.work"
 
 # name -> (w, h, basis, expression, note)
 #
@@ -36,11 +44,16 @@ from eye import EXPRESSIONS, expr_mark, expr_vars, font_b64, mark_css  # noqa: E
 ASSETS = {
     "cover":     (3000, 3000, 1400, "attentive", "Podcast cover. Square, must read at 55px."),
     "titlecard": (1920, 1080,  620, "curious",   "Episode title, top of show."),
+    "chapter":   (1920, 1080,  620, "curious",   "Chapter card, between segments."),
     "standby":   (1920, 1080,  620, "asleep",    "'Starting soon' holding card."),
     "endcard":   (1920, 1080,  620, "closed",    "Sign-off."),
     "thumbnail": (1280,  720,  520, "sceptical", "YouTube. Read as a small rectangle in a feed."),
-    "clip":      (1080, 1920,  560, "attentive", "9:16 plate. Video centre, captions below."),
+    "clip":      (1080, 1920,  560, "attentive", "9:16 plate. Two stacked panels, captions below."),
 }
+
+# Where the clip plate's zones are, in pixels of the 1080x1920 frame. clips.py
+# reads these so the video and the captions land where the plate left room.
+CLIP_ZONES = {"head": (0, 200), "band": (200, 1550), "captions": (1550, 1830), "foot": (1830, 1920)}
 
 PAGE = """<!doctype html><meta charset="utf-8"><title>{name}</title>
 <style>
@@ -71,6 +84,7 @@ body::before {{
   color: {ink_3}; white-space: nowrap;
 }}
 .strip b {{ color: {signal}; font-weight: 400; }}
+.hosts {{ color: {ink_2}; font-weight: 300; letter-spacing: -.01em; }}
 {mark_css}
 {layout}
 </style>
@@ -87,7 +101,21 @@ def page(name, theme, w, h, basis, expr, layout, body):
 
 
 def _mark(expr, extra=""):
-    return f'<div class="mark" style="{expr_vars(expr)}{extra}">{expr_mark(expr)}</div>'
+    """An expression by name, or the eye's axes as a dict for one animation
+    frame. Both produce the same markup; only where the numbers come from
+    differs."""
+    if isinstance(expr, dict):
+        a = expr
+        vars_ = (f"--iris-x:{a['ix']:.3f}; --iris-y:{a['iy']:.3f}; "
+                 f"--pupil-s:{a['ps']:.4f}; --glint-s:{a['gl']:.3f};")
+        svg = mark_svg(a["lt"], a["lb"], a["tilt"], a["hat"])
+    else:
+        vars_, svg = expr_vars(expr), expr_mark(expr)
+    return f'<div class="mark" style="{vars_}{extra}">{svg}</div>'
+
+
+def _esc(s):
+    return (s or "").replace("&", "&amp;").replace("<", "&lt;")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -117,23 +145,56 @@ body {{ display: grid; place-items: center; }}
     return css, body
 
 
-def lay_titlecard(u, expr, title="", **kw):
+def lay_titlecard(u, expr, title="", hosts=HOSTS, email=EMAIL, number="", **kw):
+    """Episode number above the title, the hosts under it, and the two ways
+    to reach the show in the strip. The names are on the card because a title
+    card is the one frame a clip of the show is guaranteed to carry."""
     css = f"""
 body {{ display: flex; flex-direction: column; justify-content: center;
         padding: {round(120*u)}px {round(140*u)}px; }}
 .head {{ display: flex; align-items: center; gap: {round(34*u)}px;
-         margin-bottom: {round(54*u)}px; }}
+         margin-bottom: {round(46*u)}px; }}
 .mark {{ --mark-w: {round(150*u)}px; }}
 .wordmark {{ font-size: {round(76*u)}px; }}
-.title {{ font-size: {round(112*u)}px; font-weight: 300; line-height: 1.12;
-          letter-spacing: -.02em; max-width: 86%; }}
-.rule {{ width: {round(300*u)}px; margin: {round(50*u)}px 0 {round(34*u)}px; }}
-.strip {{ font-size: {round(26*u)}px; }}
+.number {{ font-size: {round(24*u)}px; margin-bottom: {round(18*u)}px; }}
+.title {{ font-size: {round(108*u)}px; font-weight: 300; line-height: 1.1;
+          letter-spacing: -.02em; max-width: 88%; }}
+.hosts {{ font-size: {round(44*u)}px; margin-top: {round(26*u)}px; }}
+.rule {{ width: {round(300*u)}px; margin: {round(44*u)}px 0 {round(32*u)}px; }}
+.strip {{ font-size: {round(25*u)}px; line-height: 1; }}
+.strip + .strip {{ margin-top: {round(22*u)}px; }}
 """
+    number_html = f'<p class="strip number"><b>Episode {_esc(str(number))}</b></p>' if number != "" else ""
+    hosts_html = f'<p class="hosts">{_esc(hosts)}</p>' if hosts else ""
     body = f"""<div class="head">{_mark(expr)}<p class="wordmark">AgentSee</p></div>
-<p class="title">{title or 'Episode title goes here'}</p>
+{number_html}
+<p class="title">{_esc(title) or 'Episode title goes here'}</p>
+{hosts_html}
 <div class="rule hair"></div>
-<p class="strip">Two people building in public &nbsp;·&nbsp; <b>agentsee.work</b></p>"""
+<p class="strip">Two people building in public</p>
+<p class="strip"><b>{SITE}</b> &nbsp;·&nbsp; <b>{email}</b></p>"""
+    return css, body
+
+
+def lay_chapter(u, expr, title="", number="", **kw):
+    """Between segments, for the length of the button cue. The mark sits
+    small and up; the chapter name is the only thing on the card."""
+    css = f"""
+body {{ display: grid; place-items: center; }}
+.stack {{ display: flex; flex-direction: column; align-items: center;
+          gap: {round(30*u)}px; text-align: center; padding: 0 {round(140*u)}px; }}
+.mark {{ --mark-w: {round(170*u)}px; margin-bottom: {round(10*u)}px; }}
+.number {{ font-size: {round(24*u)}px; }}
+.title {{ font-size: {round(86*u)}px; font-weight: 300; line-height: 1.12;
+          letter-spacing: -.018em; max-width: 1500px; }}
+"""
+    number_html = (f'<p class="strip number"><b>Chapter {_esc(str(number))}</b></p>'
+                   if number != "" else '<p class="strip number"><b>Chapter</b></p>')
+    body = f"""<div class="stack">
+  {_mark(expr)}
+  {number_html}
+  <p class="title">{_esc(title) or 'Chapter title goes here'}</p>
+</div>"""
     return css, body
 
 
@@ -148,13 +209,13 @@ body {{ display: grid; place-items: center; }}
 """
     body = f"""<div class="stack">
   {_mark(expr)}
-  <p class="title">{title}</p>
-  <p class="strip"><b>agentsee.work</b></p>
+  <p class="title">{_esc(title)}</p>
+  <p class="strip"><b>{SITE}</b></p>
 </div>"""
     return css, body
 
 
-def lay_endcard(u, expr, title="", **kw):
+def lay_endcard(u, expr, title="", email=EMAIL, **kw):
     css = f"""
 body {{ display: grid; place-items: center; }}
 .stack {{ display: flex; flex-direction: column; align-items: center;
@@ -168,7 +229,7 @@ body {{ display: grid; place-items: center; }}
   {_mark(expr)}
   <p class="wordmark">AgentSee</p>
   <div class="rule"></div>
-  <p class="strip"><b>agentsee.work</b><br>Hove &amp; London</p>
+  <p class="strip"><b>{SITE}</b><br><b>{email}</b><br>Hove &amp; London</p>
 </div>"""
     return css, body
 
@@ -186,57 +247,68 @@ body {{ display: flex; flex-direction: column; justify-content: space-between;
 .spacer {{ flex: 1; }}
 .strip {{ font-size: {round(24*u)}px; }}
 """
-    body = f"""<p class="title">{title or 'Three words max'}</p>
+    body = f"""<p class="title">{_esc(title) or 'Three words max'}</p>
 <div class="foot">
   {_mark(expr)}
   <p class="wordmark">AgentSee</p>
   <div class="spacer"></div>
-  <p class="strip"><b>agentsee.work</b></p>
+  <p class="strip"><b>{SITE}</b></p>
 </div>"""
     return css, body
 
 
-def lay_clip(u, expr, title="", **kw):
-    """Background plate for a vertical clip. The 16:9 source drops into the
-    middle band; captions live in the lower third. Both zones are left empty
-    on purpose — anything drawn there is something the video has to cover."""
-    band = round(1080 * 9 / 16)  # the 16:9 video, full width
+def lay_clip(u, expr, title="", email=EMAIL, **kw):
+    """Background plate for a vertical clip.
+
+    The band is 4:5, not 16:9: two hosts stacked, each a 1080x675 crop of a
+    720p camera, fill it exactly with no upscaling — which is what AGE-58
+    asked for when it said compose rather than crop. Captions take the zone
+    below the band. Both zones are left empty on purpose; anything drawn
+    there is something the video has to cover. The zones are published as
+    CLIP_ZONES so clips.py lands things where the plate left room.
+    """
+    z = CLIP_ZONES
     css = f"""
 body {{ display: flex; flex-direction: column; align-items: center; }}
-.top {{ height: {round((1920-band)*0.42)}px; display: flex; flex-direction: column;
-        align-items: center; justify-content: center; gap: {round(26*u)}px; }}
-.mark {{ --mark-w: {round(200*u)}px; }}
-.wordmark {{ font-size: {round(62*u)}px; }}
+.top {{ height: {z['head'][1]}px; display: flex; align-items: center;
+        justify-content: center; gap: {round(22*u)}px; }}
+.mark {{ --mark-w: {round(118*u)}px; }}
+.wordmark {{ font-size: {round(54*u)}px; }}
 /* paper_2 against paper is nearly invisible in noir, which is right for the
-   plate and useless as a guide. The hairlines mark where the 16:9 source
-   lands without relying on a fill you cannot see. */
-.band {{ width: 100%; height: {band}px; background: {{paper_2}};
+   plate and useless as a guide. The hairlines mark where the panels land. */
+.band {{ width: 100%; height: {z['band'][1] - z['band'][0]}px; background: {{paper_2}};
          border-top: 1px solid {{hair}}; border-bottom: 1px solid {{hair}}; }}
-.foot {{ flex: 1; display: flex; align-items: flex-end; justify-content: center;
-         padding-bottom: {round(74*u)}px; }}
-.strip {{ font-size: {round(26*u)}px; }}
+.captions {{ height: {z['captions'][1] - z['captions'][0]}px; }}
+.foot {{ flex: 1; display: flex; align-items: center; justify-content: center; }}
+.strip {{ font-size: {round(22*u)}px; }}
 """
     body = f"""<div class="top">{_mark(expr)}<p class="wordmark">AgentSee</p></div>
 <div class="band"></div>
-<div class="foot"><p class="strip"><b>agentsee.work</b></p></div>"""
+<div class="captions"></div>
+<div class="foot"><p class="strip"><b>{SITE}</b> &nbsp;·&nbsp; <b>{email}</b></p></div>"""
     return css, body
 
 
 LAYOUTS = {
-    "cover": lay_cover, "titlecard": lay_titlecard, "standby": lay_standby,
-    "endcard": lay_endcard, "thumbnail": lay_thumbnail, "clip": lay_clip,
+    "cover": lay_cover, "titlecard": lay_titlecard, "chapter": lay_chapter,
+    "standby": lay_standby, "endcard": lay_endcard, "thumbnail": lay_thumbnail,
+    "clip": lay_clip,
 }
 
 
 # --title is an episode's title, so it belongs only on the assets that carry
 # one. Routing it everywhere put "Running our own mail server" on the card that
 # should have said "Starting soon".
-TITLED = {"titlecard", "thumbnail"}
+TITLED = {"titlecard", "thumbnail", "chapter"}
 
 
-def build(name, theme, title="", expr=None):
+def build(name, theme, title="", expr=None, **fields):
+    """The page for one asset. `expr` is an expression name or an axes dict;
+    `fields` are the per-episode words (hosts, email, number) a layout may
+    take, and are ignored by the ones that do not."""
     w, h, basis, default_expr, _ = ASSETS[name]
     kw = {"title": title} if name in TITLED else {}
+    kw.update({k: v for k, v in fields.items() if v is not None})
     css, body = LAYOUTS[name](basis / 500, expr or default_expr, **kw)
     for k in ("paper_2", "hair"):
         css = css.replace("{" + k + "}", THEMES[theme][k])
@@ -301,9 +373,13 @@ def main():
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--sheet", action="store_true", help="contact sheet of what is rendered")
     ap.add_argument("--proof", action="store_true", help="cover art at podcast-app sizes")
-    ap.add_argument("--title", default="", help="text for titlecard / thumbnail / standby")
+    ap.add_argument("--title", default="", help="text for titlecard / thumbnail / chapter")
+    ap.add_argument("--number", default="", help="episode or chapter number")
+    ap.add_argument("--hosts", default=None, help=f'credits line (default "{HOSTS}")')
+    ap.add_argument("--email", default=None, help=f"contact address (default {EMAIL})")
     ap.add_argument("--expression", choices=sorted(EXPRESSIONS))
     ap.add_argument("--newsprint", action="store_true", help="light theme (default is noir)")
+    ap.add_argument("--out", help="write one asset here instead of public/assets/brand/")
     ap.add_argument("--list", action="store_true")
     a = ap.parse_args()
 
@@ -314,14 +390,19 @@ def main():
 
     theme = "newsprint" if a.newsprint else "noir"
     suffix = "" if theme == "noir" else "-newsprint"
+    fields = {"hosts": a.hosts, "email": a.email, "number": a.number or None}
+    if a.out and (a.all or not a.asset):
+        sys.exit("--out takes exactly one asset")
     OUTDIR.mkdir(parents=True, exist_ok=True)
 
     names = list(ASSETS) if a.all else ([a.asset] if a.asset else [])
     for name in names:
-        html, w, h = build(name, theme, a.title, a.expression)
-        out = OUTDIR / f"show-{name}{suffix}.png"
+        html, w, h = build(name, theme, a.title, a.expression, **fields)
+        out = pathlib.Path(a.out) if a.out else OUTDIR / f"show-{name}{suffix}.png"
+        out.parent.mkdir(parents=True, exist_ok=True)
         render(html, out, w, h)
-        print(f"{out.relative_to(ROOT)}  {w}x{h}  {out.stat().st_size:,} bytes")
+        rel = out.relative_to(ROOT) if out.is_relative_to(ROOT) else out
+        print(f"{rel}  {w}x{h}  {out.stat().st_size:,} bytes")
         if a.proof and name == "cover":
             p, sizes = proof(out, theme)
             print(f"  proof {p.relative_to(ROOT)}  at {', '.join(str(s) for s in sizes)}px")
