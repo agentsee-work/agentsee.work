@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Every cut landed, and the um was still there — AgentSee, Issue No. 5</title>
+<meta name="description" content="Our first episode, cut by script and not by hand: 149 cuts, no timeline, three days. The ums survived six attempts, and the reason was half a second wide.">
+<link rel="canonical" href="https://agentsee.work/issues/05-podcast">
+
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://agentsee.work/issues/05-podcast">
+<meta property="og:title" content="Every cut landed, and the um was still there.">
+<meta property="og:description" content="Our first episode, cut by script and not by hand: 149 cuts, no timeline, three days. The ums survived six attempts, and the reason was half a second wide.">
+<meta property="og:image" content="https://agentsee.work/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/assets/og.png">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+
+<a class="skip" href="#opening">Skip to content</a>
+
+<!-- ═══════════════  MASTHEAD  ═══════════════ -->
+<header class="masthead">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+</header>
+
+<!-- ═══════════════  DATELINE  ═══════════════ -->
+<div class="dateline">
+  <span class="edge">Hove &amp; London</span>
+  <span class="mid" id="dateline">Founded 18 August 2026</span>
+  <span class="edge">Issue No.&nbsp;5 &middot; Free, obviously</span>
+</div>
+
+<main>
+
+  <article class="lead">
+    <h1>Every cut landed,<br>and the um was still there.</h1>
+    <p class="deck">
+      Our first episode, cut by script and not by hand: 149 cuts, no timeline, three
+      days. The thing that nearly beat us was half a second wide.
+    </p>
+  </article>
+
+  <section class="section" id="opening">
+    <p class="kicker">01 — The premise</p>
+    <h2>Nothing about an episode should need an editor.</h2>
+
+    <div class="cols">
+      <p class="drop">Two people, building in public, who had just recorded nine minutes and
+      three seconds of themselves on Riverside and wanted it finished without spending an
+      evening in an editor. Not once: every time. We will be recording again next week, and
+      the week after, and the production has to be something we run, not something we do.</p>
+
+      <p>Riverside's export gives you more than you might expect. Its timeline package holds
+      one WAV per speaker, recorded locally and therefore clean of each other, a video per
+      speaker already aligned to it, and a Premiere XML with the offsets, the layout and the
+      chapter marks its own tools guessed. What it does not give is a way to fetch that
+      without clicking: the API is on the plan above ours, and the terms do not allow a
+      script to download it. So the package is downloaded by hand, once, and from there
+      every step is a file written by one script and read by the next.</p>
+
+      <p>Its studio's editor did a genuinely nice job of removing fillers when it worked. We
+      could not get it to stay stable long enough to trust it with the edit, and an edit
+      that lives in someone's browser is not one you can re-run. We wanted the edit as
+      data.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">02 — The shape</p>
+    <h2>Every stage writes a file, and a change of mind is a re-run.</h2>
+
+    <div class="cols two">
+      <p>Ingest unpacks the package and writes a manifest: who is on which track, their
+      offset, the layout. Transcribe writes the words with times. Cut reads the words and
+      the audio and writes an edit decision list: the stretches of the source that survive,
+      in order, with the chapter cards placed. Cards renders the title and end cards from
+      the site's own CSS, through Chrome, frame by frame, animated with the model that moves
+      the mark on the homepage. Assemble gates and matches the voices, lays the sting, the
+      bed, the buttons and the outro around the cut, and writes the mp3 with chapters, the
+      mp4 with the cards faded in, the captions, the transcript and the thumbnail. Clips
+      cuts the vertical versions, captioned, with a bar that follows who is speaking.</p>
+
+      <p>The opening is stated once. The sting is 6.4 seconds long and resolves at the end;
+      the first word lands as it resolves, and the bed fades under it over the next six
+      seconds. Those numbers live in one place and the timing of the whole mix follows from
+      them. Levels are measured, not predicted: every file that ships is read back and its
+      loudness written down, because the first time we predicted a level the limiter was
+      silently doing something other than what we had told it.</p>
+    </div>
+  </section>
+
+  <p class="pull">Both transcripts agreed to ten milliseconds, because both were wrong the same way.</p>
+
+  <section class="section">
+    <p class="kicker">03 — The ums</p>
+    <h2>The ums were never where the transcript said they were.</h2>
+
+    <div class="cols">
+      <p>Whisper writes readable text, which means it leaves most ums out. Prompting it to
+      keep them cost it a third of the real words. A tool called erm runs Whisper with a
+      prompt that keeps the disfluencies and loses nothing, and that was the first real
+      step: every um became a token with a time.</p>
+
+      <p>Then the cuts happened and the ums were still there. Six times. The joins were
+      clean, the words either side were clipped, and the um sat between them untouched.
+      Counting the ums in a transcript of the output said they were gone, because Whisper,
+      transcribing a render with cuts in it, hallucinates fillers at the joins. Correlating
+      each um's audio against the render said they were gone too, because it was looking for
+      the right sound and the cut had removed a different one. Two transcripts, one plain
+      and one prompted, agreed on every word time to within ten milliseconds, and that
+      agreement was offered as proof.</p>
+
+      <p>James gave a timestamp: seventeen to twenty seconds of the tightest cut.
+      Transcribing just that excerpt of the render and reading it as a sentence gave:
+      <em>Yeah, uh, we, um, both developed, uh, we worked, um, a couple.</em> Every cut had
+      removed the end of the word before the um and left the um.</p>
+
+      <p>Whisper's word times on this recording run up to half a second early around
+      fillers. "Developers" was timed to end at 15.58 seconds when its sound runs to 15.86;
+      the "uh" after it was timed at 15.88 when it sits at 16.2. The two transcripts agreed
+      because they were the same model making the same error, and every rule anchored to
+      those times took the end of the previous word for the um.</p>
+
+      <p>The fix is a forced aligner. Given the words, a small speech model finds where each
+      one actually is, within a frame or two. The um is then the sound between the previous
+      word's last character and the next word's first. The same excerpt now reads:
+      <em>Yeah, absolutely. We are both developers. We worked together a couple of years ago
+      now.</em></p>
+
+      <p>The test that found it is the one we kept. Transcribe a short excerpt of the
+      finished audio and read it. Not count it. Read it.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">04 — The second listen</p>
+    <h2>Four notes from one listen, each a different kind of wrong.</h2>
+
+    <div class="cols">
+      <p><strong>The level moved at every cut.</strong> A brickwall limiter was holding the
+      peaks of raw speech, which sit fifteen to twenty decibels above its loudness, so it was
+      pulling five or six decibels on every loud syllable and letting go in sixty
+      milliseconds. That is heard as ducking, loudest at a cut, where a quiet tail meets a
+      loud onset. We measured four alternatives on the same material. The compressor the
+      model proposed first rode the gain more than the limiter it replaced; the slow one
+      moved it least, and it now runs on the dialogue after the cut, so its state carries
+      across every join.</p>
+
+      <p><strong>A reply vanished.</strong> Whisper had dropped a sentence and a half of
+      James entirely, and everything downstream trusted the transcript: the gate, which
+      opens a speaker's track where the transcript says they spoke, muted it, and the cut
+      over Abrar's um took it. Now any speech-level sound with no word is treated as speech
+      and transcribed again on its own, and the reply came back. The same pass found the
+      opposite error: Whisper had written "Thank you." into Abrar's silence four times, and
+      the aligner, made to put the words somewhere, had stretched one across thirty seconds
+      of nothing.</p>
+
+      <p><strong>The chapter cards were in the wrong places.</strong> A rule looked for a
+      seam near the time we had given it and preferred any sentence-ending gap within
+      twenty-five seconds: one card landed mid-sentence, another twenty-four seconds late.
+      Where a section begins is not a property of the audio. It is a judgement, made by
+      reading. So the chapters file now quotes the first words of each section and the last
+      words of the one before, someone reads the transcript and chooses them, and the tool
+      only finds the quiet point either side.</p>
+
+      <p><strong>The clip captions were one and a bit lines.</strong> Now two, balanced,
+      centred in the band under the lower panel, with fillers and the other person's brief
+      interjections left out.</p>
+
+      <p>Then we rendered six versions of the edit, from one that closes only long pauses to
+      one that takes every um, every stammer and every pause over 0.45 seconds, listened,
+      and chose the tightest. The model recommended the middle one. We preferred the
+      pace.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">05 — Working with a model</p>
+    <h2>It could not hear the episode, and every proxy for hearing it said it was fine.</h2>
+
+    <div class="cols two">
+      <p>It wrote all of it: twelve scripts, a shared library, the document that records
+      every trap, the procedure that tells the next run how to proceed. It measured before
+      it changed things, mostly. When it proposed a compressor it measured four chains and
+      found its own first choice was worse. When it rewrote the aligner to work on the whole
+      track it checked the result was word for word identical to the old one before using
+      it.</p>
+
+      <p>It was also wrong in ways worth naming. It built and removed four heuristics for
+      finding ums before the real cause was found, each plausible, each measured against a
+      test that could not see the fault. It offered the agreement of two transcripts as
+      evidence they were right, when their agreement was the problem. It killed its own
+      shell twice by matching a process name that matched itself.</p>
+
+      <p>What broke the loop every time was a human listening and naming a timestamp. Given
+      "17 to 20 seconds", it found the cause in ten minutes. That is the division of labour:
+      we listen, it finds out why. Three days, 7 to 9 October. The cut itself now takes four
+      seconds.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">06 — What it is for</p>
+    <h2>Next week we record again, and the production is nine minutes of waiting.</h2>
+
+    <div class="cols two">
+      <p>A fresh recording goes from its transcripts to every deliverable in about nine
+      minutes on the workstation, down from eighteen after an afternoon of measuring where
+      the time went: both tracks through the transcriber at once, the aligner on the GPU,
+      the picture in one encode instead of two, the clips in a pool alongside it. The only
+      decisions a person makes are the ones a rule cannot: where each chapter begins, which
+      passages become clips, which of the six cuts to publish.</p>
+
+      <p>Everything is in the repository, including the six attempts that failed. This is
+      the production side only: a recording in, the deliverables out. Getting them onto the
+      feeds, and whatever of that can also be a script, is not built yet, and is the next
+      issue.</p>
+    </div>
+
+    <p class="backlink-row">
+      <a class="backlink" href="/">&larr; Back to Issue No.&nbsp;1</a>
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee &middot; Issue No.&nbsp;5</span>
+    <span id="colophon-date">Founded 18 August 2026</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+</body>
+</html>
