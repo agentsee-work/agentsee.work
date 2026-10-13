@@ -55,8 +55,8 @@ import sys
 import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import (ROOT, caption_cues, caption_words, die, ep_dir, ffprobe, hms,  # noqa: E402
-                   load_json, map_words, save_json, sub_edl)
+from eplib import (ROOT, cap_first, caption_cues, caption_words, die, ep_dir, ffprobe,  # noqa: E402
+                   hms, load_json, map_words, save_json, sub_edl, tidy_words)
 
 SHOW = ROOT / "tools" / "show.json"
 PI_NAMESPACE = uuid.UUID("ead4c236-bf58-58c6-a2c6-a6b28d128cb6")   # podcast:guid, per the spec
@@ -110,14 +110,26 @@ def the_questions(show):
     return [html.unescape(re.sub(r"<[^>]+>", "", q)).strip() for q in items]
 
 
-def people(m, show, notes):
+def people(m, show, notes, warn):
+    """Who is on the episode. The hosts are in tools/show.json; anyone on a
+    track who is not is a guest, with the line and the link the notes give
+    them. A guest in the notes with no track (a name read out) is listed too."""
+    guests = {g["name"]: g for g in notes.get("guests", [])}
     out = []
     for p in m["participants"]:
         known = show.get("people", {}).get(p["short"]) or next(
-            (v for v in show.get("people", {}).values() if v.get("name") == p["name"]), {})
-        out.append({"name": p["name"], "short": p["short"], "role": known.get("role", "host"),
-                    "href": known.get("href"), "group": "cast"})
-    for g in notes.get("guests", []):
+            (v for v in show.get("people", {}).values() if v.get("name") == p["name"]), None)
+        g = guests.pop(p["name"], None)
+        if known:
+            out.append({"name": p["name"], "short": p["short"], "role": known.get("role", "host"),
+                        "href": known.get("href"), "group": "cast"})
+            continue
+        if g is None:
+            warn(f"{p['name']} is on a track but not in tools/show.json or notes.guests: "
+                 f"listed as a guest with no line and no link")
+        out.append({"name": p["name"], "short": p["short"], "role": "guest",
+                    "href": (g or {}).get("href"), "who": (g or {}).get("who"), "group": "cast"})
+    for g in guests.values():
         out.append({"name": g["name"], "role": "guest", "href": g.get("href"),
                     "who": g.get("who"), "group": "cast"})
     return out
@@ -154,7 +166,7 @@ def transcript_files(out, mapped, names, show_name):
     vtt = ["WEBVTT", "", f"NOTE {show_name} transcript, one speaker per cue", ""]
     segs = []
     for cue in cues:
-        text = " ".join(w["w"] for w in cue)
+        text = cap_first(" ".join(w["w"] for w in cue))
         spk = names.get(cue[0].get("spk"), cue[0].get("spk", ""))
         t0, t1 = cue[0]["t0"], cue[-1]["t1"]
         vtt += [f"{hms(t0)} --> {hms(t1)}", f"<v {esc_vtt(spk)}>{esc_vtt(text)}", ""]
@@ -186,7 +198,7 @@ def clips_out(d, out, edl, words, din, clips, show, ep, names, prev, warn):
         t0, t1 = c["t0"], c["t1"]
         cw = [w for w in words if t0 <= w["t0"] < t1]
         local = sub_edl(edl, t0, t1)
-        ws = map_words(local, cw)
+        ws = tidy_words(map_words(local, cw))
         in_ep = map_words(edl, cw, shift=din)
         at = in_ep[0]["t0"] if in_ep else None
         end = in_ep[-1]["t1"] if in_ep else None
@@ -385,12 +397,12 @@ def main():
         "chapters": [{"startTime": c["start"], "title": c["title"]} for c in chapters]})
 
     print("transcript")
-    mapped = map_words(edl, words["words"], shift=din)
+    mapped = tidy_words(map_words(edl, words["words"], shift=din))
     n_cues = transcript_files(out, mapped, names, show['name'])
     print(f"  {n_cues} cues, {len(mapped)} words, {len(names)} speakers")
 
     print("clips")
-    people_ = people(m, show, notes)
+    people_ = people(m, show, notes, warn)
     clip_entries = clips_out(d, out, edl, words["words"], din, clips, show, ep, names, prev.get("files"), warn)
     for c in clip_entries:
         print(f"  {c['index']:02d} {c['slug']:<28} at {c['at_hms'] or '--:--':>6}  {c['duration']:.1f}s  {c['caption_cues']} cues")

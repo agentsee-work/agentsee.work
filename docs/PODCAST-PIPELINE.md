@@ -321,7 +321,10 @@ runs in seconds, and is safe to re-run.
 - **The transcript as WebVTT and as JSON.** The VTT carries a voice tag per
   cue, so Apple shows who is speaking when it changes; the JSON is for the
   episode page. The cues follow the caption rule with a longer line: never
-  across a speaker change or a long pause, closed at a sentence end.
+  across a speaker change or a long pause, closed at a sentence end. The
+  words are tidied for a reader, as `transcript.txt` now is: fillers out,
+  "i" capitalised, a capital at the start and after a stop. The times are
+  not touched.
 - **A guid, minted once and kept in `episode.json`.** Every directory keys
   an episode on it; a guid that changes is a duplicate episode in every
   listener's app, so it is never derived from the title or the date.

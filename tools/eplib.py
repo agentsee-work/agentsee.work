@@ -321,6 +321,35 @@ def map_words(edl, words, shift=0.0):
 CAPTION_FILLERS = {"um", "uh", "er", "erm", "ah", "hmm", "mm", "mhm", "huh"}
 
 
+def cap_first(text):
+    """The first letter capitalised, if it is a letter and lower-case."""
+    m = re.search(r"[A-Za-z]", text)
+    if m and text[m.start()].islower():
+        return text[:m.start()] + text[m.start()].upper() + text[m.start() + 1:]
+    return text
+
+
+def tidy_words(words):
+    """Words as a reader expects them, for a transcript rather than a cut:
+    fillers out (a stop a dropped "um." carried moves to the word before),
+    "i" capitalised, a capital at the start and after a stop. Times are
+    untouched; the audio is what it is."""
+    out = []
+    for w in words:
+        bare = re.sub(r"^[^\w]+|[^\w']+$", "", w["w"]).lower()
+        if not bare or bare in CAPTION_FILLERS:
+            if out and re.search(r"[.?!]$", w["w"]) and not re.search(r"[.?!]$", out[-1]["w"]):
+                out[-1] = {**out[-1], "w": out[-1]["w"].rstrip(",;:") + w["w"][-1]}
+            continue
+        out.append(dict(w))
+    for i, w in enumerate(out):
+        t = re.sub(r"\bi\b", "I", w["w"])
+        if i == 0 or re.search(r"[.?!]$", out[i - 1]["w"]):
+            t = cap_first(t)
+        w["w"] = t
+    return out
+
+
 def caption_words(words):
     """The words worth captioning. Fillers are not. Nor is a brief
     interjection — three words at most, under 1.2 s — from the other person
