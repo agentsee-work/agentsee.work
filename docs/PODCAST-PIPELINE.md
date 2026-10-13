@@ -53,11 +53,19 @@ What it does not give, and why the pipeline does these itself:
 - **Its own edit comes along uninvited.** If the studio's editor has been
   used on the recording, the XML is that edit: on episode 1, 580 clips per
   audio track (its filler and pause removal, 346 s of 46 minutes) and a
-  video track cut to whoever was speaking. Ingest takes the track alignment
-  from the first audio clip, records the edit in the manifest as the
-  stretches it kept, and does not apply it; the cut here starts from the raw
-  track. Riverside's chapter marks are in the edited sequence's time and are
-  mapped back through the clip list.
+  video track cut to whoever was speaking. Ingest records the edit in the
+  manifest as the stretches it kept, and does not apply it; the cut here
+  starts from the raw track. Riverside's chapter marks are in the edited
+  sequence's time and are mapped back through the clip list.
+- **An edited timeline hides the alignment.** On a raw timeline each track
+  is one clip and its start is its offset. On an edited one the leading
+  pause has been trimmed from every track, by a different length each (on
+  episode 1, 35 frames from one and 36 from the other, with a two-frame stub
+  of the second left at the head), so the first clip of each track says
+  nothing about how the tracks line up. Reading it that way put one voice
+  1.5 s late for a whole episode. Ingest now reads every track's alignment
+  (clip start less in-point) at one sequence time they all cover, and warns
+  if that reading differs between the cuts they share.
 - **No programmatic download.** The API is Business-only and on request, the
   MCP returns no file links, and the terms forbid automating the button. The
   download is the one manual step and it is one click.
@@ -319,9 +327,11 @@ does, so the offset is `--dialogue-in` and the fade runs *after* it, over
 the first word, rather than before it.
 
 **The aligned MP4s in the timeline package have no audio stream.** So the
-WAV cannot be checked against its own video by correlation. The XML's offsets
-are the alignment, and ingest records them rather than assuming zero — on
-episode 0 one track starts two frames late.
+WAV cannot be checked against its own video by correlation, and the two
+WAVs cannot be checked against each other either: both hosts wear headphones,
+so there is no bleed to correlate. The XML's offsets are the alignment, and
+ingest records them rather than assuming zero — on episode 0 one track starts
+two frames late, on episode 1 three.
 
 **720p.** Both cameras recorded at 1280x720, which is a studio setting as
 much as a camera limit. The two-up upscales each panel by half to fill

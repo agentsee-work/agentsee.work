@@ -164,15 +164,22 @@ def dialogue_bus(d, m, words, args, qc):
     the path of the full-length dialogue as a float file, peaks and all:
     compression and limiting wait until after the cut (see eplib.COMPRESSOR).
     It does not depend on the edit, so a variant reuses the last one
-    unless --force."""
+    unless --force, or unless what it was built from has changed: the
+    tracks, their offsets or the levelling. The offsets matter most. A
+    manifest corrected after the bus was built, and the bus reused, put
+    one voice of episode 1 back 1.5 s out of place while the edit and
+    the picture were right."""
     mix_dir = d / "mix"
     mix_dir.mkdir(exist_ok=True)
     norm = mix_dir / "dialogue.wav"
+    sig = bus_signature(m, args)
     if norm.exists() and (mix_dir / "dialogue.json").exists() and not args.force:
         cached = load_json(mix_dir / "dialogue.json")
-        qc.update(cached)
-        print(f"  dialogue bus reused ({cached['dialogue_bus']['lufs']:.1f} LUFS)")
-        return norm
+        if cached.get("signature") == sig:
+            qc.update({k: v for k, v in cached.items() if k != "signature"})
+            print(f"  dialogue bus reused ({cached['dialogue_bus']['lufs']:.1f} LUFS)")
+            return norm
+        print("  dialogue bus rebuilt: " + what_changed(cached.get("signature"), sig))
     n = int(math.ceil(m["duration"] * RATE))
     bus = np.zeros(n)
     for p in m["participants"]:
@@ -205,9 +212,38 @@ def dialogue_bus(d, m, words, args, qc):
     meas = level_to(raw, norm, args.target)
     qc["dialogue_bus"] = meas
     save_json(mix_dir / "dialogue.json",
-              {k: v for k, v in qc.items() if k == "dialogue_bus" or k.startswith("speaker_")})
+              {**{k: v for k, v in qc.items() if k == "dialogue_bus" or k.startswith("speaker_")},
+               "signature": sig})
     print(f"  dialogue bus {meas['lufs']:.1f} LUFS, peaks to {meas['tp']:.1f} dBTP, uncontrolled until the cut")
     return norm
+
+
+def bus_signature(m, args):
+    """What the dialogue bus is a function of, besides the edit."""
+    return {"tracks": [[p["short"], p["audio"]["file"], p["audio"]["duration"], p["offset"]]
+                       for p in m["participants"]],
+            "duration": m["duration"], "highpass": args.highpass, "gate_db": args.gate_db,
+            "speaker_lufs": args.speaker_lufs, "target": args.target}
+
+
+def twoup_signature(m, args):
+    """What the two-up picture is a function of."""
+    return {"tracks": [[p["short"], p["video"]["file"], p["video"]["duration"], p["offset"],
+                        (p.get("layout") or {}).get("centre", 0)] for p in m["participants"]],
+            "fps": m["fps"], "duration": m["duration"], "fast": bool(args.fast)}
+
+
+def what_changed(old, new):
+    if not isinstance(old, dict):
+        return "no record of what the last one was built from"
+    diff = [k for k in new if old.get(k) != new[k]]
+    if "tracks" in diff:
+        offs = [(t[0], t[3]) for t in new["tracks"]]
+        was = {t[0]: t[3] for t in old.get("tracks", []) if len(t) > 3}
+        if any(was.get(k) != v for k, v in offs) and all(
+                t[1:3] == o[1:3] for t, o in zip(new["tracks"], old.get("tracks", []))):
+            return "offsets changed, " + ", ".join(f"{k} {was.get(k)} -> {v}" for k, v in offs if was.get(k) != v)
+    return "changed: " + ", ".join(diff)
 
 
 def cut_audio(norm_path, edl):
@@ -315,8 +351,13 @@ def two_up(d, m, args):
     """The full-length picture: every participant side by side, at the
     arrangement the XML described (negative centre = left), no audio."""
     out = d / "mix" / "twoup.mp4"
+    side = d / "mix" / "twoup.json"
+    sig = twoup_signature(m, args)
     if out.exists() and not args.force:
-        return out
+        cached = load_json(side) if side.exists() else None
+        if cached == sig:
+            return out
+        print("  two-up rebuilt: " + what_changed(cached, sig))
     parts = sorted(m["participants"],
                    key=lambda p: (p.get("layout") or {}).get("centre", 0))
     n = len(parts)
@@ -337,6 +378,7 @@ def two_up(d, m, args):
     cmd += ["-filter_complex", ";".join(filt), "-map", "[v]", "-t", m["duration"],
             *video_codec(args.fast, args.cpu_encode, final=False), "-pix_fmt", "yuv420p", out]
     run(cmd)
+    save_json(side, sig)
     return out
 
 
