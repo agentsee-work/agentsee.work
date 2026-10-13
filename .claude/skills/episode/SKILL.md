@@ -20,7 +20,7 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    running until they are right (episode 1 had one voice 1.5 s late).
 2. **Run.** `./tools/episode.py run <slug>` does fillers → align (which also merges the
    aligned verbatim words into the transcript) → cut → cards → assemble, with clips alongside
-   assemble when `clips.json` exists. Fillers need `build/venv-erm`, align `build/venv-align`
+   assemble when `clips.json` exists, then release. Fillers need `build/venv-erm`, align `build/venv-align`
    (GPU torch; falls back to venv-erm's CPU build), and only without erm does the plain
    transcription (`build/venv-transcribe`) run. See the doc for the three venvs.
 3. **Choose the chapters by reading the transcript.** This is a judgement, not
@@ -58,11 +58,29 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    the transcript, choose 3 to 5 passages that stand alone (a claim and a
    reason, ending on a line), write `clips.json`, run `./tools/clips.py <slug>`.
    Look at each clip's poster PNG.
-8. **Report** what was rendered, the measured numbers, and anything the
-   transcript suggests should be re-cut. Do not publish anything.
+8. **Write the notes, then release.** Put a `notes` block in `episode.json`,
+   from the transcript: `summary` (two or three sentences in the show's
+   register: what happened and what was learned, no claims the episode does
+   not make), `links` (what was named and deserves one: the site's own issue
+   on the subject first, then the tools and services), `guests` if any
+   (`name`, `who`, `href`), `questions` (the numbers of the ten questions the
+   episode touched; their text is read from the site), and `tags`. Then
+   `./tools/release.py <slug>` (`episode.py run` does it last). Read
+   `out/notes.md` and `out/youtube.txt` as a listener would; the summary is
+   the one piece of writing that reaches every platform, and the user
+   approves it. The release warns about anything a platform would reject
+   (chapter spacing, lengths, a clip too long for a soundbite); fix the
+   cause, not the warning.
+9. **Report** what was rendered, the measured numbers, the release's
+   warnings, and anything the transcript suggests should be re-cut. Do not
+   publish anything.
 
 ## Rules
 
 - Never edit files under `build/episodes/*/source/`; they are the masters.
 - Re-render from the data (edl.json, clips.json) rather than hand-editing media.
 - Levels are measured, not predicted; quote the numbers from qc.json.
+- `out/chapters.json` is generated (Podcasting 2.0, with times). The one you
+  write is `build/episodes/<slug>/chapters.json` (titles and quoted words).
+- The episode's `guid` in `episode.json` is minted once by release.py. Never
+  change or remove it: directories key the episode on it.

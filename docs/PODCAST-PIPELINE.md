@@ -4,8 +4,9 @@ One recording in, everything out, with nobody opening an editor. Written for
 the next episode, like the music and animation docs, because the traps are
 the useful part.
 
-**Status: built on episode 0, 7 October 2026.** Every stage ran end to end
-on the real recording. Nothing published yet.
+**Status: built on episode 0, 7 October 2026; the release stage added after
+episode 1, 13 October 2026.** Every stage ran end to end on the real
+recordings. Nothing published yet.
 
 ## The shape
 
@@ -28,6 +29,8 @@ on the real recording. Nothing published yet.
       │                   episode.mp3 / .wav / .mp4, captions.srt, chapters.txt, transcript.txt, qc.json
       ▼
   tools/clips.py       vertical clips from clips.json, captions lit word by word
+      ▼
+  tools/release.py     notes, chapters in three shapes, transcripts, art, every file hashed: release.json
 
   tools/episode.py     runs them in order, from episode.json
 ```
@@ -300,6 +303,57 @@ The whole mix is then limited, normalised once more, and *measured*. `qc.json`
 holds measurements of the written files. See `THEME-MUSIC.md` for why not
 the forecast.
 
+## The release
+
+Assemble and clips make the media. `release.py` makes everything a
+publisher needs to put it anywhere, from what they made, and writes it to
+`out/` with `release.json` as the index. It renders nothing but a picture,
+runs in seconds, and is safe to re-run.
+
+- **Chapters in three shapes, from one list.** The render's own chapter
+  times (the mp3's ID3 chapters, the video's cards) become `chapters.txt`
+  in YouTube's description format, which YouTube turns into the chapter
+  bar and the timestamp links, and `chapters.json` in the Podcasting 2.0
+  shape that Apple, Pocket Casts and Fountain read. Podlove Simple
+  Chapters, the form Spotify reads, are an element of the feed and are
+  built from the same list there. YouTube wants the first chapter at 0:00,
+  three or more, ten seconds apart; the release warns when they are not.
+- **The transcript as WebVTT and as JSON.** The VTT carries a voice tag per
+  cue, so Apple shows who is speaking when it changes; the JSON is for the
+  episode page. The cues follow the caption rule with a longer line: never
+  across a speaker change or a long pause, closed at a sentence end.
+- **A guid, minted once and kept in `episode.json`.** Every directory keys
+  an episode on it; a guid that changes is a duplicate episode in every
+  listener's app, so it is never derived from the title or the date.
+- **The notes, in the shape AGE-61 asked for**: what, who, the chapters with
+  times, what was mentioned, which of the ten questions it touched, where
+  to find people, the standing footer. Written as `notes.md`,
+  `description.html` in the five tags Apple allows (p, ol, ul, li, a),
+  `description.txt`, and `youtube.txt` with the title and the description.
+  The free text comes from a `notes` block in `episode.json` (a summary,
+  links, guests, question numbers, tags), written by a person or by Claude
+  from the transcript; the questions' own text is read from the site so it
+  is typed once. Without a summary the notes build from the chapter list
+  and the warning says so.
+- **The clips, placed in the episode.** A clip's first surviving word is
+  mapped through the edit list to the output's time, so a post can say "at
+  6:52" and link there, and the feed can carry the clip as a
+  `podcast:soundbite`. Each clip also gets a VTT of its captions in its own
+  time, alt text for the platforms that take it, and a post text.
+- **Episode artwork**, 3000 square and a 1400 JPEG, for the directories
+  that show one beside the cover.
+- **Every file with its size, type, duration and SHA-256**, so a publisher
+  can tell a re-rendered clip from the one it posted and a feed can state
+  the enclosure's length.
+- **A day-by-day plan**: the episode on the release day, one clip a day
+  after it, for a publisher to follow or override.
+
+Every time in it is the output's, the one the mp3 and the mp4 share. The
+show's own words (name, people, URLs, the footer) are in `tools/show.json`,
+typed once; the mp3's album tag reads it too. The name is not settled
+(AGE-59), and the description is a placeholder the release warns about
+until it is written.
+
 ## What bit, in order
 
 **The venv's python is a symlink to the system python.** `transcribe.py`
@@ -409,6 +463,10 @@ the ceiling. Measure the true peak after limiting; do not assume it.
 **libass wants a static font.** The site ships Newsreader as a variable
 woff2. `clips.py` instances it once, at a reading weight, into `build/fonts/`.
 
+- **Two files called `chapters.json`.** The one at the episode root is the
+  input: titles with the quoted words they start at. The one in `out/` is
+  the release's output: Podcasting 2.0, with times. Edit the first.
+
 ## Operating it
 
 ```sh
@@ -426,6 +484,7 @@ build/venv-transcribe/bin/pip install faster-whisper nvidia-cublas-cu12 nvidia-c
 ./tools/cut.py ep1 --show                  # read the edit before trusting it
 ./tools/clips.py ep1 --propose 8           # then write clips.json, and
 ./tools/clips.py ep1
+./tools/release.py ep1                     # after a notes block in episode.json; see The release
 ```
 
 `tools/README.md` has every option. On a 32-thread machine with the 2080 Ti

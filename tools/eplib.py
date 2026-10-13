@@ -47,6 +47,15 @@ def save_json(path, data):
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
+def show_name():
+    """The show's name from tools/show.json, where it is typed once."""
+    p = ROOT / "tools" / "show.json"
+    try:
+        return load_json(p).get("name") or "AgentSee"
+    except (OSError, ValueError):
+        return "AgentSee"
+
+
 def run(cmd, **kw):
     """ffmpeg and friends. Fails loudly with the tail of stderr, which is the
     part that says why."""
@@ -267,6 +276,23 @@ def src_to_out(edl, t):
         if it["type"] == "src" and it["t0"] <= t < it["t1"]:
             return it["out"] + (t - it["t0"])
     return None
+
+
+def sub_edl(edl, t0, t1):
+    """The episode's edit, restricted to a clip's range: the kept stretches
+    inside [t0, t1], with output times from 0. Cards are not part of a clip.
+    Without an edit list the clip is the raw range."""
+    items = []
+    if edl:
+        for it in edl["items"]:
+            if it["type"] != "src" or it["t1"] <= t0 or it["t0"] >= t1:
+                continue
+            items.append({"type": "src", "t0": round(max(it["t0"], t0), 3),
+                          "t1": round(min(it["t1"], t1), 3)})
+    if not items:
+        items = [{"type": "src", "t0": t0, "t1": t1}]
+    dur = edl_finalise(items)
+    return {"items": items, "duration": dur}
 
 
 def map_words(edl, words, shift=0.0):
