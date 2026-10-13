@@ -29,6 +29,7 @@ The podcast pipeline, one tool per stage, driven by `episode.py`:
 | `cards.py` | Title and end cards animated through `eyeanim.py`'s chains; chapter cards. |
 | `assemble.py` | Gate, match and mix the voices, lay the cues, cut and compose the video. Every deliverable. |
 | `clips.py` | Vertical clips from `clips.json`, both hosts stacked, captions lit word by word. |
+| `release.py` | Everything a publisher needs from what was made: notes, chapters in three shapes, VTT and JSON transcripts, episode art, every file hashed, the clips placed in the episode. `release.json` indexes it; `show.json` beside it holds the show's own words. |
 | `variants.py` | Every cut setting rendered as audio, side by side, with what each one removed. |
 | `eplib.py` | What those share: paths, ffprobe, loudness measurement, the edit-list arithmetic. |
 
@@ -139,6 +140,7 @@ Each stage is its own tool with its own options; the ones worth knowing:
 ./tools/variants.py ep1 --choose tightest               # make that variant the episode's cut
 ./tools/clips.py ep1 --propose 8                        # candidates, with text
 ./tools/clips.py ep1                                    # render clips.json
+./tools/release.py ep1                                  # release.json, notes, chapters, transcripts, art
 ```
 
 The pipeline needs numpy, scipy, soundfile, Pillow and fontTools in the

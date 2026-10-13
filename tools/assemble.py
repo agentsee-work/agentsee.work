@@ -50,7 +50,7 @@ import soundfile as sf
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from eplib import (CUES, RATE, ROOT, caption_cues, cut_with_crossfades, die,  # noqa: E402
                    ep_dir, hms, level_to, load_json, map_words, measure, need, normalise,
-                   run, save_json, speech_intervals, video_codec, write_srt)
+                   run, save_json, show_name, speech_intervals, video_codec, write_srt)
 
 CUE = {"sting": "01-sting.wav", "bed": "bed-loop.wav", "button": "04-button.wav",
        "outro": "02-outro.wav"}
@@ -324,7 +324,7 @@ def mp3(d, wav, meta, cfg, chapters_path, qc):
          "-map", "0:a", "-map", "1:v", "-map_metadata", "2", "-map_chapters", "2",
          "-c:a", "libmp3lame", "-b:a", "192k", "-id3v2_version", "3",
          "-metadata", f"title={meta['title']}", "-metadata", "artist=AgentSee",
-         "-metadata", "album=AgentSee", "-metadata", f"track={cfg.get('number', '')}",
+         "-metadata", f"album={show_name()}", "-metadata", f"track={cfg.get('number', '')}",
          "-metadata", f"date={year}", "-metadata", "genre=Podcast",
          "-c:v", "copy", "-metadata:s:v", "title=Album cover",
          "-metadata:s:v", "comment=Cover (front)", out])

@@ -20,6 +20,8 @@ The stages, each its own tool and each re-runnable on its own:
     cards       animated title and end cards, chapter cards     (cards.py)
     assemble    the mix, the video, captions, chapters, notes   (assemble.py)
     clips       vertical clips, if clips.json exists            (clips.py)
+    release     notes, chapters, transcript, art: the manifest  (release.py)
+                a publisher needs, from what was made
 
 `new` writes build/episodes/<slug>/episode.json — the episode's words: title,
 number, hosts, thumbnail text — and runs ingest. The later tools read that
@@ -38,7 +40,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from eplib import EPISODES, ROOT, die, load_json, save_json  # noqa: E402
 
 TOOLS = pathlib.Path(__file__).resolve().parent
-STAGES = ["ingest", "transcribe", "fillers", "align", "cut", "cards", "assemble", "clips"]
+STAGES = ["ingest", "transcribe", "fillers", "align", "cut", "cards", "assemble", "clips", "release"]
 # with erm installed: transcribe is skipped, align also merges the aligned
 # words into the transcript, and clips render alongside assemble
 
@@ -76,6 +78,8 @@ def stage_cmd(stage, slug, cfg, extra):
         if not (d / "clips.json").exists():
             return None
         return [TOOLS / "clips.py", slug, *extra]
+    if stage == "release":
+        return [TOOLS / "release.py", slug, *extra]
     die(f"unknown stage {stage}")
 
 
@@ -123,7 +127,8 @@ def main():
         checks = [("manifest.json", "ingest"), ("transcript/words.json", "transcribe"),
                   ("edl.json", "cut"), ("cards/title.mp4", "cards"),
                   ("out/episode.mp3", "assemble (audio)"), ("out/episode.mp4", "assemble (video)"),
-                  ("clips.json", "clip list"), ("out/clips", "clips")]
+                  ("clips.json", "clip list"), ("out/clips", "clips"),
+                  ("out/release.json", "release")]
         print(f"{a.slug}: {cfg.get('title', '?')} (episode {cfg.get('number', '?')})")
         for f, label in checks:
             print(f"  {'done' if (d / f).exists() else '    '}  {label:<18} {f}")

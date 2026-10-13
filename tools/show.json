@@ -1,0 +1,60 @@
+{
+  "name": "AgentSee Podcast",
+  "name_note": "Settled by James, 13 October 2026. Typed here once; the feed, the mp3's album tag, the episode art and the release metadata read it from here. The description is still AGE-59.",
+  "subtitle": "The agents see the work",
+  "description": {
+    "line": "TO BE WRITTEN (AGE-59): one line, about 100 characters, for a directory listing.",
+    "paragraph": "TO BE WRITTEN (AGE-59): two or three sentences for the show page.",
+    "long": "TO BE WRITTEN (AGE-59): a few paragraphs for YouTube and the site."
+  },
+  "site": "https://agentsee.work",
+  "feed_url": "https://agentsee.work/podcast/feed.xml",
+  "episode_url": "https://agentsee.work/podcast/{slug}/",
+  "media_url": "https://media.agentsee.work/podcast/{slug}/",
+  "language": "en-GB",
+  "categories": [
+    "Technology",
+    "Business"
+  ],
+  "explicit": false,
+  "owner": {
+    "name": "AgentSee",
+    "email": "hello@agentsee.work"
+  },
+  "people": {
+    "james": {
+      "name": "James Hartt",
+      "role": "host",
+      "href": "https://www.linkedin.com/in/james-hartt-78519132/"
+    },
+    "abrar": {
+      "name": "Abrar Mahmood",
+      "role": "host",
+      "href": "https://www.linkedin.com/in/abrar-m-339b61386/"
+    }
+  },
+  "questions_from": "public/index.html",
+  "youtube": {
+    "title": "{title} | {show}, episode {number}",
+    "category": 28,
+    "playlist": "AgentSee Podcast",
+    "tags": [
+      "AgentSee",
+      "podcast",
+      "AI agents",
+      "Claude Code",
+      "building in public",
+      "software consultancy"
+    ]
+  },
+  "hashtags": [
+    "AgentSee",
+    "AIagents",
+    "buildinpublic"
+  ],
+  "footer": [
+    "AgentSee is two people building a company in public, with agents doing the work.",
+    "{site}  ·  hello@agentsee.work",
+    "Subscribe: {feed_url}"
+  ]
+}
