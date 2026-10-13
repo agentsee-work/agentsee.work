@@ -48,6 +48,7 @@ ASSETS = {
     "standby":   (1920, 1080,  620, "asleep",    "'Starting soon' holding card."),
     "endcard":   (1920, 1080,  620, "closed",    "Sign-off."),
     "thumbnail": (1280,  720,  520, "sceptical", "YouTube. Read as a small rectangle in a feed."),
+    "episodeart": (3000, 3000, 1400, "curious",  "Per-episode artwork for the directories. Square, beside the cover."),
     "clip":      (1080, 1920,  560, "attentive", "9:16 plate. Two stacked panels, captions below."),
 }
 
@@ -289,17 +290,44 @@ body {{ display: flex; flex-direction: column; align-items: center; }}
     return css, body
 
 
+def lay_episodeart(u, expr, title="", number="", **kw):
+    """Per-episode artwork, for the directories that show one beside the
+    cover in an episode list. The cover's mark and wordmark, smaller, then
+    the episode number and the title; the title is the point of it, so it
+    takes the room."""
+    css = f"""
+body {{ display: grid; place-items: center; }}
+.stack {{ display: flex; flex-direction: column; align-items: center; text-align: center;
+          gap: {round(28*u)}px; padding: 0 {round(110*u)}px; position: relative; }}
+.mark {{ --mark-w: {round(300*u)}px; }}
+.wordmark {{ font-size: {round(100*u)}px; }}
+.rule {{ width: {round(520*u)}px; margin: {round(8*u)}px 0; }}
+.number {{ font-size: {round(30*u)}px; }}
+.title {{ font-size: {round(100*u)}px; font-weight: 300; line-height: 1.1;
+          letter-spacing: -.02em; max-width: 94%; }}
+"""
+    number_html = f'<p class="strip number"><b>Episode {_esc(str(number))}</b></p>' if number != "" else ""
+    body = f"""<div class="stack">
+  {_mark(expr)}
+  <p class="wordmark">AgentSee</p>
+  <div class="rule"></div>
+  {number_html}
+  <p class="title">{_esc(title) or 'Episode title goes here'}</p>
+</div>"""
+    return css, body
+
+
 LAYOUTS = {
     "cover": lay_cover, "titlecard": lay_titlecard, "chapter": lay_chapter,
     "standby": lay_standby, "endcard": lay_endcard, "thumbnail": lay_thumbnail,
-    "clip": lay_clip,
+    "clip": lay_clip, "episodeart": lay_episodeart,
 }
 
 
 # --title is an episode's title, so it belongs only on the assets that carry
 # one. Routing it everywhere put "Running our own mail server" on the card that
 # should have said "Starting soon".
-TITLED = {"titlecard", "thumbnail", "chapter"}
+TITLED = {"titlecard", "thumbnail", "chapter", "episodeart"}
 
 
 def build(name, theme, title="", expr=None, **fields):
