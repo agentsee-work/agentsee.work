@@ -9,6 +9,7 @@ One episode, start to finish.
     ./tools/episode.py run ep0 --from cut      # re-run from a stage
     ./tools/episode.py run ep0 --only assemble --fast
     ./tools/episode.py status ep0
+    ./tools/episode.py approve ep0 --release 2026-10-20   # the user has approved the assets
 
 The stages, each its own tool and each re-runnable on its own:
 
@@ -23,6 +24,11 @@ The stages, each its own tool and each re-runnable on its own:
     release     notes, chapters, transcript, art: the manifest  (release.py)
                 a publisher needs, from what was made
 
+`approve` records who approved the episode and when in episode.json, with
+the hash of every deliverable, sets the release date the plan counts from,
+and refuses while the release carries a warning. The stage that uploads the
+approved episode to R2 comes with the publishing work.
+
 `new` writes build/episodes/<slug>/episode.json — the episode's words: title,
 number, hosts, thumbnail text — and runs ingest. The later tools read that
 file so the title is typed once. Extra arguments for a stage go after `--`:
@@ -32,6 +38,7 @@ file so the title is typed once. Extra arguments for a stage go after `--`:
 
 import argparse
 import datetime as dt
+import os
 import pathlib
 import subprocess
 import sys
@@ -104,6 +111,12 @@ def main():
     r.add_argument("extra", nargs="*", help="arguments for the stage, after --")
     s = sub.add_parser("status", help="what exists for an episode")
     s.add_argument("slug")
+    ok = sub.add_parser("approve", help="record the user's approval and the release date")
+    ok.add_argument("slug")
+    ok.add_argument("--release", help="YYYY-MM-DD the episode goes out; default today")
+    ok.add_argument("--by", help="who approved it; default the git user")
+    ok.add_argument("--despite-warnings", action="store_true",
+                    help="approve although the release has warnings")
     a = ap.parse_args()
 
     if a.cmd == "new":
@@ -132,7 +145,29 @@ def main():
         print(f"{a.slug}: {cfg.get('title', '?')} (episode {cfg.get('number', '?')})")
         for f, label in checks:
             print(f"  {'done' if (d / f).exists() else '    '}  {label:<18} {f}")
+        ok = cfg.get("approved")
+        print(f"  approved by {ok['by']} on {ok['at'][:10]}, release {ok['release']}" if ok
+              else "  not approved")
         return 0
+
+    if a.cmd == "approve":
+        rel = d / "out" / "release.json"
+        if not rel.exists():
+            die("no out/release.json: run the pipeline first")
+        r = load_json(rel)
+        if r.get("warnings") and not a.despite_warnings:
+            for w in r["warnings"]:
+                print(f"  warning: {w}")
+            die("the release has warnings: fix the cause, or pass --despite-warnings")
+        by = a.by or subprocess.run(["git", "config", "user.name"], capture_output=True,
+                                    text=True).stdout.strip() or os.environ.get("USER", "?")
+        cfg["release"] = a.release or dt.date.today().isoformat()
+        cfg["approved"] = {"by": by, "at": dt.datetime.now().isoformat(timespec="seconds"),
+                           "release": cfg["release"],
+                           "files": {k: v["sha256"] for k, v in r["files"].items()}}
+        save_json(d / "episode.json", cfg)
+        print(f"approved by {by}, release {cfg['release']}, {len(r['files'])} files recorded", flush=True)
+        return subprocess.call([str(TOOLS / "release.py"), a.slug, "--no-art"])
 
     stages = [a.only] if a.only else STAGES[1:]
     if a.from_ and not a.only:

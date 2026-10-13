@@ -57,7 +57,8 @@ Output goes to `build/episodes/<slug>/` and is never committed.
 7. **Clips.** `./tools/clips.py <slug> --propose 8`, read the candidates and
    the transcript, choose 3 to 5 passages that stand alone (a claim and a
    reason, ending on a line), write `clips.json`, run `./tools/clips.py <slug>`.
-   Look at each clip's poster PNG.
+   Look at each clip's poster PNG. A clip's `title` is also the first line of
+   its social post; give it a `hook` when the post should open differently.
 8. **Write the notes, then release.** Put a `notes` block in `episode.json`,
    from the transcript: `summary` (two or three sentences in the show's
    register: what happened and what was learned, no claims the episode does
@@ -71,6 +72,8 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    approves it. The release warns about anything a platform would reject
    (chapter spacing, lengths, a clip too long for a soundbite); fix the
    cause, not the warning.
+   When the user says the assets are approved, and not before:
+   `./tools/episode.py approve <slug> --release YYYY-MM-DD`.
 9. **Report** what was rendered, the measured numbers, the release's
    warnings, and anything the transcript suggests should be re-cut. Do not
    publish anything.

@@ -141,6 +141,7 @@ Each stage is its own tool with its own options; the ones worth knowing:
 ./tools/clips.py ep1 --propose 8                        # candidates, with text
 ./tools/clips.py ep1                                    # render clips.json
 ./tools/release.py ep1                                  # release.json, notes, chapters, transcripts, art
+./tools/episode.py approve ep1 --release 2026-10-20     # the user approved the assets; the plan counts from the date
 ```
 
 The pipeline needs numpy, scipy, soundfile, Pillow and fontTools in the

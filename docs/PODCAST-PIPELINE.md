@@ -321,7 +321,10 @@ runs in seconds, and is safe to re-run.
 - **The transcript as WebVTT and as JSON.** The VTT carries a voice tag per
   cue, so Apple shows who is speaking when it changes; the JSON is for the
   episode page. The cues follow the caption rule with a longer line: never
-  across a speaker change or a long pause, closed at a sentence end.
+  across a speaker change or a long pause, closed at a sentence end. The
+  words are tidied for a reader, as `transcript.txt` now is: fillers out,
+  "i" capitalised, a capital at the start and after a stop. The times are
+  not touched.
 - **A guid, minted once and kept in `episode.json`.** Every directory keys
   an episode on it; a guid that changes is a duplicate episode in every
   listener's app, so it is never derived from the title or the date.
@@ -347,6 +350,14 @@ runs in seconds, and is safe to re-run.
   the enclosure's length.
 - **A day-by-day plan**: the episode on the release day, one clip a day
   after it, for a publisher to follow or override.
+
+**Approval.** `episode.py approve <slug> --release YYYY-MM-DD` records who
+approved the episode and when in `episode.json`, with the hash of every
+deliverable, sets the release date the plan counts from, and refuses while
+the release carries a warning. The stage that uploads an approved episode
+to R2 (the package and the edit to an archive, the public files to the
+media host) comes with the publishing work; until then the masters exist
+on the workstation only, so keep the Riverside package.
 
 Every time in it is the output's, the one the mp3 and the mp4 share. The
 show's own words (name, people, URLs, the footer) are in `tools/show.json`,

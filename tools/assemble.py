@@ -48,9 +48,10 @@ import numpy as np
 import soundfile as sf
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import (CUES, RATE, ROOT, caption_cues, cut_with_crossfades, die,  # noqa: E402
+from eplib import (CUES, RATE, ROOT, cap_first, caption_cues, cut_with_crossfades, die,  # noqa: E402
                    ep_dir, hms, level_to, load_json, map_words, measure, need, normalise,
-                   run, save_json, show_name, speech_intervals, video_codec, write_srt)
+                   run, save_json, show_name, speech_intervals, tidy_words, video_codec,
+                   write_srt)
 
 CUE = {"sting": "01-sting.wav", "bed": "bed-loop.wav", "button": "04-button.wav",
        "outro": "02-outro.wav"}
@@ -614,7 +615,7 @@ def main():
     mapped = map_words(edl, words["words"], shift=din)
     write_srt(caption_cues(mapped), out / "captions.srt")
     turns, cur = [], None
-    for w in mapped:
+    for w in tidy_words(mapped):
         if cur is None or w["spk"] != cur["spk"] or w["t0"] - cur["t1"] > 2.0:
             cur = {"spk": w["spk"], "t0": w["t0"], "t1": w["t1"], "words": [w["w"]]}
             turns.append(cur)
@@ -623,7 +624,7 @@ def main():
             cur["t1"] = w["t1"]
     names = words.get("speakers", {})
     (out / "transcript.txt").write_text("\n".join(
-        f"[{hms(t['t0'], False)}] {names.get(t['spk'], t['spk'])}: {' '.join(t['words'])}\n"
+        f"[{hms(t['t0'], False)}] {names.get(t['spk'], t['spk'])}: {cap_first(' '.join(t['words']))}\n"
         for t in turns))
     qc["captions"] = len(caption_cues(mapped))
     qc["words_kept"] = len(mapped)
