@@ -14,7 +14,10 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    Pro → Export → Timeline). Then:
    `./tools/episode.py new <slug> <zip> --number N --title "..." --names <id>=<Full Name>,...`
    Track ids are the file prefixes inside the zip; if the names are not known,
-   run ingest without them, look at a frame from each video, and ask.
+   run ingest without them, look at a frame from each video, and ask. Read
+   ingest's warnings: if it says Riverside's kept stretches do not line up
+   across tracks, the offsets are wrong and nothing downstream is worth
+   running until they are right (episode 1 had one voice 1.5 s late).
 2. **Run.** `./tools/episode.py run <slug>` does fillers → align (which also merges the
    aligned verbatim words into the transcript) → cut → cards → assemble, with clips alongside
    assemble when `clips.json` exists. Fillers need `build/venv-erm`, align `build/venv-align`
@@ -33,8 +36,11 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    a time (`t0`): the seam-finder landed cards mid-sentence.
 4. **Read the edit before trusting it.** `./tools/cut.py <slug> --show` and
    the transcript. Check the head and tail are the real start and end of the
-   show; if not, re-run cut with `--start/--end` or `--slate-in/--slate-out`,
-   then `episode.py run <slug> --from assemble`. Read `align.py`'s ghost list
+   show; if not, put `slate_in`/`slate_out` (a spoken phrase) or `start`/`end`
+   (seconds) in the `cut` block of `episode.json`, where `cut.py` reads its
+   defaults, re-cut, then `episode.py run <slug> --from assemble`. A flag on
+   the command line is lost the next time the stage runs; episode 1's slate
+   was. Read `align.py`'s ghost list
    (words Whisper wrote into silence) and `fillers.py`'s recovered words; both
    should look right.
 5. **If the user has review notes** ("remove the 'nice' at the start of section two",

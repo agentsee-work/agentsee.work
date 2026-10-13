@@ -25,6 +25,7 @@ What it checks, because each has bitten or will:
 """
 
 import argparse
+import bisect
 import pathlib
 import re
 import shutil
@@ -90,12 +91,13 @@ def read_xml(path):
                 entry = info["clips"].setdefault(name, {"segments": []})
                 # Riverside exports its own edit as many clips per track —
                 # 580 on episode 1 — each a stretch of the source placed on
-                # the timeline. The track's alignment is the first clip's
-                # start less its in-point; every later clip is behind it by
-                # whatever was cut out before it.
+                # the timeline. The tracks' relative alignment is read from
+                # clips at one sequence time they all cover (see align_at):
+                # a clip's start less its in-point is where source time 0
+                # would sit, minus whatever was cut out before that clip.
                 entry["segments"].append((st, i_, o_))
                 if "start" not in entry or st < entry["start"]:
-                    entry["start"], entry["align"] = st, st - i_
+                    entry["start"] = st
                 eff = c.find("filter/effect")
                 if eff is not None:
                     p = {x.find("parameterid").text: x for x in eff.findall("parameter")}
@@ -114,6 +116,9 @@ def read_xml(path):
                                      "t0": int(m.findtext("in")) / fps,
                                      "t1": int(m.findtext("out")) / fps})
     return info
+
+
+NOTES = []
 
 
 def participants(source, xml):
@@ -140,12 +145,67 @@ def participants(source, xml):
                     # track's clips are the camera switching
                     if name.endswith((".wav", ".m4a", ".mp3")) or edit is None:
                         edit = sorted(c["segments"])
-        out.append({"id": pid, "offset": round(clip.get("align", 0.0), 4),
-                    "layout": clip.get("layout"), "edit": edit, **files})
-    # offsets are relative to the earliest track, never negative
+        out.append({"id": pid, "offset": 0.0, "layout": clip.get("layout"), "edit": edit, **files})
+    # Where source time 0 of each track sits on the sequence, read at one
+    # sequence time every track covers. Reading it from each track's own
+    # first clip is wrong on an edited timeline: Riverside trims a different
+    # length of leading pause from each track, and on episode 1 that put one
+    # voice 1.5 s late against the other. Offsets are then made relative to
+    # the earliest track, never negative.
+    edits = [p["edit"] for p in out if p.get("edit")]
+    if edits:
+        s_ref = max(e[0][0] for e in edits)
+        for p in out:
+            if p.get("edit"):
+                p["offset"] = round(align_at(p["edit"], s_ref), 4)
+        p0 = next(p for p in out if p.get("edit"))
+        drift = 0.0
+        # the same reading at every cut both tracks share: an edit that cut
+        # the tracks at different points would make the offsets ambiguous
+        for p in out[1:]:
+            if not p.get("edit"):
+                continue
+            shared = sorted({st for st, _, _ in p["edit"]} & {st for st, _, _ in p0["edit"]})
+            if len(shared) > 1:
+                rel = [align_at(p["edit"], s) - align_at(p0["edit"], s) for s in shared]
+                drift = max(drift, max(rel) - min(rel))
+        if drift > 0.001:
+            NOTES.append(f"the tracks' relative offsets vary by {drift:.3f}s across the "
+                         f"timeline's cuts; read at sequence {s_ref:.3f}s")
     base = min(p["offset"] for p in out)
     for p in out:
         p["offset"] = round(p["offset"] - base, 4)
+    return out
+
+
+def align_at(segs, s):
+    """Where this track's source time 0 would sit on the sequence, read from
+    the clip under sequence time `s` (the nearest clip if none covers it):
+    the clip's start less its in-point."""
+    st, i_, _ = min(segs, key=lambda c: (not (c[0] <= s < c[0] + (c[2] - c[1])), abs(c[0] - s)))
+    return st - i_
+
+
+def kept_agree(parts, fps):
+    """Riverside cuts every track of an edited timeline at the same sequence
+    points, so once the offsets are applied the stretches it kept should
+    coincide across tracks. When they do not, the offsets are wrong: this
+    is the check that would have caught episode 1's voice 1.5 s late."""
+    kept = [(p["short"], p["riverside_edit"]["kept"]) for p in parts if "riverside_edit" in p]
+    if len(kept) < 2:
+        return []
+    tol = 1.0 / fps + 1e-3
+    ref = sorted(x for a, b in kept[0][1] for x in (a, b))
+    out = []
+    for short, segs in kept[1:]:
+        edges = [x for a, b in segs for x in (a, b)]
+        hit = 0
+        for x in edges:
+            i = bisect.bisect_left(ref, x - tol)
+            hit += i < len(ref) and ref[i] <= x + tol
+        if hit < 0.8 * len(edges):
+            out.append(f"{short}: Riverside's kept stretches do not line up with {kept[0][0]}'s "
+                       f"({hit} of {len(edges)} edges within a frame): the track offsets are suspect")
     return out
 
 
@@ -206,7 +266,7 @@ def main():
                 return id_[:n]
         return id_
 
-    parts, warnings = [], []
+    parts, warnings = [], list(NOTES)
     for p in found:
         name = next((v for k, v in names.items() if p["id"].startswith(k)), None)
         if not name:
@@ -256,11 +316,12 @@ def main():
         die(f"no tracks found in {src}")
 
     fps = xml["fps"] if xml else parts[0].get("video", {}).get("fps", 24)
+    warnings += kept_agree(parts, fps)
     # the raw tracks' length, not the XML sequence's: an edited timeline is
     # shorter than what was recorded
     duration = max(p["offset"] + p["audio"]["duration"] for p in parts if "audio" in p)
     chapters = xml["chapters"] if xml else []
-    first = next((p for p in participants(src, xml) if p.get("edit")), None)
+    first = next((p for p in found if p.get("edit")), None)
     if first and len(first["edit"]) > 1 and chapters:
         # Riverside's chapter marks are in its edited sequence's time;
         # bring them back to this episode's time through its clip list
