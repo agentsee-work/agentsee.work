@@ -72,6 +72,8 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    approves it. The release warns about anything a platform would reject
    (chapter spacing, lengths, a clip too long for a soundbite); fix the
    cause, not the warning.
+   When the user says the assets are approved, and not before:
+   `./tools/episode.py approve <slug> --release YYYY-MM-DD`.
 9. **Report** what was rendered, the measured numbers, the release's
    warnings, and anything the transcript suggests should be re-cut. Do not
    publish anything.

@@ -351,6 +351,14 @@ runs in seconds, and is safe to re-run.
 - **A day-by-day plan**: the episode on the release day, one clip a day
   after it, for a publisher to follow or override.
 
+**Approval.** `episode.py approve <slug> --release YYYY-MM-DD` records who
+approved the episode and when in `episode.json`, with the hash of every
+deliverable, sets the release date the plan counts from, and refuses while
+the release carries a warning. The stage that uploads an approved episode
+to R2 (the package and the edit to an archive, the public files to the
+media host) comes with the publishing work; until then the masters exist
+on the workstation only, so keep the Riverside package.
+
 Every time in it is the output's, the one the mp3 and the mp4 share. The
 show's own words (name, people, URLs, the footer) are in `tools/show.json`,
 typed once; the mp3's album tag reads it too. The name is not settled

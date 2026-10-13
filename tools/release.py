@@ -387,7 +387,8 @@ def main():
           "duration": round(total, 3), "duration_hms": mmss(total),
           "url": show["episode_url"].format(slug=a.slug), "media_url": show["media_url"].format(slug=a.slug),
           "summary": notes.get("summary"), "questions": notes.get("questions", []),
-          "tags": notes.get("tags", [])}
+          "tags": notes.get("tags", []),
+          "approved": {k: v for k, v in (cfg.get("approved") or {}).items() if k != "files"} or None}
 
     # chapters, from the render's own list, so the mp3's ID3 chapters, the
     # video's chapter cards, YouTube and the feed all say the same times
