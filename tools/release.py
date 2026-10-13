@@ -231,7 +231,34 @@ def clips_out(d, out, edl, words, din, clips, show, ep, names, prev, warn):
     return res
 
 
-def build_notes(ep, show, chapters, links, questions_text, people_, warn):
+def questions_quoted(d, cfg, notes, show, warn):
+    """The questions an episode touched, by number in the notes, quoted into
+    episode.json the first time so the wording is the episode's own. The list
+    on the site expands and contracts; a number may come to mean another
+    question, and the notes must not change under an old episode."""
+    site = the_questions(show)
+    quoted = dict(notes.get("questions_quoted", {}))
+    pairs, changed = [], False
+    for n in notes.get("questions", []):
+        key = str(n)
+        if key in quoted:
+            if 1 <= n <= len(site) and site[n - 1] != quoted[key]:
+                warn(f"question {n} on the site now reads differently; the notes keep the wording "
+                     f"quoted when the episode was made")
+            pairs.append((n, quoted[key]))
+        elif 1 <= n <= len(site):
+            quoted[key] = site[n - 1]
+            pairs.append((n, site[n - 1]))
+            changed = True
+        else:
+            warn(f"notes.questions: no question {n} on the site")
+    if changed:
+        cfg.setdefault("notes", {})["questions_quoted"] = quoted
+        save_json(d / "episode.json", cfg)
+    return pairs
+
+
+def build_notes(ep, show, chapters, links, q_pairs, people_, warn):
     """The notes in the AGE-61 shape: who, what, the chapters with times,
     what was mentioned, where to find the guest, the standing footer."""
     hosts = [p for p in people_ if p["role"] == "host"]
@@ -245,12 +272,7 @@ def build_notes(ep, show, chapters, links, questions_text, people_, warn):
         guest_line = "With " + ", ".join(
             f"{g['name']}" + (f", {g['who']}" if g.get("who") else "") for g in guests) + "."
     chap_lines = [f"{c['hms']} {c['title']}" for c in chapters]
-    q_lines = []
-    for n in ep.get("questions", []):
-        if 1 <= n <= len(questions_text):
-            q_lines.append(f"{n}. {questions_text[n - 1]}")
-        else:
-            warn(f"notes.questions: no question {n} on the site")
+    q_lines = [f"{n}. {text}" for n, text in q_pairs]
     footer = [ln.format(site=show["site"], feed_url=show["feed_url"]) for ln in show.get("footer", [])]
     cast_lines = [f"{p['name']}" + (f" — {p['href']}" if p.get("href") else "") for p in hosts + guests]
 
@@ -264,7 +286,7 @@ def build_notes(ep, show, chapters, links, questions_text, people_, warn):
     if links:
         md += ["## Mentioned", ""] + [f"- [{l['title']}]({l['url']})" for l in links] + [""]
     if q_lines:
-        md += ["## Of the ten questions, this one touches", ""] + q_lines + [""]
+        md += ["## Of the questions on the site, this one touches", ""] + q_lines + [""]
     md += ["## Who", ""] + cast_lines + ["", "---", ""] + footer
     markdown = "\n".join(md) + "\n"
 
@@ -276,7 +298,7 @@ def build_notes(ep, show, chapters, links, questions_text, people_, warn):
     if links:
         txt += ["", "Mentioned:"] + [f"{l['title']}: {l['url']}" for l in links]
     if q_lines:
-        txt += ["", "Of the ten questions, this one touches:"] + q_lines
+        txt += ["", "Of the questions on the site, this one touches:"] + q_lines
     txt += [""] + footer
     text = "\n".join(txt) + "\n"
 
@@ -289,7 +311,7 @@ def build_notes(ep, show, chapters, links, questions_text, people_, warn):
         h.append("<p>Mentioned:</p><ul>" + "".join(
             f'<li><a href="{html.escape(l["url"], quote=True)}">{html.escape(l["title"])}</a></li>' for l in links) + "</ul>")
     if q_lines:
-        h.append("<p>Of the ten questions, this one touches:</p><ul>" + "".join(f"<li>{html.escape(q)}</li>" for q in q_lines) + "</ul>")
+        h.append("<p>Of the questions on the site, this one touches:</p><ul>" + "".join(f"<li>{html.escape(q)}</li>" for q in q_lines) + "</ul>")
     for ln in footer:
         ln_h = html.escape(ln)
         for url in re.findall(r"https?://\S+", ln):
@@ -308,7 +330,7 @@ def build_notes(ep, show, chapters, links, questions_text, people_, warn):
     if links:
         yt += ["", "Mentioned:"] + [f"{l['title']}: {l['url']}" for l in links]
     if q_lines:
-        yt += ["", "Of the ten questions, this one touches:"] + q_lines
+        yt += ["", "Of the questions on the site, this one touches:"] + q_lines
     yt += ["", f"Episode page and transcript: {ep['url']}"] + footer
     yt += ["", " ".join("#" + t for t in show.get("hashtags", []))]
     yt_desc = "\n".join(yt) + "\n"
@@ -410,7 +432,7 @@ def main():
 
     print("notes")
     links = notes.get("links", [])
-    notes_out = build_notes(ep, show, chapters, links, the_questions(show), people_, warn)
+    notes_out = build_notes(ep, show, chapters, links, questions_quoted(d, cfg, notes, show, warn), people_, warn)
     (out / "notes.md").write_text(notes_out["markdown"])
     (out / "description.txt").write_text(notes_out["text"])
     (out / "description.html").write_text(notes_out["html"])
