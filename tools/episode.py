@@ -10,6 +10,7 @@ One episode, start to finish.
     ./tools/episode.py run ep0 --only assemble --fast
     ./tools/episode.py status ep0
     ./tools/episode.py approve ep0 --release 2026-10-20   # the user has approved the assets
+    ./tools/episode.py stage ep0                          # archive + public media, via op run
 
 The stages, each its own tool and each re-runnable on its own:
 
@@ -26,8 +27,10 @@ The stages, each its own tool and each re-runnable on its own:
 
 `approve` records who approved the episode and when in episode.json, with
 the hash of every deliverable, sets the release date the plan counts from,
-and refuses while the release carries a warning. The stage that uploads the
-approved episode to R2 comes with the publishing work.
+and refuses while the release carries a warning. `stage` then puts the
+approved episode in the right spot (stage.py: the archive bucket and the
+public media bucket), wrapping itself in `op run` with tools/stage.env so the
+R2 token comes from the vault and nowhere else.
 
 `new` writes build/episodes/<slug>/episode.json — the episode's words: title,
 number, hosts, thumbnail text — and runs ingest. The later tools read that
@@ -40,6 +43,7 @@ import argparse
 import datetime as dt
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 
@@ -117,6 +121,10 @@ def main():
     ok.add_argument("--by", help="who approved it; default the git user")
     ok.add_argument("--despite-warnings", action="store_true",
                     help="approve although the release has warnings")
+    st = sub.add_parser("stage", help="upload the approved episode: archive and public media")
+    st.add_argument("slug")
+    st.add_argument("--dry-run", action="store_true", help="list what would go; no credentials")
+    st.add_argument("--no-source", action="store_true", help="stage without the Riverside package")
     a = ap.parse_args()
 
     if a.cmd == "new":
@@ -168,6 +176,15 @@ def main():
         save_json(d / "episode.json", cfg)
         print(f"approved by {by}, release {cfg['release']}, {len(r['files'])} files recorded", flush=True)
         return subprocess.call([str(TOOLS / "release.py"), a.slug, "--no-art"])
+
+    if a.cmd == "stage":
+        cmd = [TOOLS / "stage.py", a.slug] + (["--dry-run"] if a.dry_run else []) \
+            + (["--no-source"] if a.no_source else [])
+        if not a.dry_run and not os.environ.get("AWS_SECRET_ACCESS_KEY"):
+            if not shutil.which("op"):
+                die("the 1Password CLI (op) is not on PATH; tools/stage.env needs it")
+            cmd = ["op", "run", "--env-file", TOOLS / "stage.env", "--", *cmd]
+        return subprocess.call([str(c) for c in cmd])
 
     stages = [a.only] if a.only else STAGES[1:]
     if a.from_ and not a.only:

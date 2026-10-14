@@ -18,6 +18,9 @@ relay.tf        SMTP2GO's three sender-domain CNAMEs
 outputs.tf      the relay endpoint, and what to do next
 cloud-init.yaml base image only — deliberately not the Stalwart config
 
+podcast/        a second root: the podcast's two R2 buckets and its media host,
+                on a token and a state of their own. See below
+
 .terraform.lock.hcl   provider checksums. COMMITTED, on purpose
 ```
 
@@ -59,6 +62,36 @@ references only; it does not talk to Cloudflare or Infomaniak, so it says nothin
 about whether the plan is *correct*.
 
 `tofu output next_steps` prints the sequence for what follows.
+
+## `podcast/` is a second root, on purpose
+
+The podcast's two R2 buckets and `media.agentsee.work` are declared in
+[podcast/](podcast/) with their own `op.env`, their own state key in the same
+bucket, and their own Cloudflare token. Not a provider alias in this root,
+because the question that decides it is what a plan can reach. A podcast apply
+never reads the mail server's state, and the token it runs on, Account >
+Workers R2 Storage > Edit and nothing else (`opentofu-podcast` in Cloudflare),
+cannot write a DNS record. The DNS token stays Zone > DNS > Edit and never
+learns about buckets.
+
+What the two roots share is the zone, because the media hostname has to live
+in it and Cloudflare writes that record itself, and the state bucket under a
+different key, read with the same tfstate token. That token is OpenTofu's
+credential rather than either service's, and it reaches the state bucket and
+nothing else.
+
+```sh
+cd infra/podcast
+op run --env-file=op.env -- tofu init
+op run --env-file=op.env -- tofu plan
+op run --env-file=op.env -- tofu apply
+```
+
+The token that *writes* the buckets is a third one, scoped to the two buckets
+and resolved by `tools/stage.env`, and it can only be minted once the apply
+has created them. The order and the names are in the header of
+[podcast/r2.tf](podcast/r2.tf); the staging itself is in
+[../docs/PODCAST-PIPELINE.md](../docs/PODCAST-PIPELINE.md#the-release).
 
 ## What is deliberately not automated
 

@@ -29,6 +29,7 @@ The podcast pipeline, one tool per stage, driven by `episode.py`:
 | `cards.py` | Title and end cards animated through `eyeanim.py`'s chains; chapter cards. |
 | `assemble.py` | Gate, match and mix the voices, lay the cues, cut and compose the video. Every deliverable. |
 | `clips.py` | Vertical clips from `clips.json`, both hosts stacked, captions lit word by word. |
+| `stage.py` | An approved episode to R2: the package, the edit and every deliverable to the private archive, the public files to `media.agentsee.work`. Refuses what changed since approval; re-runs put only what changed. |
 | `release.py` | Everything a publisher needs from what was made: notes, chapters in three shapes, VTT and JSON transcripts, episode art, every file hashed, the clips placed in the episode. `release.json` indexes it; `show.json` beside it holds the show's own words. |
 | `variants.py` | Every cut setting rendered as audio, side by side, with what each one removed. |
 | `eplib.py` | What those share: paths, ffprobe, loudness measurement, the edit-list arithmetic. |
@@ -142,10 +143,14 @@ Each stage is its own tool with its own options; the ones worth knowing:
 ./tools/clips.py ep1                                    # render clips.json
 ./tools/release.py ep1                                  # release.json, notes, chapters, transcripts, art
 ./tools/episode.py approve ep1 --release 2026-10-20     # the user approved the assets; the plan counts from the date
+./tools/episode.py stage ep1                            # archive + public media, R2 token via op run (tools/stage.env)
+./tools/stage.py ep1 --dry-run                          # what would go, without credentials
 ```
 
 The pipeline needs numpy, scipy, soundfile, Pillow and fontTools in the
-system Python, plus ffmpeg and headless Chrome. Two files in the episode folder steer the cut by hand, when a rule is not the
+system Python, plus ffmpeg and headless Chrome. Staging needs boto3 in
+`build/venv-stage` (`python3 -m venv build/venv-stage && build/venv-stage/bin/pip install boto3`)
+and the 1Password CLI. Two files in the episode folder steer the cut by hand, when a rule is not the
 answer: `chapters.json` (`[{title, at: "first words of the section", after:
 "last words of the one before"}]`, quoted from the transcript, with `card:
 false` for a marker without a card; `{title, t0}` in source seconds is the

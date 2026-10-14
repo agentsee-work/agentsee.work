@@ -354,10 +354,18 @@ runs in seconds, and is safe to re-run.
 **Approval.** `episode.py approve <slug> --release YYYY-MM-DD` records who
 approved the episode and when in `episode.json`, with the hash of every
 deliverable, sets the release date the plan counts from, and refuses while
-the release carries a warning. The stage that uploads an approved episode
-to R2 (the package and the edit to an archive, the public files to the
-media host) comes with the publishing work; until then the masters exist
-on the workstation only, so keep the Riverside package.
+the release carries a warning. `episode.py stage <slug>` then puts the
+approved episode in the right spot (`stage.py`): the Riverside package, the
+edit as data and every deliverable to the private archive bucket, and the
+public files (mp3, clips, art, transcripts, chapters) to the media bucket
+behind `media.agentsee.work`, both declared in `infra/podcast/`, an OpenTofu
+root of its own with its own token and state. It refuses an
+episode whose files changed since the approval, carries every object's
+SHA-256 as metadata so a re-run puts only what changed, and records what
+went where in `out/staged.json`. The R2 token comes from the vault through
+`op run` and `tools/stage.env`; boto3 lives in `build/venv-stage`. Until an
+episode is staged its masters exist on the workstation only, so keep the
+Riverside package.
 
 Every time in it is the output's, the one the mp3 and the mp4 share. The
 show's own words (name, people, URLs, the footer) are in `tools/show.json`,
