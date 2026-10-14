@@ -89,7 +89,7 @@ same question, which is how items end up findable by neither.
 
 | Vault | Holds | The test |
 |---|---|---|
-| **Engineering** | Cloudflare API token, R2 tokens, Swiss Backup keys, Infomaniak Public Cloud, SMTP2GO SMTP user | Read by a machine |
+| **Engineering** | Cloudflare API tokens (DNS, podcast), R2 tokens (state, backup, podcast), Swiss Backup keys, Infomaniak Public Cloud, SMTP2GO SMTP user | Read by a machine |
 | **IT** | Cloudflare and Infomaniak account logins, registrar, GitHub org, mailboxes, healthchecks.io | Typed by a person |
 | **Security** | The restic passphrase — one, shared by both backup repositories. Where the Emergency Kits physically are, not what is in them | Losing it loses something unrecoverable |
 | **Social** | Platform logins and their passkeys | Obvious |
@@ -123,7 +123,9 @@ The type decides the field names, and `infra/op.env` references fields by name:
 | Item | Type | Fields |
 |---|---|---|
 | Cloudflare API token | API Credential | `username`, `credential` |
+| Cloudflare podcast token | API Credential | `username`, `credential` |
 | R2 tfstate token | API Credential | `username`, `credential` |
+| R2 podcast token | API Credential | `username`, `credential` |
 | Infomaniak Public Cloud | **Login** | `username`, `password`, + custom `project` |
 
 Login rather than API Credential for the last one precisely because an API
@@ -383,6 +385,13 @@ apply, so rename deliberately and grep `infra/op.env` first.
       the R2 state token, Infomaniak Public Cloud, the SMTP2GO SMTP user, the R2
       backup token and the Swiss Backup keys. `op.env` resolves the first three
       on every apply, which is a stronger check than a tick.
+- [ ] File the podcast's two tokens in **Engineering**, neither of them the
+      DNS token: `Cloudflare podcast token` (Account > Workers R2 Storage >
+      Edit, named `opentofu-podcast` in Cloudflare; `infra/podcast/op.env`
+      resolves it) before the first podcast apply, and `R2 podcast token`
+      (Object Read & Write on the two podcast buckets, named `podcast-stage`;
+      `tools/stage.env` resolves it) after it, because it is scoped to buckets
+      that have to exist first. The reasoning is in `infra/podcast/op.env`.
 - [x] The restic passphrase in **Security**, and on paper with the Emergency
       Kit. The one whose loss cannot be undone.
 - [~] **The social signups in [SOCIAL.md](SOCIAL.md)** — under way, and the
