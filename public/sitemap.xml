@@ -17,6 +17,12 @@
   <url>
     <loc>https://agentsee.work/issues/05-podcast</loc>
   </url>
+  <url>
+    <loc>https://agentsee.work/privacy/</loc>
+  </url>
+  <url>
+    <loc>https://agentsee.work/terms/</loc>
+  </url>
   <!-- podcast: written by tools/site.py -->
   <url>
     <loc>https://agentsee.work/podcast/</loc>
