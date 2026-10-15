@@ -18,6 +18,13 @@ adapter per platform. An adapter is a module in this package with:
 A post is never run twice at once: the run marks it `publishing` first, and
 `due` ignores that state. A failure leaves `failed` with the error, and a
 person retries it from the Posts screen.
+
+Late posts. An adapter that sends (SENDS, the default; the hand card sets it
+False) is not given a post whose time passed more than `late_hours` ago
+(config.json): if the engine was off on the morning, that morning's posts
+wait on the By hand screen for a person to publish now, move or skip,
+rather than going out in a bunch at the next start. A post a person marked
+`due` goes regardless.
 """
 
 import datetime as dt
@@ -41,19 +48,38 @@ def parse(iso):
     return dt.datetime.fromisoformat(iso) if iso else None
 
 
-def due(c, as_of=None):
-    """Posts the next run should take: marked due by a person, or on a
-    platform that schedules for us, or past their time."""
+def late_after():
+    return dt.timedelta(hours=float(ledger.CONFIG.get("late_hours", 6)))
+
+
+def split(c, as_of=None):
+    """Planned posts in two lists: those the next run takes (marked due by a
+    person, on a platform that schedules for us, or past their time by less
+    than late_hours) and those that wait for a person."""
     t = parse(as_of) if as_of else dt.datetime.now(dt.timezone.utc)
-    out = []
+    now, late = [], []
     for p in c.execute("SELECT * FROM post WHERE status IN ('planned', 'due') ORDER BY scheduled_at, id"):
         if p["account"] not in ACCOUNTS:
             continue
         mod = adapter(p["account"])
         when = parse(p["scheduled_at"])
-        if p["status"] == "due" or getattr(mod, "SCHEDULES", False) or (when and when <= t):
-            out.append(p)
-    return out
+        if p["status"] == "due" or getattr(mod, "SCHEDULES", False):
+            now.append(p)
+        elif when and when <= t:
+            if getattr(mod, "SENDS", True) and t - when > late_after():
+                late.append(p)
+            else:
+                now.append(p)
+    return now, late
+
+
+def due(c, as_of=None, include_late=False):
+    now, late = split(c, as_of)
+    return now + late if include_late else now
+
+
+def late(c, as_of=None):
+    return split(c, as_of)[1]
 
 
 def run(c, posts, env=None, dry_run=False, who="engine", log=print):

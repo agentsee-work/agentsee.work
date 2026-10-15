@@ -15,6 +15,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import sys
 import tempfile
 import threading
@@ -30,6 +31,8 @@ import plan  # noqa: E402
 import publish  # noqa: E402
 import web  # noqa: E402
 from publish import youtube  # noqa: E402
+from publish import x  # noqa: E402
+import vault  # noqa: E402
 
 DAY0 = (dt.date.today() + dt.timedelta(days=10)).isoformat()
 DAY1 = (dt.date.today() + dt.timedelta(days=11)).isoformat()
@@ -76,11 +79,7 @@ def fixture(root):
     return out
 
 
-class StubYouTube(http.server.BaseHTTPRequestHandler):
-    """Google's token endpoint, the resumable upload, captions, thumbnails,
-    playlists. One 503 on the second chunk of every upload, to see the resume."""
-    state = {"uploads": {}, "playlists": [], "items": [], "captions": [], "thumbs": [], "fail_session": False, "metas": []}
-
+class Stub(http.server.BaseHTTPRequestHandler):
     def out(self, code, obj=None, headers=None):
         b = json.dumps(obj).encode() if obj is not None else b""
         self.send_response(code)
@@ -92,6 +91,15 @@ class StubYouTube(http.server.BaseHTTPRequestHandler):
 
     def body(self):
         return self.rfile.read(int(self.headers.get("Content-Length") or 0))
+
+    def log_message(self, *_):
+        pass
+
+
+class StubYouTube(Stub):
+    """Google's token endpoint, the resumable upload, captions, thumbnails,
+    playlists. One 503 on the second chunk of every upload, to see the resume."""
+    state = {"uploads": {}, "playlists": [], "items": [], "captions": [], "thumbs": [], "fail_session": False, "metas": []}
 
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
@@ -158,8 +166,101 @@ class StubYouTube(http.server.BaseHTTPRequestHandler):
             return self.out(200, {"items": StubYouTube.state["playlists"]})
         self.out(404, {"error": {"message": "no"}})
 
-    def log_message(self, *_):
-        pass
+
+class StubX(Stub):
+    """X's token endpoint with the rotating refresh token, the chunked media
+    upload with its processing poll, and the post. The vault is FakeVault."""
+    state = {"refresh": "r1", "n": 1, "refreshes": 0, "media": {}, "tweets": [], "polls": 0, "refuse": False}
+
+    def do_POST(self):
+        u = urllib.parse.urlparse(self.path)
+        s = StubX.state
+        if u.path == "/2/oauth2/token":
+            assert self.headers.get("Authorization", "").startswith("Basic "), "a confidential client sends Basic"
+            q = urllib.parse.parse_qs(self.body().decode())
+            assert q["grant_type"] == ["refresh_token"]
+            if q["refresh_token"][0] != s["refresh"]:
+                return self.out(400, {"error": "invalid_request", "error_description": "Value passed for the token was invalid."})
+            s["n"] += 1
+            s["refresh"] = f"r{s['n']}"
+            s["refreshes"] += 1
+            return self.out(200, {"token_type": "bearer", "expires_in": 7200, "access_token": f"XAT{s['n']}",
+                                  "scope": "tweet.read tweet.write users.read media.write offline.access",
+                                  "refresh_token": s["refresh"]})
+        assert self.headers.get("Authorization") == f"Bearer XAT{s['n']}", self.headers.get("Authorization")
+        if u.path == "/2/media/upload/initialize":
+            j = json.loads(self.body())
+            mid = f"m{len(s['media']) + 1}"
+            s["media"][mid] = {**j, "segments": [], "got": 0, "finalized": False}
+            return self.out(200, {"data": {"id": mid, "media_key": "k" + mid, "expires_after_secs": 86400}})
+        m = re.match(r"^/2/media/upload/(m\d+)/(append|finalize)$", u.path)
+        if m:
+            mid, op = m.groups()
+            up = s["media"][mid]
+            if op == "append":
+                ctype = self.headers["Content-Type"]
+                assert ctype.startswith("multipart/form-data; boundary="), ctype
+                boundary = ctype.split("boundary=", 1)[1].encode()
+                idx = data = None
+                for part in self.body().split(b"--" + boundary):
+                    if b'name="segment_index"' in part:
+                        idx = int(part.split(b"\r\n\r\n", 1)[1].strip())
+                    elif b'name="media"' in part:
+                        data = part.split(b"\r\n\r\n", 1)[1]
+                        data = data[:-2] if data.endswith(b"\r\n") else data
+                assert idx == len(up["segments"]), (idx, len(up["segments"]))
+                assert data is not None and len(data) <= 5 * 1024 * 1024
+                up["segments"].append(len(data))
+                up["got"] += len(data)
+                return self.out(204)
+            assert up["got"] == up["total_bytes"], (up["got"], up["total_bytes"])
+            up["finalized"] = True
+            if up["media_category"] == "tweet_video":
+                return self.out(200, {"data": {"id": mid, "processing_info": {"state": "pending", "check_after_secs": 0}}})
+            return self.out(200, {"data": {"id": mid}})
+        if u.path == "/2/tweets":
+            j = json.loads(self.body())
+            assert len(j["text"]) <= 280
+            for mid in j.get("media", {}).get("media_ids", []):
+                assert s["media"][mid]["finalized"]
+            if s["refuse"]:
+                return self.out(403, {"title": "Forbidden", "detail": "You are not permitted to perform this action.", "status": 403})
+            s["tweets"].append(j)
+            return self.out(201, {"data": {"id": f"19{len(s['tweets']):04d}", "text": j["text"]}})
+        self.out(404, {"title": "Not Found", "detail": u.path, "status": 404})
+
+    def do_GET(self):
+        u = urllib.parse.urlparse(self.path)
+        s = StubX.state
+        if u.path == "/2/media/upload":
+            q = urllib.parse.parse_qs(u.query)
+            assert q["command"] == ["STATUS"]
+            s["polls"] += 1
+            state = "in_progress" if s["polls"] % 2 else "succeeded"
+            return self.out(200, {"data": {"id": q["media_id"][0], "processing_info": {"state": state, "check_after_secs": 0}}})
+        self.out(404, {"title": "Not Found", "detail": u.path, "status": 404})
+
+
+class FakeVault:
+    """The one item the engine writes, in memory. Can refuse one write."""
+    def __init__(self, value):
+        self.value, self.fail_write, self.writes = value, False, 0
+
+    def read(self, vault_, item, field):
+        assert (vault_, item, field) == ("Engineering", "X podcast token", "credential")
+        return self.value
+
+    def write(self, vault_, item, field, value):
+        self.writes += 1
+        if self.fail_write:
+            self.fail_write = False
+            raise vault.VaultError("no session")
+        self.value = value
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 class EngineTest(unittest.TestCase):
@@ -175,10 +276,21 @@ class EngineTest(unittest.TestCase):
         youtube.TOKEN_URL, youtube.API, youtube.UPLOAD = base + "/token", base, base + "/upload"
         youtube.CHUNK = 256 * 1024
         cls.env = {"YOUTUBE_CLIENT_ID": "id", "YOUTUBE_CLIENT_SECRET": "s", "YOUTUBE_REFRESH_TOKEN": "r"}
+        cls.xstub = http.server.HTTPServer(("127.0.0.1", 0), StubX)
+        threading.Thread(target=cls.xstub.serve_forever, daemon=True).start()
+        xbase = f"http://127.0.0.1:{cls.xstub.server_address[1]}"
+        x.TOKEN_URL, x.API, x.CHUNK = xbase + "/2/oauth2/token", xbase + "/2", 64 * 1024
+        cls.vault = FakeVault("r1")
+        x.vault = cls.vault
+        ledger.CONFIG["x"] = {"vault": "Engineering", "item": "X podcast token", "field": "credential"}
+        plan.ACCOUNTS["x"]["adapter"] = "x"  # the switch-on, here regardless of accounts.json
+        cls.xenv = {"X_APP_ID": "cid", "X_APP_SECRET": "cs", "X_TOKEN": "123", "X_TOKEN_SECRET": "r1"}
 
     @classmethod
     def tearDownClass(cls):
-        cls.stub.shutdown()
+        for srv in (cls.stub, cls.xstub):
+            srv.shutdown()
+            srv.server_close()
         cls.tmp.cleanup()
 
     def c(self):
@@ -258,10 +370,14 @@ class EngineTest(unittest.TestCase):
         c = self.c()
         before = publish.due(c, "2026-01-01T00:00:00+00:00")
         self.assertEqual({p["account"] for p in before}, {"youtube"}, "only the platform that schedules is due early")
-        later = publish.due(c, DAY1 + "T09:30:00+01:00")
+        xe = c.execute("SELECT scheduled_at FROM post WHERE episode='ep9' AND account='x' AND asset='episode'").fetchone()[0]
+        plus = lambda iso, h: (dt.datetime.fromisoformat(iso) + dt.timedelta(hours=h)).isoformat()  # noqa: E731
+        later = publish.due(c, plus(xe, 7))
         accounts = {p["account"] for p in later}
-        self.assertIn("x", accounts)
-        self.assertIn("linkedin-page", accounts)
+        self.assertIn("linkedin-page", accounts, "a card is due whenever its day has come")
+        self.assertNotIn("x", accounts, "seven hours past on a platform the engine sends to: held for a person")
+        self.assertIn("x", {p["account"] for p in publish.late(c, plus(xe, 7))})
+        self.assertIn("x", {p["account"] for p in publish.due(c, plus(xe, 1))}, "an hour past: sent")
         self.assertNotIn("instagram", {p["account"] for p in later if p["asset"] == "episode"})
 
     def test_05_youtube(self):
@@ -375,7 +491,12 @@ class EngineTest(unittest.TestCase):
         st, h, body = get(f"/posts/{x['id']}")
         self.assertEqual(st, 200)
         self.assertIn("<textarea", body)
-        self.assertIn("x.com/intent/post", body)
+        self.assertIn("Publish now", body)
+        self.assertNotIn("x.com/intent/post", body, "X goes by API: no composer card")
+        bs = c.execute("SELECT * FROM post WHERE link_id='e9bsc01'").fetchone()
+        st, h, body = get(f"/posts/{bs['id']}")
+        self.assertEqual(st, 200)
+        self.assertIn("bsky.app/intent/compose", body)
         self.assertIn(MEDIA + "clips/01-the-point.mp4", body)
         self.assertIn("Paste the permalink", body)
         st, h, body = post(f"/posts/{x['id']}/text", {"_t": "wrong", "text": "nope"})
@@ -390,9 +511,9 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(ledger.post(c, x["id"])["scheduled_at"].startswith(DAY1 + "T17:30"))
         st, h, body = post(f"/posts/{x['id']}/schedule", {"_t": web.CSRF, "date": "soon", "time": "17:30"})
         self.assertEqual(st, 400)
-        self.assertEqual(post(f"/posts/{x['id']}/done", {"_t": web.CSRF, "permalink": "https://x.com/agentseework/status/1"})[0], 303)
-        self.assertEqual(ledger.post(c, x["id"])["status"], "published")
-        self.assertEqual(c.execute("SELECT who FROM event WHERE what='hand:done' AND post=?", (x["id"],)).fetchone()[0], "local")
+        self.assertEqual(post(f"/posts/{bs['id']}/done", {"_t": web.CSRF, "permalink": "https://bsky.app/profile/agentsee.work/post/1"})[0], 303)
+        self.assertEqual(ledger.post(c, bs["id"])["status"], "published")
+        self.assertEqual(c.execute("SELECT who FROM event WHERE what='hand:done' AND post=?", (bs["id"],)).fetchone()[0], "local")
         st, h, body = get("/due")
         self.assertEqual(st, 200)
         st, h, body = get("/health")
@@ -407,9 +528,94 @@ class EngineTest(unittest.TestCase):
         srv.shutdown()
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
+    def test_09_x(self):
+        c = self.c()
+        posts = [p for p in c.execute("SELECT * FROM post WHERE episode='ep9' AND account='x' ORDER BY asset")]
+        self.assertEqual(len(posts), 2)
+        quiet = lambda s: None  # noqa: E731
+        res = publish.run(c, posts, env=self.xenv, dry_run=True, log=quiet)
+        self.assertEqual([r[1] for r in res], ["dry-run"] * 2)
+        res = publish.run(c, posts, env={}, log=quiet)
+        self.assertEqual([r[1] for r in res], ["skipped-no-credentials"] * 2)
+        res = publish.run(c, posts, env=self.xenv, who="tester", log=quiet)
+        self.assertEqual([r[1] for r in res], ["published", "published"], res)
+        s = StubX.state
+        self.assertEqual(s["refreshes"], 1, "one refresh served both posts")
+        self.assertEqual(self.vault.value, "r2", "the replacement refresh token is in the vault")
+        self.assertEqual(self.vault.writes, 1)
+        ep = ledger.post(c, [p for p in posts if p["asset"] == "episode"][0]["id"])
+        clip = ledger.post(c, [p for p in posts if p["asset"] != "episode"][0]["id"])
+        self.assertEqual(ep["permalink"], f"https://x.com/agentseework/status/{ep['remote_id']}")
+        self.assertTrue(ep["published_at"])
+        video = next(m for m in s["media"].values() if m["media_category"] == "tweet_video")
+        image = next(m for m in s["media"].values() if m["media_category"] == "tweet_image")
+        self.assertEqual((video["media_type"], image["media_type"]), ("video/mp4", "image/jpeg"))
+        self.assertEqual(len(video["segments"]), 5, "256 KiB and 7 bytes in 64 KiB segments")
+        self.assertEqual(sum(video["segments"]), video["total_bytes"])
+        self.assertEqual(s["polls"], 2, "polled until X had processed the video; the image needed no poll")
+        texts = {t["text"]: t for t in s["tweets"]}
+        self.assertIn(ep["text"], texts)
+        self.assertIn(clip["text"], texts)
+        self.assertIn("https://agentsee.work/p/e9xe", ep["text"])
+        self.assertEqual(len(texts[clip["text"]]["media"]["media_ids"]), 1)
+        notes = {ev["post"]: json.loads(ev["detail"])["note"] for ev in c.execute("SELECT * FROM event WHERE what='publish:published'")}
+        self.assertIn("of 280 characters", notes[clip["id"]])
+        self.assertIn("with a link", notes[ep["id"]])
+
+    def test_10_x_vault(self):
+        c = self.c()
+        p = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='x' AND asset='episode'").fetchone()
+        ledger.update_post(c, p["id"], status="planned", remote_id=None, permalink=None)
+        quiet = lambda s: None  # noqa: E731
+        x._token.update(access=None, until=0.0)  # two hours have passed
+        self.vault.fail_write = True
+        res = publish.run(c, [ledger.post(c, p["id"])], env=self.xenv, log=quiet)
+        self.assertEqual(res[0][1], "failed")
+        p2 = ledger.post(c, p["id"])
+        self.assertIn("vault write failed", p2["last_error"])
+        self.assertIn("Do not restart", p2["last_error"])
+        self.assertEqual(self.vault.value, "r2", "the vault still holds the retired token")
+        self.assertEqual(StubX.state["refresh"], "r3")
+        self.assertEqual(x._token["unsaved"], "r3", "the new token is held in the process")
+        self.assertEqual(len(StubX.state["tweets"]), 2, "nothing was posted")
+        self.assertEqual(web.act(c, p2, "retry", {}, "tester"), "Back in the queue")
+        res = publish.run(c, [ledger.post(c, p["id"])], env=self.xenv, log=quiet)
+        self.assertEqual(res[0][1], "published", res)
+        self.assertEqual(self.vault.value, "r3", "the held token went to the vault first")
+        self.assertIsNone(x._token["unsaved"])
+        self.assertEqual(StubX.state["refreshes"], 2, "the access token from the held refresh was used, not another refresh")
+        # the vault holding a token something else already used
+        x._token.update(access=None, until=0.0)
+        self.vault.value = "r1"
+        ledger.update_post(c, p["id"], status="planned")
+        res = publish.run(c, [ledger.post(c, p["id"])], env=self.xenv, log=quiet)
+        self.assertEqual(res[0][1], "failed")
+        self.assertIn("retired token", ledger.post(c, p["id"])["last_error"])
+        self.assertEqual(StubX.state["refreshes"], 2)
+        self.vault.value = StubX.state["refresh"]
+        ledger.update_post(c, p["id"], status="published")
+
+    def test_11_late(self):
+        c = self.c()
+        p = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='x' AND asset!='episode'").fetchone()
+        card = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='linkedin-page' AND asset='episode'").fetchone()
+        now = dt.datetime.now(dt.timezone.utc)
+        ago = lambda h: (now - dt.timedelta(hours=h)).isoformat(timespec="seconds")  # noqa: E731
+        ids = lambda rows: [r["id"] for r in rows]  # noqa: E731
+        ledger.update_post(c, p["id"], status="planned", scheduled_at=ago(7), remote_id=None, permalink=None)
+        ledger.update_post(c, card["id"], status="planned", scheduled_at=ago(7))
+        self.assertNotIn(p["id"], ids(publish.due(c)), "seven hours late: left for a person")
+        self.assertIn(p["id"], ids(publish.late(c)))
+        self.assertIn(p["id"], ids(publish.due(c, include_late=True)))
+        self.assertIn(card["id"], ids(publish.due(c)), "a card is never late")
+        self.assertNotIn(card["id"], ids(publish.late(c)))
+        self.assertIn("Past their time, not sent", web.due_page(c)[1])
+        ledger.update_post(c, p["id"], scheduled_at=ago(1))
+        self.assertIn(p["id"], ids(publish.due(c)), "an hour late goes")
+        ledger.update_post(c, p["id"], status="due", scheduled_at=ago(7))
+        self.assertIn(p["id"], ids(publish.due(c)), "marked due by a person, it goes regardless")
+        ledger.update_post(c, p["id"], status="skipped")
+        ledger.update_post(c, card["id"], status="published")
 
 
 if __name__ == "__main__":

@@ -13,7 +13,9 @@ plan.py          the day plan × accounts.json → posts, with short-link ids an
                  drafted text; the push of id → URL into KV
 publish/         the publisher: __init__ runs what is due through an adapter
   youtube.py     upload, publishAt, captions, thumbnail, playlist
+  x.py           X: chunked media upload, the post, the rotating refresh token
   hand.py        a card for a person to post, and a permalink to paste back
+vault.py         the one credential the engine writes: X's refresh token, via op
 web.py           the screens and the worker: a threaded HTTP server on loopback
 pages.py         the page shell in the site's typographic system
 static/engine.css  tables, forms, a status word; the rest is the site's CSS
@@ -73,9 +75,32 @@ exists, private, with `publishAt`), or past its time. One adapter per
 platform, in `publish/`; the docstring of `publish/__init__.py` is the
 contract. The YouTube adapter is real: resumable upload in 8 MiB chunks with
 resume on a dropped connection, captions, thumbnail (refused rather than
-failed while the channel is unverified), the show's playlist. Everything
-else is `hand` for now: the card. The X adapter is next; the credentials for
-it are already in the vault.
+failed while the channel is unverified), the show's playlist. The X adapter
+is real: the art or the clip through X's chunked upload (segments under
+5 MB, a poll until the video is processed), then the post, at the post's
+hour, since X does not schedule. Everything else is `hand` for now: the
+card.
+
+X's refresh token is single use, so the vault item is the live copy: the
+adapter reads it with `op read` when it needs an access token and writes
+X's replacement back with `op item edit` (the item's JSON on stdin, never a
+value on the command line) before it uses the access token; `vault.py` is
+those two calls. If the write fails nothing is posted, the new token is
+held in the process and written on the next attempt, and the error says not
+to restart before then. The engine therefore runs under the op session
+`op run` already has. One refresher at a time: do not run two engines
+against the same item. The X account is wired to its adapter by three
+settings: `"adapter": "x"` on the account in `accounts.json`, an `"x"`
+entry in `config.json` naming the vault, item and field that hold the
+refresh token, and the four `X_` references in `engine.env` (the ones
+`tools/x.env` has).
+
+Late posts. A platform the engine sends to is not given a post whose time
+passed more than `late_hours` ago (`config.json`, six): if nothing was
+running that morning, the morning's posts wait on the By hand screen for a
+person to publish now, move or skip, rather than going out in a bunch at
+the next start. `publish --due --late` sends them anyway; a post a person
+marked due goes regardless; cards are never late.
 
 `serve` runs the same publisher in a worker thread, every minute and at once
 when a screen asks for something now. The command line and the worker can
@@ -90,8 +115,9 @@ platform has it; its day and hour; publish now, retry, skip; the hand card:
 the text to copy, a link that opens the platform's composer with the text
 in it, the file on the media host, the poster, the short link, and the
 paste-back of the permalink that marks it published; the record of what
-happened to it), By hand (what a person posts today), Health (the ledger,
-the worker, counts, which adapters can see their credentials).
+happened to it), By hand (what a person posts today, and what is late),
+Health (the ledger, the worker, counts, which adapters can see their
+credentials).
 
 Server-rendered, no script but the site's eye, the site's stylesheet and
 fonts served from `public/`, the same CSP as the site plus the media host
@@ -103,7 +129,7 @@ did it is the identity Cloudflare Access attaches to the request
 
 The VPS home behind Tunnel + Access (the engine runs on a workstation until
 then, which is enough to publish from); the collector and the Reach,
-Audience and Spend screens (AGE-69, items 4 and 5); the X, Bluesky,
-Mastodon, Threads, Instagram and LinkedIn adapters, each a module in
-`publish/` with the five names the contract asks for; fetching an episode's
-files from the archive bucket when they are not on the machine.
+Audience and Spend screens (AGE-69, items 4 and 5); the Bluesky, Mastodon,
+Threads, Instagram and LinkedIn adapters, each a module in `publish/` with
+the names the contract asks for; fetching an episode's files from the
+archive bucket when they are not on the machine.

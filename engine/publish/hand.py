@@ -8,6 +8,7 @@ that paste is what marks the post published.
 """
 
 SCHEDULES = False
+SENDS = False  # a card, not a send: no late guard
 NEEDS = ""
 
 
