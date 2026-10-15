@@ -128,6 +128,8 @@ The type decides the field names, and `infra/op.env` references fields by name:
 | R2 podcast token | API Credential | `username`, `credential` |
 | YouTube podcast client | API Credential | `username` (the OAuth client ID), `credential` (its secret) |
 | YouTube podcast token | API Credential | `username` (the channel id it is for), `credential` (the refresh token) |
+| X podcast app | API Credential | `username` (the OAuth 2.0 Client ID), `credential` (its Client Secret) |
+| X podcast token | API Credential | `username` (the account id it is for), `credential` (the OAuth 2.0 refresh token, not the two-hour access token beside it; X replaces it on every refresh, and the publisher writes the new one back here) |
 | Infomaniak Public Cloud | **Login** | `username`, `password`, + custom `project` |
 
 Login rather than API Credential for the last one precisely because an API
@@ -404,6 +406,22 @@ apply, so rename deliberately and grep `infra/op.env` first.
       screen in Testing dies after seven days, and the script says so if it
       sees one. Google also drops a refresh token that goes unused for six
       months.
+- [x] File the X pair in **Engineering**: `X podcast app` (the OAuth 2.0
+      Client ID and Client Secret of the app `podcast-engine` in the X
+      Developer Console, a confidential client) and `X podcast token` (the
+      account id, and the OAuth 2.0 refresh token the console generates for
+      the show's account; the access token beside it dies in two hours and is
+      not filed). Then `op run --env-file=tools/x.env -- ./tools/x.py check`,
+      which says which kind of token the item holds and whose it is, and
+      `check --refresh` to prove a refresh token and print its replacement to
+      file. Unlike Google's, X's refresh token is single use: every refresh
+      returns a new one and retires the old, so the vault item is the live
+      copy and the publisher writes each new token back to it before using the
+      access token it came with. If the console's token is ever not enough,
+      `op run --env-file=tools/x-auth.env -- ./tools/x.py auth` is the consent
+      in a browser, with `http://127.0.0.1:8794/callback` on the app's callback
+      list. Done 15 October 2026: both items filed, the token proven with
+      `check --refresh` and its replacement filed.
 - [x] The restic passphrase in **Security**, and on paper with the Emergency
       Kit. The one whose loss cannot be undone.
 - [~] **The social signups in [SOCIAL.md](SOCIAL.md)** — under way, and the
