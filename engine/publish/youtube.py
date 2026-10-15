@@ -73,7 +73,8 @@ def request(method, url, tok, body=None, headers=None, timeout=120):
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, r.headers, r.read()
     except urllib.error.HTTPError as e:
-        return e.code, e.headers, e.read()
+        with e:
+            return e.code, e.headers, e.read()
 
 
 def said(status, body):

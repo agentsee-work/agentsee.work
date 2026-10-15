@@ -431,7 +431,11 @@ apply, so rename deliberately and grep `infra/op.env` first.
       file. Unlike Google's, X's refresh token is single use: every refresh
       returns a new one and retires the old, so the vault item is the live
       copy and the publisher writes each new token back to it before using the
-      access token it came with. If the console's token is ever not enough,
+      access token it came with (`engine/vault.py`: `op read` for the live
+      value, `op item edit` with the item's JSON on stdin for the write, so
+      the engine runs under the op session `op run` has; two engines on one
+      item would retire each other's tokens). If the console's token is ever
+      not enough,
       `op run --env-file=tools/x-auth.env -- ./tools/x.py auth` is the consent
       in a browser, with `http://127.0.0.1:8794/callback` on the app's callback
       list. Done 15 October 2026: both items filed, the token proven with

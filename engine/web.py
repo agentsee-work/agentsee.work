@@ -242,6 +242,12 @@ def due_page(c):
             'whose adapter is not written yet. Each one is a card with the text, the file, the short link and the composer. '
             'Paste the permalink back and it is published.</p></article>')
     body += post_rows(rows) if rows else "<p>Nothing due by hand today.</p>"
+    held = publish.late(c)
+    if held:
+        body += section("Late", "Past their time, not sent",
+                        f"<p>These were due more than {ledger.CONFIG.get('late_hours', 6):g} hours ago while nothing was "
+                        "running to send them. Open one to publish it now, move it or skip it.</p>" + post_rows(held),
+                        "late")
     return "By hand", body
 
 

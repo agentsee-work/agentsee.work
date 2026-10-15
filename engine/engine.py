@@ -82,7 +82,10 @@ def cmd_publish(a):
         if not all(posts):
             sys.exit("error: no such post")
     else:
-        posts = publish.due(c, a.as_of)
+        posts = publish.due(c, a.as_of, include_late=a.late)
+        held = [] if a.late else publish.late(c, a.as_of)
+        if held:
+            print(f"{len(held)} late, left for a person (or --late): " + ", ".join(str(p["id"]) for p in held))
     if not posts:
         print("nothing is due")
         return
@@ -121,6 +124,8 @@ def main():
     p.add_argument("--post", type=int, nargs="*", help="these posts, whatever their state")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--as-of", help="pretend it is this ISO instant")
+    p.add_argument("--late", action="store_true",
+                   help="also what is past its time by more than late_hours (config.json)")
     p.set_defaults(fn=cmd_publish)
     p = sub.add_parser("serve", help="the screens, with the worker")
     p.add_argument("--port", type=int, default=8877)
