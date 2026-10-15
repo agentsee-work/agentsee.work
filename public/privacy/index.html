@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — AgentSee</title>
+<meta name="description" content="What agentsee.work, the podcast and our publishing tools do with information, which is very little, and all of it stated here.">
+<link rel="canonical" href="https://agentsee.work/privacy/">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora, closed">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+</header>
+<div class="dateline">
+  <span class="edge">Hove &amp; London</span>
+  <span class="mid">Privacy notice</span>
+  <span class="edge">Revised 15 October 2026</span>
+</div>
+
+<main>
+  <article class="lead">
+    <h1>What we know about you, and why it is so little.</h1>
+    <p class="deck">The site loads nothing but itself, the podcast is counted without being watched, and the only thing we keep is the mail you send us. The rest of this page is the detail.</p>
+  </article>
+
+  <section class="section" id="who">
+    <p class="kicker">01 — Who we are</p>
+    <h2>AgentSee is two people, and the address at the bottom reaches both of them.</h2>
+    <div class="notes">
+      <p>AgentSee is James Hartt and Abrar Mahmood, building a software agency in public from Hove and London. It is not yet a company. For anything about your information, write to <a href="mailto:hello@agentsee.work">hello@agentsee.work</a>; the two of us read it.</p>
+      <p>This notice covers the website at agentsee.work, the podcast, the mail we exchange with you, and the software we run to publish our work on other platforms. It is written to be read, and every change to it is in the public history of <a href="https://github.com/agentsee-work/agentsee.work">the site's repository</a>.</p>
+    </div>
+  </section>
+
+  <section class="section" id="site">
+    <p class="kicker">02 — This site</p>
+    <h2>The pages load nothing but themselves, and we see nothing about who reads them.</h2>
+    <div class="notes">
+      <p>The site is a set of static pages. It sets no cookies, runs no analytics, and makes no request to any third party: each page loads only from agentsee.work and, for the podcast's audio, from media.agentsee.work. There is nothing here that recognises you between visits, and we hold no record of who has read what.</p>
+      <p>The pages are served by Cloudflare. Like any host, Cloudflare sees the technical details of each request (your network address, your browser) and keeps them briefly under its own policy, for security and to keep the service running. Those logs are Cloudflare's; we do not collect them and we do not use them.</p>
+    </div>
+  </section>
+
+  <section class="section" id="podcast">
+    <p class="kicker">03 — The podcast</p>
+    <h2>We count listens from our own logs, and the count cannot tell us who you are.</h2>
+    <div class="notes">
+      <p>The episodes and their files are served from media.agentsee.work, which is storage we rent from Cloudflare. We count downloads ourselves so we can see how many people listen. The count is built from the time of a request, the file, the app or browser that asked, and a one-way hash of the network address, which is enough to count one listener once in a day and nothing more. The address itself is not kept, and nothing in the count identifies you to us.</p>
+      <p>If you listen through a podcast app or directory (Apple Podcasts, Spotify, YouTube and the others), that service collects what it collects under its own policy. What reaches us from them is aggregate: how many plays, in which countries, roughly how long. Never who.</p>
+    </div>
+  </section>
+
+  <section class="section" id="mail">
+    <p class="kicker">04 — Writing to us</p>
+    <h2>Your email sits on a server we run, and nowhere else we have not named.</h2>
+    <div class="notes">
+      <p>If you write to any address at agentsee.work, your message is kept on our own mail server, a machine we rent from Infomaniak in Switzerland. Its backups go to Infomaniak's Swiss Backup and to Cloudflare R2. Mail we send leaves through a relay, SMTP2GO, which handles it in transit and keeps delivery logs for a short time.</p>
+      <p>We keep correspondence for as long as the conversation is useful, and we delete it if you ask. Writing to us puts you on no list: there is no newsletter, and if we ever start one it will be opt-in and this page will say so.</p>
+    </div>
+  </section>
+
+  <section class="section" id="tools">
+    <p class="kicker">05 — Our tools and other platforms</p>
+    <h2>The software we run publishes our own work and reads our own numbers. It touches no one else's account.</h2>
+    <div class="notes">
+      <p>We publish the podcast and its clips to YouTube, LinkedIn, Instagram, Threads, X, Bluesky, Mastodon and the podcast directories using software we wrote, which signs in to our own accounts and acts only for them. Through each platform's interface it posts what we made and reads back the statistics the platform offers about our own posts, videos and channels: views, impressions, reactions, comment counts, follower counts, and audience breakdowns the platform has already aggregated. We keep those numbers in our own records so we can see what reaches people.</p>
+      <p>It collects nothing about individual viewers, followers or commenters, posts nothing on anyone else's behalf, and passes nothing it reads to anyone else. The YouTube data it handles belongs to our own channel and is used only to publish our videos and to read that channel's analytics. Our use of information received from Google's interfaces follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including its Limited Use requirements. The same software is not offered to anyone else: there is nothing to sign up for.</p>
+    </div>
+  </section>
+
+  <section class="section" id="rights">
+    <p class="kicker">06 — Your rights</p>
+    <h2>Ask, and you will get a straight answer from a person.</h2>
+    <div class="notes">
+      <p>Under UK data protection law you can ask what we hold about you, have it corrected or deleted, and object to our using it. In practice what we hold is the email you sent us, and the answer is a reply to that email. Write to <a href="mailto:hello@agentsee.work">hello@agentsee.work</a>. If you think we have handled your information badly you can complain to the <a href="https://ico.org.uk/">Information Commissioner's Office</a>, though we would rather hear from you first.</p>
+      <p>Links from this site go to other people's sites, with their own policies. Our <a href="/terms/">terms</a> say what you may do with what we publish.</p>
+    </div>
+  </section>
+
+  <p class="backlink-row">
+    <a class="backlink" href="/">&larr; Back to the front page</a> &nbsp;&middot;&nbsp; <a class="backlink" href="/terms/">Terms &rarr;</a>
+  </p>
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee</span>
+    <span>agentsee.work</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+</body>
+</html>
