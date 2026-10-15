@@ -124,6 +124,7 @@ The type decides the field names, and `infra/op.env` references fields by name:
 |---|---|---|
 | Cloudflare API token | API Credential | `username`, `credential` |
 | Cloudflare podcast token | API Credential | `username`, `credential` |
+| Podcast edge hash key | API Credential | `credential` (64 hex characters from `openssl rand -hex 32`) |
 | R2 tfstate token | API Credential | `username`, `credential` |
 | R2 podcast token | API Credential | `username`, `credential` |
 | YouTube podcast client | API Credential | `username` (the OAuth client ID), `credential` (its secret) |
@@ -396,6 +397,19 @@ apply, so rename deliberately and grep `infra/op.env` first.
       (Object Read & Write on the two podcast buckets, named `podcast-stage`;
       `tools/stage.env` resolves it) after it, because it is scoped to buckets
       that have to exist first. The reasoning is in `infra/podcast/op.env`.
+- [x] **The edges** (`infra/podcast/edge.tf`), applied 15 October 2026: widen `opentofu-podcast` in
+      Cloudflare (My Profile > API Tokens > Edit) with Account > Workers >
+      Admin (the per-product role since September 2026, the one that can
+      create a Worker; "Workers Scripts > Edit" is listed as Legacy and maps
+      to it), Account > Workers KV Storage > Edit and Zone > Workers Routes >
+      Edit on agentsee.work; the value stays the same, so nothing is refiled. Then `openssl rand -hex 32` into `Podcast edge hash key` (API
+      Credential, the `credential` field) in **Engineering**;
+      `infra/podcast/op.env` hands it to tofu as `TF_VAR_edge_hash_key`, and
+      it ends up in the two Workers' bindings and the private state, nowhere
+      on disk. The address hashes on both datasets depend on it; rotating it
+      only breaks counting within the day it happens. One click first:
+      Analytics Engine is off until enabled in the dashboard (Workers &
+      Pages > Analytics Engine), and the apply refuses the scripts until it is.
 - [x] File the YouTube pair in **Engineering**: `YouTube podcast client` (the
       OAuth client `podcast-engine` in the Google Cloud project, type Desktop
       app, from a consent screen set to In production; `tools/youtube-auth.env`

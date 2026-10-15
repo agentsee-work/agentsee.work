@@ -359,7 +359,10 @@ approved episode in the right spot (`stage.py`): the Riverside package, the
 edit as data and every deliverable to the private archive bucket, and the
 public files (mp3, clips, art, transcripts, chapters) to the media bucket
 behind `media.agentsee.work`, both declared in `infra/podcast/`, an OpenTofu
-root of its own with its own token and state. It refuses an
+root of its own with its own token and state. A Worker on a route in front of
+the media host serves the bucket and writes one row per request to Analytics
+Engine, the address hashed at the edge; `infra/podcast/workers/README.md` maps
+the columns the download counting is done from. It refuses an
 episode whose files changed since the approval, carries every object's
 SHA-256 as metadata so a re-run puts only what changed, and records what
 went where in `out/staged.json`. The R2 token comes from the vault through
@@ -395,7 +398,10 @@ and takes its place from its date. The feed's dates are the release dates
 from `episode.py approve --release`, at 06:00 London time. The one script the
 pages add, `assets/player.js`, makes a time link seek the player; without
 JavaScript the link is a time. The CSP in `public/_headers` allows media from
-`media.agentsee.work` and nothing else that is not first-party.
+`media.agentsee.work` and nothing else that is not first-party. Short links,
+`agentsee.work/p/<id>`, one per post, are a second Worker on the zone: a KV
+lookup, a row in Analytics Engine, a 302. They are how a click back from a
+platform is attributed without a tracking parameter on the page.
 
 ## What bit, in order
 

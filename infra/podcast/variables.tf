@@ -25,3 +25,9 @@ variable "media_subdomain" {
   type        = string
   default     = "media"
 }
+
+variable "edge_hash_key" {
+  description = "What the two Workers hash network addresses under (edge.tf). A secret, never a default: op.env resolves it from the vault as TF_VAR_edge_hash_key. Sixty-four hex characters from `openssl rand -hex 32`, minted once; changing it changes every hash, which only matters within a day."
+  type        = string
+  sensitive   = true
+}

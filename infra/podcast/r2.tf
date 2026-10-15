@@ -13,17 +13,23 @@
 #
 # The custom domain gives the public bucket a hostname in our zone, and
 # Cloudflare writes the DNS record for it itself: the token this root runs on
-# has no DNS permission and needs none. Counting downloads needs a Worker in
-# front of this hostname (AGE-69); until that exists the bucket serves
-# directly and nothing is counted.
+# has no DNS permission and needs none. Counting downloads is the Worker in
+# edge.tf, on a route in front of this hostname; with the route gone the
+# bucket serves the same files directly and nothing is counted.
 #
 # Two tokens, minted once, by hand. Neither is the DNS token (op.env says why).
 #
 #   1. The one tofu runs on, before the first apply. My Profile > API Tokens >
 #      Create Custom Token: Account > Workers R2 Storage > Edit, this account,
-#      nothing else. Named opentofu-podcast in Cloudflare, filed as
-#      "Cloudflare podcast token" (API Credential) in Engineering; op.env
-#      resolves it. ⚠ The permission is account-wide. The token can read the
+#      and since the edges (edge.tf, 15 October 2026) also Account > Workers >
+#      Admin (the per-product role that can create a Worker; the token editor
+#      still lists the old "Workers Scripts > Edit" as Legacy, and it maps to
+#      the same), Account > Workers KV Storage > Edit, and Zone > Workers
+#      Routes > Edit on this zone. Nothing else, and no DNS. Named
+#      opentofu-podcast in Cloudflare, filed as "Cloudflare podcast token"
+#      (API Credential) in Engineering; op.env resolves it. Editing a token's
+#      permissions keeps its value, so widening it changed nothing in the
+#      vault. ⚠ The R2 permission is account-wide. The token can read the
 #      objects of every bucket, the mail backups included, so it lives in the
 #      vault and nowhere else.
 #   2. The one the tools run on, after the first apply, because it is scoped
