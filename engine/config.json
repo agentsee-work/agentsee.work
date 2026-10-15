@@ -1,0 +1,15 @@
+{
+  "note": "The engine's own settings, none of them secret. The credentials are in engine.env as op:// references.",
+  "site": "https://agentsee.work",
+  "media_host": "https://media.agentsee.work",
+  "short_link": "https://agentsee.work/p/{id}",
+  "timezone": "Europe/London",
+  "release_time": "06:00",
+  "cloudflare_account": "9468eccb7caed9f96283a9139c37a4df",
+  "links_namespace": "99a3f14eb6764a00a8dd470c29e2015a",
+  "youtube": {
+    "playlist": "AgentSee Podcast",
+    "language": "en-GB",
+    "notify_subscribers": {"episode": true, "clip": false}
+  }
+}

@@ -506,6 +506,8 @@ footer {
   color: var(--ink-3);
   text-wrap: pretty;
 }
+.footer-note a { color: inherit; text-decoration-color: var(--hair); text-underline-offset: .15em; }
+.footer-note a:hover { color: var(--signal); }
 
 /* ═══════════════  THE EYE  ═══════════════ */
 

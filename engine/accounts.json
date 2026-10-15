@@ -1,0 +1,111 @@
+{
+  "note": "Where posts go. One entry per account; the key is the account name in the ledger. `assets` says which of an episode's assets the account gets a post for; `at` is the local time of day a post is due on its plan day; `adapter` is who publishes it: youtube by API, hand as a card for a person to post (also every platform whose adapter is not written yet). `code` is the account's part of its short-link ids; `limit` is the platform's character budget for a post, which the draft is cut to fit (a link counted at its full length, which is more than X's 23).",
+  "youtube": {
+    "platform": "youtube",
+    "handle": "@agentseework",
+    "code": "yt",
+    "assets": [
+      "episode",
+      "clip"
+    ],
+    "at": "06:00",
+    "adapter": "youtube",
+    "limit": 5000
+  },
+  "x": {
+    "platform": "x",
+    "handle": "@agentseework",
+    "code": "x",
+    "assets": [
+      "episode",
+      "clip"
+    ],
+    "at": "09:00",
+    "adapter": "hand",
+    "limit": 280
+  },
+  "bluesky": {
+    "platform": "bluesky",
+    "handle": "@agentsee.work",
+    "code": "bs",
+    "assets": [
+      "episode",
+      "clip"
+    ],
+    "at": "09:00",
+    "adapter": "hand",
+    "limit": 300
+  },
+  "mastodon": {
+    "platform": "mastodon",
+    "handle": "@agentseework@mastodon.social",
+    "code": "ma",
+    "assets": [
+      "episode",
+      "clip"
+    ],
+    "at": "09:00",
+    "adapter": "hand",
+    "limit": 500
+  },
+  "threads": {
+    "platform": "threads",
+    "handle": "@agentseework",
+    "code": "th",
+    "assets": [
+      "episode",
+      "clip"
+    ],
+    "at": "09:00",
+    "adapter": "hand",
+    "limit": 500
+  },
+  "instagram": {
+    "platform": "instagram",
+    "handle": "@agentseework",
+    "code": "ig",
+    "assets": [
+      "clip"
+    ],
+    "at": "09:00",
+    "adapter": "hand",
+    "limit": 2200
+  },
+  "linkedin-james": {
+    "platform": "linkedin",
+    "handle": "James Hartt",
+    "code": "lj",
+    "assets": [
+      "episode",
+      "clip"
+    ],
+    "at": "08:30",
+    "adapter": "hand",
+    "limit": 3000
+  },
+  "linkedin-abrar": {
+    "platform": "linkedin",
+    "handle": "Abrar Mahmood",
+    "code": "la",
+    "assets": [
+      "episode",
+      "clip"
+    ],
+    "at": "08:30",
+    "adapter": "hand",
+    "limit": 3000
+  },
+  "linkedin-page": {
+    "platform": "linkedin",
+    "handle": "AgentSee, the page",
+    "code": "lp",
+    "assets": [
+      "episode",
+      "clip"
+    ],
+    "at": "08:30",
+    "adapter": "hand",
+    "by_hand": true,
+    "limit": 3000
+  }
+}

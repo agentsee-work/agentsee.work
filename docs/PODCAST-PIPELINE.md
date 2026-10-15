@@ -403,6 +403,19 @@ JavaScript the link is a time. The CSP in `public/_headers` allows media from
 lookup, a row in Analytics Engine, a 302. They are how a click back from a
 platform is attributed without a tracking parameter on the page.
 
+### Into the engine
+
+What happens after staging is the engine's, in `engine/` (its README is the
+map; the design is AGE-69). `engine.py ingest <slug>` reads `release.json`
+and `staged.json` into a SQLite ledger; `engine.py plan <slug>` turns the
+release's day plan into one post per asset per account, text drafted and cut
+to each platform's budget, a short link minted per post (`agentsee.work/p/
+e1xc02`: episode 1, X, clip 2) so every click back is counted at the edge;
+the publisher sends what is due through one adapter per platform, YouTube
+first (upload, `publishAt`, captions, thumbnail, playlist), and makes a card
+for a person to post everywhere else until that platform's adapter exists.
+`engine.py serve` is the screens: Episodes, Posts, By hand, Health.
+
 ## What bit, in order
 
 **The venv's python is a symlink to the system python.** `transcribe.py`

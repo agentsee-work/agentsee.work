@@ -1,0 +1,94 @@
+"""
+The publisher: what is due, to the platform that wants it, through one
+adapter per platform. An adapter is a module in this package with:
+
+    SCHEDULES   True when the platform itself holds a post until its time
+                (YouTube's publishAt), so the post is due the moment it
+                exists; False when the engine has to wait for the day.
+    NEEDS       the environment variables it cannot run without, as a string
+                for the message when they are missing.
+    ready(env)  whether those are set.
+    describe(post, episode, release) → one line for --dry-run.
+    publish(post, episode, release, files, env, account, log) → a dict of
+                post columns to set (status, remote_id, permalink,
+                published_at) and an optional "note" for the event. Raises
+                PublishError, or anything, when the platform said no; the
+                ledger records it either way.
+
+A post is never run twice at once: the run marks it `publishing` first, and
+`due` ignores that state. A failure leaves `failed` with the error, and a
+person retries it from the Posts screen.
+"""
+
+import datetime as dt
+import importlib
+import os
+import pathlib
+
+import ledger
+from plan import ACCOUNTS
+
+
+class PublishError(Exception):
+    pass
+
+
+def adapter(account):
+    return importlib.import_module("publish." + ACCOUNTS[account]["adapter"])
+
+
+def parse(iso):
+    return dt.datetime.fromisoformat(iso) if iso else None
+
+
+def due(c, as_of=None):
+    """Posts the next run should take: marked due by a person, or on a
+    platform that schedules for us, or past their time."""
+    t = parse(as_of) if as_of else dt.datetime.now(dt.timezone.utc)
+    out = []
+    for p in c.execute("SELECT * FROM post WHERE status IN ('planned', 'due') ORDER BY scheduled_at, id"):
+        if p["account"] not in ACCOUNTS:
+            continue
+        mod = adapter(p["account"])
+        when = parse(p["scheduled_at"])
+        if p["status"] == "due" or getattr(mod, "SCHEDULES", False) or (when and when <= t):
+            out.append(p)
+    return out
+
+
+def run(c, posts, env=None, dry_run=False, who="engine", log=print):
+    env = os.environ if env is None else env
+    results = []
+    for p in posts:
+        account = ACCOUNTS[p["account"]]
+        mod = adapter(p["account"])
+        ep = ledger.episode(c, p["episode"])
+        r = ledger.release(ep)
+        files = pathlib.Path(ep["source_dir"] or "")
+        tag = f"post {p['id']} ({p['account']}, {p['asset']})"
+        if not mod.ready(env):
+            log(f"  {tag}: skipped, {mod.NEEDS} not set")
+            results.append((p["id"], "skipped-no-credentials"))
+            continue
+        if dry_run:
+            log(f"  {tag}: " + mod.describe(p, ep, r))
+            results.append((p["id"], "dry-run"))
+            continue
+        ledger.update_post(c, p["id"], status="publishing", attempts=p["attempts"] + 1)
+        ledger.event(c, "publish:start", who, post=p["id"], episode=p["episode"])
+        try:
+            res = mod.publish(p, ep, r, files, env, account, log)
+        except Exception as e:  # noqa: BLE001 — whatever the platform or the network threw, the ledger must say
+            err = f"{type(e).__name__}: {e}"[:1000]
+            ledger.update_post(c, p["id"], status="failed", last_error=err)
+            ledger.event(c, "publish:failed", who, post=p["id"], episode=p["episode"], detail=err)
+            log(f"  {tag}: failed: {err}")
+            results.append((p["id"], "failed"))
+            continue
+        note = res.pop("note", None)
+        ledger.update_post(c, p["id"], last_error=None, **res)
+        ledger.event(c, "publish:" + res["status"], who, post=p["id"], episode=p["episode"],
+                     detail={**res, "note": note})
+        log(f"  {tag}: {res['status']}" + (f" ({note})" if note else "") + (f" {res.get('permalink')}" if res.get("permalink") else ""))
+        results.append((p["id"], res["status"]))
+    return results
