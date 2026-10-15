@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentSee Podcast — Two developers build a software agency in public, with agents doing the work, and seeing what changes.</title>
+<meta name="description" content="James Hartt and Abrar Mahmood are building a software agency from the ground up, in public, with agents doing the work. Every agency was organised around one scarce thing, engineering time, and that constraint has moved. Each episode is what they actually did, what it cost, what broke, and which of their stated questions it touched.">
+<link rel="canonical" href="https://agentsee.work/podcast/">
+<link rel="alternate" type="application/rss+xml" title="AgentSee Podcast" href="/podcast/feed.xml">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://agentsee.work/podcast/">
+<meta property="og:title" content="AgentSee Podcast — Two developers build a software agency in public, with agents doing the work, and seeing what changes.">
+<meta property="og:description" content="James Hartt and Abrar Mahmood are building a software agency from the ground up, in public, with agents doing the work. Every agency was organised around one scarce thing, engineering time, and that constraint has moved. Each episode is what they actually did, what it cost, what broke, and which of their stated questions it touched.">
+<meta property="og:image" content="https://agentsee.work/assets/brand/show-cover.png">
+<meta property="og:image:width" content="3000">
+<meta property="og:image:height" content="3000">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/assets/brand/show-cover.png">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+
+<a class="skip" href="#opening">Skip to content</a>
+<header class="masthead">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+</header>
+<div class="dateline">
+  <span class="edge">The podcast</span>
+  <span class="mid">First episode Tuesday 20 October 2026</span>
+  <span class="edge">Audio &middot; Free, obviously</span>
+</div>
+
+<main>
+
+  <article class="lead" id="opening">
+    <h1>AgentSee Podcast</h1>
+    <p class="deck">Two developers build a software agency in public, with agents doing the work, and seeing what changes.</p>
+  </article>
+
+  <section class="section" id="about">
+    <p class="kicker">01 — What it is</p>
+    <div class="cols two">
+      <p class="drop">Every software agency that has ever existed was organised around one scarce thing: engineering time. The account manager protected it, the estimate priced it, the change request defended it. Now writing the code is no longer the expensive part, and most of that structure is obsolete. AgentSee is two developers, James Hartt and Abrar Mahmood, finding out what replaces it by building an agency rather than writing another post about it.</p>
+      <p>The podcast is the working record. Each episode is something they actually did: standing up the company&#x27;s own infrastructure with agents, producing the show itself by script, and, as they come, the work for clients. What it cost, what broke, what they would not recommend, and which of the questions stated on agentsee.work it touched.</p>
+      <p>They are at the very earliest stage of this and say so. The premise exists to be argued with rather than agreed with, and guests who disagree are welcome. Transcripts, chapters and clips for every episode are at agentsee.work.</p>
+    </div>
+  </section>
+
+  <section class="section" id="listen">
+    <p class="kicker">02 — How to listen</p>
+    <h2>In any podcast app, by its feed. The directories follow.</h2>
+    <p class="aside">Paste <code>https://agentsee.work/podcast/feed.xml</code> into the app's "add by URL". Every episode page
+      has a player, the chapters, the notes and the transcript. The video of each episode is on YouTube.</p>
+    <p class="links listen">
+      <a href="/podcast/feed.xml">RSS feed</a>
+      <a href="https://www.youtube.com/@agentseework">YouTube</a>
+    </p>
+  </section>
+
+  <section class="section" id="episodes">
+    <p class="kicker">03 — Episodes</p>
+    <div class="register">
+      <div class="issue pending">
+        <span class="issue-no">Episode 1</span>
+        <span class="issue-title">Running our own mail server, on purpose</span>
+        <span class="issue-meta">Tuesday 27 October 2026</span>
+      </div>
+      <div class="issue pending">
+        <span class="issue-no">Episode 0</span>
+        <span class="issue-title">Introductions and the premise</span>
+        <span class="issue-meta">Tuesday 20 October 2026</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="people">
+    <p class="kicker">04 — Hosts</p>
+    <div class="people">
+      <article class="person">
+        <div class="byline">
+          <img class="portrait" src="/assets/james-hartt.jpg" alt="" width="256" height="256" loading="lazy" decoding="async">
+          <div>
+            <h3>James Hartt</h3>
+            <p class="role">Host</p>
+          </div>
+        </div>
+        <div class="body"><p>Lead software engineer, agentic engineering. Hove.</p>
+          <p class="links"><a href="https://www.linkedin.com/in/james-hartt-78519132/">LinkedIn</a></p>
+        </div>
+      </article>
+      <article class="person">
+        <div class="byline">
+          <img class="portrait" src="/assets/abrar-mahmood.jpg" alt="" width="256" height="256" loading="lazy" decoding="async">
+          <div>
+            <h3>Abrar Mahmood</h3>
+            <p class="role">Host</p>
+          </div>
+        </div>
+        <div class="body"><p>Software architect; co-founder of GradeDrive. London.</p>
+          <p class="links"><a href="https://www.linkedin.com/in/abrar-m-339b61386/">LinkedIn</a></p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" id="contact">
+    <p class="kicker">05 — Classifieds</p>
+    <h2>Everything below reaches both of us directly. No sequence, no drip, no CRM.</h2>
+
+    <div class="classifieds">
+
+      <a class="ad" href="mailto:show@agentsee.work?subject=AgentSee%3A%20Come%20on%20the%20show">
+        <span class="ad-head">Wanted</span>
+        <span class="ad-title">Come on the show</span>
+        <span class="ad-body">
+          People who have run an agency, bought from one, or been chewed up by one.
+          Especially if your experience contradicts ours.
+        </span>
+        <span class="ad-cue">Pitch yourself &rarr;</span>
+      </a>
+
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20Follow%20the%20build">
+        <span class="ad-head">Subscriptions</span>
+        <span class="ad-title">Follow the build</span>
+        <span class="ad-body">
+          Streams, episodes, and what we get wrong. Low volume, no marketing, and
+          we'll tell you when it stops being interesting.
+        </span>
+        <span class="ad-cue">Get the updates &rarr;</span>
+      </a>
+
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20You%27re%20wrong">
+        <span class="ad-head">Corrections</span>
+        <span class="ad-title">Tell us we're wrong</span>
+        <span class="ad-body">
+          If you think the premise is nonsense, we would much rather hear it now than
+          in two years. The strongest disagreement gets a whole episode.
+        </span>
+        <span class="ad-cue">Take the swing &rarr;</span>
+      </a>
+
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20Build%20alongside%20us">
+        <span class="ad-head">Situations vacant</span>
+        <span class="ad-title">Build alongside us</span>
+        <span class="ad-body">
+          Not today — we're still in discovery. But if you'd take a real risk on a new
+          way of working for a real share of the reward, that's who we want to start
+          with. You'll hear what we charge before you hear a pitch.
+        </span>
+        <span class="ad-cue">Put your name down &rarr;</span>
+      </a>
+
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee Podcast</span>
+    <span>First episode Tuesday 20 October 2026</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <nav class="links social" aria-label="AgentSee elsewhere">
+    <!-- rel="me" is load-bearing: Mastodon verifies a profile link by looking for
+         a reciprocal one here. Without it the field shows unverified. -->
+    <a href="/podcast/">Podcast</a>
+    <a rel="me" href="https://mastodon.social/@agentseework">Mastodon</a>
+    <a href="https://bsky.app/profile/agentsee.work">Bluesky</a>
+    <a href="https://www.youtube.com/@agentseework">YouTube</a>
+    <a href="https://www.twitch.tv/agentseework">Twitch</a>
+    <a href="https://www.instagram.com/agentseework/">Instagram</a>
+    <a href="https://x.com/agentseework">X</a>
+  </nav>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+</body>
+</html>

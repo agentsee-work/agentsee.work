@@ -26,12 +26,14 @@
     "james": {
       "name": "James Hartt",
       "role": "host",
-      "href": "https://www.linkedin.com/in/james-hartt-78519132/"
+      "href": "https://www.linkedin.com/in/james-hartt-78519132/",
+      "line": "Lead software engineer, agentic engineering. Hove."
     },
     "abrar": {
       "name": "Abrar Mahmood",
       "role": "host",
-      "href": "https://www.linkedin.com/in/abrar-m-339b61386/"
+      "href": "https://www.linkedin.com/in/abrar-m-339b61386/",
+      "line": "Software architect; co-founder of GradeDrive. London."
     }
   },
   "questions_from": "public/index.html",

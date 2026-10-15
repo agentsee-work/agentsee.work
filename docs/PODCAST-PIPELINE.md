@@ -373,6 +373,30 @@ typed once; the mp3's album tag reads it too. The name is not settled
 (AGE-59), and the description is a placeholder the release warns about
 until it is written.
 
+### On the site
+
+`tools/site.py` puts every staged episode on the site: `public/podcast/feed.xml`
+(RSS 2.0 with the itunes and podcast namespaces: enclosure, guid, chapters,
+both transcripts, the people, a soundbite per clip), `public/podcast/` (the
+show, how to listen, the episodes) and `public/podcast/<slug>/` (the player,
+chapters that seek it, the links and questions from the notes, the moments
+that went out as clips, the people, the transcript folded). It takes an
+episode only when `out/staged.json` matches the release, so nothing on the
+site points at a file that is not on the media host, and only once its
+release date has arrived (London time): until then the show page names it
+with its date and it has no page and no feed item. Going live is a run on
+the day, a commit and a push; `--as-of` previews a later day. The masthead, the
+classifieds and the footer are lifted from `public/index.html` when it runs,
+so the mark has one copy. Output is deterministic; commit what it writes and
+the push deploys it.
+
+Apple wants a non-zero integer in `itunes:episode`, so episode 0 carries none
+and takes its place from its date. The feed's dates are the release dates
+from `episode.py approve --release`, at 06:00 London time. The one script the
+pages add, `assets/player.js`, makes a time link seek the player; without
+JavaScript the link is a time. The CSP in `public/_headers` allows media from
+`media.agentsee.work` and nothing else that is not first-party.
+
 ## What bit, in order
 
 **The venv's python is a symlink to the system python.** `transcribe.py`
