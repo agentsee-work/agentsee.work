@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+     xmlns:podcast="https://podcastindex.org/namespace/1.0"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/"
+     xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>AgentSee Podcast</title>
+    <link>https://agentsee.work/podcast/</link>
+    <atom:link href="https://agentsee.work/podcast/feed.xml" rel="self" type="application/rss+xml"/>
+    <description>James Hartt and Abrar Mahmood are building a software agency from the ground up, in public, with agents doing the work. Every agency was organised around one scarce thing, engineering time, and that constraint has moved. Each episode is what they actually did, what it cost, what broke, and which of their stated questions it touched.</description>
+    <language>en-gb</language>
+    <image>
+      <url>https://agentsee.work/assets/brand/show-cover.png</url>
+      <title>AgentSee Podcast</title>
+      <link>https://agentsee.work/podcast/</link>
+    </image>
+    <itunes:image href="https://agentsee.work/assets/brand/show-cover.png"/>
+    <itunes:author>AgentSee</itunes:author>
+    <itunes:owner>
+      <itunes:name>AgentSee</itunes:name>
+      <itunes:email>hello@agentsee.work</itunes:email>
+    </itunes:owner>
+    <itunes:category text="Technology"/>
+    <itunes:category text="Business"/>
+    <itunes:explicit>false</itunes:explicit>
+    <itunes:type>episodic</itunes:type>
+    <podcast:guid>0a707593-c3d3-5c61-be7c-7d2e1b722aca</podcast:guid>
+    <podcast:locked owner="hello@agentsee.work">yes</podcast:locked>
+    <podcast:person role="host" href="https://www.linkedin.com/in/james-hartt-78519132/" img="https://agentsee.work/assets/james-hartt.jpg">James Hartt</podcast:person>
+    <podcast:person role="host" href="https://www.linkedin.com/in/abrar-m-339b61386/" img="https://agentsee.work/assets/abrar-mahmood.jpg">Abrar Mahmood</podcast:person>
+
+  </channel>
+</rss>

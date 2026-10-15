@@ -77,6 +77,11 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    `./tools/episode.py stage <slug>` to put the masters in the archive and
    the public files on the media host (it asks 1Password for the token).
    `stage.py <slug> --dry-run` shows what would go without credentials.
+   Once staged, `./tools/site.py` puts the episode on the site (feed, show
+   page, episode page) on or after its release date, and names it with its
+   date before then. Commit what it writes only when the user says, because
+   the push publishes it.
+
 9. **Report** what was rendered, the measured numbers, the release's
    warnings, and anything the transcript suggests should be re-cut. Do not
    publish anything.

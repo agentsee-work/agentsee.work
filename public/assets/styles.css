@@ -610,3 +610,95 @@ a.issue:hover .issue-title { color: var(--signal); }
   text-align: center;
   text-wrap: pretty;
 }
+
+/* ═══════════════  PODCAST  ═══════════════ */
+
+/* Chapters and moments: a time, then a title, set like the questions. The
+   time is a link that player.js turns into a seek; without JS it is a time. */
+.chapters {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  column-count: 2;
+  column-gap: clamp(1.6rem, 3vw, 3rem);
+  column-rule: var(--hairline);
+}
+@media (max-width: 46rem) { .chapters { column-count: 1 } }
+.chapters li {
+  break-inside: avoid;
+  display: flex;
+  gap: .9rem;
+  align-items: baseline;
+  padding: .6rem 0;
+  border-bottom: var(--hairline);
+  text-wrap: pretty;
+}
+.chapters a, .turn .at {
+  flex: none;
+  font-family: var(--mono);
+  font-size: .66rem;
+  letter-spacing: .1em;
+  color: var(--signal);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  white-space: nowrap;
+}
+.chapters a:hover, .turn .at:hover { border-color: var(--signal); }
+
+.listen { justify-content: center; border-top: 0; margin-top: .9rem; }
+
+.aside {
+  max-width: 62ch;
+  margin: 0 0 1.2rem;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+code { font-family: var(--mono); font-size: .86em; }
+
+.notes { max-width: 64ch; color: var(--ink-2); }
+.notes h3 {
+  font-family: var(--mono);
+  font-size: .62rem;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--signal);
+  font-weight: 400;
+  margin: 1.4rem 0 .5rem;
+}
+.notes h3:first-child { margin-top: 0; }
+.notes p, .notes li { text-wrap: pretty; }
+.notes p { margin: 0 0 .85em; }
+.notes ol, .notes ul { padding-left: 1.3rem; margin: 0 0 .85em; }
+.notes a {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--hair);
+  transition: color .18s, border-color .18s;
+}
+.notes a:hover { color: var(--signal); border-color: var(--signal); }
+
+/* The transcript is long and folded by default; the summary is the only
+   control, styled as a kicker so it reads as part of the page furniture. */
+.transcript > summary {
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: .66rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--signal);
+  padding: .8rem 0;
+  border-top: var(--hairline);
+  border-bottom: var(--hairline);
+}
+.transcript > summary::-webkit-details-marker { display: none; }
+.transcript > summary::before { content: '+ '; }
+.transcript[open] > summary::before { content: '\2212  '; }
+.turn {
+  margin: 1em 0 0;
+  max-width: 72ch;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.turn .at { margin-right: .7rem; }
+.turn .who { color: var(--ink); font-weight: 600; margin-right: .4rem; }
