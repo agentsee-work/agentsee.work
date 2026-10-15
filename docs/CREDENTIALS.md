@@ -126,6 +126,8 @@ The type decides the field names, and `infra/op.env` references fields by name:
 | Cloudflare podcast token | API Credential | `username`, `credential` |
 | R2 tfstate token | API Credential | `username`, `credential` |
 | R2 podcast token | API Credential | `username`, `credential` |
+| YouTube podcast client | API Credential | `username` (the OAuth client ID), `credential` (its secret) |
+| YouTube podcast token | API Credential | `username` (the channel id it is for), `credential` (the refresh token) |
 | Infomaniak Public Cloud | **Login** | `username`, `password`, + custom `project` |
 
 Login rather than API Credential for the last one precisely because an API
@@ -385,13 +387,23 @@ apply, so rename deliberately and grep `infra/op.env` first.
       the R2 state token, Infomaniak Public Cloud, the SMTP2GO SMTP user, the R2
       backup token and the Swiss Backup keys. `op.env` resolves the first three
       on every apply, which is a stronger check than a tick.
-- [ ] File the podcast's two tokens in **Engineering**, neither of them the
+- [x] File the podcast's two tokens in **Engineering**, neither of them the
       DNS token: `Cloudflare podcast token` (Account > Workers R2 Storage >
       Edit, named `opentofu-podcast` in Cloudflare; `infra/podcast/op.env`
       resolves it) before the first podcast apply, and `R2 podcast token`
       (Object Read & Write on the two podcast buckets, named `podcast-stage`;
       `tools/stage.env` resolves it) after it, because it is scoped to buckets
       that have to exist first. The reasoning is in `infra/podcast/op.env`.
+- [x] File the YouTube pair in **Engineering**: `YouTube podcast client` (the
+      OAuth client `podcast-engine` in the Google Cloud project, type Desktop
+      app, from a consent screen set to In production; `tools/youtube-auth.env`
+      resolves it) and then `YouTube podcast token` (what
+      `op run --env-file=tools/youtube-auth.env -- ./tools/youtube.py auth`
+      prints once, after a consent in the browser as the brand channel;
+      `tools/youtube.env` resolves both). A refresh token from a consent
+      screen in Testing dies after seven days, and the script says so if it
+      sees one. Google also drops a refresh token that goes unused for six
+      months.
 - [x] The restic passphrase in **Security**, and on paper with the Emergency
       Kit. The one whose loss cannot be undone.
 - [~] **The social signups in [SOCIAL.md](SOCIAL.md)** — under way, and the

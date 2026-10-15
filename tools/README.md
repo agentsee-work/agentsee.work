@@ -31,6 +31,7 @@ The podcast pipeline, one tool per stage, driven by `episode.py`:
 | `clips.py` | Vertical clips from `clips.json`, both hosts stacked, captions lit word by word. |
 | `stage.py` | An approved episode to R2: the package, the edit and every deliverable to the private archive, the public files to `media.agentsee.work`. Refuses what changed since approval; re-runs put only what changed. |
 | `site.py` | The podcast on the site: the feed, the show page and a page per staged episode, into `public/podcast/`. Lifts the masthead, the ads and the footer from the front page. Commit what it writes. |
+| `youtube.py` | YouTube for the podcast. `auth` runs Google's consent once in a browser, for the brand channel, and prints the refresh token to file in the vault; upload and the analytics reads come with the publisher. |
 | `release.py` | Everything a publisher needs from what was made: notes, chapters in three shapes, VTT and JSON transcripts, episode art, every file hashed, the clips placed in the episode. `release.json` indexes it; `show.json` beside it holds the show's own words. |
 | `variants.py` | Every cut setting rendered as audio, side by side, with what each one removed. |
 | `eplib.py` | What those share: paths, ffprobe, loudness measurement, the edit-list arithmetic. |
