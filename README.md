@@ -63,6 +63,7 @@ docs/THEME-MUSIC.md           one score cut into eight cues, rendered and levell
 docs/PODCAST-PIPELINE.md      a recording in, the episode out, by script — and every trap on the way
 docs/POST-DRAFT-PODCAST.md    the long version of Issue No. 5, and notes for the next recording
 infra/                        the mail server declared — OpenTofu, applied
+engine/                       the podcast's publisher and its screens — the ledger, the plan, YouTube
 stalwart/                     mail server config, snapshotted from the running server
 tools/README.md               every tool, the model behind the mark, and the traps
 tools/portraits.py            regenerates the portraits from source photos
