@@ -21,21 +21,14 @@ without registering it. A refresh token from a consent screen still in
 """
 
 import argparse
-import base64
-import hashlib
-import http.server
-import json
 import os
 import pathlib
-import secrets
 import sys
-import time
-import urllib.error
 import urllib.parse
-import urllib.request
 import webbrowser
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from consent import Catch, get_json, listen, pkce, post_form, wait  # noqa: E402
 from eplib import die  # noqa: E402
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -49,10 +42,6 @@ SCOPES = [
 CHANNEL = "@agentseework"
 ENV_FILE = "tools/youtube-auth.env"
 
-DONE_PAGE = """<!doctype html><meta charset="utf-8"><title>AgentSee: done</title>
-<body style="font: 18px/1.5 system-ui; margin: 3rem auto; max-width: 32rem">
-<h1>{heading}</h1><p>{text}</p><p>You can close this tab.</p>"""
-
 
 def client():
     cid, secret = os.environ.get("YOUTUBE_CLIENT_ID"), os.environ.get("YOUTUBE_CLIENT_SECRET")
@@ -65,76 +54,10 @@ def client():
     return cid, secret
 
 
-def post_form(url, fields):
-    data = urllib.parse.urlencode(fields).encode()
-    req = urllib.request.Request(url, data=data, method="POST",
-                                 headers={"Content-Type": "application/x-www-form-urlencoded"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.load(r)
-    except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")
-        try:
-            j = json.loads(body)
-            body = f"{j.get('error')}: {j.get('error_description', '')}".strip(": ")
-        except ValueError:
-            pass
-        die(f"{url} answered {e.code}: {body}")
-
-
-def get_json(url, token):
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.load(r)
-    except urllib.error.HTTPError as e:
-        die(f"{url} answered {e.code}: {e.read().decode(errors='replace')[:300]}")
-
-
-class Catch(http.server.BaseHTTPRequestHandler):
-    """One request: Google's redirect back to the loopback, carrying the code."""
-    state = None
-    result = None
-
-    def do_GET(self):
-        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        got_state = q.get("state", [None])[0]
-        if self.path.startswith("/favicon"):
-            self.send_error(404)
-            return
-        if got_state != Catch.state:
-            self.reply(400, "Not this one", "The state did not match; the terminal will say more.")
-            Catch.result = {"error": "state mismatch (a stale or foreign redirect)"}
-        elif "error" in q:
-            self.reply(400, "Not authorised", f"Google said: {q['error'][0]}")
-            Catch.result = {"error": q["error"][0]}
-        elif "code" in q:
-            self.reply(200, "Authorised", "The terminal has the rest.")
-            Catch.result = {"code": q["code"][0]}
-        else:
-            self.send_error(400)
-
-    def reply(self, status, heading, text):
-        body = DONE_PAGE.format(heading=heading, text=text).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, *_):
-        pass
-
-
 def auth(a):
     cid, secret = client()
-    server = http.server.HTTPServer(("127.0.0.1", 0), Catch)
-    port = server.server_address[1]
-    redirect = f"http://127.0.0.1:{port}/"
-    Catch.state = secrets.token_urlsafe(24)
-    verifier = secrets.token_urlsafe(64)
-    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    server, redirect = listen("Google")
+    verifier, challenge = pkce()
     url = AUTH_URL + "?" + urllib.parse.urlencode({
         "client_id": cid, "redirect_uri": redirect, "response_type": "code",
         "scope": " ".join(SCOPES), "access_type": "offline", "prompt": "consent",
@@ -146,22 +69,16 @@ def auth(a):
     if a.no_browser or not webbrowser.open(url):
         print("Open this in a browser on this machine:\n")
         print(url, "\n")
-    deadline = time.time() + a.timeout
-    server.timeout = 5
-    while Catch.result is None and time.time() < deadline:
-        server.handle_request()
-    server.server_close()
-    if Catch.result is None:
-        die(f"no redirect arrived in {a.timeout} s")
-    if "error" in Catch.result:
-        err = Catch.result["error"]
+    result = wait(server, a.timeout)
+    if "error" in result:
+        err = result["error"]
         if err == "access_denied":
             die("you cancelled, or the Google account is not allowed to use this app "
                 "(a consent screen in Testing only admits listed test users)")
         die(f"Google's redirect carried an error: {err}")
 
     tok = post_form(TOKEN_URL, {
-        "code": Catch.result["code"], "client_id": cid, "client_secret": secret,
+        "code": result["code"], "client_id": cid, "client_secret": secret,
         "redirect_uri": redirect, "grant_type": "authorization_code", "code_verifier": verifier,
     })
     refresh = tok.get("refresh_token")
@@ -180,7 +97,7 @@ def auth(a):
               f"still in Testing. Set it to In production and run again; do not file this one.")
 
     ch = get_json(CHANNELS_URL + "?" + urllib.parse.urlencode({"part": "snippet", "mine": "true"}),
-                  tok["access_token"])
+                  f"Bearer {tok['access_token']}")
     items = ch.get("items") or []
     if not items:
         die("the token works but the account has no YouTube channel: the wrong account "

@@ -32,8 +32,10 @@ The podcast pipeline, one tool per stage, driven by `episode.py`:
 | `stage.py` | An approved episode to R2: the package, the edit and every deliverable to the private archive, the public files to `media.agentsee.work`. Refuses what changed since approval; re-runs put only what changed. |
 | `site.py` | The podcast on the site: the feed, the show page and a page per staged episode, into `public/podcast/`. Lifts the masthead, the ads and the footer from the front page. Commit what it writes. |
 | `youtube.py` | YouTube for the podcast. `auth` runs Google's consent once in a browser, for the brand channel, and prints the refresh token to file in the vault; upload and the analytics reads come with the publisher. |
+| `x.py` | X for the podcast. `check` says what the vault holds (the two-hour access token, the refresh token to file, or the OAuth 1.0a pair) and whose it is, and proves a refresh token on request; `auth` is the OAuth 2.0 consent in a browser if the console's token is not used. Posting, media uploads and the metrics reads come with the publisher. |
 | `release.py` | Everything a publisher needs from what was made: notes, chapters in three shapes, VTT and JSON transcripts, episode art, every file hashed, the clips placed in the episode. `release.json` indexes it; `show.json` beside it holds the show's own words. |
 | `variants.py` | Every cut setting rendered as audio, side by side, with what each one removed. |
+| `consent.py` | What the one-time authorisations share: the loopback port the browser comes back to, the state check, PKCE, the token request. `youtube.py` and `x.py` import it. |
 | `eplib.py` | What those share: paths, ffprobe, loudness measurement, the edit-list arithmetic. |
 
 How the podcast pipeline fits together is in
