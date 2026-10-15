@@ -18,8 +18,9 @@ relay.tf        SMTP2GO's three sender-domain CNAMEs
 outputs.tf      the relay endpoint, and what to do next
 cloud-init.yaml base image only — deliberately not the Stalwart config
 
-podcast/        a second root: the podcast's two R2 buckets and its media host,
-                on a token and a state of their own. See below
+podcast/        a second root: the podcast's two R2 buckets, its media host and
+                the two edge Workers that count, on a token and a state of
+                their own. See below
 
 .terraform.lock.hcl   provider checksums. COMMITTED, on purpose
 ```
@@ -69,9 +70,9 @@ The podcast's two R2 buckets and `media.agentsee.work` are declared in
 [podcast/](podcast/) with their own `op.env`, their own state key in the same
 bucket, and their own Cloudflare token. Not a provider alias in this root,
 because the question that decides it is what a plan can reach. A podcast apply
-never reads the mail server's state, and the token it runs on, Account >
-Workers R2 Storage > Edit and nothing else (`opentofu-podcast` in Cloudflare),
-cannot write a DNS record. The DNS token stays Zone > DNS > Edit and never
+never reads the mail server's state, and the token it runs on (`opentofu-podcast`
+in Cloudflare: Workers R2 Storage, Workers (Admin) and Workers KV Storage on the
+account, Workers Routes on the zone) cannot write a DNS record. The DNS token stays Zone > DNS > Edit and never
 learns about buckets.
 
 What the two roots share is the zone, because the media hostname has to live

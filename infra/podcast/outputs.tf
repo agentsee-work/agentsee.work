@@ -10,3 +10,13 @@ output "buckets" {
     media   = cloudflare_r2_bucket.media.name
   }
 }
+
+output "links_namespace" {
+  description = "The KV namespace the short links live in (edge.tf). The publisher writes an entry per post; workers/README.md shows one by hand."
+  value       = cloudflare_workers_kv_namespace.links.id
+}
+
+output "datasets" {
+  description = "The Analytics Engine datasets the edges write to. workers/README.md maps their columns; the collector reads them with SQL."
+  value       = local.datasets
+}
