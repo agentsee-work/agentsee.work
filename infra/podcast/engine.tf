@@ -61,7 +61,7 @@ resource "cloudflare_zero_trust_access_application" "engine" {
   session_duration           = "24h"
   allowed_idps               = [cloudflare_zero_trust_access_identity_provider.otp.id]
   auto_redirect_to_identity  = true
-  app_launcher_visible       = false
+  app_launcher_visible       = true # the launcher's one tile; empty, it shows "no applications" and no Account menu
   http_only_cookie_attribute = true
   same_site_cookie_attribute = "lax"
 
@@ -79,9 +79,10 @@ resource "cloudflare_zero_trust_access_application" "engine" {
 
 # The App Launcher: the same two people, the same login, no passkey asked,
 # because this is where the passkey is made. Its hostname is the team
-# domain and is not ours to set, so there is no `domain` here. Nothing is
-# listed in it (the engine has app_launcher_visible = false); it exists for
-# Account > MFA devices.
+# domain and is not ours to set, so there is no `domain` here. The engine
+# is its one tile: a launcher with nothing to show lands on "You do not
+# have permission to connect to any applications" without the Account menu
+# that holds MFA devices, which is the whole reason it exists.
 resource "cloudflare_zero_trust_access_application" "launcher" {
   account_id                = var.cloudflare_account_id
   name                      = "App Launcher"
