@@ -231,7 +231,7 @@ variable "engine_subdomain" {
 }
 
 variable "engine_tunnel_id" {
-  description = "The engine's Cloudflare Tunnel id, from `tofu output engine_tunnel_id` in podcast/. An identifier (it is visible in DNS), so tfvars is the place. Null until the tunnel exists."
+  description = "The engine's Cloudflare Tunnel id, from the apply's outputs in podcast/ (or `op run --env-file=op.env -- tofu output engine_tunnel_id` there). An identifier (it is visible in DNS), so tfvars is the place. Null until the tunnel exists."
   type        = string
   default     = null
 }

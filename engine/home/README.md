@@ -69,17 +69,20 @@ from this repo plus the nightly ledger copy in the archive bucket.
 cd infra/podcast
 op run --env-file=op.env -- tofu plan      # read it: an IdP, a policy, two apps, a tunnel, its config
 op run --env-file=op.env -- tofu apply
-tofu output engine_tunnel_id               # → infra/terraform.tfvars, engine_tunnel_id = "…"
-op run --env-file=op.env -- tofu output -raw engine_tunnel_token   # → the vault, "Engine tunnel token"
+op run --env-file=op.env -- tofu output engine_tunnel_id             # → infra/terraform.tfvars
+op run --env-file=op.env -- tofu output -raw engine_tunnel_token     # → the vault, "Engine tunnel token"
 
 cd ..
 op run --env-file=op.env -- tofu plan      # one CNAME, proxied
 op run --env-file=op.env -- tofu apply
 ```
 
-The tunnel token identifies this box's `cloudflared` to Cloudflare. It is
-not in the state's outputs in clear (sensitive), and it goes to the box by
-hand, like the relay password did.
+Every `tofu` command here needs the `op run` wrapper, `output` included:
+the state is in R2 and the backend's credentials come from op.env. The
+tunnel id is also printed by the apply. The tunnel token identifies this
+box's `cloudflared` to Cloudflare. It is not in the state's outputs in
+clear (sensitive), and it goes to the box by hand, like the relay password
+did.
 
 ## On the box
 

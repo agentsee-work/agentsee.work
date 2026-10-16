@@ -53,3 +53,7 @@ mta_sts_id          = "4410731174407226804"
 ua_auto_config_hash = "jvR8LcNlYIuK3QEJm8c2IMoEUNoKwhQYUs2uCq55j+E="
 
 bluesky_did = "did:plc:6247kupcnwvc4lu5vmbf4fni"
+
+# The podcast engine's tunnel (podcast/engine.tf), applied 16 October 2026.
+# An identifier: the CNAME dns.tf makes from it is public anyway.
+engine_tunnel_id = "05a5debb-5f1a-412d-9eb9-3866d5f5be59"
