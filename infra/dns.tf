@@ -281,3 +281,21 @@ resource "cloudflare_dns_record" "bluesky" {
   ttl     = 300
   comment = "Bluesky handle verification for @agentsee.work"
 }
+
+# ─── The engine's door ───────────────────────────────────────────────────────
+# The podcast engine runs on this box behind a Cloudflare Tunnel declared in
+# podcast/engine.tf, on the podcast's token, which cannot write DNS. The one
+# record it needs is here instead: a proxied CNAME to the tunnel. The id is
+# `tofu output engine_tunnel_id` in podcast/, pasted into terraform.tfvars;
+# while it is unset there is no record and no door.
+resource "cloudflare_dns_record" "engine" {
+  count = var.engine_tunnel_id == null ? 0 : 1
+
+  zone_id = var.cloudflare_zone_id
+  name    = "${var.engine_subdomain}.${var.domain}"
+  type    = "CNAME"
+  content = "${var.engine_tunnel_id}.cfargotunnel.com"
+  ttl     = 1
+  proxied = true
+  comment = "The podcast engine, through its Tunnel. Managed by OpenTofu — infra/dns.tf; the tunnel and Access are infra/podcast/engine.tf"
+}

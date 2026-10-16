@@ -3,6 +3,11 @@ An approved, staged episode into the ledger: the episode row and one
 deliverable per file in release.json, with the media-host URL for the public
 ones and whether the archive holds it, both from staged.json. Re-running
 refreshes what is there and touches no post.
+
+Where the two records come from: build/episodes/<slug>/out on a workstation
+that rendered the episode; otherwise (the VPS) the archive bucket, into the
+data dir, since stage puts both there. `--archive` asks for the latter even
+when build/ exists.
 """
 
 import json
@@ -12,6 +17,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "tools"))
 from eplib import EPISODES, die, load_json  # noqa: E402
 
+import archive  # noqa: E402
 import ledger  # noqa: E402
 
 KINDS = (
@@ -33,8 +39,13 @@ def kind_of(name):
     return "other"
 
 
-def ingest(c, slug, src=None, who="engine"):
+def ingest(c, slug, src=None, who="engine", from_archive=False):
     d = pathlib.Path(src) if src else EPISODES / slug / "out"
+    if from_archive or (not src and not (d / "release.json").exists()):
+        try:
+            d = archive.fetch_release(slug)
+        except archive.ArchiveError as e:
+            die(f"{slug}: no release.json in {d}, and the archive could not provide one: {e}")
     if not (d / "release.json").exists():
         die(f"no release.json in {d}: run release and approve first")
     if not (d / "staged.json").exists():

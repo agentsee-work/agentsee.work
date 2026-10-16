@@ -30,8 +30,8 @@ rather than going out in a bunch at the next start. A post a person marked
 import datetime as dt
 import importlib
 import os
-import pathlib
 
+import archive
 import ledger
 from plan import ACCOUNTS
 
@@ -90,7 +90,7 @@ def run(c, posts, env=None, dry_run=False, who="engine", log=print):
         mod = adapter(p["account"])
         ep = ledger.episode(c, p["episode"])
         r = ledger.release(ep)
-        files = pathlib.Path(ep["source_dir"] or "")
+        files = archive.Files(c, ep)  # a path per deliverable, fetched from the archive when not here
         tag = f"post {p['id']} ({p['account']}, {p['asset']})"
         if not mod.ready(env):
             log(f"  {tag}: skipped, {mod.NEEDS} not set")

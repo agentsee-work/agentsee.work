@@ -18,8 +18,9 @@ relay.tf        SMTP2GO's three sender-domain CNAMEs
 outputs.tf      the relay endpoint, and what to do next
 cloud-init.yaml base image only — deliberately not the Stalwart config
 
-podcast/        a second root: the podcast's two R2 buckets, its media host and
-                the two edge Workers that count, on a token and a state of
+podcast/        a second root: the podcast's two R2 buckets, its media host,
+                the two edge Workers that count, and the engine's door (a
+                Tunnel with Access in front), on a token and a state of
                 their own. See below
 
 .terraform.lock.hcl   provider checksums. COMMITTED, on purpose
@@ -71,9 +72,17 @@ The podcast's two R2 buckets and `media.agentsee.work` are declared in
 bucket, and their own Cloudflare token. Not a provider alias in this root,
 because the question that decides it is what a plan can reach. A podcast apply
 never reads the mail server's state, and the token it runs on (`opentofu-podcast`
-in Cloudflare: Workers R2 Storage, Workers (Admin) and Workers KV Storage on the
-account, Workers Routes on the zone) cannot write a DNS record. The DNS token stays Zone > DNS > Edit and never
+in Cloudflare: Workers R2 Storage, Workers (Admin), Workers KV Storage,
+Cloudflare Tunnel, Access: Apps and Policies, and Access: Organizations,
+Identity Providers, and Groups on the account, Workers Routes on the zone)
+cannot write a DNS record. The DNS token stays Zone > DNS > Edit and never
 learns about buckets.
+
+The one place the two roots meet in the configuration is the engine's
+hostname: the tunnel is declared in `podcast/engine.tf`, and the CNAME to it
+in this root's `dns.tf`, with the tunnel id carried across by hand as
+`engine_tunnel_id` in `terraform.tfvars`. Two applies, in that order
+(`engine/home/README.md`), rather than one token that can do both.
 
 What the two roots share is the zone, because the media hostname has to live
 in it and Cloudflare writes that record itself, and the state bucket under a

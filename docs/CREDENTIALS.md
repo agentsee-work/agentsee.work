@@ -131,6 +131,8 @@ The type decides the field names, and `infra/op.env` references fields by name:
 | YouTube podcast token | API Credential | `username` (the channel id it is for), `credential` (the refresh token) |
 | X podcast app | API Credential | `username` (the OAuth 2.0 Client ID), `credential` (its Client Secret) |
 | X podcast token | API Credential | `username` (the account id it is for), `credential` (the OAuth 2.0 refresh token, not the two-hour access token beside it; X replaces it on every refresh, and the publisher writes the new one back here) |
+| Engine people | API Credential | `credential`: the addresses Cloudflare Access lets into the engine, as an HCL list. Read by `infra/podcast/op.env` as a tofu variable, so the addresses stay out of this public repository |
+| Engine tunnel token | API Credential | `credential`: what the box's `cloudflared` runs with (`tofu output -raw engine_tunnel_token` in `infra/podcast`). Goes into `/etc/agentsee/tunnel.env` by hand; `engine/home/README.md` |
 | Infomaniak Public Cloud | **Login** | `username`, `password`, + custom `project` |
 
 Login rather than API Credential for the last one precisely because an API
@@ -460,7 +462,17 @@ Business unlocks two things worth knowing about before they are needed:
 as. The obvious target is the Pages token in GitHub Actions secrets — but that
 swap trades one stored secret for another, since the service-account token has
 to live in GitHub too. It pays off with several secrets, or when a secret needs
-rotating without touching CI. Not yet.
+rotating without touching CI.
+
+Now, for one thing: the podcast engine on the box runs under `op run` with a
+service account (`engine/home/README.md`), because it resolves nine
+references at start and writes one item back (X's rotating refresh token).
+Read and write on **Engineering**, nothing on the other vaults; the token
+itself is filed as `Engine service account` in **Security**, since it is a
+standing credential to a whole vault and there is no recovering it, only
+minting another. Service accounts exist on every plan now, with lower rate
+limits below Business (1,000 reads and 100 writes an hour, 1,000 requests a
+day on Families); the engine uses a few dozen a day.
 
 **The SSH agent.** 1Password can hold the key for `mail.agentsee.work` and
 require biometric confirmation per use, which is a real improvement over a key

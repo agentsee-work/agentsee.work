@@ -37,8 +37,29 @@ def who():
 def cmd_ingest(a):
     c = ledger.connect(a.ledger)
     for slug in a.slug:
-        n = ingest.ingest(c, slug, a.src, who())
+        n = ingest.ingest(c, slug, a.src, who(), from_archive=a.archive)
         print(f"{slug}: {n} deliverables in the ledger")
+
+
+def cmd_snapshot(a):
+    import archive
+    c = ledger.connect(a.ledger)
+    try:
+        archive.snapshot(c, who=who())
+    except archive.ArchiveError as e:
+        sys.exit(f"error: {e}")
+
+
+def cmd_restore(a):
+    import archive
+    path = pathlib.Path(a.ledger) if a.ledger else ledger.data_dir() / "ledger.sqlite"
+    try:
+        archive.restore(path, key=a.key, force=a.force)
+    except archive.ArchiveError as e:
+        sys.exit(f"error: {e}")
+    c = ledger.connect(path)
+    n = c.execute("SELECT COUNT(*) FROM post").fetchone()[0]
+    print(f"{path}: restored from {a.key}, {n} posts")
 
 
 def cmd_plan(a):
@@ -97,7 +118,7 @@ def cmd_publish(a):
 
 def cmd_serve(a):
     import web
-    web.serve(a.port, not a.no_worker, a.ledger)
+    web.serve(a.port, not a.no_worker, a.ledger, a.host)
 
 
 def main():
@@ -107,6 +128,8 @@ def main():
     p = sub.add_parser("ingest", help="a staged episode into the ledger")
     p.add_argument("slug", nargs="+")
     p.add_argument("--src", help="the out/ directory, if not build/episodes/<slug>/out")
+    p.add_argument("--archive", action="store_true",
+                   help="read release.json and staged.json from the archive bucket (the default when build/ is not here)")
     p.set_defaults(fn=cmd_ingest)
     p = sub.add_parser("plan", help="the day plan into posts, with short links")
     p.add_argument("slug", nargs="+")
@@ -129,8 +152,16 @@ def main():
     p.set_defaults(fn=cmd_publish)
     p = sub.add_parser("serve", help="the screens, with the worker")
     p.add_argument("--port", type=int, default=8877)
+    p.add_argument("--host", default="127.0.0.1",
+                   help="loopback by default; 0.0.0.0 inside the container, where the tunnel is the only way in")
     p.add_argument("--no-worker", action="store_true")
     p.set_defaults(fn=cmd_serve)
+    p = sub.add_parser("snapshot", help="a copy of the ledger to the archive bucket, now (the worker does it nightly)")
+    p.set_defaults(fn=cmd_snapshot)
+    p = sub.add_parser("restore", help="the ledger back from the archive, for a rebuilt box")
+    p.add_argument("--key", default="engine/ledger-latest.sqlite", help="which copy; a dated one is engine/ledger-YYYY-MM-DD.sqlite")
+    p.add_argument("--force", action="store_true", help="replace a ledger that exists")
+    p.set_defaults(fn=cmd_restore)
     a = ap.parse_args()
     return a.fn(a)
 

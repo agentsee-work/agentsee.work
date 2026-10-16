@@ -1,0 +1,61 @@
+# The engine on the box infra/ provisions, beside the mail server: two
+# containers on a private network of their own. Nothing here publishes a
+# port; the tunnel is the door, and Access is the lock on it
+# (infra/podcast/engine.tf). The README in this directory is the runbook.
+#
+# Deploying a change to the engine is `git pull` in /opt/agentsee/repo and
+# `docker compose restart engine` here: the code is mounted, not baked in.
+
+services:
+  engine:
+    build: .
+    image: agentsee-engine
+    container_name: agentsee-engine
+    restart: unless-stopped
+    # OP_SERVICE_ACCOUNT_TOKEN, and nothing else. Root-owned, 0600, NOT in
+    # git: engine.env.example says what goes in it.
+    env_file:
+      - /etc/agentsee/engine.env
+    volumes:
+      # The code, read-only. Same path on both sides so that the ledger's
+      # source_dir and every log line mean the same thing in both places.
+      - /opt/agentsee/repo:/opt/agentsee/repo:ro
+      # The ledger and the fetched deliverables. Owned by uid 2001. The
+      # ledger is copied to the archive bucket nightly by the engine itself
+      # (engine/archive.py); the fetched files are a cache.
+      - /var/lib/agentsee-engine:/var/lib/agentsee-engine
+    networks:
+      - engine
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  cloudflared:
+    # Pinned, like Stalwart. 2026.10.1 was current on 15 October 2026.
+    image: cloudflare/cloudflared:2026.10.1
+    container_name: agentsee-engine-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    # TUNNEL_TOKEN only; a separate file so the tunnel never sees the
+    # 1Password token and the engine never sees the tunnel's.
+    env_file:
+      - /etc/agentsee/tunnel.env
+    depends_on:
+      - engine
+    networks:
+      - engine
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  engine:
+    # Internal would be wrong: the engine talks to YouTube, X, R2, KV and
+    # 1Password, and cloudflared to Cloudflare. What the network gives is
+    # a name: the tunnel's ingress is http://engine:8877 and nothing on the
+    # host or the internet can reach it.
+    name: agentsee-engine
