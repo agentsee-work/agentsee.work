@@ -106,6 +106,10 @@ resource "cloudflare_zero_trust_tunnel_cloudflared" "engine" {
   config_src = "cloudflare"
 }
 
+#
+# A plan warns that this resource "cannot be destroyed from Terraform". The
+# configuration is not a thing apart from the tunnel: it goes when the
+# tunnel does, and a destroy here only forgets it. Expected; nothing to do.
 resource "cloudflare_zero_trust_tunnel_cloudflared_config" "engine" {
   account_id = var.cloudflare_account_id
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.engine.id
