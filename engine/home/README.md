@@ -47,11 +47,17 @@ from this repo plus the nightly ledger copy in the archive bucket.
    permissions: Cloudflare Tunnel > Edit; Access: Apps and Policies > Edit;
    Access: Organizations, Identity Providers, and Groups > Edit. Save the
    edit (Continue to summary > Update token).
-4. **1Password service account** for the box: Developer > Service Accounts,
-   read and write on **Engineering** (write because the X adapter puts the
-   rotated refresh token back; see `engine/publish/x.py`). File the token as
-   `Engine service account` in **Security**: it is a standing credential to
-   the whole vault, and losing it means minting another, not recovering it.
+4. **1Password service account** for the box. On 1Password.com in a
+   browser (not the desktop app), signed in as an owner or administrator:
+   Developer in the sidebar > Directory > Other, under Infrastructure
+   Secrets Management > Create a Service Account. Name it `Engine`, no
+   vault creation, access to **Engineering** only, with read and write
+   items (write because the X adapter puts the rotated refresh token back;
+   see `engine/publish/x.py`). Or from a terminal signed in to the account:
+   `op service-account create Engine --vault Engineering:read_items,write_items`.
+   Either shows the token once. File it as `Engine service account` in
+   **Security**: it is a standing credential to the whole vault, and losing
+   it means minting another, not recovering it.
 5. **Engine people**: an API Credential item in Engineering whose
    `credential` is the list of addresses Access lets in, in HCL syntax:
    `["james@…", "abrar@…"]`. `op.env` hands it to tofu as a variable so the
