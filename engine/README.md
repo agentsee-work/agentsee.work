@@ -16,6 +16,9 @@ publish/         the publisher: __init__ runs what is due through an adapter
   x.py           X: chunked media upload, the post, the rotating refresh token
   hand.py        a card for a person to post, and a permalink to paste back
 vault.py         the one credential the engine writes: X's refresh token, via op
+archive.py       the archive bucket: files fetched on demand, release records for an
+                 ingest without build/, the nightly ledger copy and its restore
+home/            the box: Dockerfile, compose, the runbook
 web.py           the screens and the worker: a threaded HTTP server on loopback
 pages.py         the page shell in the site's typographic system
 static/engine.css  tables, forms, a status word; the rest is the site's CSS
@@ -125,11 +128,23 @@ for posters. Every change is a POST carrying the process's own token. Who
 did it is the identity Cloudflare Access attaches to the request
 (`Cf-Access-Authenticated-User-Email`), or `ENGINE_USER`, or `local`.
 
+## Its home
+
+The engine lives on the box `infra/` provisions, in two containers behind a
+Cloudflare Tunnel with Access in front (a one-time code by email, then a
+passkey); `home/README.md` is the runbook, `infra/podcast/engine.tf` the
+tunnel and the lock, `infra/dns.tf` the one DNS record. On that box there
+is no `build/`: `ingest` reads `release.json` and `staged.json` from the
+archive bucket, where `stage` put them, and an adapter that needs a file
+gets it from the archive on demand, checked against the hash the ledger
+holds (`archive.py`). The ledger is copied to the archive nightly
+(`snapshot_at` in `config.json`; Health shows the last) and `restore`
+brings it back on a rebuilt box. A workstation can still run `serve
+--no-worker` to look, but not publish: two engines on one vault retire each
+other's X tokens.
+
 ## Not yet
 
-The VPS home behind Tunnel + Access (the engine runs on a workstation until
-then, which is enough to publish from); the collector and the Reach,
-Audience and Spend screens (AGE-69, items 4 and 5); the Bluesky, Mastodon,
-Threads, Instagram and LinkedIn adapters, each a module in `publish/` with
-the names the contract asks for; fetching an episode's files from the
-archive bucket when they are not on the machine.
+The collector and the Reach, Audience and Spend screens (AGE-69, items 4
+and 5); the Bluesky, Mastodon, Threads, Instagram and LinkedIn adapters,
+each a module in `publish/` with the names the contract asks for.

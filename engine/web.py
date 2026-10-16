@@ -26,6 +26,7 @@ import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import archive
 import ledger
 import publish
 from pages import button, composer, esc, link, page, section, status, table, when
@@ -38,7 +39,7 @@ SAFE = re.compile(r"^[A-Za-z0-9._-]+$")
 CSP = ("default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; "
        "img-src 'self' https://media.agentsee.work data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 CSRF = secrets.token_urlsafe(24)
-STATE = {"ledger": None, "last_run": None, "poke": threading.Event(), "lifted": None}
+STATE = {"ledger": None, "last_run": None, "poke": threading.Event(), "lifted": None, "snapshot_day": None}
 
 
 # ─── what the screens show ───────────────────────────────────────────────────
@@ -254,6 +255,7 @@ def due_page(c):
 def health_page(c):
     counts = c.execute("SELECT status, COUNT(*) n FROM post GROUP BY status ORDER BY status").fetchall()
     last = c.execute("SELECT at, detail FROM event WHERE what='publisher:run' ORDER BY at DESC LIMIT 1").fetchone()
+    snap = c.execute("SELECT at, what, detail FROM event WHERE what IN ('snapshot', 'snapshot:failed') ORDER BY at DESC LIMIT 1").fetchone()
     creds = []
     for name, a in ACCOUNTS.items():
         mod = publish.adapter(name)
@@ -261,6 +263,9 @@ def health_page(c):
     facts = [("Ledger", f'<span class="mono">{esc(STATE["ledger"] or ledger.data_dir() / "ledger.sqlite")}</span>'),
              ("Worker last ran", when(STATE["last_run"]) or "not in this process"),
              ("Last recorded run", f"{esc(when(last['at']))} <span class=\"mono\">{esc(last['detail'])}</span>" if last else "never"),
+             ("Last snapshot", (f"{esc(when(snap['at']))} " + (f'<span class="error">failed: {esc(snap["detail"])}</span>'
+                                                               if snap["what"].endswith("failed") else f'<span class="mono">{esc(snap["detail"])}</span>'))
+              if snap else f"never (nightly at {esc(ledger.CONFIG.get('snapshot_at', 'no hour set'))} London, by the worker)"),
              ("Episodes", str(c.execute("SELECT COUNT(*) FROM episode").fetchone()[0]))]
     body = '<article class="lead"><h1>Health</h1></article><dl class="facts">' + "".join(f"<dt>{esc(k)}</dt><dd>{v}</dd>" for k, v in facts) + "</dl>"
     body += section("Posts", "By status", table(["Status", "Count"], [[status(r["status"]), str(r["n"])] for r in counts]))
@@ -429,6 +434,21 @@ def act(c, p, action, form, who):
 
 
 # ─── the worker ──────────────────────────────────────────────────────────────
+def snapshot_due():
+    """Once a day, after the configured hour (London), and not before the
+    process has seen that hour pass: a restart at 04:00 does not snapshot."""
+    at = ledger.CONFIG.get("snapshot_at")
+    if not at:
+        return False
+    now = dt.datetime.now(ledger.ZONE)
+    hh, mm = (int(x) for x in at.split(":"))
+    due = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if STATE["snapshot_day"] is None:
+        STATE["snapshot_day"] = now.date() if now >= due else now.date() - dt.timedelta(days=1)
+        return False
+    return now >= due and STATE["snapshot_day"] < now.date()
+
+
 def worker(stop, interval=60):
     poke = STATE["poke"]
     while not stop.is_set():
@@ -440,6 +460,13 @@ def worker(stop, interval=60):
                     res = publish.run(c, posts, who="worker", log=lambda s: print(s, flush=True))
                     ledger.event(c, "publisher:run", "worker", detail={"results": res})
                 STATE["last_run"] = ledger.now()
+                if snapshot_due():
+                    try:
+                        archive.snapshot(c, who="worker", log=lambda s: print(s, flush=True))
+                    except archive.ArchiveError as e:
+                        print(f"worker: snapshot failed: {e}", flush=True)
+                        ledger.event(c, "snapshot:failed", "worker", detail=str(e)[:500])
+                    STATE["snapshot_day"] = dt.datetime.now(ledger.ZONE).date()
             finally:
                 c.close()
         except Exception as e:  # noqa: BLE001 — the worker must outlive a bad minute

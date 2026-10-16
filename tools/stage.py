@@ -21,7 +21,9 @@ release.json from the archive, so the workstation can be off.
 It refuses an episode that is not approved, and one whose files have changed
 since the approval (episode.py approve records every hash). Every object
 carries its SHA-256 as metadata, so a re-run uploads only what changed, and
-out/staged.json records what went where. Credentials come from
+out/staged.json records what went where, and goes to the archive last
+(episodes/<slug>/out/staged.json), so the engine can ingest from there.
+Credentials come from
 tools/stage.env through `op run`; nothing is read from disk.
 """
 
@@ -275,7 +277,16 @@ def main():
         else:
             staged["archive"][key] = {"sha256": digest, "state": record}
     save_json(d / "out" / "staged.json", staged)
-    print(f"staged: {put} put, {skipped} unchanged; out/staged.json written; "
+    # The record itself goes up last, so the engine can ingest an episode on
+    # a machine without build/ (engine/archive.py reads release.json and
+    # staged.json from here). Not hashed into the record it is: it describes
+    # the rest.
+    try:
+        s3.upload_file(str(d / "out" / "staged.json"), buckets["archive"], f"episodes/{a.slug}/out/staged.json",
+                       ExtraArgs={"ContentType": "application/json"})
+    except (s3.exceptions.ClientError, boto3.exceptions.S3UploadFailedError) as e:
+        die(f"upload of the staged record failed: {e}")
+    print(f"staged: {put} put, {skipped} unchanged; out/staged.json written and archived; "
           f"mp3 at {staged['media'].get('episode.mp3', {}).get('url', '?')}")
     return 0
 
