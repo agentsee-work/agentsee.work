@@ -33,10 +33,16 @@ from this repo plus the nightly ledger copy in the archive bucket.
    cloudflared checks tokens against. Put it in
    `infra/podcast/terraform.tfvars` as `zero_trust_team` (an identifier;
    committed, like the other tfvars).
-2. **Independent MFA**, on at the organisation: Zero Trust > Settings >
-   Authentication > Multi-factor authentication, allowing biometrics and
-   security keys. The application in `engine.tf` requires it; the apply
-   fails until this is on.
+2. **Independent MFA**, on at the organisation: Zero Trust > Access
+   controls > Access settings, the MFA section: allow Biometrics and
+   Security key, set the authentication duration, Save. The application in
+   `engine.tf` requires it; the apply fails until this is on. The dashboard
+   asks for the account password before a change like this, and an account
+   that signs in with GitHub has none until one is set: Forgot Password on
+   the login page with the GitHub primary address sets one (Cloudflare's
+   documented route; GitHub sign-in keeps working). File it in IT, and turn
+   on 2FA for the account so the new password is not a weaker door than
+   GitHub's.
 3. **The podcast token** (`opentofu-podcast`) grows three account
    permissions: Cloudflare Tunnel > Edit; Access: Apps and Policies > Edit;
    Access: Organizations, Identity Providers, and Groups > Edit. Save the
@@ -98,9 +104,11 @@ the engine creates an empty one, and the posts come from the archive
 (below). A rebuilt box restores it first.
 
 Then, in a browser: `https://engine.agentsee.work/`. Access asks for the
-address, emails a code, and on the first visit enrols the passkey. The
-screens show who is logged in in the top right, from the header Cloudflare
-attaches, which `cloudflared` has already verified.
+address, emails a code, and wants a passkey. Enrol one at
+`https://<team>.cloudflareaccess.com/` under Account > MFA devices (a lost
+one is deleted by an administrator under Team & Resources > Users; there
+is no "forgot"). The screens show who is logged in in the top right, from
+the header Cloudflare attaches, which `cloudflared` has already verified.
 
 ## The ledger, and the files
 
