@@ -61,7 +61,7 @@ from this repo plus the nightly ledger copy in the archive bucket.
 
 ```sh
 cd infra/podcast
-op run --env-file=op.env -- tofu plan      # read it: an IdP, a policy, an app, a tunnel, its config
+op run --env-file=op.env -- tofu plan      # read it: an IdP, a policy, two apps, a tunnel, its config
 op run --env-file=op.env -- tofu apply
 tofu output engine_tunnel_id               # → infra/terraform.tfvars, engine_tunnel_id = "…"
 op run --env-file=op.env -- tofu output -raw engine_tunnel_token   # → the vault, "Engine tunnel token"
@@ -103,12 +103,17 @@ on; `cloudflared`'s say the tunnel registered. A fresh box has no ledger:
 the engine creates an empty one, and the posts come from the archive
 (below). A rebuilt box restores it first.
 
-Then, in a browser: `https://engine.agentsee.work/`. Access asks for the
-address, emails a code, and wants a passkey. Enrol one at
-`https://<team>.cloudflareaccess.com/` under Account > MFA devices (a lost
-one is deleted by an administrator under Team & Resources > Users; there
-is no "forgot"). The screens show who is logged in in the top right, from
-the header Cloudflare attaches, which `cloudflared` has already verified.
+Then the passkey, once per person, in a browser:
+`https://<team>.cloudflareaccess.com/` (the App Launcher, which the apply
+turned on for the same two addresses). Enter the address, enter the code
+it emails, open Account > MFA devices > Add an MFA device, choose
+Biometrics (Touch ID, Face ID or Windows Hello: the browser's own prompt)
+or Security key, and follow it. A lost one is deleted by an administrator
+under Team & Resources > Users; there is no "forgot".
+
+Then `https://engine.agentsee.work/`: the address, the code, the passkey.
+The screens show who is logged in in the top right, from the header
+Cloudflare attaches, which `cloudflared` has already verified.
 
 ## The ledger, and the files
 

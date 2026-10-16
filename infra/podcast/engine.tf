@@ -5,17 +5,22 @@
 # behind Access. No inbound port, no TLS on the box, no password of ours:
 # a login is a one-time code to one of the addresses in engine_people, then
 # a passkey (Cloudflare's independent MFA: a platform authenticator or a
-# security key, enrolled on first login; an administrator removes a lost
-# one from Zero Trust > Team & Resources > Users, there is no "forgot").
+# security key). A passkey is enrolled in the App Launcher, the account's
+# own page at <team>.cloudflareaccess.com, which is why the launcher is
+# declared below too: it is off by default, and it is the one door that
+# must open without MFA so that there is somewhere to enrol. An
+# administrator removes a lost passkey from Zero Trust > Team & Resources >
+# Users; there is no "forgot".
 #
 # Two things are done once in the dashboard and named here, not declared:
 #
-#   - The Zero Trust organisation: Zero Trust > Settings > Custom Pages gives
-#     the team name (zero_trust_team), which is the login page's subdomain
-#     and the audience cloudflared checks. Account-wide, not the podcast's.
-#   - Independent MFA, switched on at the organisation: Zero Trust >
-#     Settings > Authentication > Multi-factor authentication, allowing
-#     biometrics and security keys. The application below then requires it.
+#   - The Zero Trust organisation: its team name (zero_trust_team), chosen
+#     when Zero Trust is first opened, is the login page's subdomain and the
+#     audience cloudflared checks. Account-wide, not the podcast's.
+#   - Independent MFA, switched on at the organisation: Zero Trust > Access
+#     controls > Access settings, the MFA section, allowing Biometrics and
+#     Security key. The engine application below then requires it, and the
+#     apply fails until it is on.
 #
 # The DNS record for the hostname is in ../dns.tf, on the DNS token, with
 # the tunnel id from `tofu output engine_tunnel_id` here: this token cannot
@@ -65,6 +70,25 @@ resource "cloudflare_zero_trust_access_application" "engine" {
     allowed_authenticators = ["biometrics", "security_key"]
     session_duration       = "24h"
   }
+
+  policies = [{
+    id         = cloudflare_zero_trust_access_policy.engine_people.id
+    precedence = 1
+  }]
+}
+
+# The App Launcher: the same two people, the same login, no passkey asked,
+# because this is where the passkey is made. Its hostname is the team
+# domain and is not ours to set, so there is no `domain` here. Nothing is
+# listed in it (the engine has app_launcher_visible = false); it exists for
+# Account > MFA devices.
+resource "cloudflare_zero_trust_access_application" "launcher" {
+  account_id                = var.cloudflare_account_id
+  name                      = "App Launcher"
+  type                      = "app_launcher"
+  session_duration          = "24h"
+  allowed_idps              = [cloudflare_zero_trust_access_identity_provider.otp.id]
+  auto_redirect_to_identity = true
 
   policies = [{
     id         = cloudflare_zero_trust_access_policy.engine_people.id
