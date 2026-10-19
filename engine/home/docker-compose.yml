@@ -6,6 +6,10 @@
 # Deploying a change to the engine is `git pull` in /opt/agentsee/repo and
 # `docker compose restart engine` here: the code is mounted, not baked in.
 
+# The project name compose would otherwise take from the directory, which is
+# a symlink and makes it warn. Pinned to what it chose on the first `up`.
+name: engine
+
 services:
   engine:
     build: .
