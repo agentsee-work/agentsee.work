@@ -27,5 +27,8 @@
   <url>
     <loc>https://agentsee.work/podcast/</loc>
   </url>
+  <url>
+    <loc>https://agentsee.work/podcast/ep0/</loc>
+  </url>
   <!-- /podcast -->
 </urlset>
