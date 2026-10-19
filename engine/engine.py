@@ -116,6 +116,13 @@ def cmd_publish(a):
         ledger.event(c, "publisher:run", who(), detail={"results": res})
 
 
+def cmd_collect(a):
+    import collect
+    c = ledger.connect(a.ledger)
+    res = collect.run(c, only=a.only, who=who())
+    print("; ".join(f"{k}: {v}" for k, v in res.items()))
+
+
 def cmd_serve(a):
     import web
     web.serve(a.port, not a.no_worker, a.ledger, a.host)
@@ -150,6 +157,9 @@ def main():
     p.add_argument("--late", action="store_true",
                    help="also what is past its time by more than late_hours (config.json)")
     p.set_defaults(fn=cmd_publish)
+    p = sub.add_parser("collect", help="read what every post and file did, into the ledger (the worker does it daily)")
+    p.add_argument("--only", nargs="*", choices=["edge", "youtube", "bluesky", "mastodon", "x"], help="these sources only")
+    p.set_defaults(fn=cmd_collect)
     p = sub.add_parser("serve", help="the screens, with the worker")
     p.add_argument("--port", type=int, default=8877)
     p.add_argument("--host", default="127.0.0.1",

@@ -36,6 +36,7 @@ from publish import youtube  # noqa: E402
 from publish import x  # noqa: E402
 import vault  # noqa: E402
 import archive  # noqa: E402
+import collect  # noqa: E402
 
 DAY0 = (dt.date.today() + dt.timedelta(days=10)).isoformat()
 DAY1 = (dt.date.today() + dt.timedelta(days=11)).isoformat()
@@ -176,6 +177,15 @@ class StubYouTube(Stub):
         u = urllib.parse.urlparse(self.path)
         if u.path == "/playlists":
             return self.out(200, {"items": StubYouTube.state["playlists"]})
+        if u.path == "/videos":
+            q = urllib.parse.parse_qs(u.query)
+            assert q["part"] == ["statistics,status"]
+            items = []
+            for vid in q["id"][0].split(","):
+                st = ({"uploadStatus": "rejected", "rejectionReason": "length", "privacyStatus": "private"} if vid == "VIDbad"
+                      else {"uploadStatus": "processed", "privacyStatus": "public" if vid == "VIDpublic" else "private"})
+                items.append({"id": vid, "statistics": {"viewCount": "12", "likeCount": "3", "commentCount": "1"}, "status": st})
+            return self.out(200, {"items": items})
         self.out(404, {"error": {"message": "no"}})
 
 
@@ -244,6 +254,13 @@ class StubX(Stub):
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         s = StubX.state
+        if u.path == "/2/tweets":
+            q = urllib.parse.parse_qs(u.query)
+            assert "public_metrics" in q["tweet.fields"][0]
+            return self.out(200, {"data": [{"id": i, "public_metrics": {"impression_count": 900, "like_count": 7, "retweet_count": 2,
+                                                                         "reply_count": 1, "quote_count": 0, "bookmark_count": 4},
+                                            "non_public_metrics": {"url_link_clicks": 30, "user_profile_clicks": 5}}
+                                           for i in q["ids"][0].split(",")]})
         if u.path == "/2/media/upload":
             q = urllib.parse.parse_qs(u.query)
             assert q["command"] == ["STATUS"]
@@ -302,6 +319,53 @@ class FakeR2(Stub):
         self.wfile.write(o["body"])
 
 
+class StubReach(Stub):
+    """Analytics Engine's SQL endpoint with a day of the two datasets, Bluesky's
+    public API, a Mastodon instance's status endpoint, the YouTube Analytics API."""
+    def do_POST(self):
+        u = urllib.parse.urlparse(self.path)
+        if u.path.endswith("/analytics_engine/sql"):
+            assert self.headers.get("Authorization") == "Bearer cf"
+            q = self.body().decode()
+            assert "FORMAT JSON" in q and "INTERVAL" in q, q
+            t = lambda m: (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=m)).strftime("%Y-%m-%d %H:%M:%S")  # noqa: E731
+            if "podcast_media" in q:
+                row = lambda m, ua, h, st, b: {"timestamp": t(m), "index1": "podcast/ep9/episode.mp3", "blob3": ua, "blob4": "GB",  # noqa: E731
+                                               "blob5": h, "blob6": "", "double1": st, "double2": b, "double3": 0, "double4": b - 1, "double5": 12000000}
+                rows = [row(50, "Overcast/2024 (+http://overcast.fm/; iOS podcast app)", "h1", 206, 2000000),
+                        row(40, "Overcast/2024 (+http://overcast.fm/; iOS podcast app)", "h1", 206, 3000000),
+                        row(30, "Googlebot/2.1 (+http://www.google.com/bot.html)", "h2", 200, 12000000),
+                        row(20, "Mozilla/5.0 (Macintosh) AppleWebKit/605 Version/17 Safari/605", "h3", 206, 100000),
+                        row(10, "python-requests/2.31", "h4", 200, 12000000),
+                        row(5, "Overcast/2024 (+http://overcast.fm/; iOS podcast app)", "h5", 304, 0)]
+                return self.out(200, {"meta": [], "data": rows, "rows": len(rows)})
+            if "podcast_links" in q:
+                rows = [{"timestamp": t(45), "index1": "e9yte", "blob2": "Mozilla/5.0 (iPhone) Safari", "blob3": "GB", "blob4": "h1",
+                         "blob5": "https://www.youtube.com", "double1": 302},
+                        {"timestamp": t(44), "index1": "nope", "blob2": "curl/8", "blob3": "US", "blob4": "h9", "blob5": "", "double1": 404}]
+                return self.out(200, {"meta": [], "data": rows, "rows": len(rows)})
+        self.out(404, {"error": "no such path " + u.path})
+
+    def do_GET(self):
+        u = urllib.parse.urlparse(self.path)
+        q = urllib.parse.parse_qs(u.query)
+        if u.path == "/xrpc/com.atproto.identity.resolveHandle":
+            assert q["handle"] == ["agentsee.work"]
+            return self.out(200, {"did": "did:plc:test"})
+        if u.path == "/xrpc/app.bsky.feed.getPosts":
+            return self.out(200, {"posts": [{"uri": uri, "cid": "c", "likeCount": 5, "repostCount": 2, "replyCount": 1, "quoteCount": 0, "bookmarkCount": 3}
+                                            for uri in q["uris"]]})
+        if u.path == "/api/v1/statuses/123":
+            return self.out(200, {"id": "123", "url": "x", "created_at": "2026-10-20T09:00:00Z", "favourites_count": 4, "reblogs_count": 1, "replies_count": 0})
+        if u.path == "/analytics/reports":
+            assert q["ids"] == ["channel==MINE"] and q["dimensions"] == ["video"] and q["sort"] == ["-views"]
+            ids = q["filters"][0].removeprefix("video==").split(",")
+            names = ["video"] + collect.YT_METRICS.split(",")
+            return self.out(200, {"columnHeaders": [{"name": n} for n in names],
+                                  "rows": [[v, 12, 50.5, 31.2, 61.0, 3, 1, 2, 1] for v in ids]})
+        self.out(404, {"error": "no such path " + u.path})
+
+
 class FakeVault:
     """The one item the engine writes, in memory. Can refuse one write."""
     def __init__(self, value):
@@ -351,12 +415,18 @@ class EngineTest(unittest.TestCase):
         threading.Thread(target=cls.r2.serve_forever, daemon=True).start()
         cls.r2env = {"R2_ACCOUNT_ID": "acct", "R2_ARCHIVE_BUCKET": "archive-test", "AWS_ACCESS_KEY_ID": "AKID",
                      "AWS_SECRET_ACCESS_KEY": "secret", "R2_ENDPOINT": f"http://127.0.0.1:{cls.r2.server_address[1]}"}
+        cls.reach = http.server.HTTPServer(("127.0.0.1", 0), StubReach)
+        threading.Thread(target=cls.reach.serve_forever, daemon=True).start()
+        rbase = f"http://127.0.0.1:{cls.reach.server_address[1]}"
+        collect.SQL_URL = rbase + "/client/v4/accounts/{account}/analytics_engine/sql"
+        collect.BSKY, collect.ANALYTICS = rbase + "/xrpc", rbase + "/analytics"
+        cls.rbase = rbase
         cls.data = root / "data"
         os.environ["ENGINE_DATA"] = str(cls.data)
 
     @classmethod
     def tearDownClass(cls):
-        for srv in (cls.stub, cls.xstub, cls.r2):
+        for srv in (cls.stub, cls.xstub, cls.r2, cls.reach):
             srv.shutdown()
             srv.server_close()
         cls.tmp.cleanup()
@@ -849,6 +919,71 @@ class EngineTest(unittest.TestCase):
         web.STATE["snapshot_day"] = None
         web.snapshot_due()
         self.assertEqual(web.STATE["snapshot_day"], dt.datetime.now(ledger.ZONE).date() - dt.timedelta(days=1), "before the hour: yesterday counts as done")
+
+    def test_15_collect(self):
+        c = self.c()
+        quiet = lambda s: None  # noqa: E731
+        ep = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='youtube' AND asset='episode'").fetchone()
+        clip = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='youtube' AND asset!='episode'").fetchone()
+        ledger.update_post(c, ep["id"], status="scheduled", remote_id="VIDpublic", published_at="2026-10-20T05:00:00+00:00")
+        ledger.update_post(c, clip["id"], status="scheduled", remote_id="VIDbad")
+        bs = c.execute("SELECT * FROM post WHERE episode='ep9' AND platform='bluesky' AND asset='episode'").fetchone()
+        web.act(c, bs, "done", {"permalink": "https://bsky.app/profile/agentsee.work/post/3abc"}, "james")
+        ma = c.execute("SELECT * FROM post WHERE episode='ep9' AND platform='mastodon' AND asset='episode'").fetchone()
+        web.act(c, ma, "done", {"permalink": f"{self.rbase}/@agentseework/123"}, "james")
+        xp = c.execute("SELECT * FROM post WHERE episode='ep9' AND platform='x' AND asset='episode'").fetchone()
+        ledger.update_post(c, xp["id"], status="published", remote_id="777")
+        c.execute("UPDATE deliverable SET duration=600, bytes=12000000 WHERE episode='ep9' AND name='episode.mp3'")  # a minute is 1.2 MB
+        env = {**self.env, **self.xenv, "CLOUDFLARE_API_TOKEN": "cf"}
+        res = collect.run(c, env=env, who="tester", log=quiet)
+        self.assertFalse([v for v in res.values() if v.startswith("failed")], res)
+        # The edge: six requests, one listen (a listener twice, a bot, a library, under a minute, a 304)
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM download").fetchone()[0], 6)
+        self.assertEqual(sum(collect.listens(c)["ep9"].values()), 1)
+        self.assertEqual(collect.by_app(c), [("app:Overcast", 1)])
+        self.assertEqual(collect.by_country(c), [("GB", 1)])
+        self.assertEqual(collect.clicks(c), {"e9yte": 1}, "the 404 is not a click")
+        self.assertEqual(collect.clicks_from(c), [("https://www.youtube.com", 1)])
+        collect.run(c, only=["edge"], env=env, who="tester", log=quiet)
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM download").fetchone()[0], 6, "the overlap is re-read, not counted twice")
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM click").fetchone()[0], 1)
+        # YouTube: counts and state from videos.list, watch time from Analytics
+        m = collect.latest(c)
+        self.assertEqual((m[ep["id"]]["views"]["now"], m[ep["id"]]["likes"]["now"]), (12, 3))
+        self.assertEqual((m[ep["id"]]["watch_minutes"]["now"], m[ep["id"]]["avg_view_pct"]["now"]), (50.5, 61.0))
+        self.assertEqual(ledger.post(c, ep["id"])["status"], "published", "public on YouTube: the post is published")
+        bad = ledger.post(c, clip["id"])
+        self.assertEqual(bad["status"], "failed")
+        self.assertIn("rejected the video (length)", bad["last_error"])
+        # The free socials, from the pasted permalinks; X from the id
+        self.assertEqual((m[bs["id"]]["likes"]["now"], m[bs["id"]]["bookmarks"]["now"]), (5, 3))
+        self.assertEqual((m[ma["id"]]["likes"]["now"], m[ma["id"]]["reposts"]["now"]), (4, 1))
+        self.assertEqual((m[xp["id"]]["impressions"]["now"], m[xp["id"]]["link_clicks"]["now"]), (900, 30))
+        raw = c.execute("SELECT raw FROM snapshot WHERE post=? AND raw IS NOT NULL", (xp["id"],)).fetchall()
+        self.assertEqual(len(raw), 1, "the platform's answer is kept once per read, not per metric")
+        # The user agents
+        self.assertEqual(collect.classify("Overcast/2024 (+http://overcast.fm/; iOS podcast app)"), ("app", "Overcast"))
+        self.assertIn(collect.classify("python-requests/2.31")[0], ("bot", "library"), "the bots list is asked first and claims it; neither listens")
+        self.assertEqual(collect.classify("Googlebot/2.1 (+http://www.google.com/bot.html)")[0], "bot")
+        self.assertEqual(collect.classify(""), ("unknown", ""))
+        # The screens and Health
+        title, body = web.reach_page(c)
+        self.assertIn("Nine", body)
+        self.assertIn("50.5", body)
+        title, body = web.audience_page(c)
+        self.assertIn("Overcast", body)
+        self.assertIn("https://www.youtube.com", body)
+        self.assertIn("Last collection", web.health_page(c)[1])
+        self.assertIn("collect:run", [r["what"] for r in c.execute("SELECT what FROM event ORDER BY id DESC LIMIT 3")])
+        # The daily hour, like the snapshot's
+        web.STATE["collect_day"] = dt.date(2000, 1, 1)
+        ledger.CONFIG["collect_at"] = "00:00"
+        self.assertTrue(web.daily_due("collect"))
+        # Nothing to read says so, and a source that is off says so
+        plan.ACCOUNTS["x"]["adapter"] = "hand"
+        self.assertEqual(collect.x(c, env, ledger.now(), quiet), "skipped: the X adapter is off")
+        plan.ACCOUNTS["x"]["adapter"] = "x"
+        self.assertEqual(collect.edge(c, {}, ledger.now(), quiet), "skipped: CLOUDFLARE_API_TOKEN not set")
 
 
 if __name__ == "__main__":

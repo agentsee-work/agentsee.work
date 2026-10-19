@@ -73,9 +73,10 @@ bucket, and their own Cloudflare token. Not a provider alias in this root,
 because the question that decides it is what a plan can reach. A podcast apply
 never reads the mail server's state, and the token it runs on (`opentofu-podcast`
 in Cloudflare: Workers R2 Storage, Workers (Admin), Workers KV Storage,
-Cloudflare Tunnel, Access: Apps and Policies, and Access: Organizations,
-Identity Providers, and Groups on the account, Workers Routes on the zone)
-cannot write a DNS record. The DNS token stays Zone > DNS > Edit and never
+Cloudflare Tunnel, Access: Apps and Policies, Access: Organizations,
+Identity Providers, and Groups, and Account Analytics (Read, for the
+engine's collector) on the account, Workers Routes on the zone) cannot
+write a DNS record. The DNS token stays Zone > DNS > Edit and never
 learns about buckets.
 
 The one place the two roots meet in the configuration is the engine's

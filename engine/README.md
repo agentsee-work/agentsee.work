@@ -18,6 +18,9 @@ publish/         the publisher: __init__ runs what is due through an adapter
 vault.py         the one credential the engine writes: X's refresh token, via op
 archive.py       the archive bucket: files fetched on demand, release records for an
                  ingest without build/, the nightly ledger copy and its restore
+collect.py       the collector: the edge's log into listens and clicks, each
+                 platform's counts into dated snapshots; what the screens ask
+useragents.json  OPAWG's patterns for podcast apps, bots, libraries, browsers (MIT)
 home/            the box: Dockerfile, compose, the runbook
 web.py           the screens and the worker: a threaded HTTP server on loopback
 pages.py         the page shell in the site's typographic system
@@ -25,7 +28,8 @@ static/engine.css  tables, forms, a status word; the rest is the site's CSS
 accounts.json    which accounts get which assets, at what hour, by which adapter
 config.json      the engine's settings, none secret
 engine.env       op:// references for `op run`; no values
-test_engine.py   the whole thing against a made-up episode and a stub YouTube
+test_engine.py   the whole thing against a made-up episode and stubs for every
+                 platform and the edge
 ```
 
 ## Running it
@@ -114,6 +118,35 @@ when a screen asks for something now. The command line and the worker can
 run at the same time: a post is marked `publishing` before anything is sent,
 and `due` ignores that state.
 
+## The collector
+
+`collect` reads back what everything did, once a day at `collect_at`
+(`config.json`) by the worker, or now by hand, one source at a time with
+`--only`. The edge first: the two Analytics Engine datasets the Workers
+write (`infra/podcast/workers/README.md`) through Cloudflare's SQL endpoint,
+one row per request to the media host into `download` and one per
+short-link click into `click`, the last day read again each time so a row
+that arrived late is not missed and nothing counts twice; the user agent is
+classified with OPAWG's lists (`useragents.json`), bots first, then apps,
+libraries, browsers. Then each platform, into `snapshot` as dated rows per
+post and metric, so there is a time series where a platform only ever says
+a running total: YouTube by `videos.list` (views, likes, comments, and the
+video's state: a rejected upload fails the post with the reason, a scheduled
+one that went public is marked published) and the Analytics API (watch
+minutes, average view length and share, shares, subscribers gained, two or
+three days behind); Bluesky and Mastodon through their public endpoints
+with no token, from the permalink a person pasted back; X through the
+owned-post lookup once its adapter is on, a cent per thousand reads, and
+X forgets after thirty days so the snapshots are the record. A source that
+is missing its credentials says so and the others carry on.
+
+A listen is the IAB's: one address hash per file per day, from a 200 or 206
+that carried at least a minute's worth of the file, by something that is
+not a bot or an HTTP library. Bytes offered, not heard.
+
+The Cloudflare token the engine already holds for KV needs one more
+permission for the edge: Account > Account Analytics > Read.
+
 ## The screens
 
 Episodes (what is staged, the files, what went where), Posts (the plan as a
@@ -123,8 +156,12 @@ the text to copy, a link that opens the platform's composer with the text
 in it, the file on the media host, the poster, the short link, and the
 paste-back of the permalink that marks it published; the record of what
 happened to it), By hand (what a person posts today, and what is late),
-Health (the ledger, the worker, counts, which adapters can see their
-credentials).
+Reach (per episode: listens, the last week's, YouTube views, link clicks;
+per post: views or impressions, likes, reposts, replies, clicks, each with
+the last week's share beside it; YouTube's watch time), Audience (the last
+thirty days of listens by app and by country, clicks by where they came
+from, listens by day), Health (the ledger, the worker, the last snapshot
+and collection, counts, which adapters can see their credentials).
 
 Server-rendered, no script but the site's eye, the site's stylesheet and
 fonts served from `public/`, the same CSP as the site plus the media host
@@ -149,6 +186,7 @@ other's X tokens.
 
 ## Not yet
 
-The collector and the Reach, Audience and Spend screens (AGE-69, items 4
-and 5); the Bluesky, Mastodon, Threads, Instagram and LinkedIn adapters,
-each a module in `publish/` with the names the contract asks for.
+The Spend screen and the export drop zones for Spotify's CSV and LinkedIn's
+XLSX (AGE-69, items 4 and 5); the Bluesky, Mastodon, Threads, Instagram and
+LinkedIn adapters, each a module in `publish/` with the names the contract
+asks for; Apple's Reporter (item 6).

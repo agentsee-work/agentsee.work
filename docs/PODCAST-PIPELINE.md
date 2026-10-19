@@ -414,7 +414,11 @@ e1xc02`: episode 1, X, clip 2) so every click back is counted at the edge;
 the publisher sends what is due through one adapter per platform, YouTube
 first (upload, `publishAt`, captions, thumbnail, playlist), and makes a card
 for a person to post everywhere else until that platform's adapter exists.
-`engine.py serve` is the screens: Episodes, Posts, By hand, Health.
+`engine.py collect` reads back what everything did, daily: the edge's log
+into listens (the IAB's: one listener, one file, one day, a minute of it,
+no bots) and clicks, and each platform's counts into dated snapshots.
+`engine.py serve` is the screens: Episodes, Posts, By hand, Reach,
+Audience, Health.
 
 The engine's home is the mail box, behind a Cloudflare Tunnel with Access
 in front (`engine/home/README.md`). It has no `build/`, so `stage` now

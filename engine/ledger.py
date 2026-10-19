@@ -56,13 +56,18 @@ CREATE TABLE IF NOT EXISTS click (
   hash TEXT, referer TEXT);
 CREATE TABLE IF NOT EXISTS download (
   id INTEGER PRIMARY KEY, episode TEXT, name TEXT NOT NULL, at TEXT NOT NULL, ua_class TEXT,
-  hash TEXT, bytes INTEGER, first INTEGER, last INTEGER, status INTEGER);
+  hash TEXT, bytes INTEGER, first INTEGER, last INTEGER, status INTEGER, country TEXT);
+CREATE INDEX IF NOT EXISTS download_at ON download(at);
+CREATE INDEX IF NOT EXISTS click_at ON click(at);
+CREATE INDEX IF NOT EXISTS snapshot_post ON snapshot(post, metric, observed_at);
 CREATE TABLE IF NOT EXISTS lead (id INTEGER PRIMARY KEY, at TEXT NOT NULL, source TEXT, note TEXT);
 CREATE TABLE IF NOT EXISTS event (
   id INTEGER PRIMARY KEY, at TEXT NOT NULL, who TEXT NOT NULL, what TEXT NOT NULL,
   post INTEGER, episode TEXT, detail TEXT);
 CREATE INDEX IF NOT EXISTS event_post ON event(post, at);
 """
+
+MIGRATIONS = [("download", "country", "TEXT")]
 
 STATUSES = {
     "planned": "waiting for its day",
@@ -88,6 +93,9 @@ def connect(path=None):
     c.execute("PRAGMA journal_mode=WAL")
     c.execute("PRAGMA foreign_keys=ON")
     c.executescript(SCHEMA)
+    for table, column, kind in MIGRATIONS:  # a column added since a ledger was made
+        if column not in [r[1] for r in c.execute(f"PRAGMA table_info({table})")]:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     return c
 
 
