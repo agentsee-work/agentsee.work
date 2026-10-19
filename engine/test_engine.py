@@ -551,10 +551,18 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(p2["status"], "failed")
         self.assertIn("look for the result on the platform", p2["last_error"])
         self.assertEqual(web.recover(c, "tester"), 0)
-        self.assertEqual(web.act(c, p2, "done", {"permalink": "https://www.youtube.com/watch?v=abcDEF12-_5&t=9"}, "james"), "Published, by hand")
+        soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)).isoformat()
+        ledger.update_post(c, p["id"], scheduled_at=soon)
+        self.assertEqual(web.act(c, ledger.post(c, p["id"]), "done", {"permalink": "https://www.youtube.com/watch?v=abcDEF12-_5&t=9"}, "james"),
+                         "Recorded; the platform holds it until its time")
         p3 = ledger.post(c, p["id"])
-        self.assertEqual((p3["status"], p3["remote_id"]), ("published", "abcDEF12-_5"), "the id comes out of the pasted link")
-        ledger.update_post(c, p["id"], status=p["status"], remote_id=p["remote_id"], permalink=p["permalink"])
+        self.assertEqual((p3["status"], p3["remote_id"], p3["published_at"]), ("scheduled", "abcDEF12-_5", soon),
+                         "a YouTube link pasted before its time: the id out of the link, scheduled, public at its hour")
+        ledger.update_post(c, p["id"], status="failed", scheduled_at="2026-01-01T09:00:00+00:00")
+        self.assertEqual(web.act(c, ledger.post(c, p["id"]), "done", {"permalink": "https://youtu.be/abcDEF12-_5"}, "james"), "Published, by hand")
+        self.assertEqual(ledger.post(c, p["id"])["status"], "published")
+        ledger.update_post(c, p["id"], status=p["status"], remote_id=p["remote_id"], permalink=p["permalink"],
+                           scheduled_at=p["scheduled_at"], published_at=p["published_at"])
 
     def test_07_hand(self):
         c = self.c()

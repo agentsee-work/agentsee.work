@@ -428,13 +428,16 @@ def act(c, p, action, form, who):
         url = form.get("permalink", "").strip()
         if not re.match(r"^https?://\S+$", url):
             raise ValueError("A permalink is a URL")
-        fields = {}
+        fields = {"status": "published", "published_at": ledger.now()}
         m = re.search(r"(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|live/)|youtu\.be/)([\w-]{11})", url)
         if m:
             fields["remote_id"] = m.group(1)  # a video recorded by hand keeps its id, for the collector
-        ledger.update_post(c, pid, status="published", permalink=url, published_at=ledger.now(), last_error=None, **fields)
+            when = dt.datetime.fromisoformat(p["scheduled_at"]) if p["scheduled_at"] else None
+            if when and when > dt.datetime.now(dt.timezone.utc):
+                fields.update(status="scheduled", published_at=p["scheduled_at"])  # YouTube holds it until then
+        ledger.update_post(c, pid, permalink=url, last_error=None, **fields)
         ledger.event(c, "hand:done", who, post=pid, episode=p["episode"], detail=url)
-        return "Published, by hand"
+        return "Published, by hand" if fields["status"] == "published" else "Recorded; the platform holds it until its time"
     raise ValueError("No such action")
 
 
