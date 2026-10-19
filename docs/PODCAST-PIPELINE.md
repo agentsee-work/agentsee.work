@@ -416,6 +416,14 @@ first (upload, `publishAt`, captions, thumbnail, playlist), and makes a card
 for a person to post everywhere else until that platform's adapter exists.
 `engine.py serve` is the screens: Episodes, Posts, By hand, Health.
 
+The engine's home is the mail box, behind a Cloudflare Tunnel with Access
+in front (`engine/home/README.md`). It has no `build/`, so `stage` now
+archives `staged.json` beside `release.json` and `ingest` reads both from
+the archive bucket; an adapter that needs a file fetches it from the
+archive on demand, checked against the hash the ledger holds; and the
+ledger itself is copied to the archive nightly, which is what a rebuilt box
+restores from.
+
 ## What bit, in order
 
 **The venv's python is a symlink to the system python.** `transcribe.py`

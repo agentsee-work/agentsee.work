@@ -26,6 +26,7 @@ import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import archive
 import ledger
 import publish
 from pages import button, composer, esc, link, page, section, status, table, when
@@ -38,7 +39,7 @@ SAFE = re.compile(r"^[A-Za-z0-9._-]+$")
 CSP = ("default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; "
        "img-src 'self' https://media.agentsee.work data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 CSRF = secrets.token_urlsafe(24)
-STATE = {"ledger": None, "last_run": None, "poke": threading.Event(), "lifted": None}
+STATE = {"ledger": None, "last_run": None, "poke": threading.Event(), "lifted": None, "snapshot_day": None}
 
 
 # ─── what the screens show ───────────────────────────────────────────────────
@@ -254,13 +255,18 @@ def due_page(c):
 def health_page(c):
     counts = c.execute("SELECT status, COUNT(*) n FROM post GROUP BY status ORDER BY status").fetchall()
     last = c.execute("SELECT at, detail FROM event WHERE what='publisher:run' ORDER BY at DESC LIMIT 1").fetchone()
+    snap = c.execute("SELECT at, what, detail FROM event WHERE what IN ('snapshot', 'snapshot:failed') ORDER BY at DESC LIMIT 1").fetchone()
     creds = []
     for name, a in ACCOUNTS.items():
         mod = publish.adapter(name)
         creds.append([esc(name), esc(a["adapter"]), "ready" if mod.ready(os.environ) else f'<span class="error">missing: {esc(mod.NEEDS)}</span>'])
     facts = [("Ledger", f'<span class="mono">{esc(STATE["ledger"] or ledger.data_dir() / "ledger.sqlite")}</span>'),
              ("Worker last ran", when(STATE["last_run"]) or "not in this process"),
+             ("Resting", "; ".join(f"{esc(a)} until {esc(when(u.isoformat()))}: {esc(why)}" for a, (u, why) in publish.HELD.items()) or "no account"),
              ("Last recorded run", f"{esc(when(last['at']))} <span class=\"mono\">{esc(last['detail'])}</span>" if last else "never"),
+             ("Last snapshot", (f"{esc(when(snap['at']))} " + (f'<span class="error">failed: {esc(snap["detail"])}</span>'
+                                                               if snap["what"].endswith("failed") else f'<span class="mono">{esc(snap["detail"])}</span>'))
+              if snap else f"never (nightly at {esc(ledger.CONFIG.get('snapshot_at', 'no hour set'))} London, by the worker)"),
              ("Episodes", str(c.execute("SELECT COUNT(*) FROM episode").fetchone()[0]))]
     body = '<article class="lead"><h1>Health</h1></article><dl class="facts">' + "".join(f"<dt>{esc(k)}</dt><dd>{v}</dd>" for k, v in facts) + "</dl>"
     body += section("Posts", "By status", table(["Status", "Count"], [[status(r["status"]), str(r["n"])] for r in counts]))
@@ -422,13 +428,48 @@ def act(c, p, action, form, who):
         url = form.get("permalink", "").strip()
         if not re.match(r"^https?://\S+$", url):
             raise ValueError("A permalink is a URL")
-        ledger.update_post(c, pid, status="published", permalink=url, published_at=ledger.now(), last_error=None)
+        fields = {"status": "published", "published_at": ledger.now()}
+        m = re.search(r"(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|live/)|youtu\.be/)([\w-]{11})", url)
+        if m:
+            fields["remote_id"] = m.group(1)  # a video recorded by hand keeps its id, for the collector
+            its_time = dt.datetime.fromisoformat(p["scheduled_at"]) if p["scheduled_at"] else None
+            if its_time and its_time > dt.datetime.now(dt.timezone.utc):
+                fields.update(status="scheduled", published_at=p["scheduled_at"])  # YouTube holds it until then
+        ledger.update_post(c, pid, permalink=url, last_error=None, **fields)
         ledger.event(c, "hand:done", who, post=pid, episode=p["episode"], detail=url)
-        return "Published, by hand"
+        return "Published, by hand" if fields["status"] == "published" else "Recorded; the platform holds it until its time"
     raise ValueError("No such action")
 
 
 # ─── the worker ──────────────────────────────────────────────────────────────
+def recover(c, who="engine"):
+    """A post left in 'publishing' by a process that stopped mid-attempt:
+    marked failed so a person sees it, with the warning that the platform may
+    hold the result (an upload that finished a moment before the stop)."""
+    n = 0
+    for p in c.execute("SELECT * FROM post WHERE status='publishing'").fetchall():
+        err = "the engine stopped during the attempt; look for the result on the platform before a retry"
+        ledger.update_post(c, p["id"], status="failed", last_error=err)
+        ledger.event(c, "publish:interrupted", who, post=p["id"], episode=p["episode"], detail=err)
+        n += 1
+    return n
+
+
+def snapshot_due():
+    """Once a day, after the configured hour (London), and not before the
+    process has seen that hour pass: a restart at 04:00 does not snapshot."""
+    at = ledger.CONFIG.get("snapshot_at")
+    if not at:
+        return False
+    now = dt.datetime.now(ledger.ZONE)
+    hh, mm = (int(x) for x in at.split(":"))
+    due = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if STATE["snapshot_day"] is None:
+        STATE["snapshot_day"] = now.date() if now >= due else now.date() - dt.timedelta(days=1)
+        return False
+    return now >= due and STATE["snapshot_day"] < now.date()
+
+
 def worker(stop, interval=60):
     poke = STATE["poke"]
     while not stop.is_set():
@@ -440,6 +481,13 @@ def worker(stop, interval=60):
                     res = publish.run(c, posts, who="worker", log=lambda s: print(s, flush=True))
                     ledger.event(c, "publisher:run", "worker", detail={"results": res})
                 STATE["last_run"] = ledger.now()
+                if snapshot_due():
+                    try:
+                        archive.snapshot(c, who="worker", log=lambda s: print(s, flush=True))
+                    except archive.ArchiveError as e:
+                        print(f"worker: snapshot failed: {e}", flush=True)
+                        ledger.event(c, "snapshot:failed", "worker", detail=str(e)[:500])
+                    STATE["snapshot_day"] = dt.datetime.now(ledger.ZONE).date()
             finally:
                 c.close()
         except Exception as e:  # noqa: BLE001 — the worker must outlive a bad minute
@@ -451,7 +499,13 @@ def worker(stop, interval=60):
 def serve(port=8877, with_worker=True, ledger_path=None, host="127.0.0.1"):
     STATE["ledger"] = str(ledger_path) if ledger_path else None
     STATE["lifted"] = None  # lifted fresh per page; the front page may change under us
-    ledger.connect(STATE["ledger"]).close()
+    c = ledger.connect(STATE["ledger"])
+    try:
+        n = recover(c)
+        if n:
+            print(f"{n} post(s) were mid-attempt when the last process stopped; marked failed, for a look", flush=True)
+    finally:
+        c.close()
     stop = threading.Event()
     if with_worker:
         threading.Thread(target=worker, args=(stop,), daemon=True, name="publisher").start()

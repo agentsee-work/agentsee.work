@@ -31,3 +31,21 @@ variable "edge_hash_key" {
   type        = string
   sensitive   = true
 }
+
+# ─── The engine's door (engine.tf) ───────────────────────────────────────────
+variable "engine_subdomain" {
+  description = "Hostname of the engine, under the apex. ../dns.tf must agree."
+  type        = string
+  default     = "engine"
+}
+
+variable "zero_trust_team" {
+  description = "The Zero Trust organisation's team name: <team>.cloudflareaccess.com is the login page, and cloudflared checks tokens against it. Chosen once in the dashboard; an identifier, in tfvars."
+  type        = string
+}
+
+variable "engine_people" {
+  description = "Email addresses allowed through Access to the engine, as a list. From the vault as TF_VAR_engine_people (op.env), never from tfvars: this repository is public."
+  type        = list(string)
+  sensitive   = true
+}

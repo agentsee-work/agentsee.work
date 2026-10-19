@@ -10,6 +10,7 @@ platform is checked by the first real run.
 
 import contextlib
 import datetime as dt
+import hashlib
 import http.server
 import io
 import json
@@ -20,6 +21,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import unittest.mock
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -33,6 +35,7 @@ import web  # noqa: E402
 from publish import youtube  # noqa: E402
 from publish import x  # noqa: E402
 import vault  # noqa: E402
+import archive  # noqa: E402
 
 DAY0 = (dt.date.today() + dt.timedelta(days=10)).isoformat()
 DAY1 = (dt.date.today() + dt.timedelta(days=11)).isoformat()
@@ -63,7 +66,7 @@ def fixture(root):
                     "category": 28, "playlist": "AgentSee Podcast"},
         "notes": {"youtube": "youtube.txt"},
         "files": {n: {"bytes": len(d), "type": "video/mp4" if n.endswith(".mp4") else "application/octet-stream",
-                      "sha256": "0" * 64} for n, d in files.items()},
+                      "sha256": hashlib.sha256(d).hexdigest()} for n, d in files.items()},
         "clips": [{"index": 1, "slug": "the-point", "title": "The point", "file": "clips/01-the-point.mp4",
                    "poster": "clips/01-the-point.png", "captions": "clips/01-the-point.vtt",
                    "post": {"text": f"The point\n\nFrom episode 9.", "link": EP_URL, "link_at": EP_URL + "#t=42", "at_hms": "00:42"},
@@ -99,7 +102,8 @@ class Stub(http.server.BaseHTTPRequestHandler):
 class StubYouTube(Stub):
     """Google's token endpoint, the resumable upload, captions, thumbnails,
     playlists. One 503 on the second chunk of every upload, to see the resume."""
-    state = {"uploads": {}, "playlists": [], "items": [], "captions": [], "thumbs": [], "fail_session": False, "metas": []}
+    state = {"uploads": {}, "playlists": [], "items": [], "captions": [], "thumbs": [], "fail_session": False, "metas": [],
+             "aborted": set(), "playlist_down": False}
 
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
@@ -110,7 +114,10 @@ class StubYouTube(Stub):
         assert self.headers.get("Authorization") == "Bearer AT", self.headers.get("Authorization")
         if u.path == "/upload/videos":
             if s["fail_session"]:
-                return self.out(403, {"error": {"message": "The user has exceeded the number of videos they may upload.",
+                s["refused"] = s.get("refused", 0) + 1
+                if s["fail_session"] == "broken":
+                    return self.out(403, {"error": {"message": "forbidden", "errors": [{"reason": "forbidden"}]}})
+                return self.out(400, {"error": {"message": "The user has exceeded the number of videos they may upload.",
                                                 "errors": [{"reason": "uploadLimitExceeded"}]}})
             meta = json.loads(self.body())
             size = int(self.headers["X-Upload-Content-Length"])
@@ -136,7 +143,12 @@ class StubYouTube(Stub):
             s["playlists"].append({"id": "PL1", "snippet": {"title": meta["snippet"]["title"]}})
             return self.out(200, {"id": "PL1"})
         if u.path == "/playlistItems":
-            s["items"].append(json.loads(self.body()))
+            item = json.loads(self.body())
+            vid = item["snippet"]["resourceId"]["videoId"]
+            if s["playlist_down"] or vid not in s["aborted"]:  # the 409 YouTube throws at the odd call, once per video
+                s["aborted"].add(vid)
+                return self.out(409, {"error": {"message": "The operation was aborted.", "errors": [{"reason": "SERVICE_UNAVAILABLE"}]}})
+            s["items"].append(item)
             return self.out(200, {"id": "PI1"})
         self.out(404, {"error": {"message": "no such path " + u.path}})
 
@@ -241,6 +253,55 @@ class StubX(Stub):
         self.out(404, {"title": "Not Found", "detail": u.path, "status": 404})
 
 
+class FakeR2(Stub):
+    """R2's S3 face, as far as the engine uses it: PUT, GET and HEAD of one
+    object at a time under /bucket/key, with the SigV4 shape of every
+    request checked and the payload hash verified against the body."""
+    state = {"objects": {}, "requests": []}
+
+    def check(self, body):
+        auth = self.headers.get("Authorization", "")
+        assert auth.startswith("AWS4-HMAC-SHA256 Credential=AKID/"), auth
+        assert "/auto/s3/aws4_request, SignedHeaders=" in auth and "Signature=" in auth, auth
+        assert self.headers.get("x-amz-content-sha256") == hashlib.sha256(body).hexdigest(), "payload hash"
+        assert re.fullmatch(r"\d{8}T\d{6}Z", self.headers.get("x-amz-date", "")), "x-amz-date"
+        bucket, _, key = self.path.lstrip("/").partition("/")
+        assert bucket == "archive-test", bucket
+        FakeR2.state["requests"].append((self.command, key))
+        return key
+
+    def do_PUT(self):
+        body = self.body()
+        key = self.check(body)
+        meta = {k.lower()[11:]: v for k, v in self.headers.items() if k.lower().startswith("x-amz-meta-")}
+        FakeR2.state["objects"][key] = {"body": body, "type": self.headers.get("Content-Type"), "meta": meta}
+        self.out(200)
+
+    def do_HEAD(self):
+        key = self.check(b"")
+        o = FakeR2.state["objects"].get(key)
+        if not o:
+            return self.out(404)
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(o["body"])))
+        for k, v in o["meta"].items():
+            self.send_header("x-amz-meta-" + k, v)
+        self.end_headers()
+
+    def do_GET(self):
+        key = self.check(b"")
+        o = FakeR2.state["objects"].get(key)
+        if not o:
+            return self.out(404, {"error": "NoSuchKey"})
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(o["body"])))
+        self.send_header("Content-Type", o["type"] or "application/octet-stream")
+        for k, v in o["meta"].items():
+            self.send_header("x-amz-meta-" + k, v)
+        self.end_headers()
+        self.wfile.write(o["body"])
+
+
 class FakeVault:
     """The one item the engine writes, in memory. Can refuse one write."""
     def __init__(self, value):
@@ -275,6 +336,7 @@ class EngineTest(unittest.TestCase):
         base = f"http://127.0.0.1:{cls.stub.server_address[1]}"
         youtube.TOKEN_URL, youtube.API, youtube.UPLOAD = base + "/token", base, base + "/upload"
         youtube.CHUNK = 256 * 1024
+        youtube.PLAYLIST_WAIT = (0, 0)
         cls.env = {"YOUTUBE_CLIENT_ID": "id", "YOUTUBE_CLIENT_SECRET": "s", "YOUTUBE_REFRESH_TOKEN": "r"}
         cls.xstub = http.server.HTTPServer(("127.0.0.1", 0), StubX)
         threading.Thread(target=cls.xstub.serve_forever, daemon=True).start()
@@ -285,10 +347,16 @@ class EngineTest(unittest.TestCase):
         ledger.CONFIG["x"] = {"vault": "Engineering", "item": "X podcast token", "field": "credential"}
         plan.ACCOUNTS["x"]["adapter"] = "x"  # the switch-on, here regardless of accounts.json
         cls.xenv = {"X_APP_ID": "cid", "X_APP_SECRET": "cs", "X_TOKEN": "123", "X_TOKEN_SECRET": "r1"}
+        cls.r2 = http.server.HTTPServer(("127.0.0.1", 0), FakeR2)
+        threading.Thread(target=cls.r2.serve_forever, daemon=True).start()
+        cls.r2env = {"R2_ACCOUNT_ID": "acct", "R2_ARCHIVE_BUCKET": "archive-test", "AWS_ACCESS_KEY_ID": "AKID",
+                     "AWS_SECRET_ACCESS_KEY": "secret", "R2_ENDPOINT": f"http://127.0.0.1:{cls.r2.server_address[1]}"}
+        cls.data = root / "data"
+        os.environ["ENGINE_DATA"] = str(cls.data)
 
     @classmethod
     def tearDownClass(cls):
-        for srv in (cls.stub, cls.xstub):
+        for srv in (cls.stub, cls.xstub, cls.r2):
             srv.shutdown()
             srv.server_close()
         cls.tmp.cleanup()
@@ -411,6 +479,7 @@ class EngineTest(unittest.TestCase):
             self.assertTrue(up["failed_once"])
         self.assertEqual(len(s["captions"]), 2)
         self.assertEqual(s["items"][0]["snippet"]["resourceId"]["videoId"], ep["remote_id"])
+        self.assertIn(ep["remote_id"], s["aborted"], "the first playlist call was aborted with a 409; the retry went through")
         self.assertEqual(len(s["playlists"]), 1, "the playlist was created once")
         notes = {ev["post"]: json.loads(ev["detail"])["note"] for ev in c.execute("SELECT * FROM event WHERE what='publish:scheduled'")}
         self.assertIn("playlist (created)", notes[ep["id"]])
@@ -427,17 +496,73 @@ class EngineTest(unittest.TestCase):
         meta = StubYouTube.state["metas"][-1]
         self.assertEqual(meta["status"]["privacyStatus"], "public")
         self.assertNotIn("publishAt", meta["status"])
-        StubYouTube.state["fail_session"] = True
+        StubYouTube.state["fail_session"] = "broken"
         ledger.update_post(c, p["id"], status="planned")
         res = publish.run(c, [ledger.post(c, p["id"])], env=self.env, log=lambda s: None)
         self.assertEqual(res[0][1], "failed")
         p2 = ledger.post(c, p["id"])
         self.assertEqual(p2["status"], "failed")
-        self.assertIn("uploadLimitExceeded", p2["last_error"])
+        self.assertIn("forbidden", p2["last_error"])
         StubYouTube.state["fail_session"] = False
         self.assertEqual(web.act(c, p2, "retry", {}, "tester"), "Back in the queue")
         self.assertEqual(ledger.post(c, p["id"])["status"], "due")
         self.assertIn(p["id"], [q["id"] for q in publish.due(c, "2026-01-01T00:00:00+00:00")])
+        # The daily upload cap is a hold, not a failure: the post keeps its state, the account rests, the worker comes back
+        s = StubYouTube.state
+        s["fail_session"], s["refused"] = True, 0
+        clip = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='youtube' AND asset!='episode'").fetchone()
+        ledger.update_post(c, clip["id"], status="planned")
+        res = publish.run(c, [ledger.post(c, p["id"]), ledger.post(c, clip["id"])], env=self.env, log=lambda s: None)
+        self.assertEqual([r[1] for r in res], ["held", "held"], "the first refusal rests the rest of the account")
+        self.assertEqual(s["refused"], 1, "the second post was not even tried")
+        self.assertEqual(ledger.post(c, p["id"])["status"], "due", "a held post keeps its state")
+        self.assertEqual(ledger.post(c, clip["id"])["status"], "planned")
+        self.assertIn("uploadLimitExceeded", ledger.post(c, p["id"])["last_error"])
+        self.assertIn("youtube", publish.HELD)
+        ids = [q["id"] for q in publish.due(c)]
+        self.assertNotIn(p["id"], ids)
+        self.assertNotIn(clip["id"], ids)
+        later = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)).isoformat()
+        self.assertIn(p["id"], [q["id"] for q in publish.due(c, later)], "after the hold the account is due again")
+        self.assertEqual(publish.HELD, {}, "an expired hold is forgotten")
+        self.assertIn("publish:held", [ev["what"] for ev in c.execute("SELECT what FROM event WHERE post=?", (p["id"],))])
+        s["fail_session"] = False
+        ledger.update_post(c, clip["id"], status=clip["status"])
+        # The playlist refusing for good: the video is up, so the post is published with a note, never failed
+        StubYouTube.state["playlist_down"] = True
+        ledger.update_post(c, p["id"], status="planned", remote_id=None, permalink=None)
+        res = publish.run(c, [ledger.post(c, p["id"])], env=self.env, log=lambda s: None)
+        self.assertEqual(res[0][1], "published", "a step after the upload is a note, never the loss of the video")
+        p3 = ledger.post(c, p["id"])
+        self.assertTrue(p3["remote_id"].startswith("VIDep"))
+        note = json.loads(c.execute("SELECT detail FROM event WHERE post=? AND what='publish:published' ORDER BY id DESC",
+                                    (p["id"],)).fetchone()[0])["note"]
+        self.assertIn("could not add to the playlist: 409", note)
+        self.assertIn("by hand", note)
+        StubYouTube.state["playlist_down"] = False
+        ledger.update_post(c, p["id"], status="due")
+
+    def test_06b_interrupted_and_recorded_by_hand(self):
+        c = self.c()
+        p = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='youtube' AND asset!='episode'").fetchone()
+        ledger.update_post(c, p["id"], status="publishing")
+        self.assertEqual(web.recover(c, "tester"), 1)
+        p2 = ledger.post(c, p["id"])
+        self.assertEqual(p2["status"], "failed")
+        self.assertIn("look for the result on the platform", p2["last_error"])
+        self.assertEqual(web.recover(c, "tester"), 0)
+        soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)).isoformat()
+        ledger.update_post(c, p["id"], scheduled_at=soon)
+        self.assertEqual(web.act(c, ledger.post(c, p["id"]), "done", {"permalink": "https://www.youtube.com/watch?v=abcDEF12-_5&t=9"}, "james"),
+                         "Recorded; the platform holds it until its time")
+        p3 = ledger.post(c, p["id"])
+        self.assertEqual((p3["status"], p3["remote_id"], p3["published_at"]), ("scheduled", "abcDEF12-_5", soon),
+                         "a YouTube link pasted before its time: the id out of the link, scheduled, public at its hour")
+        ledger.update_post(c, p["id"], status="failed", scheduled_at="2026-01-01T09:00:00+00:00")
+        self.assertEqual(web.act(c, ledger.post(c, p["id"]), "done", {"permalink": "https://youtu.be/abcDEF12-_5"}, "james"), "Published, by hand")
+        self.assertEqual(ledger.post(c, p["id"])["status"], "published")
+        ledger.update_post(c, p["id"], status=p["status"], remote_id=p["remote_id"], permalink=p["permalink"],
+                           scheduled_at=p["scheduled_at"], published_at=p["published_at"])
 
     def test_07_hand(self):
         c = self.c()
@@ -616,6 +741,114 @@ class EngineTest(unittest.TestCase):
         self.assertIn(p["id"], ids(publish.due(c)), "marked due by a person, it goes regardless")
         ledger.update_post(c, p["id"], status="skipped")
         ledger.update_post(c, card["id"], status="published")
+
+
+    def test_12_signer(self):
+        # Fixed on 15 October 2026 against botocore 1.43.112's SigV4Auth for the same inputs.
+        when = dt.datetime(2026, 10, 15, 18, 0, 0, tzinfo=dt.timezone.utc)
+        h = archive.sign("PUT", "9468eccb7caed9f96283a9139c37a4df.r2.cloudflarestorage.com",
+                         "/agentsee-podcast-archive/engine/ledger-latest.sqlite", {},
+                         {"content-type": "application/vnd.sqlite3", "x-amz-meta-sha256": "ab" * 32},
+                         hashlib.sha256(b"hello ledger").hexdigest(),
+                         "AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "auto", when)
+        self.assertEqual(h["authorization"], "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20261015/auto/s3/aws4_request, "
+                         "SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date;x-amz-meta-sha256, "
+                         "Signature=cde30d8e9da6181aee80e9254e409b09b6d566487066c1d7079f31c0265a6260")
+        self.assertEqual(h["x-amz-date"], "20261015T180000Z")
+
+    def test_13_archive_files(self):
+        c = self.c()
+        client = archive.Client(self.r2env)
+        with self.assertRaises(archive.ArchiveError):
+            archive.Client({})
+        # the archive holds the clip and the captions, as stage would have put them
+        for name in ("clips/01-the-point.mp4", "clips/01-the-point.vtt"):
+            client.put(f"episodes/ep9/out/{name}", self.src / name, "video/mp4", {"sha256": "x"})
+        self.assertIsNone(client.head("episodes/ep9/out/nope"))
+        self.assertEqual(client.head("episodes/ep9/out/clips/01-the-point.mp4")["x-amz-meta-sha256"], "x")
+        ep = ledger.episode(c, "ep9")
+        files = archive.Files(c, ep, client)
+        self.assertEqual(files / "episode.mp4", self.src / "episode.mp4", "on this machine: the local path")
+        # an episode whose files are not here
+        away = dict(ep)
+        away["source_dir"] = str(self.src.parent / "gone")
+        files = archive.Files(c, away, client)
+        p = files / "clips/01-the-point.mp4"
+        self.assertEqual(p, self.data / "episodes" / "ep9" / "out" / "clips" / "01-the-point.mp4")
+        self.assertTrue(p.exists(), "fetched from the archive")
+        self.assertEqual(p.read_bytes(), (self.src / "clips/01-the-point.mp4").read_bytes())
+        self.assertFalse(list(p.parent.glob("*.part")))
+        n = len(FakeR2.state["requests"])
+        self.assertEqual(files / "clips/01-the-point.mp4", p)
+        self.assertEqual(len(FakeR2.state["requests"]), n, "a second look does not fetch again")
+        self.assertFalse((files / "episode.mp4").exists(), "not in the archive: the path is absent, not an error")
+        # a file that does not match what the ledger says
+        client.put("episodes/ep9/out/thumbnail.png", self.src / "episode-art.jpg", "image/png")
+        with self.assertRaises(archive.ArchiveError):
+            files / "thumbnail.png"
+        self.assertFalse((self.data / "episodes" / "ep9" / "out" / "thumbnail.png").exists())
+        self.assertTrue((files / "clips/01-the-point.vtt").exists())
+        # without credentials the path is simply absent
+        bare = archive.Files(c, away, None)
+        self.assertFalse((bare / "captions.srt").exists())
+        # and the publisher reaches the archive through the same door
+        self.assertIsInstance(publish.archive.Files(c, ep), archive.Files)
+
+    def test_14_archive_ingest_snapshot_restore(self):
+        c = self.c()
+        client = archive.Client(self.r2env)
+        with self.assertRaises(archive.ArchiveError) as cm:
+            archive.fetch_release("ep9", client)
+        self.assertIn("release.json is not in the archive", str(cm.exception))
+        client.put("episodes/ep9/out/release.json", self.src / "release.json", "application/json")
+        with self.assertRaises(archive.ArchiveError) as cm:
+            archive.fetch_release("ep9", client)
+        self.assertIn("re-run `episode.py stage`", str(cm.exception))
+        client.put("episodes/ep9/out/staged.json", self.src / "staged.json", "application/json")
+        d = archive.fetch_release("ep9", client)
+        self.assertEqual(d, self.data / "episodes" / "ep9" / "out")
+        self.assertTrue((d / "release.json").exists() and (d / "staged.json").exists())
+        # an ingest on a machine without build/: the data dir becomes the source
+        with unittest.mock.patch.object(archive, "Client", lambda env=None: client):
+            n = ingest.ingest(c, "ep9", None, "tester", from_archive=True)
+        self.assertGreater(n, 5)
+        self.assertEqual(ledger.episode(c, "ep9")["source_dir"], str(d))
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM post WHERE episode='ep9'").fetchone()[0],
+                         c.execute("SELECT COUNT(*) FROM post").fetchone()[0], "posts untouched")
+        # the snapshot: two keys, the day's and latest, with the hash in the metadata
+        key = archive.snapshot(c, client, who="tester", log=lambda s: None)
+        day = dt.datetime.now(ledger.ZONE).strftime("%Y-%m-%d")
+        self.assertEqual(key, f"engine/ledger-{day}.sqlite")
+        objs = FakeR2.state["objects"]
+        self.assertIn(archive.LATEST, objs)
+        self.assertEqual(objs[key]["body"], objs[archive.LATEST]["body"])
+        self.assertEqual(objs[key]["meta"]["sha256"], hashlib.sha256(objs[key]["body"]).hexdigest())
+        self.assertEqual(objs[key]["type"], "application/vnd.sqlite3")
+        ev = c.execute("SELECT detail FROM event WHERE what='snapshot' ORDER BY id DESC LIMIT 1").fetchone()
+        self.assertEqual(json.loads(ev["detail"])["bytes"], len(objs[key]["body"]))
+        # the copy is a working ledger with everything in it
+        back = self.data / "restored.sqlite"
+        archive.restore(back, client)
+        r = ledger.connect(back)
+        self.assertEqual(r.execute("SELECT COUNT(*) FROM post").fetchone()[0], c.execute("SELECT COUNT(*) FROM post").fetchone()[0])
+        r.close()
+        with self.assertRaises(archive.ArchiveError):
+            archive.restore(back, client)
+        archive.restore(back, client, force=True)
+        with self.assertRaises(archive.ArchiveError):
+            archive.restore(self.data / "x.sqlite", client, key="engine/ledger-1999-01-01.sqlite")
+        # the worker's nightly: not on the first look, once after the hour, not again that day
+        web.STATE["snapshot_day"] = None
+        ledger.CONFIG["snapshot_at"] = "00:00"
+        self.assertFalse(web.snapshot_due(), "the first look only sets the day")
+        web.STATE["snapshot_day"] = dt.date(2000, 1, 1)
+        self.assertTrue(web.snapshot_due())
+        web.STATE["snapshot_day"] = dt.datetime.now(ledger.ZONE).date()
+        self.assertFalse(web.snapshot_due())
+        ledger.CONFIG["snapshot_at"] = "23:59"
+        web.STATE["snapshot_day"] = None
+        web.snapshot_due()
+        self.assertEqual(web.STATE["snapshot_day"], dt.datetime.now(ledger.ZONE).date() - dt.timedelta(days=1), "before the hour: yesterday counts as done")
 
 
 if __name__ == "__main__":

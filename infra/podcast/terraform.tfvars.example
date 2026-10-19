@@ -1,0 +1,5 @@
+# Copy to terraform.tfvars and COMMIT it: it holds identifiers, never
+# secrets (see ../.gitignore for why tfvars is committed). The one value so
+# far is the Zero Trust team name, chosen once in the dashboard
+# (engine/home/README.md).
+zero_trust_team = "agentsee"

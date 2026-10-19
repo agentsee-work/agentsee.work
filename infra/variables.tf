@@ -222,3 +222,16 @@ variable "bluesky_did" {
   EOT
   type        = string
 }
+
+# ─── The engine's door (dns.tf) ──────────────────────────────────────────────
+variable "engine_subdomain" {
+  description = "Hostname of the podcast engine, under the apex. podcast/variables.tf must agree."
+  type        = string
+  default     = "engine"
+}
+
+variable "engine_tunnel_id" {
+  description = "The engine's Cloudflare Tunnel id, from the apply's outputs in podcast/ (or `op run --env-file=op.env -- tofu output engine_tunnel_id` there). An identifier (it is visible in DNS), so tfvars is the place. Null until the tunnel exists."
+  type        = string
+  default     = null
+}
