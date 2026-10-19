@@ -432,8 +432,8 @@ def act(c, p, action, form, who):
         m = re.search(r"(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|live/)|youtu\.be/)([\w-]{11})", url)
         if m:
             fields["remote_id"] = m.group(1)  # a video recorded by hand keeps its id, for the collector
-            when = dt.datetime.fromisoformat(p["scheduled_at"]) if p["scheduled_at"] else None
-            if when and when > dt.datetime.now(dt.timezone.utc):
+            its_time = dt.datetime.fromisoformat(p["scheduled_at"]) if p["scheduled_at"] else None
+            if its_time and its_time > dt.datetime.now(dt.timezone.utc):
                 fields.update(status="scheduled", published_at=p["scheduled_at"])  # YouTube holds it until then
         ledger.update_post(c, pid, permalink=url, last_error=None, **fields)
         ledger.event(c, "hand:done", who, post=pid, episode=p["episode"], detail=url)
