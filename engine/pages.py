@@ -19,7 +19,7 @@ _spec = importlib.util.spec_from_file_location("agentsee_site", ROOT / "tools" /
 _site = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_site)
 
-NAV = [("/episodes", "Episodes"), ("/posts", "Posts"), ("/due", "By hand"), ("/health", "Health")]
+NAV = [("/episodes", "Episodes"), ("/posts", "Posts"), ("/due", "By hand"), ("/reach", "Reach"), ("/audience", "Audience"), ("/health", "Health")]
 
 
 def esc(s):

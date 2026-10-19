@@ -27,6 +27,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import archive
+import collect
 import ledger
 import publish
 from pages import button, composer, esc, link, page, section, status, table, when
@@ -252,10 +253,92 @@ def due_page(c):
     return "By hand", body
 
 
+def num(v, pct=False):
+    if v is None:
+        return '<span class="muted">—</span>'
+    if pct:
+        return f"{v:.1f}%"
+    return f"{int(round(v)):,}" if abs(v - round(v)) < 1e-9 else f"{v:,.1f}"
+
+
+def delta(m):
+    """A metric's newest value, and beside it how much of it arrived in the last week."""
+    if not m or m.get("now") is None:
+        return num(None)
+    s = num(m["now"])
+    if m.get("week") is not None and m["now"] - m["week"] > 0:
+        s += f' <span class="muted">+{num(m["now"] - m["week"])}</span>'
+    return s
+
+
+def app_name(ua_class):
+    kind, _, name = (ua_class or "unknown").partition(":")
+    return name or {"unknown": "Not named", "bot": "Bots", "library": "Libraries", "browser": "Browsers", "app": "Apps"}.get(kind, kind)
+
+
+def reach_page(c):
+    eps = c.execute("SELECT * FROM episode ORDER BY release_at, slug").fetchall()
+    all_l, week_l = collect.listens(c), collect.listens(c, 7)
+    newest, clicks = collect.latest(c), collect.clicks(c)
+    posts = c.execute("SELECT * FROM post WHERE status IN ('scheduled', 'published') ORDER BY episode, scheduled_at, id").fetchall()
+    rows = []
+    for e in eps:
+        mine = [p for p in posts if p["episode"] == e["slug"]]
+        views = sum((newest.get(p["id"], {}).get("views", {}).get("now") or 0) for p in mine if p["account"] == "youtube")
+        links = [r["link_id"] for r in c.execute("SELECT link_id FROM post WHERE episode=?", (e["slug"],))]
+        rows.append([link(f"/episodes/{e['slug']}", e["title"]), num(sum(all_l.get(e["slug"], {}).values())),
+                     num(sum(week_l.get(e["slug"], {}).values())), num(views), num(sum(clicks.get(k, 0) for k in links))])
+    body = ('<article class="lead"><h1>Reach</h1><p class="deck">What each episode and each post did, as last read. '
+            'Listens are the media host\'s own count: one listener, one file, one day, at least a minute of it, no bots. '
+            'The rest is what each platform says, read once a day; YouTube\'s watch figures run two or three days behind.</p></article>')
+    body += section("Episodes", "Listens, views, clicks",
+                    table(["Episode", "Listens", "Last 7 days", "YouTube views", "Link clicks"], rows) if rows else "<p>No episodes yet.</p>")
+    prow = []
+    for p in posts:
+        m = newest.get(p["id"], {})
+        prow.append([link(f"/posts/{p['id']}", p["title"] or asset_label(p)), esc(p["platform"]), asset_label(p),
+                     delta(m.get("views") or m.get("impressions")), delta(m.get("likes")), delta(m.get("reposts") or m.get("shares")),
+                     delta(m.get("replies") or m.get("comments")), num(clicks.get(p["link_id"])) if p["link_id"] else num(None)])
+    body += section("Posts", "Each one, as last read; the small figure is the last week's share",
+                    table(["Post", "Platform", "Asset", "Views", "Likes", "Reposts", "Replies", "Clicks"], prow) if prow else "<p>Nothing published yet.</p>")
+    yt = [p for p in posts if p["account"] == "youtube" and newest.get(p["id"], {}).get("watch_minutes")]
+    if yt:
+        def g(p, k):
+            return newest[p["id"]].get(k, {}).get("now")
+        body += section("YouTube", "Watch time, from the Analytics API",
+                        table(["Video", "Watch minutes", "Average view", "Average %", "Shares", "Subscribers gained"],
+                              [[link(f"/posts/{p['id']}", p["title"] or asset_label(p)), num(g(p, "watch_minutes")),
+                                (num(g(p, "avg_view_seconds")) + " s") if g(p, "avg_view_seconds") is not None else num(None),
+                                num(g(p, "avg_view_pct"), pct=True), num(g(p, "shares")), num(g(p, "subscribers_gained"))] for p in yt]))
+    return "Reach", body
+
+
+def audience_page(c):
+    days = 30
+    apps, countries, origins = collect.by_app(c, days), collect.by_country(c, days), collect.clicks_from(c, days)
+    daily = collect.listens(c, days)
+    body = ('<article class="lead"><h1>Audience</h1><p class="deck">Who listens and from where, over the last thirty days, '
+            'from the media host\'s log alone: the app named in the user agent, the country Cloudflare saw, and where the '
+            'short-link clicks came from. No one is identified; the address is hashed under a key that changes daily.</p></article>')
+    body += section("Apps", "Listens by app",
+                    table(["App", "Listens"], [[esc(app_name(a)), num(n)] for a, n in apps]) if apps else "<p>No listens yet.</p>")
+    body += section("Countries", "Listens by country",
+                    table(["Country", "Listens"], [[esc(k or "unknown"), num(n)] for k, n in countries]) if countries else "<p>No listens yet.</p>")
+    body += section("Clicks", "Short-link clicks, by where they came from",
+                    table(["From", "Clicks"], [[esc(o), num(n)] for o, n in origins]) if origins else "<p>No clicks yet.</p>")
+    seen = sorted({d for e in daily.values() for d in e})
+    if seen:
+        eps = sorted(daily)
+        body += section("Days", "Listens by day and episode",
+                        table(["Day"] + [esc(e) for e in eps], [[esc(d)] + [num(daily[e].get(d, 0)) for e in eps] for d in seen]))
+    return "Audience", body
+
+
 def health_page(c):
     counts = c.execute("SELECT status, COUNT(*) n FROM post GROUP BY status ORDER BY status").fetchall()
     last = c.execute("SELECT at, detail FROM event WHERE what='publisher:run' ORDER BY at DESC LIMIT 1").fetchone()
     snap = c.execute("SELECT at, what, detail FROM event WHERE what IN ('snapshot', 'snapshot:failed') ORDER BY at DESC LIMIT 1").fetchone()
+    coll = c.execute("SELECT at, detail FROM event WHERE what='collect:run' ORDER BY at DESC LIMIT 1").fetchone()
     creds = []
     for name, a in ACCOUNTS.items():
         mod = publish.adapter(name)
@@ -267,6 +350,8 @@ def health_page(c):
              ("Last snapshot", (f"{esc(when(snap['at']))} " + (f'<span class="error">failed: {esc(snap["detail"])}</span>'
                                                                if snap["what"].endswith("failed") else f'<span class="mono">{esc(snap["detail"])}</span>'))
               if snap else f"never (nightly at {esc(ledger.CONFIG.get('snapshot_at', 'no hour set'))} London, by the worker)"),
+             ("Last collection", f"{esc(when(coll['at']))} <span class=\"mono\">{esc(coll['detail'])}</span>" if coll
+              else f"never (daily at {esc(ledger.CONFIG.get('collect_at', 'no hour set'))} London, by the worker)"),
              ("Episodes", str(c.execute("SELECT COUNT(*) FROM episode").fetchone()[0]))]
     body = '<article class="lead"><h1>Health</h1></article><dl class="facts">' + "".join(f"<dt>{esc(k)}</dt><dd>{v}</dd>" for k, v in facts) + "</dl>"
     body += section("Posts", "By status", table(["Status", "Count"], [[status(r["status"]), str(r["n"])] for r in counts]))
@@ -348,6 +433,10 @@ class App(BaseHTTPRequestHandler):
                 return self.html(*r) if r else self.fail(404, "No such post")
             if path == "/due":
                 return self.html(*due_page(c))
+            if path == "/reach":
+                return self.html(*reach_page(c))
+            if path == "/audience":
+                return self.html(*audience_page(c))
             if path == "/health":
                 return self.html(*health_page(c))
             return self.fail(404, "No such page")
@@ -455,19 +544,24 @@ def recover(c, who="engine"):
     return n
 
 
-def snapshot_due():
-    """Once a day, after the configured hour (London), and not before the
-    process has seen that hour pass: a restart at 04:00 does not snapshot."""
-    at = ledger.CONFIG.get("snapshot_at")
+def daily_due(what):
+    """Once a day, after the configured hour (`<what>_at`, London), and not
+    before the process has seen that hour pass: a restart at 04:00 does not
+    run the 03:50 job again."""
+    at = ledger.CONFIG.get(f"{what}_at")
     if not at:
         return False
     now = dt.datetime.now(ledger.ZONE)
     hh, mm = (int(x) for x in at.split(":"))
     due = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-    if STATE["snapshot_day"] is None:
-        STATE["snapshot_day"] = now.date() if now >= due else now.date() - dt.timedelta(days=1)
-        return False
-    return now >= due and STATE["snapshot_day"] < now.date()
+    key = f"{what}_day"
+    if STATE.get(key) is None:
+        STATE[key] = now.date() if now >= due else now.date() - dt.timedelta(days=1)
+    return now >= due and STATE[key] < now.date()
+
+
+def snapshot_due():
+    return daily_due("snapshot")
 
 
 def worker(stop, interval=60):
@@ -488,6 +582,9 @@ def worker(stop, interval=60):
                         print(f"worker: snapshot failed: {e}", flush=True)
                         ledger.event(c, "snapshot:failed", "worker", detail=str(e)[:500])
                     STATE["snapshot_day"] = dt.datetime.now(ledger.ZONE).date()
+                if daily_due("collect"):
+                    collect.run(c, who="worker", log=lambda s: print(s, flush=True))
+                    STATE["collect_day"] = dt.datetime.now(ledger.ZONE).date()
             finally:
                 c.close()
         except Exception as e:  # noqa: BLE001 — the worker must outlive a bad minute
