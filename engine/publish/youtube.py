@@ -29,7 +29,7 @@ import urllib.parse
 import urllib.request
 
 import ledger
-from publish import PublishError
+from publish import Hold, PublishError
 
 SCHEDULES = True
 NEEDS = "YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN"
@@ -40,6 +40,7 @@ CHUNK = 8 * 1024 * 1024  # a multiple of 256 KiB, as the protocol wants
 GRACE = dt.timedelta(minutes=15)  # closer than this to its time, a post goes public at once
 RETRY = (500, 502, 503, 504)
 PLAYLIST_WAIT = (2, 5)  # seconds before the second and third try at a playlist item
+HOLD = dt.timedelta(hours=2)  # how long the account rests after "exceeded the number of videos they may upload"
 
 _token = {"value": None, "until": 0.0}
 
@@ -78,6 +79,13 @@ def request(method, url, tok, body=None, headers=None, timeout=120):
             return e.code, e.headers, e.read()
 
 
+def reason(body):
+    try:
+        return (json.loads(body)["error"].get("errors") or [{}])[0].get("reason")
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
 def said(status, body):
     try:
         err = json.loads(body)["error"]
@@ -95,6 +103,9 @@ def upload(path, meta, env, log, content_type, notify):
         "Content-Type": "application/json; charset=UTF-8",
         "X-Upload-Content-Type": content_type, "X-Upload-Content-Length": str(size)})
     if st != 200:
+        if reason(body) in ("uploadLimitExceeded", "quotaExceeded"):
+            # The channel's uploads for the day, or the API quota: not now, not no.
+            raise Hold("YouTube's daily limit: " + said(st, body), dt.datetime.now(dt.timezone.utc) + HOLD)
         raise PublishError("could not open an upload session: " + said(st, body))
     session = h["Location"]
     sent, backoff, shown = 0, 2, -1

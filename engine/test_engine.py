@@ -114,7 +114,10 @@ class StubYouTube(Stub):
         assert self.headers.get("Authorization") == "Bearer AT", self.headers.get("Authorization")
         if u.path == "/upload/videos":
             if s["fail_session"]:
-                return self.out(403, {"error": {"message": "The user has exceeded the number of videos they may upload.",
+                s["refused"] = s.get("refused", 0) + 1
+                if s["fail_session"] == "broken":
+                    return self.out(403, {"error": {"message": "forbidden", "errors": [{"reason": "forbidden"}]}})
+                return self.out(400, {"error": {"message": "The user has exceeded the number of videos they may upload.",
                                                 "errors": [{"reason": "uploadLimitExceeded"}]}})
             meta = json.loads(self.body())
             size = int(self.headers["X-Upload-Content-Length"])
@@ -493,17 +496,38 @@ class EngineTest(unittest.TestCase):
         meta = StubYouTube.state["metas"][-1]
         self.assertEqual(meta["status"]["privacyStatus"], "public")
         self.assertNotIn("publishAt", meta["status"])
-        StubYouTube.state["fail_session"] = True
+        StubYouTube.state["fail_session"] = "broken"
         ledger.update_post(c, p["id"], status="planned")
         res = publish.run(c, [ledger.post(c, p["id"])], env=self.env, log=lambda s: None)
         self.assertEqual(res[0][1], "failed")
         p2 = ledger.post(c, p["id"])
         self.assertEqual(p2["status"], "failed")
-        self.assertIn("uploadLimitExceeded", p2["last_error"])
+        self.assertIn("forbidden", p2["last_error"])
         StubYouTube.state["fail_session"] = False
         self.assertEqual(web.act(c, p2, "retry", {}, "tester"), "Back in the queue")
         self.assertEqual(ledger.post(c, p["id"])["status"], "due")
         self.assertIn(p["id"], [q["id"] for q in publish.due(c, "2026-01-01T00:00:00+00:00")])
+        # The daily upload cap is a hold, not a failure: the post keeps its state, the account rests, the worker comes back
+        s = StubYouTube.state
+        s["fail_session"], s["refused"] = True, 0
+        clip = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='youtube' AND asset!='episode'").fetchone()
+        ledger.update_post(c, clip["id"], status="planned")
+        res = publish.run(c, [ledger.post(c, p["id"]), ledger.post(c, clip["id"])], env=self.env, log=lambda s: None)
+        self.assertEqual([r[1] for r in res], ["held", "held"], "the first refusal rests the rest of the account")
+        self.assertEqual(s["refused"], 1, "the second post was not even tried")
+        self.assertEqual(ledger.post(c, p["id"])["status"], "due", "a held post keeps its state")
+        self.assertEqual(ledger.post(c, clip["id"])["status"], "planned")
+        self.assertIn("uploadLimitExceeded", ledger.post(c, p["id"])["last_error"])
+        self.assertIn("youtube", publish.HELD)
+        ids = [q["id"] for q in publish.due(c)]
+        self.assertNotIn(p["id"], ids)
+        self.assertNotIn(clip["id"], ids)
+        later = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)).isoformat()
+        self.assertIn(p["id"], [q["id"] for q in publish.due(c, later)], "after the hold the account is due again")
+        self.assertEqual(publish.HELD, {}, "an expired hold is forgotten")
+        self.assertIn("publish:held", [ev["what"] for ev in c.execute("SELECT what FROM event WHERE post=?", (p["id"],))])
+        s["fail_session"] = False
+        ledger.update_post(c, clip["id"], status=clip["status"])
         # The playlist refusing for good: the video is up, so the post is published with a note, never failed
         StubYouTube.state["playlist_down"] = True
         ledger.update_post(c, p["id"], status="planned", remote_id=None, permalink=None)

@@ -262,6 +262,7 @@ def health_page(c):
         creds.append([esc(name), esc(a["adapter"]), "ready" if mod.ready(os.environ) else f'<span class="error">missing: {esc(mod.NEEDS)}</span>'])
     facts = [("Ledger", f'<span class="mono">{esc(STATE["ledger"] or ledger.data_dir() / "ledger.sqlite")}</span>'),
              ("Worker last ran", when(STATE["last_run"]) or "not in this process"),
+             ("Resting", "; ".join(f"{esc(a)} until {esc(when(u.isoformat()))}: {esc(why)}" for a, (u, why) in publish.HELD.items()) or "no account"),
              ("Last recorded run", f"{esc(when(last['at']))} <span class=\"mono\">{esc(last['detail'])}</span>" if last else "never"),
              ("Last snapshot", (f"{esc(when(snap['at']))} " + (f'<span class="error">failed: {esc(snap["detail"])}</span>'
                                                                if snap["what"].endswith("failed") else f'<span class="mono">{esc(snap["detail"])}</span>'))

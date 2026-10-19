@@ -78,7 +78,11 @@ exists, private, with `publishAt`), or past its time. One adapter per
 platform, in `publish/`; the docstring of `publish/__init__.py` is the
 contract. The YouTube adapter is real: resumable upload in 8 MiB chunks with
 resume on a dropped connection, captions, thumbnail (refused rather than
-failed while the channel is unverified), the show's playlist. The X adapter
+failed while the channel is unverified), the show's playlist; once the
+video is up, nothing after it can fail the post, only leave a note, since
+losing the id would mean uploading again. YouTube's daily upload limit is a
+hold, not a failure: the post keeps its state, the account rests two hours
+and the worker tries again by itself (Health shows what is resting). The X adapter
 is real: the art or the clip through X's chunked upload (segments under
 5 MB, a poll until the video is processed), then the post, at the post's
 hour, since X does not schedule. Everything else is `hand` for now: the
