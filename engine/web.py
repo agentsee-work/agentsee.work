@@ -427,13 +427,30 @@ def act(c, p, action, form, who):
         url = form.get("permalink", "").strip()
         if not re.match(r"^https?://\S+$", url):
             raise ValueError("A permalink is a URL")
-        ledger.update_post(c, pid, status="published", permalink=url, published_at=ledger.now(), last_error=None)
+        fields = {}
+        m = re.search(r"(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|live/)|youtu\.be/)([\w-]{11})", url)
+        if m:
+            fields["remote_id"] = m.group(1)  # a video recorded by hand keeps its id, for the collector
+        ledger.update_post(c, pid, status="published", permalink=url, published_at=ledger.now(), last_error=None, **fields)
         ledger.event(c, "hand:done", who, post=pid, episode=p["episode"], detail=url)
         return "Published, by hand"
     raise ValueError("No such action")
 
 
 # ─── the worker ──────────────────────────────────────────────────────────────
+def recover(c, who="engine"):
+    """A post left in 'publishing' by a process that stopped mid-attempt:
+    marked failed so a person sees it, with the warning that the platform may
+    hold the result (an upload that finished a moment before the stop)."""
+    n = 0
+    for p in c.execute("SELECT * FROM post WHERE status='publishing'").fetchall():
+        err = "the engine stopped during the attempt; look for the result on the platform before a retry"
+        ledger.update_post(c, p["id"], status="failed", last_error=err)
+        ledger.event(c, "publish:interrupted", who, post=p["id"], episode=p["episode"], detail=err)
+        n += 1
+    return n
+
+
 def snapshot_due():
     """Once a day, after the configured hour (London), and not before the
     process has seen that hour pass: a restart at 04:00 does not snapshot."""
@@ -478,7 +495,13 @@ def worker(stop, interval=60):
 def serve(port=8877, with_worker=True, ledger_path=None, host="127.0.0.1"):
     STATE["ledger"] = str(ledger_path) if ledger_path else None
     STATE["lifted"] = None  # lifted fresh per page; the front page may change under us
-    ledger.connect(STATE["ledger"]).close()
+    c = ledger.connect(STATE["ledger"])
+    try:
+        n = recover(c)
+        if n:
+            print(f"{n} post(s) were mid-attempt when the last process stopped; marked failed, for a look", flush=True)
+    finally:
+        c.close()
     stop = threading.Event()
     if with_worker:
         threading.Thread(target=worker, args=(stop,), daemon=True, name="publisher").start()

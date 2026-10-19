@@ -39,6 +39,7 @@ UPLOAD = "https://www.googleapis.com/upload/youtube/v3"
 CHUNK = 8 * 1024 * 1024  # a multiple of 256 KiB, as the protocol wants
 GRACE = dt.timedelta(minutes=15)  # closer than this to its time, a post goes public at once
 RETRY = (500, 502, 503, 504)
+PLAYLIST_WAIT = (2, 5)  # seconds before the second and third try at a playlist item
 
 _token = {"value": None, "until": 0.0}
 
@@ -178,11 +179,18 @@ def playlist_id(title, env):
 
 
 def add_to_playlist(pid, video_id, env):
-    st, h, b = request("POST", f"{API}/playlistItems?part=snippet", token(env), json.dumps({
-        "snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).encode(),
-        {"Content-Type": "application/json"})
-    if st not in (200, 201):
-        raise PublishError("could not add to the playlist: " + said(st, b))
+    """Three tries. playlistItems.insert aborts the odd call with a 409
+    (SERVICE_UNAVAILABLE) that the next call does not repeat."""
+    for wait in PLAYLIST_WAIT + (None,):
+        st, h, b = request("POST", f"{API}/playlistItems?part=snippet", token(env), json.dumps({
+            "snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).encode(),
+            {"Content-Type": "application/json"})
+        if st in (200, 201):
+            return
+        if wait is None or st not in (409,) + RETRY:
+            break
+        time.sleep(wait)
+    raise PublishError("could not add to the playlist: " + said(st, b))
 
 
 def tags_within(tags, limit=500):
@@ -229,29 +237,38 @@ def publish(post, episode, release, files, env, account, log):
     log(f"  uploading {post['media']} ({path.stat().st_size:,} bytes)")
     video = upload(path, {"snippet": snippet, "status": status}, env, log, ctype, cfg["notify_subscribers"][kind])
     vid = video["id"]
+    log(f"  uploaded: {vid}")
     notes = []
-    if kind == "episode":
-        cap = files / "captions.srt"
-        thumb = files / "thumbnail.png"
-    else:
-        clip = next((x for x in release["clips"] if x["file"] == post["media"]), {})
-        cap = files / clip["captions"] if clip.get("captions") else None
-        thumb = files / clip["poster"] if clip.get("poster") else None
-    if cap and cap.exists():
-        try:
-            captions(vid, cap, env, cfg["language"], "English")
-            notes.append("captions")
-        except PublishError as e:
-            notes.append(str(e))
-    if thumb and thumb.exists():
-        try:
-            notes.append(thumbnail(vid, thumb, env))
-        except PublishError as e:
-            notes.append(str(e))
-    if kind == "episode":
-        pid, made = playlist_id(cfg["playlist"], env)
-        add_to_playlist(pid, vid, env)
-        notes.append("playlist" + (" (created)" if made else ""))
+    # From here the video exists. Nothing below may fail the post: a failure
+    # would lose the id, and the retry would upload the file a second time.
+    try:
+        if kind == "episode":
+            cap = files / "captions.srt"
+            thumb = files / "thumbnail.png"
+        else:
+            clip = next((x for x in release["clips"] if x["file"] == post["media"]), {})
+            cap = files / clip["captions"] if clip.get("captions") else None
+            thumb = files / clip["poster"] if clip.get("poster") else None
+        if cap and cap.exists():
+            try:
+                captions(vid, cap, env, cfg["language"], "English")
+                notes.append("captions")
+            except PublishError as e:
+                notes.append(str(e))
+        if thumb and thumb.exists():
+            try:
+                notes.append(thumbnail(vid, thumb, env))
+            except PublishError as e:
+                notes.append(str(e))
+        if kind == "episode":
+            try:
+                pid, made = playlist_id(cfg["playlist"], env)
+                add_to_playlist(pid, vid, env)
+                notes.append("playlist" + (" (created)" if made else ""))
+            except PublishError as e:
+                notes.append(f"{e}; add it to the playlist by hand")
+    except Exception as e:  # noqa: BLE001 — a note, for the reason above
+        notes.append(f"after the upload, {type(e).__name__}: {e}"[:300])
     permalink = f"https://www.youtube.com/watch?v={vid}" if kind == "episode" else f"https://www.youtube.com/shorts/{vid}"
     return {
         "status": "scheduled" if "publishAt" in status else "published",

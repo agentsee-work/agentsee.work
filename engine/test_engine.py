@@ -102,7 +102,8 @@ class Stub(http.server.BaseHTTPRequestHandler):
 class StubYouTube(Stub):
     """Google's token endpoint, the resumable upload, captions, thumbnails,
     playlists. One 503 on the second chunk of every upload, to see the resume."""
-    state = {"uploads": {}, "playlists": [], "items": [], "captions": [], "thumbs": [], "fail_session": False, "metas": []}
+    state = {"uploads": {}, "playlists": [], "items": [], "captions": [], "thumbs": [], "fail_session": False, "metas": [],
+             "aborted": set(), "playlist_down": False}
 
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
@@ -139,7 +140,12 @@ class StubYouTube(Stub):
             s["playlists"].append({"id": "PL1", "snippet": {"title": meta["snippet"]["title"]}})
             return self.out(200, {"id": "PL1"})
         if u.path == "/playlistItems":
-            s["items"].append(json.loads(self.body()))
+            item = json.loads(self.body())
+            vid = item["snippet"]["resourceId"]["videoId"]
+            if s["playlist_down"] or vid not in s["aborted"]:  # the 409 YouTube throws at the odd call, once per video
+                s["aborted"].add(vid)
+                return self.out(409, {"error": {"message": "The operation was aborted.", "errors": [{"reason": "SERVICE_UNAVAILABLE"}]}})
+            s["items"].append(item)
             return self.out(200, {"id": "PI1"})
         self.out(404, {"error": {"message": "no such path " + u.path}})
 
@@ -327,6 +333,7 @@ class EngineTest(unittest.TestCase):
         base = f"http://127.0.0.1:{cls.stub.server_address[1]}"
         youtube.TOKEN_URL, youtube.API, youtube.UPLOAD = base + "/token", base, base + "/upload"
         youtube.CHUNK = 256 * 1024
+        youtube.PLAYLIST_WAIT = (0, 0)
         cls.env = {"YOUTUBE_CLIENT_ID": "id", "YOUTUBE_CLIENT_SECRET": "s", "YOUTUBE_REFRESH_TOKEN": "r"}
         cls.xstub = http.server.HTTPServer(("127.0.0.1", 0), StubX)
         threading.Thread(target=cls.xstub.serve_forever, daemon=True).start()
@@ -469,6 +476,7 @@ class EngineTest(unittest.TestCase):
             self.assertTrue(up["failed_once"])
         self.assertEqual(len(s["captions"]), 2)
         self.assertEqual(s["items"][0]["snippet"]["resourceId"]["videoId"], ep["remote_id"])
+        self.assertIn(ep["remote_id"], s["aborted"], "the first playlist call was aborted with a 409; the retry went through")
         self.assertEqual(len(s["playlists"]), 1, "the playlist was created once")
         notes = {ev["post"]: json.loads(ev["detail"])["note"] for ev in c.execute("SELECT * FROM event WHERE what='publish:scheduled'")}
         self.assertIn("playlist (created)", notes[ep["id"]])
@@ -496,6 +504,33 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(web.act(c, p2, "retry", {}, "tester"), "Back in the queue")
         self.assertEqual(ledger.post(c, p["id"])["status"], "due")
         self.assertIn(p["id"], [q["id"] for q in publish.due(c, "2026-01-01T00:00:00+00:00")])
+        # The playlist refusing for good: the video is up, so the post is published with a note, never failed
+        StubYouTube.state["playlist_down"] = True
+        ledger.update_post(c, p["id"], status="planned", remote_id=None, permalink=None)
+        res = publish.run(c, [ledger.post(c, p["id"])], env=self.env, log=lambda s: None)
+        self.assertEqual(res[0][1], "published", "a step after the upload is a note, never the loss of the video")
+        p3 = ledger.post(c, p["id"])
+        self.assertTrue(p3["remote_id"].startswith("VIDep"))
+        note = json.loads(c.execute("SELECT detail FROM event WHERE post=? AND what='publish:published' ORDER BY id DESC",
+                                    (p["id"],)).fetchone()[0])["note"]
+        self.assertIn("could not add to the playlist: 409", note)
+        self.assertIn("by hand", note)
+        StubYouTube.state["playlist_down"] = False
+        ledger.update_post(c, p["id"], status="due")
+
+    def test_06b_interrupted_and_recorded_by_hand(self):
+        c = self.c()
+        p = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='youtube' AND asset!='episode'").fetchone()
+        ledger.update_post(c, p["id"], status="publishing")
+        self.assertEqual(web.recover(c, "tester"), 1)
+        p2 = ledger.post(c, p["id"])
+        self.assertEqual(p2["status"], "failed")
+        self.assertIn("look for the result on the platform", p2["last_error"])
+        self.assertEqual(web.recover(c, "tester"), 0)
+        self.assertEqual(web.act(c, p2, "done", {"permalink": "https://www.youtube.com/watch?v=abcDEF12-_5&t=9"}, "james"), "Published, by hand")
+        p3 = ledger.post(c, p["id"])
+        self.assertEqual((p3["status"], p3["remote_id"]), ("published", "abcDEF12-_5"), "the id comes out of the pasted link")
+        ledger.update_post(c, p["id"], status=p["status"], remote_id=p["remote_id"], permalink=p["permalink"])
 
     def test_07_hand(self):
         c = self.c()
