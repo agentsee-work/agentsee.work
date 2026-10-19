@@ -29,6 +29,41 @@
     <podcast:locked owner="hello@agentsee.work">yes</podcast:locked>
     <podcast:person role="host" href="https://www.linkedin.com/in/james-hartt-78519132/" img="https://agentsee.work/assets/james-hartt.jpg">James Hartt</podcast:person>
     <podcast:person role="host" href="https://www.linkedin.com/in/abrar-m-339b61386/" img="https://agentsee.work/assets/abrar-mahmood.jpg">Abrar Mahmood</podcast:person>
-
+    <item>
+      <title>Introductions and the premise</title>
+      <itunes:title>Introductions and the premise</itunes:title>
+      <link>https://agentsee.work/podcast/ep0/</link>
+      <guid isPermaLink="false">8c0fffe7-65bd-4fbd-b829-9d4f0f8855aa</guid>
+      <pubDate>Tue, 20 Oct 2026 06:00:00 +0100</pubDate>
+      <description><![CDATA[<p>James Hartt and Abrar Mahmood introduce themselves and the premise of AgentSee: a software agency for a world where working software can be prompted into existence. Agencies were organised around protecting developer time and billing for it; when that is no longer the expensive part, what does a client pay for? Their answer, for now, is the last stretch to production, which is as hard as it ever was.</p>
+<p>Chapters:</p><ul><li>00:00 Welcome, and who we are</li><li>02:32 The premise: what agencies were built to protect</li><li>04:43 What a client pays for now</li><li>05:49 Where the value is: the last five percent</li><li>07:34 Wrap up</li><li>07:59 Outro</li></ul>
+<p>Mentioned:</p><ul><li><a href="https://agentsee.work/#premise">Issue No. 1: the premise, and the ten questions</a></li></ul>
+<p>Of the questions on the site, this one touches:</p><ul><li>1. If writing the code is no longer the expensive part, what is the client actually buying?</li><li>7. What does taste mean when volume is free?</li></ul>
+<p>AgentSee is two people building a company in public, with agents doing the work.</p>
+<p><a href="https://agentsee.work">https://agentsee.work</a>  ·  hello@agentsee.work</p>
+<p>Subscribe: <a href="https://agentsee.work/podcast/feed.xml">https://agentsee.work/podcast/feed.xml</a></p>]]></description>
+      <content:encoded><![CDATA[<p>James Hartt and Abrar Mahmood introduce themselves and the premise of AgentSee: a software agency for a world where working software can be prompted into existence. Agencies were organised around protecting developer time and billing for it; when that is no longer the expensive part, what does a client pay for? Their answer, for now, is the last stretch to production, which is as hard as it ever was.</p>
+<p>Chapters:</p><ul><li>00:00 Welcome, and who we are</li><li>02:32 The premise: what agencies were built to protect</li><li>04:43 What a client pays for now</li><li>05:49 Where the value is: the last five percent</li><li>07:34 Wrap up</li><li>07:59 Outro</li></ul>
+<p>Mentioned:</p><ul><li><a href="https://agentsee.work/#premise">Issue No. 1: the premise, and the ten questions</a></li></ul>
+<p>Of the questions on the site, this one touches:</p><ul><li>1. If writing the code is no longer the expensive part, what is the client actually buying?</li><li>7. What does taste mean when volume is free?</li></ul>
+<p>AgentSee is two people building a company in public, with agents doing the work.</p>
+<p><a href="https://agentsee.work">https://agentsee.work</a>  ·  hello@agentsee.work</p>
+<p>Subscribe: <a href="https://agentsee.work/podcast/feed.xml">https://agentsee.work/podcast/feed.xml</a></p>]]></content:encoded>
+      <enclosure url="https://media.agentsee.work/podcast/ep0/episode.mp3" length="12054117" type="audio/mpeg"/>
+      <itunes:duration>497</itunes:duration>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:image href="https://media.agentsee.work/podcast/ep0/episode-art.jpg"/>
+      <podcast:transcript url="https://media.agentsee.work/podcast/ep0/transcript.vtt" type="text/vtt" language="en"/>
+      <podcast:transcript url="https://media.agentsee.work/podcast/ep0/transcript.json" type="application/json" language="en"/>
+      <podcast:chapters url="https://media.agentsee.work/podcast/ep0/chapters.json" type="application/json+chapters"/>
+      <podcast:person role="host" href="https://www.linkedin.com/in/james-hartt-78519132/" img="https://agentsee.work/assets/james-hartt.jpg">James Hartt</podcast:person>
+      <podcast:person role="host" href="https://www.linkedin.com/in/abrar-m-339b61386/" img="https://agentsee.work/assets/abrar-mahmood.jpg">Abrar Mahmood</podcast:person>
+      <podcast:soundbite startTime="181.927" duration="24.9">What every agency was built to protect</podcast:soundbite>
+      <podcast:soundbite startTime="231.937" duration="50.6">Billing for developer time</podcast:soundbite>
+      <podcast:soundbite startTime="287.789" duration="26.5">Do clients pay for that now?</podcast:soundbite>
+      <podcast:soundbite startTime="314.633" duration="32.0">What the show is</podcast:soundbite>
+      <podcast:soundbite startTime="401.333" duration="44.2">Zero to 95 percent is easy</podcast:soundbite>
+    </item>
   </channel>
 </rss>
