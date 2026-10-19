@@ -517,6 +517,11 @@ def show_page(due, later, parts, show, hosts):
     so_far = f"{count} so far" if eps else f"First episode {day_date(later[0][0]['episode']['release'])}"
     paras = "\n".join(f"      <p{' class=\"drop\"' if i == 0 else ''}>{esc(p)}</p>"
                       for i, p in enumerate(desc["long"].split("\n\n")))
+    # The directories that have accepted the show, as links, from show.json
+    # itself (not the release's copy): a directory is added when it answers,
+    # with no re-release.
+    listed = "".join(f'\n      <a href="{esc(u)}">{esc(n)}</a>'
+                     for n, u in load(SHOW).get("directories", {}).items())
     page = head(f"{show['name']} — {desc['line']}", desc["paragraph"], f"{show['site']}/podcast/",
                 f"{show['site']}{COVER}", (3000, 3000))
     page += parts["masthead"]
@@ -542,7 +547,7 @@ def show_page(due, later, parts, show, hosts):
     <p class="aside">Paste <code>{esc(show['feed_url'])}</code> into the app's "add by URL". Every episode page
       has a player, the chapters, the notes and the transcript. The video of each episode is on YouTube.</p>
     <p class="links listen">
-      <a href="/podcast/feed.xml">RSS feed</a>
+      <a href="/podcast/feed.xml">RSS feed</a>{listed}
       <a href="https://www.youtube.com/@agentseework">YouTube</a>
     </p>
   </section>
