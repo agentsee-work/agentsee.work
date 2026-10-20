@@ -384,7 +384,9 @@ both transcripts, the people, a soundbite per clip), `public/podcast/` (the
 show, how to listen, the directories that list it (`directories` in
 `tools/show.json`), the episodes) and `public/podcast/<slug>/` (the player,
 chapters that seek it, the links and questions from the notes, the moments
-that went out as clips, the people, the transcript folded). It takes an
+that went out as clips, the people, the transcript folded, the episode's own
+link on Apple Podcasts and Spotify once `tools/directories.py` has found it,
+the show's link there until then). It takes an
 episode only when `out/staged.json` matches the release, so nothing on the
 site points at a file that is not on the media host, and only once its
 release date has arrived (London time): until then the show page names it

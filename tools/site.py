@@ -393,7 +393,12 @@ def episode_page(r, s, d, parts, show):
     words = r["transcript"].get("words")
     segments = load(d / "out" / "transcript.json")["segments"]
     turns_html, n_turns = transcript_turns(segments)
-    youtube = (load(d / "episode.json").get("youtube") or {}).get("url")
+    own = load(d / "episode.json")
+    youtube = (own.get("youtube") or {}).get("url")
+    # The episode in each directory that lists the show (tools/directories.py
+    # finds its own link there); the show's link until then, one click away.
+    listed = [(name, (own.get("directories") or {}).get(name), show_url)
+              for name, show_url in load(SHOW).get("directories", {}).items()]
 
     chapters = "\n".join(
         f'      <li><a href="#t={int(c["start"])}" data-t="{int(c["start"])}">{clock(c["start"])}</a>'
@@ -415,11 +420,15 @@ def episode_page(r, s, d, parts, show):
     }
     if n > 0:
         ld["episodeNumber"] = n
+    if any(u for _, u, _ in listed):
+        ld["sameAs"] = [u for _, u, _ in listed if u]
     extra = ('<script type="application/ld+json">'
              + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>\n")
 
     listen = [f'<a href="{esc(mp3)}" download>Download the mp3</a>',
               '<a href="/podcast/feed.xml">RSS feed</a>']
+    for name, u, show_url in reversed(listed):
+        listen.insert(0, f'<a href="{esc(u or show_url)}">Listen on {esc(name)}</a>')
     if youtube:
         listen.insert(0, f'<a href="{esc(youtube)}">Watch on YouTube</a>')
     lines = {p["name"]: p.get("line") for p in load(SHOW)["people"].values() if p.get("line")}

@@ -131,6 +131,7 @@ The type decides the field names, and `infra/op.env` references fields by name:
 | YouTube podcast token | API Credential | `username` (the channel id it is for), `credential` (the refresh token) |
 | X podcast app | API Credential | `username` (the OAuth 2.0 Client ID), `credential` (its Client Secret) |
 | X podcast token | API Credential | `username` (the account id it is for), `credential` (the OAuth 2.0 refresh token, not the two-hour access token beside it; X replaces it on every refresh, and the publisher writes the new one back here) |
+| Spotify podcast app | API Credential | `username` (the Client ID of an app made at developer.spotify.com, under an account that holds Premium, which Spotify has required of app owners since March 2026), `credential` (its Client Secret). Read only by `tools/directories.py`, for each episode's own Spotify link; nothing of any user |
 | Engine people | API Credential | `credential`: the addresses Cloudflare Access lets into the engine, as an HCL list. Read by `infra/podcast/op.env` as a tofu variable, so the addresses stay out of this public repository |
 | Engine tunnel token | API Credential | `credential`: what the box's `cloudflared` runs with (`tofu output -raw engine_tunnel_token` in `infra/podcast`). Goes into `/etc/agentsee/tunnel.env` by hand; `engine/home/README.md` |
 | Infomaniak Public Cloud | **Login** | `username`, `password`, + custom `project` |
