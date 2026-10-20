@@ -588,7 +588,15 @@ footer {
    click promises. The script plays one at a time, in full, so a flurry of
    clicks is a sequence and never a flutter. Reduced motion never gets a
    class: the script checks. */
-.mark { cursor: pointer; }
+.mark {
+  cursor: pointer;
+  /* Taps in quick succession are clicks, not a double-tap zoom; no grey
+     flash on each tap; no selection callout on a long press. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
 .eye { transition: transform .5s ease; }
 .pupil { transform-box: fill-box; transform-origin: center; }
 .hat { transform-origin: 40px 96px; }
@@ -640,8 +648,9 @@ footer {
   100% { transform: scaleY(1); }
 }
 
-/* held rather than played once: after the eye roll, and the doze */
-.mark.unimpressed .eye { animation: none; transform: scaleY(.6); }
+/* held rather than played once: during and after the eye roll, and the doze */
+.mark.rolling .eye { animation: none; transform: scaleY(.7); }
+.mark.unimpressed .eye { animation: none; transform: scaleY(.5); }
 .mark.unimpressed .iris { transition: transform .9s ease; }
 /* The resting blink would snap the lids open the moment it resumes, since an
    animation's value is not transitioned to; so for half a second after the
