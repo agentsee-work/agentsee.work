@@ -579,6 +579,78 @@ footer {
   95.4%, 96.4%  { transform: scaleY(.045); }
 }
 
+/* ── moods ──
+   Each is a class on .mark that eye.js adds for one run of its animation and
+   takes off when the run is over, so the resting blink resumes. The eye
+   scales about its centre, the pupil about its own, and the hat tips about
+   the back of its brim. Two moods on the eye at once resolve by cascade, the
+   later rule winning, and every mood on the eye opens with the blink that a
+   click promises. The script plays one at a time, in full, so a flurry of
+   clicks is a sequence and never a flutter. Reduced motion never gets a
+   class: the script checks. */
+.mark { cursor: pointer; }
+.eye { transition: transform .5s ease; }
+.pupil { transform-box: fill-box; transform-origin: center; }
+.hat { transform-origin: 40px 96px; }
+
+/* a click; the pleased one below blinks too, its own parts aside */
+.mark.react-blink .eye, .mark.react-delight .eye { animation: blink-once .17s ease-in-out 1; }
+@keyframes blink-once {
+  0%, 100% { transform: scaleY(1); }
+  40%, 60% { transform: scaleY(.045); }
+}
+
+/* the first arrival of the pointer, and a second click: pleased */
+.mark.react-greet .hat, .mark.react-delight .hat { animation: hat-tip .7s ease-in-out 1; }
+@keyframes hat-tip {
+  0%, 100% { transform: none; }
+  40%      { transform: translateY(-8px) rotate(-7deg); }
+}
+.mark.react-delight .pupil { animation: dilate .9s ease-out 1; }
+@keyframes dilate {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.55); }
+  100% { transform: scale(1); }
+}
+
+/* a third click: surprise, a blink and then wide */
+.mark.react-surprise .eye { animation: wide .8s ease-out 1; }
+@keyframes wide {
+  0%       { transform: scaleY(1); }
+  8%       { transform: scaleY(.045); }
+  20%, 65% { transform: scaleY(1.15); }
+  100%     { transform: scaleY(1); }
+}
+
+/* a fourth and beyond: a blink and then a narrowing look */
+.mark.react-squint .eye { animation: narrow 1.1s ease-in-out 1; }
+@keyframes narrow {
+  0%       { transform: scaleY(1); }
+  6%       { transform: scaleY(.045); }
+  20%, 78% { transform: scaleY(.5); }
+  100%     { transform: scaleY(1); }
+}
+
+/* woken with a start */
+.mark.react-startle .eye { animation: startle .6s ease-out 1; }
+@keyframes startle {
+  0%   { transform: scaleY(1.2); }
+  30%  { transform: scaleY(.045); }
+  45%  { transform: scaleY(1.2); }
+  100% { transform: scaleY(1); }
+}
+
+/* held rather than played once: after the eye roll, and the doze */
+.mark.unimpressed .eye { animation: none; transform: scaleY(.6); }
+.mark.unimpressed .iris { transition: transform .9s ease; }
+/* The resting blink would snap the lids open the moment it resumes, since an
+   animation's value is not transitioned to; so for half a second after the
+   sulk the animation is held off and the transition does the opening. */
+.mark.recovering .eye { animation: none; }
+.mark.recovering .iris { transition: transform .5s ease; }
+.mark.drowsy .eye { animation: none; transform: scaleY(.3); transition-duration: 2.4s; }
+.mark.drowsy .iris { transition: transform 2.4s ease; }
+
 @media (prefers-reduced-motion: reduce) {
   .eye { animation: none; }
   .pulse { animation: none; }
