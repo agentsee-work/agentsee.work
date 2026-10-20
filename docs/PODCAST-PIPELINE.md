@@ -381,7 +381,8 @@ until it is written.
 `tools/site.py` puts every staged episode on the site: `public/podcast/feed.xml`
 (RSS 2.0 with the itunes and podcast namespaces: enclosure, guid, chapters,
 both transcripts, the people, a soundbite per clip), `public/podcast/` (the
-show, how to listen, the episodes) and `public/podcast/<slug>/` (the player,
+show, how to listen, the directories that list it (`directories` in
+`tools/show.json`), the episodes) and `public/podcast/<slug>/` (the player,
 chapters that seek it, the links and questions from the notes, the moments
 that went out as clips, the people, the transcript folded). It takes an
 episode only when `out/staged.json` matches the release, so nothing on the

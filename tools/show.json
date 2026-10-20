@@ -12,6 +12,9 @@
   "feed_url": "https://agentsee.work/podcast/feed.xml",
   "episode_url": "https://agentsee.work/podcast/{slug}/",
   "media_url": "https://media.agentsee.work/podcast/{slug}/",
+  "directories": {
+    "Spotify": "https://open.spotify.com/show/0YjxzDGgoCzjvEykcUAfPr"
+  },
   "language": "en-GB",
   "categories": [
     "Technology",
