@@ -21,7 +21,7 @@
       "clip"
     ],
     "at": "09:00",
-    "adapter": "hand",
+    "adapter": "x",
     "limit": 280
   },
   "bluesky": {
@@ -33,7 +33,7 @@
       "clip"
     ],
     "at": "09:00",
-    "adapter": "hand",
+    "adapter": "bluesky",
     "limit": 300
   },
   "mastodon": {
@@ -45,7 +45,7 @@
       "clip"
     ],
     "at": "09:00",
-    "adapter": "hand",
+    "adapter": "mastodon",
     "limit": 500
   },
   "threads": {

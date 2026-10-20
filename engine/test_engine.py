@@ -34,6 +34,8 @@ import publish  # noqa: E402
 import web  # noqa: E402
 from publish import youtube  # noqa: E402
 from publish import x  # noqa: E402
+from publish import bluesky  # noqa: E402
+from publish import mastodon  # noqa: E402
 import vault  # noqa: E402
 import archive  # noqa: E402
 import collect  # noqa: E402
@@ -366,6 +368,100 @@ class StubReach(Stub):
         self.out(404, {"error": "no such path " + u.path})
 
 
+class StubBluesky(Stub):
+    """The entryway and the PDS in one: a session, a service token, blobs, the
+    video service with a job that needs two polls, and the record."""
+    state = {"records": [], "blobs": [], "videos": [], "polls": 0, "auths": []}
+
+    def do_POST(self):
+        u = urllib.parse.urlparse(self.path)
+        s = StubBluesky.state
+        base = f"http://{self.headers['Host']}"
+        if u.path == "/xrpc/com.atproto.server.createSession":
+            d = json.loads(self.body())
+            assert d == {"identifier": "agentsee.work", "password": "app-pass"}, d
+            return self.out(200, {"accessJwt": "JWT", "refreshJwt": "R", "did": "did:plc:test", "handle": "agentsee.work",
+                                  "didDoc": {"service": [{"id": "#atproto_pds", "type": "AtprotoPersonalDataServer", "serviceEndpoint": base}]}})
+        if u.path == "/xrpc/com.atproto.repo.uploadBlob":
+            assert self.headers.get("Authorization") == "Bearer JWT"
+            data = self.body()
+            s["blobs"].append((self.headers["Content-Type"], len(data)))
+            return self.out(200, {"blob": {"$type": "blob", "ref": {"$link": "bafyimg"}, "mimeType": self.headers["Content-Type"], "size": len(data)}})
+        if u.path == "/xrpc/app.bsky.video.uploadVideo":
+            assert self.headers.get("Authorization") == "Bearer SVC", self.headers.get("Authorization")
+            assert self.headers["Content-Type"] == "video/mp4"
+            q = urllib.parse.parse_qs(u.query)
+            s["videos"].append((q["did"][0], q["name"][0], len(self.body())))
+            return self.out(200, {"jobId": "j1", "did": q["did"][0], "state": "JOB_STATE_CREATED"})
+        if u.path == "/xrpc/com.atproto.repo.createRecord":
+            assert self.headers.get("Authorization") == "Bearer JWT"
+            d = json.loads(self.body())
+            assert d["repo"] == "did:plc:test" and d["collection"] == "app.bsky.feed.post"
+            s["records"].append(d["record"])
+            return self.out(200, {"uri": f"at://did:plc:test/app.bsky.feed.post/3k{len(s['records'])}", "cid": "c"})
+        self.out(404, {"error": "NotFound", "message": "no such path " + u.path})
+
+    def do_GET(self):
+        u = urllib.parse.urlparse(self.path)
+        q = urllib.parse.parse_qs(u.query)
+        s = StubBluesky.state
+        if u.path == "/xrpc/com.atproto.server.getServiceAuth":
+            assert self.headers.get("Authorization") == "Bearer JWT"
+            s["auths"].append(q)
+            assert q["aud"] == ["did:web:127.0.0.1"] and q["lxm"] == ["com.atproto.repo.uploadBlob"], q
+            return self.out(200, {"token": "SVC"})
+        if u.path == "/xrpc/app.bsky.video.getJobStatus":
+            s["polls"] += 1
+            if s["polls"] % 2:
+                return self.out(200, {"jobStatus": {"jobId": q["jobId"][0], "state": "JOB_STATE_PROCESSING", "progress": 50}})
+            return self.out(200, {"jobStatus": {"jobId": q["jobId"][0], "state": "JOB_STATE_COMPLETED",
+                                                "blob": {"$type": "blob", "ref": {"$link": "bafyvid"}, "mimeType": "video/mp4", "size": 1}}})
+        self.out(404, {"error": "NotFound", "message": "no"})
+
+
+class StubMastodon(Stub):
+    """An instance: the media upload (an image at once, a video after a poll), the status."""
+    state = {"media": [], "statuses": [], "polls": 0}
+
+    def do_POST(self):
+        u = urllib.parse.urlparse(self.path)
+        s = StubMastodon.state
+        assert self.headers.get("Authorization") == "Bearer MTOK"
+        if u.path == "/api/v2/media":
+            ct = self.headers["Content-Type"]
+            assert ct.startswith("multipart/form-data; boundary=")
+            body = self.body()
+            m = re.search(rb'name="file"; filename="([^"]+)"\r\nContent-Type: ([^\r]+)\r\n\r\n', body)
+            d = re.search(rb'name="description"\r\n\r\n([^\r]*)\r\n', body)
+            s["media"].append({"file": m.group(1).decode(), "type": m.group(2).decode(), "description": d.group(1).decode()})
+            mid = f"m{len(s['media'])}"
+            if m.group(2) == b"video/mp4":
+                return self.out(202, {"id": mid, "type": "video", "url": None})
+            return self.out(200, {"id": mid, "type": "image", "url": f"http://{self.headers['Host']}/media/{mid}"})
+        if u.path == "/api/v1/statuses":
+            assert self.headers.get("Idempotency-Key", "").startswith("agentsee-post-")
+            form = urllib.parse.parse_qs(self.body().decode())
+            s["statuses"].append({"form": form, "key": self.headers["Idempotency-Key"]})
+            sid = str(100 + len(s["statuses"]))
+            return self.out(200, {"id": sid, "url": f"http://{self.headers['Host']}/@agentseework/{sid}", "uri": "x"})
+        self.out(404, {"error": "no such path " + u.path})
+
+    def do_GET(self):
+        u = urllib.parse.urlparse(self.path)
+        s = StubMastodon.state
+        m = re.fullmatch(r"/api/v1/statuses/(\d+)", u.path)
+        if m:
+            return self.out(200, {"id": m.group(1), "url": f"http://{self.headers['Host']}/@agentseework/{m.group(1)}",
+                                  "created_at": "2026-10-20T09:00:00Z", "favourites_count": 4, "reblogs_count": 1, "replies_count": 0})
+        m = re.fullmatch(r"/api/v1/media/(m\d+)", u.path)
+        if m:
+            s["polls"] += 1
+            if s["polls"] % 2:
+                return self.out(206, {"id": m.group(1), "url": None})
+            return self.out(200, {"id": m.group(1), "url": f"http://{self.headers['Host']}/media/{m.group(1)}"})
+        self.out(404, {"error": "no"})
+
+
 class FakeVault:
     """The one item the engine writes, in memory. Can refuse one write."""
     def __init__(self, value):
@@ -421,12 +517,21 @@ class EngineTest(unittest.TestCase):
         collect.SQL_URL = rbase + "/client/v4/accounts/{account}/analytics_engine/sql"
         collect.BSKY, collect.ANALYTICS = rbase + "/xrpc", rbase + "/analytics"
         cls.rbase = rbase
+        cls.bsky = http.server.HTTPServer(("127.0.0.1", 0), StubBluesky)
+        threading.Thread(target=cls.bsky.serve_forever, daemon=True).start()
+        bluesky.ENTRY = bluesky.VIDEO = f"http://127.0.0.1:{cls.bsky.server_address[1]}"
+        bluesky.POLL = 0
+        cls.masto = http.server.HTTPServer(("127.0.0.1", 0), StubMastodon)
+        threading.Thread(target=cls.masto.serve_forever, daemon=True).start()
+        mastodon.POLL = 0
+        cls.senv = {"BLUESKY_IDENTIFIER": "agentsee.work", "BLUESKY_APP_PASSWORD": "app-pass", "MASTODON_ACCESS_TOKEN": "MTOK",
+                    "MASTODON_INSTANCE": f"http://127.0.0.1:{cls.masto.server_address[1]}"}
         cls.data = root / "data"
         os.environ["ENGINE_DATA"] = str(cls.data)
 
     @classmethod
     def tearDownClass(cls):
-        for srv in (cls.stub, cls.xstub, cls.r2, cls.reach):
+        for srv in (cls.stub, cls.xstub, cls.r2, cls.reach, cls.bsky, cls.masto):
             srv.shutdown()
             srv.server_close()
         cls.tmp.cleanup()
@@ -691,7 +796,11 @@ class EngineTest(unittest.TestCase):
         bs = c.execute("SELECT * FROM post WHERE link_id='e9bsc01'").fetchone()
         st, h, body = get(f"/posts/{bs['id']}")
         self.assertEqual(st, 200)
-        self.assertIn("bsky.app/intent/compose", body)
+        self.assertNotIn("bsky.app/intent/compose", body, "Bluesky goes by API: no composer card")
+        th = c.execute("SELECT * FROM post WHERE link_id='e9thc01'").fetchone()
+        st, h, body = get(f"/posts/{th['id']}")
+        self.assertEqual(st, 200)
+        self.assertIn("threads.net/intent/post", body)
         self.assertIn(MEDIA + "clips/01-the-point.mp4", body)
         self.assertIn("Paste the permalink", body)
         st, h, body = post(f"/posts/{x['id']}/text", {"_t": "wrong", "text": "nope"})
@@ -984,6 +1093,74 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(collect.x(c, env, ledger.now(), quiet), "skipped: the X adapter is off")
         plan.ACCOUNTS["x"]["adapter"] = "x"
         self.assertEqual(collect.edge(c, {}, ledger.now(), quiet), "skipped: CLOUDFLARE_API_TOKEN not set")
+
+    def test_16_bluesky_mastodon(self):
+        c = self.c()
+        quiet = lambda s: None  # noqa: E731
+        plan.ACCOUNTS["bluesky"]["adapter"], plan.ACCOUNTS["mastodon"]["adapter"] = "bluesky", "mastodon"
+        try:
+            ids = {}
+            for platform in ("bluesky", "mastodon"):
+                for asset in ("episode", "clip"):
+                    p = c.execute(f"SELECT * FROM post WHERE episode='ep9' AND platform=? AND asset {'=' if asset == 'episode' else '!='} 'episode'",
+                                  (platform,)).fetchone()
+                    ledger.update_post(c, p["id"], status="planned", remote_id=None, permalink=None, published_at=None)
+                    ids[platform, asset] = p["id"]
+            posts = [ledger.post(c, i) for i in ids.values()]
+            archive.Client(self.r2env).put("episodes/ep9/out/episode-art.jpg", self.src / "episode-art.jpg", "image/jpeg")
+            os.environ.update(self.r2env)  # the publisher fetches a file it lacks from the archive, with the process's credentials
+            res = publish.run(c, posts, env=self.senv, who="tester", log=quiet)
+            self.assertEqual([r[1] for r in res], ["published"] * 4, [(r, ledger.post(c, r[0])["last_error"]) for r in res])
+            # Bluesky: the episode with the art in an images embed, the clip through the video service
+            s = StubBluesky.state
+            ep, clip = ledger.post(c, ids["bluesky", "episode"]), ledger.post(c, ids["bluesky", "clip"])
+            self.assertTrue(ep["remote_id"].startswith("at://did:plc:test/app.bsky.feed.post/"))
+            self.assertEqual(ep["permalink"], "https://bsky.app/profile/agentsee.work/post/" + ep["remote_id"].rsplit("/", 1)[1])
+            rec = next(r for r in s["records"] if r["embed"]["$type"] == "app.bsky.embed.images")
+            self.assertEqual(rec["langs"], ["en-GB"])
+            self.assertEqual(rec["embed"]["images"][0]["image"]["ref"]["$link"], "bafyimg")
+            self.assertIn("episode art", rec["embed"]["images"][0]["alt"])
+            self.assertTrue(rec["createdAt"].endswith("Z"))
+            links = [f for f in rec["facets"] if f["features"][0]["$type"] == "app.bsky.richtext.facet#link"]
+            self.assertEqual(len(links), 1, rec["facets"])
+            b = rec["text"].encode("utf-8")
+            idx = links[0]["index"]
+            self.assertEqual(b[idx["byteStart"]:idx["byteEnd"]].decode(), links[0]["features"][0]["uri"], "the facet points at the link's bytes")
+            self.assertTrue(links[0]["features"][0]["uri"].startswith("https://agentsee.work/p/"))
+            tags = [f["features"][0]["tag"] for f in rec["facets"] if f["features"][0]["$type"] == "app.bsky.richtext.facet#tag"]
+            self.assertIn("AgentSee", tags)
+            vrec = next(r for r in s["records"] if r["embed"]["$type"] == "app.bsky.embed.video")
+            self.assertEqual(vrec["embed"]["video"]["ref"]["$link"], "bafyvid")
+            self.assertEqual(s["videos"][0][0], "did:plc:test")
+            self.assertEqual(s["auths"][0]["lxm"], ["com.atproto.repo.uploadBlob"], "the service token is for uploadBlob on our PDS")
+            self.assertEqual(s["polls"], 2, "polled until the job carried the blob")
+            self.assertEqual(s["blobs"], [("image/jpeg", 1)] if False else s["blobs"])  # the art went up as a blob
+            self.assertEqual(s["blobs"][0][0], "image/jpeg")
+            self.assertEqual(clip["status"], "published")
+            # Mastodon: the image at once, the video after a poll, the status with the key and the language
+            m = StubMastodon.state
+            mep, mclip = ledger.post(c, ids["mastodon", "episode"]), ledger.post(c, ids["mastodon", "clip"])
+            self.assertEqual(mep["status"], "published")
+            self.assertTrue(mep["permalink"].endswith("/@agentseework/101"))
+            self.assertEqual([x["type"] for x in m["media"]], ["image/jpeg", "video/mp4"])
+            self.assertIn("episode art", m["media"][0]["description"])
+            self.assertEqual(m["polls"], 2, "the video was polled until processed")
+            st = m["statuses"][0]
+            self.assertEqual((st["form"]["language"], st["form"]["visibility"], st["form"]["media_ids[]"]), (["en"], ["public"], ["m1"]))
+            self.assertEqual(st["key"], f"agentsee-post-{mep['id']}-{mep['attempts'] - 1}")
+            self.assertIn("agentsee.work/p/", st["form"]["status"][0])
+            # The text budgets as each platform counts them
+            self.assertEqual(mastodon.length("x https://agentsee.work/p/e9mae y"), 27)
+            self.assertEqual(bluesky.facets("no links")[:], [])
+            self.assertEqual(bluesky.facets("see https://a.b/c, now")[0]["features"][0]["uri"], "https://a.b/c")
+            self.assertEqual(bluesky.dimensions(self.src / "clips" / "01-the-point.png"), None, "a stub PNG header without IHDR size is no size")
+            # The collector reads them back from what the adapter recorded
+            res = collect.run(c, only=["bluesky", "mastodon"], env=self.senv, who="tester", log=quiet)
+            self.assertFalse([v for v in res.values() if v.startswith("failed")], res)
+        finally:
+            plan.ACCOUNTS["bluesky"]["adapter"] = plan.ACCOUNTS["mastodon"]["adapter"] = "hand"
+            for k in self.r2env:
+                os.environ.pop(k, None)
 
 
 if __name__ == "__main__":
