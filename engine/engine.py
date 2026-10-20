@@ -68,6 +68,9 @@ def cmd_plan(a):
         made = plan.plan(c, slug, who())
         total = c.execute("SELECT COUNT(*) FROM post WHERE episode=?", (slug,)).fetchone()[0]
         print(f"{slug}: {len(made)} new posts ({total} in all)")
+        if a.prune:
+            gone = plan.prune(c, slug, who())
+            print(f"  {len(gone)} planned posts pruned: the plan no longer makes them")
         if not a.no_links:
             try:
                 print(f"  {plan.links(c, slug, who=who())} short links in KV")
@@ -141,6 +144,8 @@ def main():
     p = sub.add_parser("plan", help="the day plan into posts, with short links")
     p.add_argument("slug", nargs="+")
     p.add_argument("--no-links", action="store_true", help="do not push the short links to KV")
+    p.add_argument("--prune", action="store_true",
+                   help="skip planned posts the plan no longer makes (an account dropped, or an asset it no longer takes)")
     p.set_defaults(fn=cmd_plan)
     p = sub.add_parser("links", help="push every short link to KV (idempotent)")
     p.add_argument("slug", nargs="?")

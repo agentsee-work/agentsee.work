@@ -70,7 +70,10 @@ at the account's hour; and a short-link id minted, `e1xc02` for episode 1,
 X, clip 2. The short link stands in for the episode URL in every text, so
 the click is counted at the edge, and points at the episode page, at the
 clip's moment for a clip. A plan run never touches a post that exists, so an
-edit survives a re-plan.
+edit survives a re-plan. `plan --prune` is the one exception: a planned post
+the plan would no longer make, because its account was dropped from
+`accounts.json` or no longer takes that kind of asset, is marked skipped;
+anything a person or a platform has touched is left alone.
 
 Then the states, in `ledger.STATUSES`: `planned` until its day; `due` when
 a person says now; `publishing` while the worker has it; `scheduled` when
@@ -106,8 +109,11 @@ key from the post and its attempt so a lost reply cannot post twice; 500
 characters with every link counted as 23. Their credentials are two vault
 items (`engine.env`, `docs/CREDENTIALS.md`), resolved when the container
 starts: file them before the box pulls a version that references them, or
-`op run` refuses to start the engine. Everything else is `hand` for now:
-the card.
+`op run` refuses to start the engine. Everything else is `hand`: the card.
+For Threads and Instagram that is for now. For LinkedIn it is the decision
+(20 October 2026): one card per episode per person, the post written by the
+person, the card there for the short link and the record, and no adapter to
+come.
 
 X's refresh token is single use, so the vault item is the live copy: the
 adapter reads it with `op read` when it needs an access token and writes
@@ -204,6 +210,6 @@ other's X tokens.
 ## Not yet
 
 The Spend screen and the export drop zones for Spotify's CSV and LinkedIn's
-XLSX (AGE-69, items 4 and 5); the Threads, Instagram and LinkedIn
-adapters, each a module in `publish/` with the names the contract asks for;
+XLSX (AGE-69, items 4 and 5); the Threads and Instagram adapters, each a
+module in `publish/` with the names the contract asks for;
 Apple's Reporter (item 6).

@@ -4,7 +4,9 @@ a clip a day after); accounts.json says which accounts get a post for which
 asset and at what hour. Each pair becomes a post row with its text drafted,
 its media named, its due time set, and a short-link id minted: e1ytc02 is
 episode 1, YouTube, clip 2, and nothing else will ever be. Posts that exist
-are left alone, so a plan run after an edit changes nothing a person typed.
+are left alone, so a plan run after an edit changes nothing a person typed;
+`prune` is the one exception, for planned posts the plan would no longer
+make because an account was dropped or no longer takes that kind of asset.
 
 The short link is what goes in every text, in place of the episode URL, so
 the click is counted at the edge; the link itself points at the episode page
@@ -152,6 +154,24 @@ def plan(c, slug, who="engine"):
         ledger.event(c, "plan", who, episode=slug, detail={"posts": len(made)})
     c.execute("COMMIT")
     return made
+
+
+def prune(c, slug, who="engine"):
+    """Planned posts the plan would no longer make, marked skipped: the account
+    is gone from accounts.json, or no longer takes that kind of asset. Only
+    `planned`: anything a person or a platform has touched is left alone."""
+    gone = []
+    for p in c.execute("SELECT id, asset, account FROM post WHERE episode=? AND status='planned' ORDER BY id",
+                       (slug,)).fetchall():
+        a = ACCOUNTS.get(p["account"])
+        kind = "episode" if p["asset"] == "episode" else "clip"
+        if a and kind in a["assets"]:
+            continue
+        why = "the account is gone from accounts.json" if not a else f"{p['account']} no longer takes a {kind}"
+        ledger.update_post(c, p["id"], who, status="skipped")
+        ledger.event(c, "prune", who, post=p["id"], episode=slug, detail=f"the plan no longer makes this post: {why}")
+        gone.append(p["id"])
+    return gone
 
 
 # ─── the short links, into KV ────────────────────────────────────────────────
