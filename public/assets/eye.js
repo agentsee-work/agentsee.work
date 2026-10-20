@@ -5,6 +5,14 @@
    and blinks. It stops entirely when off-screen, when the tab is
    hidden, or when the visitor has asked for reduced motion.
 
+   It has moods. A click is a blink; clicks in quick succession
+   are, in order, pleased, surprised and a narrowing look, and the
+   eleventh inside ten seconds is an eye roll, after which it is
+   unimpressed for a while. It tips its hat the first time the
+   pointer arrives, glances away if stared at, nods off if left
+   alone for a minute and startles awake. Where the masthead is a
+   link, a click is a wink on the way home.
+
    The dateline and day counter compute themselves so nothing on
    the page can quietly go stale. Without JS they fall back to
    text that is true whenever it is read.
@@ -65,6 +73,9 @@
   var idleTimer = null;
   var wanderTimer = null;
   var queued = false;
+  var busy = false;   // mid-mood: the pointer is ignored until it is over
+  var drowsy = false; // nodded off: the next movement startles it awake
+  var last = null;    // where the pointer last was, to look back at after a mood
 
   function look(x, y) {
     iris.setAttribute('transform', 'translate(' + x.toFixed(2) + ' ' + y.toFixed(2) + ')');
@@ -92,8 +103,16 @@
     );
   }
 
+  function lookBack() {
+    if (last) { track(last.x, last.y); } else { centre(); }
+  }
+
   function onPointer(e) {
     if (still.matches || !visible) return;
+
+    last = { x: e.clientX, y: e.clientY };
+    stir();
+    if (busy) return;
 
     stopWandering();
 
@@ -113,7 +132,7 @@
   /* Look around when nothing is happening. Saccades, not drifting:
      a quick move, then a pause of a plausible length. */
   function startWandering() {
-    if (still.matches || !visible) return;
+    if (still.matches || !visible || busy || drowsy) return;
 
     look(
       (Math.random() * 2 - 1) * REACH_X * 0.85,
@@ -131,13 +150,172 @@
   function sleep() {
     stopWandering();
     clearTimeout(idleTimer);
+    clearTimeout(dozeTimer);
     mark.classList.add('dormant');
   }
 
   function wake() {
     mark.classList.remove('dormant');
-    if (!still.matches) idleTimer = setTimeout(startWandering, 1200);
+    if (!still.matches) {
+      idleTimer = setTimeout(startWandering, 1200);
+      rest();
+    }
   }
+
+  /* ── moods ───────────────────────────────────────────────── */
+
+  // A mood is a class on the mark for one run of its animation (styles.css,
+  // "moods"); the class comes off when the run is over and the resting
+  // blink resumes. The eye never interrupts itself: a mood asked for while
+  // one is playing waits its turn, and only the latest one asked for is
+  // kept, so a flurry of clicks is one unhurried sequence rather than a
+  // flutter. The hat tip is a sideshow and plays at once.
+  var until = 0;      // when the mood now playing ends
+  var next = null;    // the one waiting
+
+  function play(cls, ms) {
+    mark.classList.add(cls);
+    setTimeout(function () { mark.classList.remove(cls); }, ms);
+  }
+
+  function mood(cls, ms) {
+    var t = Date.now();
+    if (t < until) { next = [cls, ms]; return; }
+    until = t + ms;
+    play(cls, ms);
+    setTimeout(function () {
+      var n = next;
+      next = null;
+      if (n) mood(n[0], n[1]);
+    }, ms);
+  }
+
+  // A click is a blink. The clicks of the last ten seconds decide which
+  // blink: the second is pleased, the third surprised, the fourth onwards a
+  // narrowing look, and every one of them opens with the blink.
+  var MOODS = [['react-blink', 170], ['react-delight', 900], ['react-surprise', 800], ['react-squint', 1100]];
+  var clicks = [];
+  var home = mark.closest('a.home');
+
+  function onClick(e) {
+    if (still.matches) return;
+
+    if (home) {
+      // A wink on the way home. Only a plain left click is ours to hold up
+      // for it: a modified one opens a new tab, and that is the browser's.
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      mood('react-blink', 170);
+      setTimeout(function () { window.location.href = home.href; }, 190);
+      return;
+    }
+
+    stir();
+    if (busy) return; // rolling, or sulking after it: not counted, not answered
+
+    var t = Date.now();
+    clicks.push(t);
+    while (clicks.length && t - clicks[0] > 10000) clicks.shift();
+
+    if (clicks.length > 10) {
+      clicks = [];
+      next = null;
+      roll();
+      return;
+    }
+    var m = MOODS[Math.min(clicks.length, MOODS.length) - 1];
+    mood(m[0], m[1]);
+  }
+
+  /* The eye roll: up, all the way round, and then it looks anywhere but at
+     you for a while, lids low. */
+  function roll() {
+    busy = true;
+    stopWandering();
+    clearTimeout(idleTimer);
+
+    var start = null;
+    var D = 1200;
+
+    function frame(ts) {
+      if (start === null) start = ts;
+      var p = Math.min((ts - start) / D, 1);
+      var e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; // in, then out
+      var a = -Math.PI / 2 + e * 2 * Math.PI;                         // from the top, clockwise, once round
+      look(Math.cos(a) * REACH_X * 0.9, Math.sin(a) * REACH_Y * 0.9);
+      if (p < 1) { requestAnimationFrame(frame); } else { sulk(); }
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  function sulk() {
+    mark.classList.add('unimpressed');
+    look(-REACH_X * 0.75, REACH_Y * 0.15);
+    setTimeout(function () {
+      mark.classList.remove('unimpressed');
+      play('recovering', 500); // the lids ease open before the resting blink takes over
+      busy = false;
+      lookBack();
+      idleTimer = setTimeout(startWandering, 2200);
+    }, 3200);
+  }
+
+  /* The first time the pointer arrives, the hat tips. Stared at for a few
+     seconds, the eye glances away, then comes back to you with a blink. */
+  var greeted = false;
+  var stareTimer = null;
+
+  function glance() {
+    if (still.matches || !visible || busy) return;
+    busy = true;
+    look((Math.random() < 0.5 ? -1 : 1) * REACH_X * 0.85, -REACH_Y * 0.4);
+    setTimeout(function () {
+      busy = false;
+      mood('react-blink', 170);
+      lookBack();
+    }, 750);
+  }
+
+  mark.addEventListener('pointerenter', function () {
+    if (still.matches || !visible) return;
+    if (!greeted) {
+      greeted = true;
+      if (!busy) play('react-greet', 700);
+    }
+    clearTimeout(stareTimer);
+    stareTimer = setTimeout(glance, 2600);
+  });
+
+  mark.addEventListener('pointerleave', function () { clearTimeout(stareTimer); });
+
+  /* Left alone for a minute, it nods off. Anything at all wakes it, with a
+     start. */
+  var dozeTimer = null;
+
+  function rest() {
+    clearTimeout(dozeTimer);
+    dozeTimer = setTimeout(doze, 60000);
+  }
+
+  function doze() {
+    if (still.matches || !visible || busy) { rest(); return; }
+    drowsy = true;
+    stopWandering();
+    clearTimeout(idleTimer);
+    mark.classList.add('drowsy');
+    look(0, REACH_Y * 0.5);
+  }
+
+  function stir() {
+    rest();
+    if (!drowsy) return;
+    drowsy = false;
+    mark.classList.remove('drowsy');
+    mood('react-startle', 600);
+  }
+
+  /* ── wiring ──────────────────────────────────────────────── */
 
   /* Don't animate an eye nobody is looking at. */
   if ('IntersectionObserver' in window) {
@@ -153,18 +331,28 @@
 
   window.addEventListener('pointermove', onPointer, { passive: true });
   window.addEventListener('pointerdown', onPointer, { passive: true });
+  (home || mark).addEventListener('click', onClick);
+  document.addEventListener('keydown', function () { if (!still.matches && visible) stir(); });
 
   // Touch and keyboard visitors get the wandering, not the tracking.
   window.addEventListener('scroll', function () {
-    if (!wanderTimer && !still.matches && visible) {
+    if (still.matches || !visible) return;
+    stir();
+    if (!wanderTimer && !busy) {
       clearTimeout(idleTimer);
       idleTimer = setTimeout(startWandering, 1500);
     }
   }, { passive: true });
 
   function applyMotionPreference() {
-    if (still.matches) { stopWandering(); clearTimeout(idleTimer); centre(); }
-    else if (visible) { wake(); }
+    if (still.matches) {
+      stopWandering();
+      clearTimeout(idleTimer);
+      clearTimeout(dozeTimer);
+      centre();
+    } else if (visible) {
+      wake();
+    }
   }
 
   if (still.addEventListener) still.addEventListener('change', applyMotionPreference);
