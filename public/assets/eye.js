@@ -34,15 +34,12 @@
   }
 
   if (day >= 1) {
-    // Composed in two parts on purpose: asking for the weekday together with
-    // the date gives "Friday, 21 August 2026", and a dateline takes no comma.
-    var longDate =
-      now.toLocaleDateString('en-GB', { weekday: 'long' }) + ' ' +
-      now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-
+    // The count is from the founding, so the founding is what the number is
+    // read against. The reader's own clock supplies today's date.
+    var since = 'Day ' + day + ' · founded 18 August 2026';
     set('daycount', 'Day ' + day);
-    set('dateline', 'Day ' + day + ' · ' + longDate);
-    set('colophon-date', 'Day ' + day + ' · founded 18 August 2026');
+    set('dateline', since);
+    set('colophon-date', since);
   }
 
   /* ── the eye ─────────────────────────────────────────────── */
