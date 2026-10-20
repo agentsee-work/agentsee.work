@@ -13,6 +13,7 @@
   "episode_url": "https://agentsee.work/podcast/{slug}/",
   "media_url": "https://media.agentsee.work/podcast/{slug}/",
   "directories": {
+    "Apple Podcasts": "https://podcasts.apple.com/gb/podcast/agentsee-podcast/id6824580895",
     "Spotify": "https://open.spotify.com/show/0YjxzDGgoCzjvEykcUAfPr"
   },
   "language": "en-GB",
