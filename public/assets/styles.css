@@ -118,6 +118,18 @@ body > * { position: relative; z-index: 1; }
   margin: 0;
 }
 
+/* On every page but the front, the mark and the wordmark are one link home.
+   The link takes the masthead's own layout, so they sit as they do on the
+   front page, and the wordmark answers the pointer as the eye does. */
+.masthead .home {
+  display: flex;
+  align-items: center;
+  gap: inherit;
+  color: inherit;
+  text-decoration: none;
+}
+.masthead .home:hover .wordmark { color: var(--signal); }
+
 /* ═══════════════  DATELINE  ═══════════════ */
 
 .dateline {
