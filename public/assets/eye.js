@@ -227,22 +227,25 @@
     mood(m[0], m[1]);
   }
 
-  /* The eye roll: up, all the way round, and then it looks anywhere but at
-     you for a while, lids low. */
+  /* The eye roll: the lids come down, the iris goes up under the top lid
+     and all the way round, and then it looks anywhere but at you for a
+     while, lids low. The travel is wider than the pointer ever takes it,
+     on purpose: the iris sliding out of sight at the top is the roll. */
   function roll() {
     busy = true;
     stopWandering();
     clearTimeout(idleTimer);
+    mark.classList.add('rolling');
 
     var start = null;
-    var D = 1200;
+    var D = 1500;
 
     function frame(ts) {
       if (start === null) start = ts;
       var p = Math.min((ts - start) / D, 1);
       var e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; // in, then out
       var a = -Math.PI / 2 + e * 2 * Math.PI;                         // from the top, clockwise, once round
-      look(Math.cos(a) * REACH_X * 0.9, Math.sin(a) * REACH_Y * 0.9);
+      look(Math.cos(a) * REACH_X * 0.95, Math.sin(a) * REACH_Y * 1.7);
       if (p < 1) { requestAnimationFrame(frame); } else { sulk(); }
     }
 
@@ -250,8 +253,9 @@
   }
 
   function sulk() {
+    mark.classList.remove('rolling');
     mark.classList.add('unimpressed');
-    look(-REACH_X * 0.75, REACH_Y * 0.15);
+    look(-REACH_X * 0.9, REACH_Y * 0.2);
     setTimeout(function () {
       mark.classList.remove('unimpressed');
       play('recovering', 500); // the lids ease open before the resting blink takes over
