@@ -392,15 +392,23 @@ def episode_page(r, s, d, parts, show):
     art_rel = f"/podcast/{ep['slug']}/art.jpg"
     words = r["transcript"].get("words")
     segments = load(d / "out" / "transcript.json")["segments"]
+    own = load(d / "episode.json")  # the edit's record: the YouTube and directory links live here
     turns_html, n_turns = transcript_turns(segments)
-    youtube = (load(d / "episode.json").get("youtube") or {}).get("url")
+    youtube = (own.get("youtube") or {}).get("url")
+    # The episode in each directory that lists the show (tools/directories.py
+    # finds its own link there); the show's link until then, one click away.
+    listed = [(name, (own.get("directories") or {}).get(name), show_url)
+              for name, show_url in load(SHOW).get("directories", {}).items()]
 
     chapters = "\n".join(
         f'      <li><a href="#t={int(c["start"])}" data-t="{int(c["start"])}">{clock(c["start"])}</a>'
         f"<span>{esc(c['title'])}</span></li>" for c in r["chapters"])
+    shorts = (own.get("youtube") or {}).get("clips") or {}  # clip index → its Short, once public
     moments = "\n".join(
         f'      <li><a href="#t={int(c["at"])}" data-t="{int(c["at"])}">{clock(c["at"])}</a>'
-        f"<span>{esc(c['title'])}</span></li>" for c in r["clips"])
+        f"<span>{esc(c['title'])}"
+        + (f' &middot; <a href="{esc(shorts[str(int(c["index"]))])}">on YouTube</a>' if str(int(c["index"])) in shorts else "")
+        + "</span></li>" for c in r["clips"])
 
     ld = {
         "@context": "https://schema.org", "@type": "PodcastEpisode",
@@ -415,11 +423,15 @@ def episode_page(r, s, d, parts, show):
     }
     if n > 0:
         ld["episodeNumber"] = n
+    if any(u for _, u, _ in listed):
+        ld["sameAs"] = [u for _, u, _ in listed if u]
     extra = ('<script type="application/ld+json">'
              + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>\n")
 
     listen = [f'<a href="{esc(mp3)}" download>Download the mp3</a>',
               '<a href="/podcast/feed.xml">RSS feed</a>']
+    for name, u, show_url in reversed(listed):
+        listen.insert(0, f'<a href="{esc(u or show_url)}">Listen on {esc(name)}</a>')
     if youtube:
         listen.insert(0, f'<a href="{esc(youtube)}">Watch on YouTube</a>')
     lines = {p["name"]: p.get("line") for p in load(SHOW)["people"].values() if p.get("line")}
