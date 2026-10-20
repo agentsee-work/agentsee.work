@@ -105,13 +105,8 @@ def write(p, text):
 
 
 # ─── what is on the site already ─────────────────────────────────────────────
-OPEN_MASTHEAD = '<header class="masthead">\n'
-HOME_LINK = '  <a class="home" href="/" aria-label="AgentSee, the front page">\n'
-
-
 def lifted():
-    """The masthead, the classifieds and the footer, from the front page; the
-    masthead made a link home, since no page written here is the front."""
+    """The masthead, the classifieds and the footer, from the front page."""
     s = (PUBLIC / "index.html").read_text(encoding="utf-8")
     parts = {}
     for key, pat in (("masthead", r'<header class="masthead">.*?</header>'),
@@ -121,11 +116,6 @@ def lifted():
         if not m:
             sys.exit(f"error: public/index.html has no {key} to lift")
         parts[key] = m.group(0)
-    # Every page this script writes is a page other than the front, where the
-    # masthead is a link home.
-    parts["masthead"] = (parts["masthead"]
-                         .replace(OPEN_MASTHEAD, OPEN_MASTHEAD + HOME_LINK, 1)
-                         .replace("</header>", "  </a>\n</header>", 1))
     return parts
 
 
