@@ -14,6 +14,9 @@ plan.py          the day plan × accounts.json → posts, with short-link ids an
 publish/         the publisher: __init__ runs what is due through an adapter
   youtube.py     upload, publishAt, captions, thumbnail, playlist
   x.py           X: chunked media upload, the post, the rotating refresh token
+  bluesky.py     Bluesky: the art as a blob, a clip through the video service,
+                 links and tags as facets, through the account's own PDS
+  mastodon.py    Mastodon: the file, polled until processed, then the status
   hand.py        a card for a person to post, and a permalink to paste back
 vault.py         the one credential the engine writes: X's refresh token, via op
 archive.py       the archive bucket: files fetched on demand, release records for an
@@ -89,8 +92,22 @@ hold, not a failure: the post keeps its state, the account rests two hours
 and the worker tries again by itself (Health shows what is resting). The X adapter
 is real: the art or the clip through X's chunked upload (segments under
 5 MB, a poll until the video is processed), then the post, at the post's
-hour, since X does not schedule. Everything else is `hand` for now: the
-card.
+hour, since X does not schedule. The Bluesky adapter is real: a session on
+an app password, whose DID document names the account's own data server;
+the art as a blob there (a million bytes at most) in an images embed, a
+clip through Bluesky's video service under a service token the PDS issues
+for that one upload, polled until the processed blob comes back, in a
+video embed with its aspect ratio; the link and the hashtags as facets
+over the UTF-8 bytes, or they would be plain text; 300 graphemes. The
+Mastodon adapter is real: the file to the instance in the account's
+handle, described for screen readers, polled while a video is processed,
+then the status, public, in the configured language, with an idempotency
+key from the post and its attempt so a lost reply cannot post twice; 500
+characters with every link counted as 23. Their credentials are two vault
+items (`engine.env`, `docs/CREDENTIALS.md`), resolved when the container
+starts: file them before the box pulls a version that references them, or
+`op run` refuses to start the engine. Everything else is `hand` for now:
+the card.
 
 X's refresh token is single use, so the vault item is the live copy: the
 adapter reads it with `op read` when it needs an access token and writes
@@ -187,6 +204,6 @@ other's X tokens.
 ## Not yet
 
 The Spend screen and the export drop zones for Spotify's CSV and LinkedIn's
-XLSX (AGE-69, items 4 and 5); the Bluesky, Mastodon, Threads, Instagram and
-LinkedIn adapters, each a module in `publish/` with the names the contract
-asks for; Apple's Reporter (item 6).
+XLSX (AGE-69, items 4 and 5); the Threads, Instagram and LinkedIn
+adapters, each a module in `publish/` with the names the contract asks for;
+Apple's Reporter (item 6).

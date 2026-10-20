@@ -11,6 +11,7 @@
   "snapshot_at": "03:50",
   "collect_at": "05:30",
   "datasets": {"media": "podcast_media", "links": "podcast_links"},
+  "x": {"vault": "Engineering", "item": "X podcast token", "field": "credential"},
   "youtube": {
     "playlist": "AgentSee Podcast",
     "language": "en-GB",

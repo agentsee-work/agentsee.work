@@ -415,9 +415,11 @@ and `staged.json` into a SQLite ledger; `engine.py plan <slug>` turns the
 release's day plan into one post per asset per account, text drafted and cut
 to each platform's budget, a short link minted per post (`agentsee.work/p/
 e1xc02`: episode 1, X, clip 2) so every click back is counted at the edge;
-the publisher sends what is due through one adapter per platform, YouTube
-first (upload, `publishAt`, captions, thumbnail, playlist), and makes a card
-for a person to post everywhere else until that platform's adapter exists.
+the publisher sends what is due through one adapter per platform: YouTube
+(upload, `publishAt`, captions, thumbnail, playlist), then X, Bluesky and
+Mastodon at the post's hour (the art or the clip, then the post, each in
+its platform's way), and makes a card for a person to post everywhere else
+until that platform's adapter exists.
 `engine.py collect` reads back what everything did, daily: the edge's log
 into listens (the IAB's: one listener, one file, one day, a minute of it,
 no bots) and clicks, and each platform's counts into dated snapshots.

@@ -242,6 +242,9 @@ def bluesky(c, env, at, log):
         return "nothing to read"
     uris = {}
     for p in posts:
+        if (p["remote_id"] or "").startswith("at://"):  # the adapter's own record: no handle to resolve
+            uris[p["remote_id"]] = p
+            continue
         m = re.search(r"bsky\.app/profile/([^/]+)/post/([\w.:-]+)", p["permalink"])
         if not m:
             continue
