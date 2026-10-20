@@ -240,7 +240,7 @@ def due_page(c):
     rows = [p for p in c.execute("SELECT * FROM post WHERE status IN ('hand','planned','due') ORDER BY scheduled_at, id")
             if ACCOUNTS.get(p["account"], {}).get("adapter") == "hand"
             and (p["status"] == "hand" or (p["scheduled_at"] and dt.datetime.fromisoformat(p["scheduled_at"]) <= end))]
-    body = ('<article class="lead"><h1>By hand</h1><p class="deck">What a person posts: the LinkedIn page, and every platform '
+    body = ('<article class="lead"><h1>By hand</h1><p class="deck">What a person posts: LinkedIn, by decision, and every platform '
             'whose adapter is not written yet. Each one is a card with the text, the file, the short link and the composer. '
             'Paste the permalink back and it is published.</p></article>')
     body += post_rows(rows) if rows else "<p>Nothing due by hand today.</p>"

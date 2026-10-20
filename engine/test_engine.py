@@ -599,6 +599,36 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(ledger.post(c, x["id"])["text"], "edited")
         ledger.update_post(c, x["id"], text=x["text"])
 
+    def test_02b_prune(self):
+        c = self.c()
+        kept = list(plan.ACCOUNTS["threads"]["assets"])
+        clips = [p["id"] for p in c.execute("SELECT id FROM post WHERE episode='ep9' AND account='threads' AND asset LIKE 'clip:%' ORDER BY id")]
+        episode = c.execute("SELECT id FROM post WHERE episode='ep9' AND account='threads' AND asset='episode'").fetchone()["id"]
+        self.assertTrue(clips)
+        ledger.update_post(c, clips[0], status="hand")  # a card a person already has
+        try:
+            plan.ACCOUNTS["threads"]["assets"] = ["episode"]
+            gone = plan.prune(c, "ep9", "tester")
+            self.assertEqual(set(gone), set(clips[1:]), "every planned post of the kind the account no longer takes, and only those")
+            self.assertEqual(ledger.post(c, clips[0])["status"], "hand", "a card a person has is left alone")
+            ledger.update_post(c, clips[0], status="planned")
+            self.assertEqual(plan.prune(c, "ep9", "tester"), [clips[0]], "planned again, it goes")
+            self.assertEqual(ledger.post(c, clips[0])["status"], "skipped")
+            self.assertEqual(ledger.post(c, episode)["status"], "planned", "the kind the account still takes stays")
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM post WHERE episode='ep9' AND account!='threads' AND status='skipped'").fetchone()[0], 0)
+            why = c.execute("SELECT detail FROM event WHERE what='prune' AND post=?", (clips[0],)).fetchone()["detail"]
+            self.assertIn("threads no longer takes a clip", why)
+            self.assertEqual(plan.plan(c, "ep9"), [], "a re-plan does not bring a pruned post back")
+            self.assertEqual(plan.prune(c, "ep9"), [], "a second prune finds nothing")
+            account = plan.ACCOUNTS.pop("threads")
+            self.assertEqual(plan.prune(c, "ep9"), [episode], "an account dropped altogether loses its planned posts")
+            plan.ACCOUNTS["threads"] = account
+            self.assertIn("gone from accounts.json", c.execute("SELECT detail FROM event WHERE what='prune' AND post=?", (episode,)).fetchone()["detail"])
+        finally:
+            plan.ACCOUNTS["threads"]["assets"] = kept
+            for pid in clips + [episode]:
+                ledger.update_post(c, pid, status="planned")
+
     def test_03_links(self):
         c = self.c()
         got = {}

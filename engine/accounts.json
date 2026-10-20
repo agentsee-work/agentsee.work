@@ -1,5 +1,5 @@
 {
-  "note": "Where posts go. One entry per account; the key is the account name in the ledger. `assets` says which of an episode's assets the account gets a post for; `at` is the local time of day a post is due on its plan day; `adapter` is who publishes it: youtube by API, hand as a card for a person to post (also every platform whose adapter is not written yet). `code` is the account's part of its short-link ids; `limit` is the platform's character budget for a post, which the draft is cut to fit (a link counted at its full length, which is more than X's 23).",
+  "note": "Where posts go. One entry per account; the key is the account name in the ledger. `assets` says which of an episode's assets the account gets a post for; `at` is the local time of day a post is due on its plan day; `adapter` is who publishes it: youtube by API, hand as a card for a person to post (also every platform whose adapter is not written yet). `code` is the account's part of its short-link ids; `limit` is the platform's character budget for a post, which the draft is cut to fit (a link counted at its full length, which is more than X's 23). LinkedIn takes the episode only, by decision (20 October 2026): one card per episode per person, the post written by the person; the card is there for the short link and the record, and no adapter is coming. `plan --prune` retires planned posts an account no longer takes.",
   "youtube": {
     "platform": "youtube",
     "handle": "@agentseework",
@@ -76,8 +76,7 @@
     "handle": "James Hartt",
     "code": "lj",
     "assets": [
-      "episode",
-      "clip"
+      "episode"
     ],
     "at": "08:30",
     "adapter": "hand",
@@ -88,8 +87,7 @@
     "handle": "Abrar Mahmood",
     "code": "la",
     "assets": [
-      "episode",
-      "clip"
+      "episode"
     ],
     "at": "08:30",
     "adapter": "hand",
@@ -100,12 +98,10 @@
     "handle": "AgentSee, the page",
     "code": "lp",
     "assets": [
-      "episode",
-      "clip"
+      "episode"
     ],
     "at": "08:30",
     "adapter": "hand",
-    "by_hand": true,
     "limit": 3000
   }
 }

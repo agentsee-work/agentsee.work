@@ -1,6 +1,6 @@
 """
-The adapter for what a person posts: the LinkedIn page until incorporation,
-and every platform whose API adapter is not written yet. Publishing here
+The adapter for what a person posts: LinkedIn, by decision, and every
+platform whose API adapter is not written yet. Publishing here
 means the card is ready: the Posts screen shows the text to copy, the file
 to attach, the short link and a link that opens the platform's composer with
 the text already in it; the person posts, pastes the permalink back, and
