@@ -392,8 +392,8 @@ def episode_page(r, s, d, parts, show):
     art_rel = f"/podcast/{ep['slug']}/art.jpg"
     words = r["transcript"].get("words")
     segments = load(d / "out" / "transcript.json")["segments"]
+    own = load(d / "episode.json")  # the edit's record: the YouTube and directory links live here
     turns_html, n_turns = transcript_turns(segments)
-    own = load(d / "episode.json")
     youtube = (own.get("youtube") or {}).get("url")
     # The episode in each directory that lists the show (tools/directories.py
     # finds its own link there); the show's link until then, one click away.
@@ -403,9 +403,12 @@ def episode_page(r, s, d, parts, show):
     chapters = "\n".join(
         f'      <li><a href="#t={int(c["start"])}" data-t="{int(c["start"])}">{clock(c["start"])}</a>'
         f"<span>{esc(c['title'])}</span></li>" for c in r["chapters"])
+    shorts = (own.get("youtube") or {}).get("clips") or {}  # clip index → its Short, once public
     moments = "\n".join(
         f'      <li><a href="#t={int(c["at"])}" data-t="{int(c["at"])}">{clock(c["at"])}</a>'
-        f"<span>{esc(c['title'])}</span></li>" for c in r["clips"])
+        f"<span>{esc(c['title'])}"
+        + (f' &middot; <a href="{esc(shorts[str(int(c["index"]))])}">on YouTube</a>' if str(int(c["index"])) in shorts else "")
+        + "</span></li>" for c in r["clips"])
 
     ld = {
         "@context": "https://schema.org", "@type": "PodcastEpisode",
