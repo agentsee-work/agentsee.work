@@ -49,7 +49,12 @@
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  /* A tap anywhere is a click for the eye (eye.js), so taps in quick
+     succession must be taps, not a double-tap zoom. Pinch zoom is kept. */
+  touch-action: manipulation;
+}
 
 body {
   margin: 0 auto;
@@ -590,9 +595,7 @@ footer {
    class: the script checks. */
 .mark {
   cursor: pointer;
-  /* Taps in quick succession are clicks, not a double-tap zoom; no grey
-     flash on each tap; no selection callout on a long press. */
-  touch-action: manipulation;
+  /* No grey flash on each tap; no selection callout on a long press. */
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;
