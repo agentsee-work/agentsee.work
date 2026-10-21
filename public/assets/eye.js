@@ -5,13 +5,15 @@
    and blinks. It stops entirely when off-screen, when the tab is
    hidden, or when the visitor has asked for reduced motion.
 
-   It has moods. A click is a blink; clicks in quick succession
-   are, in order, pleased, surprised and a narrowing look, and the
-   eleventh inside ten seconds is an eye roll, after which it is
-   unimpressed for a while. It tips its hat the first time the
-   pointer arrives, glances away if stared at, nods off if left
-   alone for a minute and startles awake. Where the masthead is a
-   link, a click is a wink on the way home.
+   It has moods. A click anywhere on the page is a blink; clicks
+   in quick succession are, in order, pleased, surprised and a
+   narrowing look, and the eleventh inside ten seconds is an eye
+   roll, after which it is unimpressed for a while. Links, buttons
+   and the page's other controls are left to do their own thing.
+   It tips its hat the first time the pointer arrives, glances
+   away if stared at, nods off if left alone for a minute and
+   startles awake. Where the masthead is a link, a click on it is
+   a wink on the way home.
 
    The dateline and day counter compute themselves so nothing on
    the page can quietly go stale. Without JS they fall back to
@@ -190,17 +192,24 @@
     }, ms);
   }
 
-  // A click is a blink. The clicks of the last ten seconds decide which
-  // blink: the second is pleased, the third surprised, the fourth onwards a
-  // narrowing look, and every one of them opens with the blink.
+  // A click is a blink, and the page is the target, not the eye: on a phone
+  // the eye is too small to tap with any confidence. The clicks of the last
+  // ten seconds decide which blink: the second is pleased, the third
+  // surprised, the fourth onwards a narrowing look, and every one of them
+  // opens with the blink.
   var MOODS = [['react-blink', 170], ['react-delight', 900], ['react-surprise', 800], ['react-squint', 1100]];
   var clicks = [];
   var home = mark.closest('a.home');
 
+  // Whatever does something of its own when clicked keeps the click: the
+  // eye answers the page, never the page's controls.
+  var THEIRS = 'a[href], button, input, select, textarea, label, summary, audio, video, [contenteditable]';
+
   function onClick(e) {
     if (still.matches) return;
+    var at = e.target && e.target.closest ? e.target : null;
 
-    if (home) {
+    if (home && at && home.contains(at)) {
       // A wink on the way home. Only a plain left click is ours to hold up
       // for it: a modified one opens a new tab, and that is the browser's.
       if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -209,6 +218,13 @@
       setTimeout(function () { window.location.href = home.href; }, 190);
       return;
     }
+
+    if (!visible || !at || at.closest(THEIRS)) return;
+
+    // A click that left a selection behind was a selection, not a click: a
+    // double-click on a word, a drag along a line to copy it.
+    var sel = window.getSelection && window.getSelection();
+    if (sel && sel.type === 'Range') return;
 
     stir();
     if (busy) return; // rolling, or sulking after it: not counted, not answered
@@ -335,7 +351,7 @@
 
   window.addEventListener('pointermove', onPointer, { passive: true });
   window.addEventListener('pointerdown', onPointer, { passive: true });
-  (home || mark).addEventListener('click', onClick);
+  document.addEventListener('click', onClick);
   document.addEventListener('keydown', function () { if (!still.matches && visible) stir(); });
 
   // Touch and keyboard visitors get the wandering, not the tracking.
