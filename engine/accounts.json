@@ -50,7 +50,7 @@
   },
   "threads": {
     "platform": "threads",
-    "handle": "@agentseework",
+    "handle": "@agentsee.work",
     "code": "th",
     "assets": [
       "episode",
@@ -62,7 +62,7 @@
   },
   "instagram": {
     "platform": "instagram",
-    "handle": "@agentseework",
+    "handle": "@agentsee.work",
     "code": "ig",
     "assets": [
       "clip"

@@ -19,12 +19,13 @@ One string everywhere is the point. A handle you can say once in a podcast
 outro, without qualifying it per platform, is worth more than a better handle on
 the platforms nobody finds you through.
 
-Two deliberate exceptions:
+Three exceptions:
 
 | Where | Handle | Why |
 |---|---|---|
 | GitHub org | `agentsee-work` | Already exists, already in the runbook. Leave it. |
 | Bluesky | `agentsee.work` | Bluesky lets a domain *be* the handle. See below. |
+| Instagram, Threads | `agentsee.work` | What the live profile answers to; `agentseework` there is "Profile isn't available" (checked 22 Oct 2026). Threads follows Instagram. |
 
 ### Bluesky gets the name for free — **done, 17 September 2026**
 
@@ -293,9 +294,9 @@ Converting a personal channel afterwards is possible (Settings → Advanced
 settings → Move channel) but it is a migration, and migrations are the thing we
 are avoiding by getting this right at creation.
 
-**Threads is Instagram's namespace.** Securing `agentseework` on Instagram
-secures it on Threads. Don't count it as a second win, and don't let the
-Instagram handle go on the assumption Threads is separate.
+**Threads is Instagram's namespace.** Securing the Instagram handle secures it
+on Threads, so ours is `agentsee.work` on both. Don't count it as a second win,
+and don't let the Instagram handle go on the assumption Threads is separate.
 
 **Hugging Face and Docker Hub are case-insensitive.** `AgentSEE` and `agentsee`
 are the same account. Don't read a case variant as an available handle.
