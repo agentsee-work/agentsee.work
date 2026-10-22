@@ -105,13 +105,17 @@ def write(p, text):
 
 
 # ─── what is on the site already ─────────────────────────────────────────────
-OPEN_MASTHEAD = '<header class="masthead">\n'
-HOME_LINK = '  <a class="home" href="/" aria-label="AgentSee, the front page">\n'
+# The nameplate of the lifted masthead becomes a link home: its opening and
+# closing lines, as they are written in public/index.html.
+NAMEPLATE = ('  <div class="nameplate">\n', '  <p class="wordmark">AgentSee</p>\n  </div>\n')
+HOME_NAMEPLATE = ('  <a class="nameplate home" href="/" aria-label="AgentSee, the front page">\n',
+                  '  <p class="wordmark">AgentSee</p>\n  </a>\n')
 
 
 def lifted():
     """The masthead, the classifieds and the footer, from the front page; the
-    masthead made a link home, since no page written here is the front."""
+    masthead's nameplate made a link home, since no page written here is the
+    front."""
     s = (PUBLIC / "index.html").read_text(encoding="utf-8")
     parts = {}
     for key, pat in (("masthead", r'<header class="masthead">.*?</header>'),
@@ -122,10 +126,12 @@ def lifted():
             sys.exit(f"error: public/index.html has no {key} to lift")
         parts[key] = m.group(0)
     # Every page this script writes is a page other than the front, where the
-    # masthead is a link home.
-    parts["masthead"] = (parts["masthead"]
-                         .replace(OPEN_MASTHEAD, OPEN_MASTHEAD + HOME_LINK, 1)
-                         .replace("</header>", "  </a>\n</header>", 1))
+    # nameplate is a link home.
+    for old in NAMEPLATE:
+        if parts["masthead"].count(old) != 1:
+            sys.exit("error: the masthead in public/index.html has no nameplate to make a link of")
+    for old, new in zip(NAMEPLATE, HOME_NAMEPLATE):
+        parts["masthead"] = parts["masthead"].replace(old, new, 1)
     return parts
 
 

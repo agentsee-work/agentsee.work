@@ -123,17 +123,42 @@ body > * { position: relative; z-index: 1; }
   margin: 0;
 }
 
-/* On every page but the front, the mark and the wordmark are one link home.
-   The link takes the masthead's own layout, so they sit as they do on the
-   front page, and the wordmark answers the pointer as the eye does. */
-.masthead .home {
+/* The nameplate: the mark and the wordmark. On every page but the front it
+   is one link home, and the wordmark answers the pointer as the eye does. */
+.nameplate {
   display: flex;
   align-items: center;
   gap: inherit;
+  flex: none;
   color: inherit;
   text-decoration: none;
 }
-.masthead .home:hover .wordmark { color: var(--signal); }
+a.nameplate:hover .wordmark { color: var(--signal); }
+
+/* The ears: the small boxes either side of a newspaper's nameplate, where
+   the weather and the price go. Here, where to listen and where to follow,
+   on every page, and they give way to the nameplate on a narrow screen. */
+.ear {
+  flex: 1 1 0;
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: .4rem .9rem;
+}
+.ear:last-child { justify-content: flex-end; }
+.ear-label {
+  font-family: var(--mono);
+  font-size: .62rem;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+a.ear-label { text-decoration: none; }
+a.ear-label:hover { color: var(--signal); }
+
+@media (max-width: 60rem) {
+  .masthead { flex-wrap: wrap; row-gap: .8rem; }
+  .nameplate { order: -1; flex-basis: 100%; justify-content: center; }
+  .ear, .ear:last-child { flex: 1 1 100%; justify-content: center; }
+}
 
 /* ═══════════════  DATELINE  ═══════════════ */
 
@@ -419,7 +444,7 @@ body > * { position: relative; z-index: 1; }
   padding-top: .8rem;
   border-top: var(--hairline);
 }
-.links a {
+.links a, .ear a {
   font-family: var(--mono);
   font-size: .62rem;
   letter-spacing: .12em;
@@ -430,7 +455,7 @@ body > * { position: relative; z-index: 1; }
   padding-bottom: .15rem;
   transition: color .18s, border-color .18s;
 }
-.links a:hover { color: var(--signal); border-color: var(--signal); }
+.links a:hover, .ear a:hover { color: var(--signal); border-color: var(--signal); }
 
 /* ═══════════════  CLASSIFIEDS  ═══════════════ */
 
