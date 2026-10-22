@@ -174,7 +174,12 @@ export default {
       headers.delete("Content-Type");
       return log(new Response(null, { status: point.status, headers }));
     }
-    if (object.range) {
+    // A 206 is the answer to a Range request and nothing else. R2, handed the
+    // request's headers, reports a range on the object whether or not the
+    // request carried one, so a plain GET came back 206 with a Content-Range
+    // of the whole file, which a strict fetcher (Spotify's) rejects as not
+    // the file. The request decides.
+    if (object.range && request.headers.has("Range")) {
       const [first, last] = span(object.range, object.size);
       headers.set("Content-Range", `bytes ${first}-${last}/${object.size}`);
       headers.set("Content-Length", String(last - first + 1));

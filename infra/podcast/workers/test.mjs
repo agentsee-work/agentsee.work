@@ -41,6 +41,11 @@ class Bucket {
         }
       }
     }
+    // As the platform does (seen live, 22 Oct 2026): handed the request's
+    // headers as the range, R2 reports a range on the object even when the
+    // request carried none, the whole file. The Worker must not take that
+    // as a 206.
+    if (!range && opts.range instanceof Headers) range = { offset: 0, length: x.body.length };
     let body = x.body;
     if (range) {
       const [a, b] = range.suffix != null ? [Math.max(0, x.body.length - range.suffix), x.body.length - 1]
