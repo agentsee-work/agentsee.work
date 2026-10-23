@@ -13,6 +13,15 @@ Issues and specs for this repo live in Linear, workspace team **AgentSee** (iden
 - **Statuses**: Backlog, Todo, In Progress, Done, Canceled, Duplicate.
 - **People**: refer to users by name or email. Pass `"me"` for the user running the session.
 
+## Podcast episodes and guests
+
+Everything not yet recorded lives in the project **Podcast** (`P-AGE-2`), one issue per episode, created before the running order is known. Two shapes, both set out with a paste-in skeleton in the project document "How a podcast idea becomes an issue":
+
+- **Episode topic**: title `Episode topic: <working title> (<proposer>)`, assigned to the proposer, in the shape of AGE-51 and AGE-52 (the premise, a run length, an outline with rough minutes, questions to put to each other, worth adding, traps, an *Episode prep* checklist).
+- **Guest episode**: title `Guest episode: <Name> — <working topic>`, one label from the group **Guest status** (`Confirmed`, `Warm`, `Awaiting reply`), priority from the status (Urgent for the next to record, High for Confirmed, Medium for Warm, Low for Awaiting reply), the description covering who they are, how we know them, their status and what they said, the angle and the site question it leans on, caveats, the next action, then the same checklist. Create the issue whether or not they have said yes.
+
+Given a raw idea (a message, a name, a sentence), write the issue in the matching shape; do not number it. The site's questions are quoted into the issue, not referenced by number, because the list on the site changes.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a Linear issue in team AgentSee.
