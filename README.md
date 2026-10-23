@@ -36,6 +36,8 @@ public/                       ← the only thing that gets deployed
   issues/02-mail.html         Issue No. 2 — the mail build, and what it cost
   issues/03-mark.html         Issue No. 3 — animating the mark, and a renderer that lied
   issues/04-music.html        Issue No. 4 — the theme music, and six tools wrong in silence
+  issues/05-podcast.html      Issue No. 5 — the first episode cut by script, and the um that stayed
+  issues/06-publishing.html   Issue No. 6 — everything after the render, and the token the vault would not take
   404.html                    Issue No. 404, never printed
   robots.txt / sitemap.xml    so crawlers get those, not the homepage
   apple-touch-icon.png        iOS home screen; from assets/brand/
@@ -62,6 +64,7 @@ docs/BRAND-ANIMATION.md       the mark animated — the model, and what a bad me
 docs/THEME-MUSIC.md           one score cut into eight cues, rendered and levelled
 docs/PODCAST-PIPELINE.md      a recording in, the episode out, by script — and every trap on the way
 docs/POST-DRAFT-PODCAST.md    the long version of Issue No. 5, and notes for the next recording
+docs/POST-DRAFT-PUBLISHING.md the long version of Issue No. 6, and notes for the next platform
 infra/                        the mail server declared — OpenTofu, applied
 engine/                       the podcast's publisher and its screens — the ledger, the plan, YouTube
 stalwart/                     mail server config, snapshotted from the running server

@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The token was single use, and the vault was read-only — AgentSee, Issue No. 6</title>
+<meta name="description" content="Everything after the render, by script: a feed, a media host that counts, and an engine that posts by itself. For three mornings it posted everywhere but one place, and the reason was a permission nobody could change.">
+<link rel="canonical" href="https://agentsee.work/issues/06-publishing">
+
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://agentsee.work/issues/06-publishing">
+<meta property="og:title" content="The token was single use, and the vault was read-only.">
+<meta property="og:description" content="Everything after the render, by script: a feed, a media host that counts, and an engine that posts by itself. For three mornings it posted everywhere but one place, and the reason was a permission nobody could change.">
+<meta property="og:image" content="https://agentsee.work/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/assets/og.png">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+
+<a class="skip" href="#opening">Skip to content</a>
+
+<!-- ═══════════════  MASTHEAD  ═══════════════ -->
+<header class="masthead">
+  <nav class="ear" aria-label="Listen to the podcast">
+    <a class="ear-label" href="/podcast/">Listen</a>
+    <a href="https://podcasts.apple.com/gb/podcast/agentsee-podcast/id6824580895">Apple Podcasts</a>
+    <a href="https://open.spotify.com/show/0YjxzDGgoCzjvEykcUAfPr">Spotify</a>
+    <a href="https://www.youtube.com/@agentseework">YouTube</a>
+    <a href="/podcast/feed.xml">RSS</a>
+  </nav>
+  <a class="nameplate home" href="/" aria-label="AgentSee, the front page">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+  </a>
+  <nav class="ear" aria-label="Follow AgentSee">
+    <span class="ear-label">Follow</span>
+    <a href="https://www.linkedin.com/company/agentseework">LinkedIn</a>
+    <a href="https://x.com/agentseework">X</a>
+    <a href="https://bsky.app/profile/agentsee.work">Bluesky</a>
+    <a href="https://mastodon.social/@agentseework">Mastodon</a>
+    <a href="https://www.instagram.com/agentsee.work/">Instagram</a>
+  </nav>
+</header>
+
+<!-- ═══════════════  DATELINE  ═══════════════ -->
+<div class="dateline">
+  <span class="edge">Hove &amp; London</span>
+  <span class="mid" id="dateline">Founded 18 August 2026</span>
+  <span class="edge">Issue No.&nbsp;6 &middot; Free, obviously</span>
+</div>
+
+<main>
+
+  <article class="lead">
+    <h1>The token was single use,<br>and the vault was read-only.</h1>
+    <p class="deck">
+      Everything after the render, by script: a feed, a media host that counts, and an
+      engine on the mail box that posts at nine in the morning. For three mornings it
+      posted everywhere but one place.
+    </p>
+  </article>
+
+  <section class="section" id="opening">
+    <p class="kicker">01 — The premise</p>
+    <h2>Nothing after the render should need a person, except the decisions.</h2>
+
+    <div class="cols">
+      <p class="drop">Issue No. 5 ended with an mp3, an mp4, captions, a transcript and five clips in
+      a folder on a workstation, and nothing going anywhere. The brief for the next part was
+      written down on 13 October: every deliverable to every relevant platform from our own
+      scripts; the loop closed on every post, so we can see what each clip and each episode
+      did; a dashboard of whatever each platform will tell us; and build it ourselves unless
+      building is impractical. The podcast is to be the main way this company sells what it
+      does, so the part that puts it in front of people is not a chore to hand to a
+      service.</p>
+
+      <p>The first question was whether to. A podcast host adds nothing on Apple Podcasts or
+      Spotify that we cannot get ourselves: one of the larger hosts says in print that
+      neither shares listening data with it, and another tells its customers to log into
+      Spotify directly. What a host adds is a certification badge and native video on the
+      two big directories, which are for partners. Everything else with an API gives it to
+      us on the same terms it gives a host. The running cost of the self-built version is
+      about a pound an episode, nearly all of it the one platform that charges. So we
+      built it, in ten days, to the same rule as the production side: data in, files out,
+      every step re-runnable from the data, and no step that needs a person except the
+      ones that are editorial.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">02 — The shape</p>
+    <h2>An approved episode goes to a bucket, and from there nothing needs the workstation.</h2>
+
+    <div class="cols two">
+      <p>Approving an episode records who approved it, when, the hash of every file and the
+      date it goes out, and refuses while any warning stands. Staging then puts everything
+      in the right place: the recording package, the edit as data and every deliverable in
+      a private archive, and the public files, the mp3, the clips, the art, the transcripts
+      and the chapters, on a media host of our own. A script writes the feed, the show page
+      and a page per episode, and takes an episode only when its release date has arrived,
+      so merging early publishes nothing. The pages cannot hold the media themselves; the
+      host they are on stops at twenty-five megabytes and an episode is fifty-five.</p>
+
+      <p>Two small programs sit at the edge. One is in front of the media host. It serves the
+      files and writes one row per request: the file, the status, the bytes offered, the
+      app, the country, and a hash of the address keyed to the day, never the address. That
+      row is what lets us count a listen the way the industry's rules define one, which is
+      one listener, one file, one day, a minute's worth of bytes, and not a bot, without a
+      cookie, a script on the page or a third party. The other answers short links: every
+      post carries one, the click is written down with the platform it came from, and the
+      reader is sent to the episode page, at the clip's moment if it was a clip.</p>
+
+      <p>The engine lives on the mail box from Issue No. 2, in two containers, behind a
+      tunnel with a lock in front: a code by email, then a passkey. Nothing listens on the
+      box. It reads the release from the archive, plans one post per asset per account on
+      its day, the episode on day zero and a clip a day after, mints the short links, drafts
+      the text to each platform's limit, and at each account's hour sends what is due.
+      YouTube takes the episode and the clips at once, private, scheduled for their
+      mornings. X, Bluesky and Mastodon are posted to at the hour. For everything else there
+      is a card: the text to copy, the file, the short link, and a box to paste the
+      permalink into, which marks it done. LinkedIn is by hand for good, by decision, with
+      few posts and each written by a person. Once a day the engine reads back what
+      everything did, into dated rows, because a platform only ever says a running total
+      and one of them forgets after thirty days.</p>
+
+      <p>Every credential the engine needs is a reference in a committed file, resolved when
+      the container starts by the password manager's command-line tool, under an account
+      made for the box and nothing else. Eight of them it only reads. One it has to
+      write.</p>
+    </div>
+  </section>
+
+  <p class="pull">The engine held the only valid token in memory and tried again every morning, politely, for three days.</p>
+
+  <section class="section">
+    <p class="kicker">03 — The platforms</p>
+    <h2>The two biggest directories have no API, and the one that charges is the one that worked least.</h2>
+
+    <div class="cols">
+      <p>Apple Podcasts takes the feed once and approved the show on the morning of the
+      20th; its listening numbers come only through a Java command-line tool. Spotify takes
+      the feed once and offers a dashboard with a spreadsheet export; video goes in by hand
+      in their interface. Spotify accepted the feed on the 19th and then held the show in
+      review for three days with a message that the episode was not associated with an audio
+      file. It was. Our media host, asked for a file with no range, answered with the whole
+      file and a status that said it was part of one, because the storage underneath
+      reports a range whether or not one was asked for. Apple's fetcher had shrugged.
+      Spotify's read "part of a file" as "not a file". A partial status is now the answer to
+      a range request and nothing else.</p>
+
+      <p>YouTube has the best API and the best numbers. On the first day the channel's cap
+      closed after ten uploads and the engine marked the last three as failed, for a person
+      to find and retry. A cap is now a hold: the account rests two hours and tries again by
+      itself. The first real upload of an episode succeeded, and then the step that adds it
+      to the show's playlist failed, which failed the post and dropped the video's id. A
+      retry would have uploaded two gigabytes again and published a duplicate. Now nothing
+      after the upload can fail the post; it can only leave a note.</p>
+
+      <p>X has no free tier any more. Posting costs a cent and a half, or twenty cents if the
+      post carries a link; reading your own numbers costs a tenth of a cent; the numbers go
+      back thirty days and no further. And its refresh token is single use.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">04 — The token</p>
+    <h2>X retires a refresh token the moment it is used and hands back another. Somewhere has to hold the live one.</h2>
+
+    <div class="cols">
+      <p>An access token for X lasts two hours. You get one by presenting a refresh token,
+      and in the same reply X retires the refresh token you presented and gives you its
+      replacement. Whatever does the refreshing has to store the replacement before it uses
+      the access token that came with it, or the next refresh fails and a person has to sit
+      at a browser and authorise the account again. So the design was: the vault item is
+      the live copy. The engine reads it, refreshes, writes the new token back, reads it
+      back to confirm, and only then uploads and posts. If the write fails, nothing is
+      posted, the new token is held in memory, and the next attempt tries the write again.
+      That was written on the 15th, tested against a stand-in for X, and switched on for
+      the morning of the 21st.</p>
+
+      <p>On the 21st at eight, Bluesky and Mastodon posted. At nine, X did not. The error
+      was the one the engine had been built to give: X issued a new refresh token, and the
+      vault would not take it. On the 22nd, the same. On the 23rd, the same. Each morning
+      the engine did the right thing, kept the only valid token, and tried the write again.
+      Nobody noticed for two days because the two accounts that had posted were the ones
+      we looked at.</p>
+
+      <p>The cause was a permission. The account the box runs under had been created with
+      read access to the vault and not write. The runbook said read and write; the account
+      had been made with one of them. The password manager does not let you change an
+      account's vault permissions after it is made, so the fix was a new account, its
+      token filed over the old one, and the container recreated, which cost a few more
+      minutes, because a restart does not reread its environment. A retry of that
+      morning's post went through: refresh, write-back, upload, post, in that order, proven
+      once.</p>
+
+      <p>Then the one before it failed with an authorisation error on the upload, using an
+      access token still cached from the success a minute earlier. We do not know why. A
+      restart, and it failed differently: the vault item now had two fields with the same
+      name, and the engine refused to guess which was live. One was deleted by hand, the
+      two remaining posts went out, and whether the engine's own write is what doubled the
+      field is the open question as this is written. The next automatic refresh will
+      answer it.</p>
+
+      <p>Two smaller wrongs on the way. The token X's developer console generates cannot
+      upload media, and the console does not say so; the consent flow in our own tool
+      can, and failed with X's "Something went wrong" because the app's list of callback
+      addresses held the website's instead of the local one, and X matches them character
+      for character. And a tool that printed its result into a pipe printed nothing,
+      because the language buffers output that is not a terminal, and the tool that
+      resolves the secrets masks anything that looks like one, including the identifier it
+      had been asked to show.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">05 — Working with a model</p>
+    <h2>It found the fault from one log line, then built the wrong fix without being asked.</h2>
+
+    <div class="cols two">
+      <p>It wrote the engine, the two edge programs, the site generator, the staging step,
+      and the tests that run all of it against stand-ins for every platform. Given the error,
+      it named the permission; given the permission, it found that it could not be changed
+      and read the manager's documentation for the command that makes a new account with
+      the right one. The division of labour from Issue No. 5 held: one of us at the box
+      running the commands that touch production, the model reading the output and saying
+      what it meant.</p>
+
+      <p>It was also wrong in a way worth recording. With the cause found and the fix under
+      way, it proposed an alternative: X's older scheme, with keys that never rotate and so
+      never need writing back. It offered to build that "on the word", took a reply that was
+      not the word as the word, and rewrote the adapter, the tests and the documents across
+      eleven files while James was fixing the problem the other way. The rewrite was set
+      aside, unmerged. A model will take a lean for a yes if you let it, and the remedy is a
+      rule where the next session reads it: build on yes, and a reply that sounds like one
+      is not one.</p>
+
+      <p>One more nobody caught for five weeks. The Instagram link on every page went to a
+      name nobody had registered. The plan had said one name everywhere; the signup had
+      taken the one that was free; the plan was never corrected; the link was typed from the
+      plan. Instagram answers every name with a page, so the check that follows every link
+      saw nothing wrong. A person clicked it.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">06 — What it is for</p>
+    <h2>Two episodes' worth of posts are planned, and the mornings run themselves.</h2>
+
+    <div class="cols two">
+      <p>As this is written, episode 0 is on every directory and every platform we chose.
+      Episode 1 goes out on Tuesday the 27th at six in the morning with nobody awake, a clip
+      a day follows it on four accounts, the engine reads back every morning at half past
+      five, and its screens show listens by app and by country, clicks by the platform they
+      came from, and each post's numbers with the last week's share beside them. The last
+      link in the loop, from a post to a client, is not a platform metric. It is whether
+      someone who found us through the show writes to the address on the episode page, which
+      is on our own mail server, which was Issue No. 2.</p>
+
+      <p>Still to build: Instagram and Threads by API, Apple's reporter on a timer, a place to
+      drop Spotify's spreadsheet, a screen for what the posting costs. Still to decide:
+      whether the dashboard ever goes public. And the next issue is the one the register has
+      held open since September, the first conversation with someone who disagrees. The
+      sceptic has said yes.</p>
+    </div>
+
+    <p class="backlink-row">
+      <a class="backlink" href="/issues/05-podcast">&larr; Issue No.&nbsp;5</a>
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee &middot; Issue No.&nbsp;6</span>
+    <span id="colophon-date">Founded 18 August 2026</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+</body>
+</html>
