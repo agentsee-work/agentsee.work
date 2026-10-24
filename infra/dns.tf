@@ -299,3 +299,29 @@ resource "cloudflare_dns_record" "engine" {
   proxied = true
   comment = "The podcast engine, through its Tunnel (infra/podcast/engine.tf). Managed by OpenTofu."
 }
+
+# ─── DNSSEC ───────────────────────────────────────────────────────────────────
+# Sign the zone, so a validating resolver can tell our answers from a forged
+# one. For a p=reject mail domain this is what protects the records above —
+# MX, SPF, the DKIM keys, DMARC and the MTA-STS pointers — from a spoofed DNS
+# response. Without it, all the alignment above is only as trustworthy as
+# unauthenticated UDP. MTA-STS already covers inbound SMTP strongly, so this is
+# defence in depth rather than the only lock, which is why it waited.
+#
+# Cloudflare is both registrar and DNS for this zone, so turning signing on also
+# wires the DS record into the parent (.work) automatically — one-click DNSSEC,
+# no separate registrar step by hand. The DS is exported in outputs.tf in case
+# the registrar ever moves off Cloudflare, when it would have to be lodged by
+# hand at the new one.
+#
+# ⚠ The DNS token (opentofu-dns, Zone > DNS > Edit) must also be allowed to
+# toggle DNSSEC. If the apply returns an authorization error on THIS resource
+# alone, add Zone > DNS Settings > Edit (Zone Settings > Edit on older token
+# editors) to the token in the vault and re-apply. Editing a token's permissions
+# keeps its value, so op.env and CREDENTIALS.md do not change.
+#
+# Reversible: set status = "disabled" to turn it back off.
+resource "cloudflare_zone_dnssec" "agentsee" {
+  zone_id = var.cloudflare_zone_id
+  status  = "active"
+}

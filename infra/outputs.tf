@@ -3,6 +3,11 @@ output "mail_server_ipv4" {
   value       = local.mail_ipv4
 }
 
+output "dnssec_ds" {
+  description = "The zone's DS record. Auto-lodged at the parent while Cloudflare is the registrar; needed by hand only if the registrar ever moves. See dns.tf."
+  value       = cloudflare_zone_dnssec.agentsee.ds
+}
+
 output "mail_server_ipv6" {
   description = "Public IPv6, free on ext-net1."
   value       = local.mail_ipv6

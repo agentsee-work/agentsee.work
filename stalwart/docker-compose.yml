@@ -21,6 +21,24 @@ services:
     container_name: stalwart
     restart: unless-stopped
 
+    # ── Least privilege ──────────────────────────────────────────────────────
+    # The process already runs as non-root (uid 2000), and its only effective
+    # capability is NET_BIND_SERVICE — the one it needs to bind 25/80/443/465/
+    # 993. Verified against the running container before this change: CapEff was
+    # net_bind_service alone, nothing else. So drop every capability and hand
+    # back exactly that one, and forbid regaining any at exec. This removes caps
+    # the server never used; it does not touch the one it does.
+    #
+    # ⚠ Deploy with care — it restarts the mail server. After `docker compose
+    # up -d`, confirm Stalwart still binds 25/443/465/993 (`ss -tlpn`) and that
+    # mail flows in and out. Rollback is to revert these three keys and up again.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - "no-new-privileges:true"
+
     # ── Host networking, deliberately ──────────────────────────────────────
     # With published ports, Docker's proxy rewrites the source address and
     # Stalwart sees EVERY external connection as coming from the bridge gateway
