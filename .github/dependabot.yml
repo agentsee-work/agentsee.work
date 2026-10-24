@@ -1,0 +1,31 @@
+# Dependabot watches the pinned container images so a new upstream release
+# arrives as a PR to review, rather than as a surprise or as a chore someone
+# has to remember. It only opens PRs — nothing auto-upgrades — so the
+# deliberate-pin rule in stalwart/docker-compose.yml stays intact: you still
+# decide, you just stop being the one who has to notice.
+#
+# Added 24 October 2026 (AGE-93), after the mail server was found sitting six
+# Stalwart releases behind within seven weeks. These image tags are the only
+# hand-updated dependency surface in the repo: the box's OS packages are kept
+# current by unattended-upgrades, and the engine is Python-stdlib-only with no
+# third-party packages to track.
+#
+# The `docker` ecosystem scans both docker-compose.yml image tags and the
+# Dockerfile FROM, so these two directories cover:
+#   /stalwart       stalwartlabs/stalwart
+#   /engine/home    cloudflare/cloudflared  +  python base image (Dockerfile)
+version: 2
+updates:
+  - package-ecosystem: "docker"
+    directories:
+      - "/stalwart"
+      - "/engine/home"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore"
+    ignore:
+      # Built locally from engine/home/Dockerfile — there is no registry tag
+      # to track, and Dependabot would only report it as unresolvable.
+      - dependency-name: "agentsee-engine"
