@@ -10,9 +10,12 @@ existing infrastructure works once it's running.
 transcribed from a real run rather than written from the design, and carry the
 things that actually went wrong.
 
-**Phases 2 onward have not been run.** They are still written from the design.
-Expect to correct them as you go, and **correct them in this file as you do** —
-a runbook that drifts from reality is worse than none, because it gets trusted.
+**Phase 2 and the rebuild path were executed on 24 October 2026**, when the
+instance was replaced to pick up a corrected cloud-init. Phase 2 and the new
+[Rebuilding the box](#rebuilding-the-box) section are now transcribed from that
+run. **Phases 3 onward are still written from the design** — expect to correct
+them as you go, and **correct them in this file as you do**, because a runbook
+that drifts from reality is worse than none: it gets trusted.
 
 ## Before you start
 
@@ -364,12 +367,15 @@ on it so that rebuilding the instance does not take the mail with it:
 
 ```sh
 ssh debian@mail.agentsee.work
-lsblk                                  # expect vdb, ~20G, no filesystem
+lsblk -f                               # ~20G volume, no filesystem on a FIRST build.
+                                       # Device is /dev/sdb on the Oct 2026 image,
+                                       # /dev/vdb on the Sept one — read it, don't assume.
 
-# ⚠ CHECK lsblk FIRST. mkfs on the wrong device is unrecoverable, and on a
-# rebuilt box the volume already holds the mail — formatting it is the one
-# irreversible mistake available in this phase.
-sudo mkfs.ext4 -L stalwart /dev/vdb    # ONLY if it has no filesystem
+# ⚠ CHECK lsblk FIRST. mkfs on the wrong device is unrecoverable.
+# ⚠ This mkfs is for a FIRST build ONLY. On a REBUILD the volume already holds
+# the mail — do NOT format it. Skip to "Rebuilding the box" below, which mounts
+# it as-is. Formatting here is the one irreversible mistake in this runbook.
+sudo mkfs.ext4 -L stalwart /dev/sdb    # FIRST build only, and only if it has no filesystem
 
 sudo install -d -m 0755 /var/lib/stalwart
 echo 'LABEL=stalwart /var/lib/stalwart ext4 defaults,noatime 0 2' | sudo tee -a /etc/fstab
@@ -395,7 +401,7 @@ Then the application:
 
 ```sh
 sudo install -d -m 0755 /opt/agentsee
-sudo git clone <repo> /opt/agentsee/repo
+sudo git clone https://github.com/agentsee-work/agentsee.work.git /opt/agentsee/repo
 sudo ln -s /opt/agentsee/repo/stalwart /opt/agentsee/stalwart
 
 cd /opt/agentsee/stalwart
@@ -998,6 +1004,101 @@ Any of those: [MAIL-MIGRATION.md](MAIL-MIGRATION.md) moves us to kSuite. Same
 addresses, same domain, about an hour. That exit staying cheap is what made this
 worth trying.
 
+
+## Rebuilding the box
+
+Transcribed from a real rebuild on 24 October 2026 — done to replace a
+hand-fixed box with one born correctly from cloud-init, and the same path a
+disaster recovery would take. The data volume survives; everything on the root
+disk does not, and is rebuilt here by hand.
+
+**What survives vs. what you recreate.** The mail, accounts, Stalwart config,
+DKIM keys, the TLS certificate and the relay route all live on the data volume
+(`prevent_destroy` in `server.tf`), so they come back untouched. The root disk
+is destroyed, so the repo clone and its two symlinks, `/opt/agentsee/stalwart/.env`,
+`/etc/agentsee/{engine,tunnel,backup}.env`, `/etc/agentsee/restic-password`, and
+the backup systemd units are all gone and recreated below. cloud-init rebuilds
+the base: Docker, fail2ban (with the systemd-journal fix), unattended-upgrades.
+
+**Pre-flight.** Take a fresh backup and prove a restore first (see
+[backup/README.md](../stalwart/backup/README.md)); `backup.env` is root-only, so
+source it inside the root shell, not before `sudo`:
+
+```sh
+sudo systemctl start stalwart-backup.service && journalctl -u stalwart-backup -f   # wait for "done"
+sudo bash -c 'set -a; . /etc/agentsee/backup.env; set +a; /opt/agentsee/stalwart/backup/restore-test.sh'
+```
+
+**Replace the instance** (from `infra/`, on the workstation):
+
+```sh
+op run --env-file=op.env -- tofu plan -replace=openstack_compute_instance_v2.mail
+```
+
+⚠ **Go/no-go gate on the plan:** it must replace `openstack_compute_instance_v2.mail`
+and its `volume_attach`, and update the `mail_a`/`mail_aaaa` records. It must
+**not** destroy `openstack_blockstorage_volume_v3.mail_data` — `prevent_destroy`
+should block that, but stop if you see it proposed. Then:
+
+```sh
+op run --env-file=op.env -- tofu apply -replace=openstack_compute_instance_v2.mail
+op run --env-file=op.env -- tofu output        # record the new IP(s)
+```
+
+The replacement gets a **new IPv6, and may keep or change the IPv4** (on 24 Oct
+the v4 was retained and only the v6 moved). It also builds from a newer
+`most_recent` base image — `ignore_changes` does not apply to a forced replace —
+which is expected and incidentally clears a pending kernel reboot. `tofu` updates
+the DNS records, so nothing else needs touching.
+
+**Bring it back up** (on the box):
+
+```sh
+ssh-keygen -R mail.agentsee.work            # new host key; SSH to the new IP if DNS lags the 300s TTL
+ssh debian@mail.agentsee.work
+sudo cloud-init status --wait               # expect "status: done"
+
+# Mount the EXISTING volume by label. ⚠ NEVER mkfs — it holds the mail.
+lsblk -f                                    # confirm the ext4 "stalwart" volume is non-empty
+sudo install -d -m 0755 /var/lib/stalwart
+echo 'LABEL=stalwart /var/lib/stalwart ext4 defaults,noatime 0 2' | sudo tee -a /etc/fstab
+sudo mount -a && sudo ls /var/lib/stalwart  # expect the RocksDB datastore: config, data/, index/…
+
+# Repo, symlinks, relay secret (the SMTP user password — vault "SMTP2GO SMTP user")
+sudo install -d -m 0755 /opt/agentsee
+sudo git clone https://github.com/agentsee-work/agentsee.work.git /opt/agentsee/repo
+sudo ln -s /opt/agentsee/repo/stalwart    /opt/agentsee/stalwart
+sudo ln -s /opt/agentsee/repo/engine/home /opt/agentsee/engine
+printf 'RELAY_SMTP_PASSWORD=%s\n' '<vault>' | sudo tee /opt/agentsee/stalwart/.env >/dev/null
+sudo chmod 0600 /opt/agentsee/stalwart/.env
+
+# Stalwart. No setup wizard — the config persists on the volume, and the cert
+# re-issues itself once DNS points at the new IP.
+cd /opt/agentsee/stalwart && sudo docker compose up -d && sudo docker exec stalwart id   # expect uid=2000
+```
+
+**Engine** (tokens from the vault — "Engine service account" in Security,
+"Engine tunnel token" in Engineering):
+
+```sh
+sudo install -d -m 0755 /etc/agentsee
+sudo install -m 0600 /dev/null /etc/agentsee/engine.env   # OP_SERVICE_ACCOUNT_TOKEN=…
+sudo install -m 0600 /dev/null /etc/agentsee/tunnel.env   # TUNNEL_TOKEN=…
+sudoedit /etc/agentsee/engine.env; sudoedit /etc/agentsee/tunnel.env
+sudo install -d -m 0750 -o 2001 -g 2001 /var/lib/agentsee-engine
+cd /opt/agentsee/engine && sudo docker compose build && sudo docker compose up -d
+```
+
+**Backups.** The systemd units are not installed by anything — see
+[backup/README.md](../stalwart/backup/README.md) for the symlink step and the
+`backup.env` values (the Swiss Backup bucket is `default`, and the restic
+passphrase must be the **existing** one from Security or the old snapshots become
+unreadable).
+
+**Verify, from off the box:** the real Let's Encrypt cert on 443/993/465, SMTP
+answering and refusing an external relay, `engine.agentsee.work` 302-ing to
+Access, `fail2ban` active, and a backup run writing both repositories. Finally,
+send real mail in and out and confirm `dkim=pass header.d=agentsee.work`.
 
 ## Reading the logs when mail "doesn't arrive"
 

@@ -90,9 +90,13 @@ openssl rand -base64 32 > /etc/agentsee/restic-password
 chmod 0400 /etc/agentsee/restic-password
 
 cat > /etc/agentsee/backup.env <<'EOF'
-# Primary — Infomaniak Swiss Backup. The 0N is your cluster; it is in the
-# credentials email, and guessing it gives a confusing connection error.
-RESTIC_REPOSITORY=s3:https://s3.swiss-backup0N.infomaniak.com/<bucket>
+# Primary — Infomaniak Swiss Backup. The 0N is your cluster (swiss-backup02
+# today); it is in the credentials email, and guessing it gives a confusing
+# connection error. The bucket is literally `default` — Swiss Backup gives each
+# S3 user one bucket of that name, and the restic repo sits at its root.
+# ⚠ Put REAL values here. A leftover <placeholder> in angle brackets makes
+# `set -a; . backup.env` fail with a shell syntax error, because `<` is a redirect.
+RESTIC_REPOSITORY=s3:https://s3.swiss-backup02.infomaniak.com/default
 RESTIC_PASSWORD_FILE=/etc/agentsee/restic-password
 AWS_ACCESS_KEY_ID=<swiss-backup-key>
 AWS_SECRET_ACCESS_KEY=<swiss-backup-secret>
@@ -114,6 +118,14 @@ RESTIC_REPOSITORY="$SECONDARY_REPOSITORY" \
   AWS_ACCESS_KEY_ID="$SECONDARY_AWS_ACCESS_KEY_ID" \
   AWS_SECRET_ACCESS_KEY="$SECONDARY_AWS_SECRET_ACCESS_KEY" \
   restic init
+
+# Install the systemd units. They live in the repo but nothing copies them for
+# you — not cloud-init, not compose — so a rebuilt box has none, and
+# `systemctl enable` fails with "Unit file does not exist" until this runs.
+# Symlinks keep them in step with the repo, like the compose files.
+ln -s /opt/agentsee/stalwart/backup/stalwart-backup.service /etc/systemd/system/stalwart-backup.service
+ln -s /opt/agentsee/stalwart/backup/stalwart-backup.timer   /etc/systemd/system/stalwart-backup.timer
+systemctl daemon-reload
 
 systemctl enable --now stalwart-backup.timer
 systemctl start stalwart-backup.service   # don't wait until 03:20 to find a typo
@@ -152,10 +164,14 @@ exact silent failure this guards against — and then **boots a throwaway server
 against the restored data** and checks it responds without logging corruption.
 The live server is untouched throughout.
 
+`backup.env` is root-only (0600), so source it inside the root shell. A bare
+`. /etc/agentsee/backup.env` fails as the `debian` user (permission denied), and
+`sudo restore-test.sh` after sourcing loses the variables, because `sudo` resets
+the environment. Do both in one `sudo bash -c`:
+
 ```sh
-set -a; . /etc/agentsee/backup.env; set +a
-/opt/agentsee/stalwart/backup/restore-test.sh
-/opt/agentsee/stalwart/backup/restore-test.sh secondary
+sudo bash -c 'set -a; . /etc/agentsee/backup.env; set +a; /opt/agentsee/stalwart/backup/restore-test.sh'
+sudo bash -c 'set -a; . /etc/agentsee/backup.env; set +a; /opt/agentsee/stalwart/backup/restore-test.sh secondary'
 ```
 
 **Test both.** The secondary exists for the day the primary's whole account is
