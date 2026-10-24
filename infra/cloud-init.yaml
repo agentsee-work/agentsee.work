@@ -36,6 +36,12 @@ package_upgrade: true
 packages:
   - restic
   - fail2ban
+  # For fail2ban's systemd backend. This box logs only to the journal — no
+  # rsyslog, no /var/log/auth.log — so the sshd jail reads the journal (see the
+  # jail.local written below). Without these bindings `backend = systemd` fails
+  # to import and the server aborts, which is exactly how fail2ban sat dead from
+  # 11 September to 24 October 2026: installed and enabled, finding no log file.
+  - python3-systemd
   - unattended-upgrades
   - ca-certificates
   - curl
@@ -53,6 +59,37 @@ write_files:
       PasswordAuthentication no
       PermitRootLogin prohibit-password
       KbdInteractiveAuthentication no
+
+  # fail2ban's local overrides. The package above enables an sshd jail, but its
+  # stock settings do not fit this box three ways, and all three must be fixed
+  # or the jail is either dead or useless:
+  #
+  #   - backend: the default reads /var/log/auth.log, which does not exist here
+  #     (journal only). backend = systemd reads the journal instead. Without
+  #     this the server aborts at startup with "found no log file for sshd".
+  #   - banaction: there is no iptables binary (the firewall is the OpenStack
+  #     security group, over nftables). The iptables action would fail, so ban
+  #     with nftables, which makes its own table and leaves Docker's rules be.
+  #   - journalmatch: Debian's unit is ssh.service, but the stock sshd filter
+  #     matches sshd.service — which matches nothing here, so the jail would run
+  #     and ban no one. Scope it to the unit this box actually uses.
+  #
+  # Kept in step with the live box (/etc/fail2ban/jail.local), fixed 24 Oct 2026.
+  - path: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      backend            = systemd
+      banaction          = nftables-multiport
+      banaction_allports = nftables-allports
+
+      [sshd]
+      enabled  = true
+      journalmatch = _SYSTEMD_UNIT=ssh.service + _COMM=sshd
+      maxretry = 4
+      findtime = 10m
+      bantime  = 1h
+      bantime.increment = true
+      bantime.maxtime   = 1w
 
   - path: /root/README
     content: |
