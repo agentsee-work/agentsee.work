@@ -16,6 +16,12 @@ services:
     image: agentsee-engine
     container_name: agentsee-engine
     restart: unless-stopped
+    # Least privilege: a Python process that only needs an outbound socket, so
+    # no Linux capabilities at all, and no regaining any at exec.
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
     # OP_SERVICE_ACCOUNT_TOKEN, and nothing else. Root-owned, 0600, NOT in
     # git: engine.env.example says what goes in it.
     env_file:
@@ -41,6 +47,12 @@ services:
     image: cloudflare/cloudflared:2026.10.1
     container_name: agentsee-engine-tunnel
     restart: unless-stopped
+    # cloudflared only holds an outbound connection to Cloudflare; it needs no
+    # capabilities and nothing it could escalate to.
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
     command: tunnel --no-autoupdate run
     # TUNNEL_TOKEN only; a separate file so the tunnel never sees the
     # 1Password token and the engine never sees the tunnel's.
