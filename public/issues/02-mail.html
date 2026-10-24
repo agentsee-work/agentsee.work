@@ -300,6 +300,55 @@
       <p>Everything described here is in the open, including the mistakes. The repository is
       public and the commit messages are the honest version.</p>
     </div>
+  </section>
+
+  <p class="pull">A defence that is switched on and dead looks exactly like a defence.</p>
+
+  <section class="section">
+    <p class="kicker">Postscript — 24 October 2026</p>
+    <h2>Six weeks on, we tried to break in.</h2>
+
+    <div class="cols">
+      <p>Before describing any of this out loud, it seemed only fair to attack it properly
+      first: a full pass over the server, the relay, the engine and the infrastructure
+      code, looking for the way in.</p>
+
+      <p>There was not one. The things meant to be shut were shut — not an open relay,
+      modern TLS on every port with the old versions refused, authentication that holds, no
+      secret anywhere in the public repository or the published site, and no path to the
+      mail that does not run through a credential we hold. The reassuring half of a security
+      review is the half nobody writes up, so, for once: it held.</p>
+
+      <p>The unreassuring half had a familiar shape. The brute-force defence on the login
+      port had never once run. It had been crash-looping since the hour the box was first
+      built — for three reasons particular to this machine: it logs only to the journal, it
+      has no iptables, and the stock filter watches for a service under a name this box does
+      not use — and through all of it the system reported it enabled and healthy. A defence
+      that is switched on and dead looks, from the outside, exactly like a defence. We had
+      been reading the label.</p>
+
+      <p>The other finding was drift. The mail server was six releases behind in seven
+      weeks, and nothing was arranged to notice. The version had been pinned on purpose, so
+      an upgrade could never arrive as a surprise at the worst moment — and the pin, left
+      alone, had quietly become the mechanism by which we fell behind instead. None of the
+      missed releases carried a flaw anyone had exploited; they carried the ordinary
+      hardening that accrues to a mail server, which was reason enough. We upgraded, and
+      added the part that had actually been missing: something that watches for the next
+      release and opens a request, rather than a person who has to remember to look.</p>
+
+      <p>Then we did the thing the runbook had been asserting all along. It says the box is
+      disposable — that if it breaks, deleting it and rebuilding from the repository is a
+      legitimate first move and is expected to work. A claim like that is worth nothing
+      until someone deletes the box. So we deleted the box. It came back, and the mail was
+      still there.</p>
+
+      <p>The division of labour was the one from before, pointed at a different target. The
+      model is good at breadth — every installed version checked against every published
+      advisory, the tedious sweep done quickly. The human is still the one who decides what
+      is acceptable, and the one who can look at a service reporting itself healthy and
+      think to ask whether it has ever actually done anything. Both findings above came from
+      that question.</p>
+    </div>
 
     <p class="backlink-row">
       <a class="backlink" href="/">&larr; Back to Issue No.&nbsp;1</a>
