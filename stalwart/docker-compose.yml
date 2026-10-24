@@ -8,6 +8,16 @@
 # Pinned, not :latest. This holds the mail; an unattended major upgrade is not
 # something to discover from a container that will not start.
 #
+# Bumped 0.16.21 → 0.16.27 on 24 October 2026. No published CVE affected
+# 0.16.21, but 0.16.22 shipped STARTTLS session-state hardening (SMTP/IMAP/POP3
+# discard any partial command received before STARTTLS — the plaintext
+# command-injection class), plus LDAP filter-placeholder escaping and
+# shared-mailbox read-right checks; 0.16.23–0.16.27 added DANE delivery, VAPID
+# audience and DKIM-rotation fixes. None are labelled security releases, so
+# check the upstream notes by hand — being 6 releases behind within 7 weeks is
+# the gap. Config and data persist across the image swap; `docker compose up -d`
+# recreates only the container.
+#
 # Ports map 1:1 to the firewall rules in infra/server.tf, and all of them are
 # INBOUND. Host-level SMTP blocks are egress-only, so they do not affect these;
 # outbound is a separate question and the relay uses 8465 because of it.
@@ -17,7 +27,7 @@
 
 services:
   stalwart:
-    image: stalwartlabs/stalwart:v0.16.21
+    image: stalwartlabs/stalwart:v0.16.27
     container_name: stalwart
     restart: unless-stopped
 
