@@ -247,7 +247,23 @@ def fetch_release(slug, client=None):
 
 def snapshot(c, client=None, who="engine", log=print):
     """A consistent copy of the ledger (SQLite's own backup API, so the
-    worker need not stop) to the archive under today's date and as latest."""
+    worker need not stop) to the archive under today's date and as latest.
+
+    Refuses an empty ledger. The data lives on the root disk, so a rebuilt
+    box starts with none and the engine silently makes a fresh one; without
+    this guard the nightly snapshot would then overwrite the archive's good
+    copy — and `latest` with it — with that empty ledger, which is how two
+    days of posts were nearly lost on 24 October 2026. An empty ledger is a
+    box that has not had `engine.py restore` run yet, never a thing to back
+    up; so a count of zero episodes AND zero posts is a loud failure here,
+    caught by `cmd_snapshot` and recorded `snapshot:failed` by the worker."""
+    episodes = c.execute("SELECT COUNT(*) FROM episode").fetchone()[0]
+    posts = c.execute("SELECT COUNT(*) FROM post").fetchone()[0]
+    if not episodes and not posts:
+        raise ArchiveError(
+            "the ledger has no episodes and no posts: refusing to snapshot, "
+            "because it would overwrite the archive's good copy (and latest) "
+            "with an empty one. On a rebuilt box run `engine.py restore` first.")
     client = client or Client()
     day = dt.datetime.now(ledger.ZONE).strftime("%Y-%m-%d")
     fd, tmp = tempfile.mkstemp(suffix=".sqlite")
