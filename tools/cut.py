@@ -691,6 +691,37 @@ def main():
         if n_gap:
             print(f"  sound between words with no token: {n_gap} cut")
 
+    # ── a stammer split by a filler with no token ─────────────────────────
+    # "a, um, a": the stammer rule looks across a gap of up to 1.2 s, and
+    # a long um between the first try and the repeat is more than that.
+    # With the um cut above, what the gap still holds is the test, and the
+    # first try goes the way a stammer does. Episode 2 had "like a, [um], a
+    # pretty big failure" in a clip.
+    n_split = 0
+    if words_aligned and a.stammers != "off":
+        for i in range(len(words) - 1):
+            w = words[i]
+            t_a = tok(w["w"])
+            if i in drop or i not in kept or not t_a or t_a in FILLERS:
+                continue
+            j = i + 1
+            while j < len(words) and words[j]["spk"] == w["spk"] and tok(words[j]["w"]) in FILLERS:
+                j += 1
+            if j >= len(words) or j not in kept:
+                continue
+            nxt, t_b = words[j], tok(words[j]["w"])
+            if w["spk"] != nxt["spk"] or not (t_a == t_b or (len(t_a) >= 3 and t_b.startswith(t_a))):
+                continue
+            gap = nxt["t0"] - w["t1"]
+            if gap <= 1.2:
+                continue
+            cut_s = HOP * int((reason[int(w["t1"] / HOP):int(nxt["t0"] / HOP)] == 7).sum())
+            if gap - cut_s <= 1.2:
+                drop[i] = 2
+                n_split += 1
+        if n_split:
+            print(f"  stammers split by a cut filler: {n_split}")
+
     for i, why in drop.items():
         if i not in kept:
             continue
