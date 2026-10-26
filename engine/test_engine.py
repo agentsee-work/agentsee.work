@@ -1046,6 +1046,15 @@ class EngineTest(unittest.TestCase):
         archive.restore(back, client, force=True)
         with self.assertRaises(archive.ArchiveError):
             archive.restore(self.data / "x.sqlite", client, key="engine/ledger-1999-01-01.sqlite")
+        # the guard: an empty ledger must never overwrite the archive's good copy
+        empty = ledger.connect(self.data / "empty.sqlite")
+        try:
+            with self.assertRaises(archive.ArchiveError) as cm:
+                archive.snapshot(empty, client, who="tester", log=lambda s: None)
+            self.assertIn("no episodes and no posts", str(cm.exception))
+        finally:
+            empty.close()
+        self.assertEqual(objs[archive.LATEST]["body"], objs[key]["body"], "latest left intact by the refusal")
         # the worker's nightly: not on the first look, once after the hour, not again that day
         web.STATE["snapshot_day"] = None
         ledger.CONFIG["snapshot_at"] = "00:00"
