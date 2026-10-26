@@ -1086,7 +1086,25 @@ sudo install -m 0600 /dev/null /etc/agentsee/engine.env   # OP_SERVICE_ACCOUNT_T
 sudo install -m 0600 /dev/null /etc/agentsee/tunnel.env   # TUNNEL_TOKEN=…
 sudoedit /etc/agentsee/engine.env; sudoedit /etc/agentsee/tunnel.env
 sudo install -d -m 0750 -o 2001 -g 2001 /var/lib/agentsee-engine
-cd /opt/agentsee/engine && sudo docker compose build && sudo docker compose up -d
+cd /opt/agentsee/engine && sudo docker compose build
+
+# ⚠ RESTORE THE LEDGER BEFORE STARTING THE ENGINE. It lives on the root disk,
+# so a rebuilt box has none. Start the engine first and it creates an EMPTY
+# ledger, then the nightly worker overwrites the archive's good copy (and
+# `latest`) with it — two days of posts were nearly lost this way on 24 Oct
+# 2026. Pull the latest copy back in a one-off container, THEN start:
+sudo docker run --rm --env-file /etc/agentsee/engine.env \
+  -v /opt/agentsee/repo:/opt/agentsee/repo:ro \
+  -v /var/lib/agentsee-engine:/var/lib/agentsee-engine \
+  -w /opt/agentsee/repo --user 2001 agentsee-engine \
+  op run --env-file=engine/engine.env -- \
+  python3 engine/engine.py restore --key engine/ledger-latest.sqlite
+# Expect "restored from engine/ledger-latest.sqlite, N posts" with N > 0. If N
+# is 0 the latest copy is itself empty (a prior empty start reached the
+# archive); restore the newest populated dated key instead and --force:
+#   ... engine.py restore --key engine/ledger-YYYY-MM-DD.sqlite --force
+
+sudo docker compose up -d
 ```
 
 **Backups.** The systemd units are not installed by anything — see
