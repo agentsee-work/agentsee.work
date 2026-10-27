@@ -3,9 +3,12 @@
 # `ruff check` and `ruff format --check` on every pull request and push to
 # main (.github/workflows/check.yml). The same two, before pushing:
 #
-#     pip install ruff                        # or: uvx ruff ...
+#     pip install ruff==0.17.3                # the version CI pins; or: uvx ruff@0.17.3 ...
 #     ruff check . && ruff format --check .
 #     ruff check --fix . && ruff format .     # let it fix what it can
+#
+# A hook in .claude/settings.json runs those last two on each .py file the
+# Edit and Write tools change, when ruff is installed (.claude/hooks/).
 
 # What the code runs on: the engine's image (engine/home/Dockerfile), the
 # media tools' venvs under build/ and the workstations are all 3.14.

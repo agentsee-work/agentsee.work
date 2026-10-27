@@ -3,5 +3,20 @@
     "symlinkDirectories": [
       "build"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/ruff-changed-file.sh",
+            "timeout": 30,
+            "statusMessage": "Ruff, on the file just changed"
+          }
+        ]
+      }
+    ]
   }
 }

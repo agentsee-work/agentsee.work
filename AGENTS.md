@@ -10,6 +10,10 @@ Any non-technical documentation or information remains in Linear. That includes 
 
 Use Conventional Commits.
 
+## Python
+
+Ruff is the linter and the formatter (`ruff.toml`); CI runs `ruff check` and `ruff format --check` on every pull request and push to `main`. Before committing Python, run `ruff check --fix . && ruff format .`. A hook in `.claude/settings.json` does the same to each `.py` file as the Edit and Write tools change it, when `ruff` is on the machine (`pip install ruff==0.17.3` in a venv, the version CI pins; `~/.local/bin/ruff` is also looked for), and hands back what it could not fix.
+
 ## Agent skills
 
 ### Issue tracker
