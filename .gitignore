@@ -13,7 +13,11 @@ __pycache__/
 *.pyc
 
 # Rendered video. The recipe belongs in the repo; the output does not.
-build/
+# No trailing slash: in a worktree build is a symlink, and `build/` would not match it.
+build
 
 # Claude Code local permissions, per machine
 .claude/settings.local.json
+
+# Claude Code worktrees, one per session (see AGENTS.md)
+.claude/worktrees/
