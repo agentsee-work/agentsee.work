@@ -117,9 +117,10 @@ def at(date, hhmm):
 
 
 def event(c, what, who="engine", post=None, episode=None, detail=None):
-    c.execute("INSERT INTO event (at, who, what, post, episode, detail) VALUES (?,?,?,?,?,?)",
-              (now(), who, what, post, episode,
-               detail if isinstance(detail, str) or detail is None else json.dumps(detail)))
+    c.execute(
+        "INSERT INTO event (at, who, what, post, episode, detail) VALUES (?,?,?,?,?,?)",
+        (now(), who, what, post, episode, detail if isinstance(detail, str) or detail is None else json.dumps(detail)),
+    )
 
 
 def update_post(c, post_id, who="engine", **fields):

@@ -134,7 +134,14 @@ def run(c, posts, env=None, dry_run=False, who="engine", log=print):
         except Hold as e:
             why = str(e)[:1000]
             ledger.update_post(c, p["id"], status=p["status"], last_error=why)
-            ledger.event(c, "publish:held", who, post=p["id"], episode=p["episode"], detail={"until": e.until.isoformat(), "why": why})
+            ledger.event(
+                c,
+                "publish:held",
+                who,
+                post=p["id"],
+                episode=p["episode"],
+                detail={"until": e.until.isoformat(), "why": why},
+            )
             HELD[p["account"]] = (e.until, why)
             resting.add(p["account"])
             log(f"  {tag}: held until {e.until.astimezone(ledger.ZONE).strftime('%H:%M')}: {why}")
@@ -149,8 +156,13 @@ def run(c, posts, env=None, dry_run=False, who="engine", log=print):
             continue
         note = res.pop("note", None)
         ledger.update_post(c, p["id"], last_error=None, **res)
-        ledger.event(c, "publish:" + res["status"], who, post=p["id"], episode=p["episode"],
-                     detail={**res, "note": note})
-        log(f"  {tag}: {res['status']}" + (f" ({note})" if note else "") + (f" {res.get('permalink')}" if res.get("permalink") else ""))
+        ledger.event(
+            c, "publish:" + res["status"], who, post=p["id"], episode=p["episode"], detail={**res, "note": note}
+        )
+        log(
+            f"  {tag}: {res['status']}"
+            + (f" ({note})" if note else "")
+            + (f" {res.get('permalink')}" if res.get("permalink") else "")
+        )
         results.append((p["id"], res["status"]))
     return results

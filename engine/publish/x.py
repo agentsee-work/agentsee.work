@@ -45,8 +45,12 @@ LIMIT = 280
 LINK = 23  # what X counts any URL as, whatever its length
 WAIT = 600  # seconds to give X to process a video
 RETRY = (500, 502, 503, 504)
-TYPES = {".mp4": ("video/mp4", "tweet_video"), ".jpg": ("image/jpeg", "tweet_image"),
-         ".jpeg": ("image/jpeg", "tweet_image"), ".png": ("image/png", "tweet_image")}
+TYPES = {
+    ".mp4": ("video/mp4", "tweet_video"),
+    ".jpg": ("image/jpeg", "tweet_image"),
+    ".jpeg": ("image/jpeg", "tweet_image"),
+    ".png": ("image/png", "tweet_image"),
+}
 
 _token = {"access": None, "until": 0.0, "unsaved": None}
 
@@ -71,7 +75,8 @@ def keep(value):
         raise PublishError(
             f"X issued a new refresh token but the vault write failed ({e}). The old token is retired; "
             "the new one is held in this process only and the write is retried on the next attempt. "
-            "Do not restart the engine before that succeeds, or the token is lost and another must be minted") from e
+            "Do not restart the engine before that succeeds, or the token is lost and another must be minted"
+        ) from e
     _token["unsaved"] = None
 
 
@@ -84,22 +89,32 @@ def token(env, log=print):
     try:
         current = vault.read(*item())
     except VaultError as e:
-        raise PublishError(f"could not read the X refresh token from the vault ({e}): the engine needs an op "
-                           "session (run it under op run) to refresh the token and write the replacement back") from e
-    data = urllib.parse.urlencode({"grant_type": "refresh_token", "refresh_token": current,
-                                   "client_id": env["X_APP_ID"]}).encode()
+        raise PublishError(
+            f"could not read the X refresh token from the vault ({e}): the engine needs an op "
+            "session (run it under op run) to refresh the token and write the replacement back"
+        ) from e
+    data = urllib.parse.urlencode(
+        {"grant_type": "refresh_token", "refresh_token": current, "client_id": env["X_APP_ID"]}
+    ).encode()
     auth = "Basic " + base64.b64encode(f"{env['X_APP_ID']}:{env['X_APP_SECRET']}".encode()).decode()
-    req = urllib.request.Request(TOKEN_URL, data=data, method="POST", headers={
-        "Content-Type": "application/x-www-form-urlencoded", "Authorization": auth})
+    req = urllib.request.Request(
+        TOKEN_URL,
+        data=data,
+        method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded", "Authorization": auth},
+    )
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             j = json.load(r)
     except urllib.error.HTTPError as e:
         with e:
             why = e.read().decode(errors="replace")[:300]
-        raise PublishError("X would not refresh the token: " + why
-                           + ". If something else refreshed it first, the vault holds a retired token: "
-                           "mint another with tools/x.py auth, or in the Developer Console, and file it") from e
+        raise PublishError(
+            "X would not refresh the token: "
+            + why
+            + ". If something else refreshed it first, the vault holds a retired token: "
+            "mint another with tools/x.py auth, or in the Developer Console, and file it"
+        ) from e
     new = j.get("refresh_token")
     if not new:
         raise PublishError("X refreshed but sent no new refresh token: offline.access is missing from the consent")
@@ -133,7 +148,7 @@ def said(status, body):
             return f"{status}: " + "; ".join(str(e.get("message") or e) for e in j["errors"])
         if "error" in j:
             return f"{status}: {j['error']}: {j.get('error_description', '')}".strip(": ")
-    except (ValueError, TypeError, AttributeError):
+    except ValueError, TypeError, AttributeError:
         pass
     return f"{status}: {body[:300]!r}"
 
@@ -142,9 +157,15 @@ def multipart(fields, name, data):
     boundary = "agentsee" + secrets.token_hex(8)
     body = b""
     for k, v in fields.items():
-        body += f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode()
-    body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"; filename=\"blob\"\r\n"
-             "Content-Type: application/octet-stream\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
+        body += f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
+    body += (
+        (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; filename="blob"\r\n'
+            "Content-Type: application/octet-stream\r\n\r\n"
+        ).encode()
+        + data
+        + f"\r\n--{boundary}--\r\n".encode()
+    )
     return body, f"multipart/form-data; boundary={boundary}"
 
 
@@ -158,9 +179,13 @@ def upload(path, env, log):
         raise PublishError(f"X takes no {path.suffix} files")
     media_type, category = TYPES[path.suffix.lower()]
     size = path.stat().st_size
-    st, h, b = request("POST", f"{API}/media/upload/initialize", token(env, log), json.dumps({
-        "media_type": media_type, "total_bytes": size, "media_category": category}).encode(),
-        {"Content-Type": "application/json"})
+    st, h, b = request(
+        "POST",
+        f"{API}/media/upload/initialize",
+        token(env, log),
+        json.dumps({"media_type": media_type, "total_bytes": size, "media_category": category}).encode(),
+        {"Content-Type": "application/json"},
+    )
     if st not in (200, 201, 202):
         raise PublishError("X would not start the upload: " + said(st, b))
     mid = json.loads(b)["data"]["id"]
@@ -170,11 +195,17 @@ def upload(path, env, log):
             chunk = f.read(CHUNK)
             body, ctype = multipart({"segment_index": str(i)}, "media", chunk)
             for attempt in range(4):
-                st, h, b = request("POST", f"{API}/media/upload/{mid}/append", token(env, log), body,
-                                   {"Content-Type": ctype}, timeout=600)
+                st, h, b = request(
+                    "POST",
+                    f"{API}/media/upload/{mid}/append",
+                    token(env, log),
+                    body,
+                    {"Content-Type": ctype},
+                    timeout=600,
+                )
                 if st not in RETRY:
                     break
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
             if st not in (200, 201, 204):
                 raise PublishError(f"X refused segment {i}: " + said(st, b))
             sent += len(chunk)
@@ -183,8 +214,9 @@ def upload(path, env, log):
             if pct // 10 != shown:
                 shown = pct // 10
                 log(f"    {pct}%")
-    st, h, b = request("POST", f"{API}/media/upload/{mid}/finalize", token(env, log), b"",
-                       {"Content-Type": "application/json"})
+    st, h, b = request(
+        "POST", f"{API}/media/upload/{mid}/finalize", token(env, log), b"", {"Content-Type": "application/json"}
+    )
     if st not in (200, 201):
         raise PublishError("X would not finalize the upload: " + said(st, b))
     info = json.loads(b)["data"].get("processing_info")
@@ -193,8 +225,11 @@ def upload(path, env, log):
         if time.time() > deadline:
             raise PublishError(f"X had not finished processing {path.name} after {WAIT // 60} minutes")
         time.sleep(min(max(int(info.get("check_after_secs") or 1), 0), 30))
-        st, h, b = request("GET", f"{API}/media/upload?" + urllib.parse.urlencode(
-            {"command": "STATUS", "media_id": mid}), token(env, log))
+        st, h, b = request(
+            "GET",
+            f"{API}/media/upload?" + urllib.parse.urlencode({"command": "STATUS", "media_id": mid}),
+            token(env, log),
+        )
         if st != 200:
             raise PublishError("X would not say how the processing goes: " + said(st, b))
         info = json.loads(b)["data"].get("processing_info")
@@ -212,7 +247,9 @@ def publish(post, episode, release, files, env, account, log):
     text = (post["text"] or "").strip()
     n = length(text)
     if n > LIMIT:
-        raise PublishError(f"the text is {n} characters as X counts them; the limit is {LIMIT}. Cut it on the post's page")
+        raise PublishError(
+            f"the text is {n} characters as X counts them; the limit is {LIMIT}. Cut it on the post's page"
+        )
     if not text and not post["media"]:
         raise PublishError("nothing to post: no text and no media")
     mid = None
@@ -225,12 +262,22 @@ def publish(post, episode, release, files, env, account, log):
     body = {"text": text}
     if mid:
         body["media"] = {"media_ids": [mid]}
-    st, h, b = request("POST", f"{API}/tweets", token(env, log), json.dumps(body).encode(),
-                       {"Content-Type": "application/json"})
+    st, h, b = request(
+        "POST", f"{API}/tweets", token(env, log), json.dumps(body).encode(), {"Content-Type": "application/json"}
+    )
     if st not in (200, 201):
         raise PublishError("X refused the post: " + said(st, b))
     pid = json.loads(b)["data"]["id"]
     handle = (account.get("handle") or "").lstrip("@") or "i"
-    note = f"{n} of {LIMIT} characters" + (f"; {post['media']}" if mid else "") + ("; with a link" if "http" in text else "")
-    return {"status": "published", "remote_id": pid, "permalink": f"https://x.com/{handle}/status/{pid}",
-            "published_at": ledger.now(), "note": note}
+    note = (
+        f"{n} of {LIMIT} characters"
+        + (f"; {post['media']}" if mid else "")
+        + ("; with a link" if "http" in text else "")
+    )
+    return {
+        "status": "published",
+        "remote_id": pid,
+        "permalink": f"https://x.com/{handle}/status/{pid}",
+        "published_at": ledger.now(),
+        "note": note,
+    }

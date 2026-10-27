@@ -20,8 +20,11 @@ import ledger  # noqa: E402
 from eplib import EPISODES, die, load_json  # noqa: E402
 
 KINDS = (
-    ("episode.mp3", "audio"), ("episode.mp4", "video"), ("captions.srt", "captions"),
-    ("chapters.json", "chapters"), ("thumbnail.png", "thumbnail"),
+    ("episode.mp3", "audio"),
+    ("episode.mp4", "video"),
+    ("captions.srt", "captions"),
+    ("chapters.json", "chapters"),
+    ("thumbnail.png", "thumbnail"),
 )
 
 
@@ -56,7 +59,8 @@ def ingest(c, slug, src=None, who="engine", from_archive=False):
         die(f"{slug} is not approved")
     release_at = ledger.at(ep["release"], ledger.CONFIG["release_time"])
     c.execute("BEGIN")
-    c.execute("""INSERT INTO episode (slug, number, title, release, release_at, guid, url, media_url,
+    c.execute(
+        """INSERT INTO episode (slug, number, title, release, release_at, guid, url, media_url,
                    approved_by, approved_at, staged_at, release_json, source_dir, ingested_at)
                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON CONFLICT(slug) DO UPDATE SET number=excluded.number, title=excluded.title,
@@ -65,21 +69,50 @@ def ingest(c, slug, src=None, who="engine", from_archive=False):
                    approved_at=excluded.approved_at, staged_at=excluded.staged_at,
                    release_json=excluded.release_json, source_dir=excluded.source_dir,
                    ingested_at=excluded.ingested_at""",
-              (slug, str(ep["number"]), ep["title"], ep["release"], release_at, ep["guid"], ep["url"],
-               ep["media_url"], ep["approved"]["by"], ep["approved"]["at"], s.get("at"),
-               json.dumps(r, ensure_ascii=False), str(d), ledger.now()))
+        (
+            slug,
+            str(ep["number"]),
+            ep["title"],
+            ep["release"],
+            release_at,
+            ep["guid"],
+            ep["url"],
+            ep["media_url"],
+            ep["approved"]["by"],
+            ep["approved"]["at"],
+            s.get("at"),
+            json.dumps(r, ensure_ascii=False),
+            str(d),
+            ledger.now(),
+        ),
+    )
     n = 0
     for name, f in r["files"].items():
         url = (s.get("media", {}).get(name) or {}).get("url")
         archived = 1 if f"episodes/{slug}/out/{name}" in s.get("archive", {}) else 0
-        c.execute("""INSERT INTO deliverable (episode, name, kind, sha256, bytes, type, duration, width, height, url, archived)
+        c.execute(
+            """INSERT INTO deliverable (episode, name, kind, sha256, bytes, type, duration, width, height, url, archived)
                      VALUES (?,?,?,?,?,?,?,?,?,?,?)
                      ON CONFLICT(episode, name) DO UPDATE SET kind=excluded.kind, sha256=excluded.sha256,
                        bytes=excluded.bytes, type=excluded.type, duration=excluded.duration, width=excluded.width,
                        height=excluded.height, url=excluded.url, archived=excluded.archived""",
-                  (slug, name, kind_of(name), f.get("sha256"), f.get("bytes"), f.get("type"), f.get("duration"),
-                   f.get("width"), f.get("height"), url, archived))
+            (
+                slug,
+                name,
+                kind_of(name),
+                f.get("sha256"),
+                f.get("bytes"),
+                f.get("type"),
+                f.get("duration"),
+                f.get("width"),
+                f.get("height"),
+                url,
+                archived,
+            ),
+        )
         n += 1
-    ledger.event(c, "ingest", who, episode=slug, detail={"files": n, "release": ep["release"], "staged_at": s.get("at")})
+    ledger.event(
+        c, "ingest", who, episode=slug, detail={"files": n, "release": ep["release"], "staged_at": s.get("at")}
+    )
     c.execute("COMMIT")
     return n

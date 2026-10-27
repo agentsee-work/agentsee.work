@@ -43,6 +43,7 @@ def cmd_ingest(a):
 
 def cmd_snapshot(a):
     import archive
+
     c = ledger.connect(a.ledger)
     try:
         archive.snapshot(c, who=who())
@@ -52,6 +53,7 @@ def cmd_snapshot(a):
 
 def cmd_restore(a):
     import archive
+
     path = pathlib.Path(a.ledger) if a.ledger else ledger.data_dir() / "ledger.sqlite"
     try:
         archive.restore(path, key=a.key, force=a.force)
@@ -88,15 +90,19 @@ def cmd_posts(a):
     q, args = "SELECT * FROM post", []
     cond = []
     if a.episode:
-        cond.append("episode = ?"); args.append(a.episode)
+        cond.append("episode = ?")
+        args.append(a.episode)
     if a.status:
-        cond.append("status = ?"); args.append(a.status)
+        cond.append("status = ?")
+        args.append(a.status)
     if cond:
         q += " WHERE " + " AND ".join(cond)
     for p in c.execute(q + " ORDER BY scheduled_at, id", args):
         t = ledger.local(p["scheduled_at"])
-        print(f"{p['id']:4d}  {t.strftime('%Y-%m-%d %H:%M') if t else '           '}  {p['status']:<10} "
-              f"{p['account']:<15} {p['asset']:<28} {p['link_id'] or '':<10} {(p['title'] or '')[:50]}")
+        print(
+            f"{p['id']:4d}  {t.strftime('%Y-%m-%d %H:%M') if t else '           '}  {p['status']:<10} "
+            f"{p['account']:<15} {p['asset']:<28} {p['link_id'] or '':<10} {(p['title'] or '')[:50]}"
+        )
 
 
 def cmd_publish(a):
@@ -121,6 +127,7 @@ def cmd_publish(a):
 
 def cmd_collect(a):
     import collect
+
     c = ledger.connect(a.ledger)
     res = collect.run(c, only=a.only, who=who())
     print("; ".join(f"{k}: {v}" for k, v in res.items()))
@@ -128,6 +135,7 @@ def cmd_collect(a):
 
 def cmd_serve(a):
     import web
+
     web.serve(a.port, not a.no_worker, a.ledger, a.host)
 
 
@@ -138,14 +146,20 @@ def main():
     p = sub.add_parser("ingest", help="a staged episode into the ledger")
     p.add_argument("slug", nargs="+")
     p.add_argument("--src", help="the out/ directory, if not build/episodes/<slug>/out")
-    p.add_argument("--archive", action="store_true",
-                   help="read release.json and staged.json from the archive bucket (the default when build/ is not here)")
+    p.add_argument(
+        "--archive",
+        action="store_true",
+        help="read release.json and staged.json from the archive bucket (the default when build/ is not here)",
+    )
     p.set_defaults(fn=cmd_ingest)
     p = sub.add_parser("plan", help="the day plan into posts, with short links")
     p.add_argument("slug", nargs="+")
     p.add_argument("--no-links", action="store_true", help="do not push the short links to KV")
-    p.add_argument("--prune", action="store_true",
-                   help="skip planned posts the plan no longer makes (an account dropped, or an asset it no longer takes)")
+    p.add_argument(
+        "--prune",
+        action="store_true",
+        help="skip planned posts the plan no longer makes (an account dropped, or an asset it no longer takes)",
+    )
     p.set_defaults(fn=cmd_plan)
     p = sub.add_parser("links", help="push every short link to KV (idempotent)")
     p.add_argument("slug", nargs="?")
@@ -159,22 +173,32 @@ def main():
     p.add_argument("--post", type=int, nargs="*", help="these posts, whatever their state")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--as-of", help="pretend it is this ISO instant")
-    p.add_argument("--late", action="store_true",
-                   help="also what is past its time by more than late_hours (config.json)")
+    p.add_argument(
+        "--late", action="store_true", help="also what is past its time by more than late_hours (config.json)"
+    )
     p.set_defaults(fn=cmd_publish)
     p = sub.add_parser("collect", help="read what every post and file did, into the ledger (the worker does it daily)")
-    p.add_argument("--only", nargs="*", choices=["edge", "youtube", "bluesky", "mastodon", "x"], help="these sources only")
+    p.add_argument(
+        "--only", nargs="*", choices=["edge", "youtube", "bluesky", "mastodon", "x"], help="these sources only"
+    )
     p.set_defaults(fn=cmd_collect)
     p = sub.add_parser("serve", help="the screens, with the worker")
     p.add_argument("--port", type=int, default=8877)
-    p.add_argument("--host", default="127.0.0.1",
-                   help="loopback by default; 0.0.0.0 inside the container, where the tunnel is the only way in")
+    p.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="loopback by default; 0.0.0.0 inside the container, where the tunnel is the only way in",
+    )
     p.add_argument("--no-worker", action="store_true")
     p.set_defaults(fn=cmd_serve)
     p = sub.add_parser("snapshot", help="a copy of the ledger to the archive bucket, now (the worker does it nightly)")
     p.set_defaults(fn=cmd_snapshot)
     p = sub.add_parser("restore", help="the ledger back from the archive, for a rebuilt box")
-    p.add_argument("--key", default="engine/ledger-latest.sqlite", help="which copy; a dated one is engine/ledger-YYYY-MM-DD.sqlite")
+    p.add_argument(
+        "--key",
+        default="engine/ledger-latest.sqlite",
+        help="which copy; a dated one is engine/ledger-YYYY-MM-DD.sqlite",
+    )
     p.add_argument("--force", action="store_true", help="replace a ledger that exists")
     p.set_defaults(fn=cmd_restore)
     a = ap.parse_args()

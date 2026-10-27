@@ -51,36 +51,78 @@ def fixture(root):
     (out / "clips").mkdir(parents=True)
     files = {
         "episode.mp4": os.urandom(3 * 256 * 1024 + 1000),  # three chunks and a bit, at the test chunk size
-        "episode.mp3": b"ID3mp3" * 100, "captions.srt": b"1\n00:00:00,000 --> 00:00:01,000\nHello\n",
-        "thumbnail.png": b"\x89PNG" + b"\0" * 100, "episode-art.jpg": b"\xff\xd8" + b"\0" * 50,
-        "clips/01-the-point.mp4": os.urandom(256 * 1024 + 7), "clips/01-the-point.png": b"\x89PNG" + b"\0" * 20,
+        "episode.mp3": b"ID3mp3" * 100,
+        "captions.srt": b"1\n00:00:00,000 --> 00:00:01,000\nHello\n",
+        "thumbnail.png": b"\x89PNG" + b"\0" * 100,
+        "episode-art.jpg": b"\xff\xd8" + b"\0" * 50,
+        "clips/01-the-point.mp4": os.urandom(256 * 1024 + 7),
+        "clips/01-the-point.png": b"\x89PNG" + b"\0" * 20,
         "clips/01-the-point.vtt": b"WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n",
     }
     for name, data in files.items():
         (out / name).write_bytes(data)
-    (out / "youtube.txt").write_text(f"Nine | AgentSee Podcast, episode 9\n\nA summary.\n\nEpisode page: {EP_URL}\n\nChapters\n00:00 Start\n")
+    (out / "youtube.txt").write_text(
+        f"Nine | AgentSee Podcast, episode 9\n\nA summary.\n\nEpisode page: {EP_URL}\n\nChapters\n00:00 Start\n"
+    )
     release = {
         "slug": "ep9",
         "show": {"name": "AgentSee Podcast", "hashtags": ["AgentSee", "AIagents"]},
-        "episode": {"number": "9", "title": "Nine", "slug": "ep9", "guid": "g9", "date": DAY0, "release": DAY0,
-                    "url": EP_URL, "media_url": MEDIA, "summary": "What happened in nine.",
-                    "approved": {"by": "Tester", "at": "2026-10-15T10:00:00", "release": DAY0}},
-        "youtube": {"title": "Nine | AgentSee Podcast, episode 9", "description": "desc", "tags": ["AgentSee", "x" * 490, "the podcast"],
-                    "category": 28, "playlist": "AgentSee Podcast"},
+        "episode": {
+            "number": "9",
+            "title": "Nine",
+            "slug": "ep9",
+            "guid": "g9",
+            "date": DAY0,
+            "release": DAY0,
+            "url": EP_URL,
+            "media_url": MEDIA,
+            "summary": "What happened in nine.",
+            "approved": {"by": "Tester", "at": "2026-10-15T10:00:00", "release": DAY0},
+        },
+        "youtube": {
+            "title": "Nine | AgentSee Podcast, episode 9",
+            "description": "desc",
+            "tags": ["AgentSee", "x" * 490, "the podcast"],
+            "category": 28,
+            "playlist": "AgentSee Podcast",
+        },
         "notes": {"youtube": "youtube.txt"},
-        "files": {n: {"bytes": len(d), "type": "video/mp4" if n.endswith(".mp4") else "application/octet-stream",
-                      "sha256": hashlib.sha256(d).hexdigest()} for n, d in files.items()},
-        "clips": [{"index": 1, "slug": "the-point", "title": "The point", "file": "clips/01-the-point.mp4",
-                   "poster": "clips/01-the-point.png", "captions": "clips/01-the-point.vtt",
-                   "post": {"text": "The point\n\nFrom episode 9.", "link": EP_URL, "link_at": EP_URL + "#t=42", "at_hms": "00:42"},
-                   "hashtags": ["AgentSee"]}],
+        "files": {
+            n: {
+                "bytes": len(d),
+                "type": "video/mp4" if n.endswith(".mp4") else "application/octet-stream",
+                "sha256": hashlib.sha256(d).hexdigest(),
+            }
+            for n, d in files.items()
+        },
+        "clips": [
+            {
+                "index": 1,
+                "slug": "the-point",
+                "title": "The point",
+                "file": "clips/01-the-point.mp4",
+                "poster": "clips/01-the-point.png",
+                "captions": "clips/01-the-point.vtt",
+                "post": {
+                    "text": "The point\n\nFrom episode 9.",
+                    "link": EP_URL,
+                    "link_at": EP_URL + "#t=42",
+                    "at_hms": "00:42",
+                },
+                "hashtags": ["AgentSee"],
+            }
+        ],
         "plan": [{"asset": "episode", "day": 0, "date": DAY0}, {"asset": "clip:01-the-point", "day": 1, "date": DAY1}],
     }
     (out / "release.json").write_text(json.dumps(release))
     public = [n for n in files if n != "episode.mp4"]
-    staged = {"slug": "ep9", "at": "2026-10-15T11:00:00", "approved": {},
-              "media": {n: {"url": MEDIA + n, "sha256": "0" * 64, "state": "uploaded"} for n in public},
-              "archive": {f"episodes/ep9/out/{n}": {"sha256": "0" * 64, "state": "uploaded"} for n in files}}
+    staged = {
+        "slug": "ep9",
+        "at": "2026-10-15T11:00:00",
+        "approved": {},
+        "media": {n: {"url": MEDIA + n, "sha256": "0" * 64, "state": "uploaded"} for n in public},
+        "archive": {f"episodes/ep9/out/{n}": {"sha256": "0" * 64, "state": "uploaded"} for n in files},
+    }
     (out / "staged.json").write_text(json.dumps(staged))
     return out
 
@@ -105,8 +147,18 @@ class Stub(http.server.BaseHTTPRequestHandler):
 class StubYouTube(Stub):
     """Google's token endpoint, the resumable upload, captions, thumbnails,
     playlists. One 503 on the second chunk of every upload, to see the resume."""
-    state = {"uploads": {}, "playlists": [], "items": [], "captions": [], "thumbs": [], "fail_session": False, "metas": [],
-             "aborted": set(), "playlist_down": False}
+
+    state = {
+        "uploads": {},
+        "playlists": [],
+        "items": [],
+        "captions": [],
+        "thumbs": [],
+        "fail_session": False,
+        "metas": [],
+        "aborted": set(),
+        "playlist_down": False,
+    }
 
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
@@ -120,12 +172,25 @@ class StubYouTube(Stub):
                 s["refused"] = s.get("refused", 0) + 1
                 if s["fail_session"] == "broken":
                     return self.out(403, {"error": {"message": "forbidden", "errors": [{"reason": "forbidden"}]}})
-                return self.out(400, {"error": {"message": "The user has exceeded the number of videos they may upload.",
-                                                "errors": [{"reason": "uploadLimitExceeded"}]}})
+                return self.out(
+                    400,
+                    {
+                        "error": {
+                            "message": "The user has exceeded the number of videos they may upload.",
+                            "errors": [{"reason": "uploadLimitExceeded"}],
+                        }
+                    },
+                )
             meta = json.loads(self.body())
             size = int(self.headers["X-Upload-Content-Length"])
             uid = f"u{len(s['uploads']) + 1}"
-            s["uploads"][uid] = {"size": size, "got": 0, "meta": meta, "failed_once": False, "type": self.headers["X-Upload-Content-Type"]}
+            s["uploads"][uid] = {
+                "size": size,
+                "got": 0,
+                "meta": meta,
+                "failed_once": False,
+                "type": self.headers["X-Upload-Content-Type"],
+            }
             s["metas"].append(meta)
             return self.out(200, None, {"Location": f"http://{self.headers['Host']}/session/{uid}"})
         if u.path == "/upload/captions":
@@ -150,7 +215,10 @@ class StubYouTube(Stub):
             vid = item["snippet"]["resourceId"]["videoId"]
             if s["playlist_down"] or vid not in s["aborted"]:  # the 409 YouTube throws at the odd call, once per video
                 s["aborted"].add(vid)
-                return self.out(409, {"error": {"message": "The operation was aborted.", "errors": [{"reason": "SERVICE_UNAVAILABLE"}]}})
+                return self.out(
+                    409,
+                    {"error": {"message": "The operation was aborted.", "errors": [{"reason": "SERVICE_UNAVAILABLE"}]}},
+                )
             s["items"].append(item)
             return self.out(200, {"id": "PI1"})
         self.out(404, {"error": {"message": "no such path " + u.path}})
@@ -184,9 +252,14 @@ class StubYouTube(Stub):
             assert q["part"] == ["statistics,status"]
             items = []
             for vid in q["id"][0].split(","):
-                st = ({"uploadStatus": "rejected", "rejectionReason": "length", "privacyStatus": "private"} if vid == "VIDbad"
-                      else {"uploadStatus": "processed", "privacyStatus": "public" if vid == "VIDpublic" else "private"})
-                items.append({"id": vid, "statistics": {"viewCount": "12", "likeCount": "3", "commentCount": "1"}, "status": st})
+                st = (
+                    {"uploadStatus": "rejected", "rejectionReason": "length", "privacyStatus": "private"}
+                    if vid == "VIDbad"
+                    else {"uploadStatus": "processed", "privacyStatus": "public" if vid == "VIDpublic" else "private"}
+                )
+                items.append(
+                    {"id": vid, "statistics": {"viewCount": "12", "likeCount": "3", "commentCount": "1"}, "status": st}
+                )
             return self.out(200, {"items": items})
         self.out(404, {"error": {"message": "no"}})
 
@@ -194,6 +267,7 @@ class StubYouTube(Stub):
 class StubX(Stub):
     """X's token endpoint with the rotating refresh token, the chunked media
     upload with its processing poll, and the post. The vault is FakeVault."""
+
     state = {"refresh": "r1", "n": 1, "refreshes": 0, "media": {}, "tweets": [], "polls": 0, "refuse": False}
 
     def do_POST(self):
@@ -204,13 +278,22 @@ class StubX(Stub):
             q = urllib.parse.parse_qs(self.body().decode())
             assert q["grant_type"] == ["refresh_token"]
             if q["refresh_token"][0] != s["refresh"]:
-                return self.out(400, {"error": "invalid_request", "error_description": "Value passed for the token was invalid."})
+                return self.out(
+                    400, {"error": "invalid_request", "error_description": "Value passed for the token was invalid."}
+                )
             s["n"] += 1
             s["refresh"] = f"r{s['n']}"
             s["refreshes"] += 1
-            return self.out(200, {"token_type": "bearer", "expires_in": 7200, "access_token": f"XAT{s['n']}",
-                                  "scope": "tweet.read tweet.write users.read media.write offline.access",
-                                  "refresh_token": s["refresh"]})
+            return self.out(
+                200,
+                {
+                    "token_type": "bearer",
+                    "expires_in": 7200,
+                    "access_token": f"XAT{s['n']}",
+                    "scope": "tweet.read tweet.write users.read media.write offline.access",
+                    "refresh_token": s["refresh"],
+                },
+            )
         assert self.headers.get("Authorization") == f"Bearer XAT{s['n']}", self.headers.get("Authorization")
         if u.path == "/2/media/upload/initialize":
             j = json.loads(self.body())
@@ -240,7 +323,9 @@ class StubX(Stub):
             assert up["got"] == up["total_bytes"], (up["got"], up["total_bytes"])
             up["finalized"] = True
             if up["media_category"] == "tweet_video":
-                return self.out(200, {"data": {"id": mid, "processing_info": {"state": "pending", "check_after_secs": 0}}})
+                return self.out(
+                    200, {"data": {"id": mid, "processing_info": {"state": "pending", "check_after_secs": 0}}}
+                )
             return self.out(200, {"data": {"id": mid}})
         if u.path == "/2/tweets":
             j = json.loads(self.body())
@@ -248,7 +333,10 @@ class StubX(Stub):
             for mid in j.get("media", {}).get("media_ids", []):
                 assert s["media"][mid]["finalized"]
             if s["refuse"]:
-                return self.out(403, {"title": "Forbidden", "detail": "You are not permitted to perform this action.", "status": 403})
+                return self.out(
+                    403,
+                    {"title": "Forbidden", "detail": "You are not permitted to perform this action.", "status": 403},
+                )
             s["tweets"].append(j)
             return self.out(201, {"data": {"id": f"19{len(s['tweets']):04d}", "text": j["text"]}})
         self.out(404, {"title": "Not Found", "detail": u.path, "status": 404})
@@ -259,16 +347,34 @@ class StubX(Stub):
         if u.path == "/2/tweets":
             q = urllib.parse.parse_qs(u.query)
             assert "public_metrics" in q["tweet.fields"][0]
-            return self.out(200, {"data": [{"id": i, "public_metrics": {"impression_count": 900, "like_count": 7, "retweet_count": 2,
-                                                                         "reply_count": 1, "quote_count": 0, "bookmark_count": 4},
-                                            "non_public_metrics": {"url_link_clicks": 30, "user_profile_clicks": 5}}
-                                           for i in q["ids"][0].split(",")]})
+            return self.out(
+                200,
+                {
+                    "data": [
+                        {
+                            "id": i,
+                            "public_metrics": {
+                                "impression_count": 900,
+                                "like_count": 7,
+                                "retweet_count": 2,
+                                "reply_count": 1,
+                                "quote_count": 0,
+                                "bookmark_count": 4,
+                            },
+                            "non_public_metrics": {"url_link_clicks": 30, "user_profile_clicks": 5},
+                        }
+                        for i in q["ids"][0].split(",")
+                    ]
+                },
+            )
         if u.path == "/2/media/upload":
             q = urllib.parse.parse_qs(u.query)
             assert q["command"] == ["STATUS"]
             s["polls"] += 1
             state = "in_progress" if s["polls"] % 2 else "succeeded"
-            return self.out(200, {"data": {"id": q["media_id"][0], "processing_info": {"state": state, "check_after_secs": 0}}})
+            return self.out(
+                200, {"data": {"id": q["media_id"][0], "processing_info": {"state": state, "check_after_secs": 0}}}
+            )
         self.out(404, {"title": "Not Found", "detail": u.path, "status": 404})
 
 
@@ -276,6 +382,7 @@ class FakeR2(Stub):
     """R2's S3 face, as far as the engine uses it: PUT, GET and HEAD of one
     object at a time under /bucket/key, with the SigV4 shape of every
     request checked and the payload hash verified against the body."""
+
     state = {"objects": {}, "requests": []}
 
     def check(self, body):
@@ -324,6 +431,7 @@ class FakeR2(Stub):
 class StubReach(Stub):
     """Analytics Engine's SQL endpoint with a day of the two datasets, Bluesky's
     public API, a Mastodon instance's status endpoint, the YouTube Analytics API."""
+
     def do_POST(self):
         u = urllib.parse.urlparse(self.path)
         if u.path.endswith("/analytics_engine/sql"):
@@ -332,19 +440,49 @@ class StubReach(Stub):
             assert "FORMAT JSON" in q and "INTERVAL" in q, q
             t = lambda m: (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=m)).strftime("%Y-%m-%d %H:%M:%S")  # noqa: E731
             if "podcast_media" in q:
-                row = lambda m, ua, h, st, b: {"timestamp": t(m), "index1": "podcast/ep9/episode.mp3", "blob3": ua, "blob4": "GB",  # noqa: E731
-                                               "blob5": h, "blob6": "", "double1": st, "double2": b, "double3": 0, "double4": b - 1, "double5": 12000000}
-                rows = [row(50, "Overcast/2024 (+http://overcast.fm/; iOS podcast app)", "h1", 206, 2000000),
-                        row(40, "Overcast/2024 (+http://overcast.fm/; iOS podcast app)", "h1", 206, 3000000),
-                        row(30, "Googlebot/2.1 (+http://www.google.com/bot.html)", "h2", 200, 12000000),
-                        row(20, "Mozilla/5.0 (Macintosh) AppleWebKit/605 Version/17 Safari/605", "h3", 206, 100000),
-                        row(10, "python-requests/2.31", "h4", 200, 12000000),
-                        row(5, "Overcast/2024 (+http://overcast.fm/; iOS podcast app)", "h5", 304, 0)]
+                row = lambda m, ua, h, st, b: {  # noqa: E731
+                    "timestamp": t(m),
+                    "index1": "podcast/ep9/episode.mp3",
+                    "blob3": ua,
+                    "blob4": "GB",
+                    "blob5": h,
+                    "blob6": "",
+                    "double1": st,
+                    "double2": b,
+                    "double3": 0,
+                    "double4": b - 1,
+                    "double5": 12000000,
+                }
+                rows = [
+                    row(50, "Overcast/2024 (+http://overcast.fm/; iOS podcast app)", "h1", 206, 2000000),
+                    row(40, "Overcast/2024 (+http://overcast.fm/; iOS podcast app)", "h1", 206, 3000000),
+                    row(30, "Googlebot/2.1 (+http://www.google.com/bot.html)", "h2", 200, 12000000),
+                    row(20, "Mozilla/5.0 (Macintosh) AppleWebKit/605 Version/17 Safari/605", "h3", 206, 100000),
+                    row(10, "python-requests/2.31", "h4", 200, 12000000),
+                    row(5, "Overcast/2024 (+http://overcast.fm/; iOS podcast app)", "h5", 304, 0),
+                ]
                 return self.out(200, {"meta": [], "data": rows, "rows": len(rows)})
             if "podcast_links" in q:
-                rows = [{"timestamp": t(45), "index1": "e9yte", "blob2": "Mozilla/5.0 (iPhone) Safari", "blob3": "GB", "blob4": "h1",
-                         "blob5": "https://www.youtube.com", "double1": 302},
-                        {"timestamp": t(44), "index1": "nope", "blob2": "curl/8", "blob3": "US", "blob4": "h9", "blob5": "", "double1": 404}]
+                rows = [
+                    {
+                        "timestamp": t(45),
+                        "index1": "e9yte",
+                        "blob2": "Mozilla/5.0 (iPhone) Safari",
+                        "blob3": "GB",
+                        "blob4": "h1",
+                        "blob5": "https://www.youtube.com",
+                        "double1": 302,
+                    },
+                    {
+                        "timestamp": t(44),
+                        "index1": "nope",
+                        "blob2": "curl/8",
+                        "blob3": "US",
+                        "blob4": "h9",
+                        "blob5": "",
+                        "double1": 404,
+                    },
+                ]
                 return self.out(200, {"meta": [], "data": rows, "rows": len(rows)})
         self.out(404, {"error": "no such path " + u.path})
 
@@ -355,22 +493,53 @@ class StubReach(Stub):
             assert q["handle"] == ["agentsee.work"]
             return self.out(200, {"did": "did:plc:test"})
         if u.path == "/xrpc/app.bsky.feed.getPosts":
-            return self.out(200, {"posts": [{"uri": uri, "cid": "c", "likeCount": 5, "repostCount": 2, "replyCount": 1, "quoteCount": 0, "bookmarkCount": 3}
-                                            for uri in q["uris"]]})
+            return self.out(
+                200,
+                {
+                    "posts": [
+                        {
+                            "uri": uri,
+                            "cid": "c",
+                            "likeCount": 5,
+                            "repostCount": 2,
+                            "replyCount": 1,
+                            "quoteCount": 0,
+                            "bookmarkCount": 3,
+                        }
+                        for uri in q["uris"]
+                    ]
+                },
+            )
         if u.path == "/api/v1/statuses/123":
-            return self.out(200, {"id": "123", "url": "x", "created_at": "2026-10-20T09:00:00Z", "favourites_count": 4, "reblogs_count": 1, "replies_count": 0})
+            return self.out(
+                200,
+                {
+                    "id": "123",
+                    "url": "x",
+                    "created_at": "2026-10-20T09:00:00Z",
+                    "favourites_count": 4,
+                    "reblogs_count": 1,
+                    "replies_count": 0,
+                },
+            )
         if u.path == "/analytics/reports":
             assert q["ids"] == ["channel==MINE"] and q["dimensions"] == ["video"] and q["sort"] == ["-views"]
             ids = q["filters"][0].removeprefix("video==").split(",")
             names = ["video"] + collect.YT_METRICS.split(",")
-            return self.out(200, {"columnHeaders": [{"name": n} for n in names],
-                                  "rows": [[v, 12, 50.5, 31.2, 61.0, 3, 1, 2, 1] for v in ids]})
+            return self.out(
+                200,
+                {
+                    "columnHeaders": [{"name": n} for n in names],
+                    "rows": [[v, 12, 50.5, 31.2, 61.0, 3, 1, 2, 1] for v in ids],
+                },
+            )
         self.out(404, {"error": "no such path " + u.path})
 
 
 class StubBluesky(Stub):
     """The entryway and the PDS in one: a session, a service token, blobs, the
     video service with a job that needs two polls, and the record."""
+
     state = {"records": [], "blobs": [], "videos": [], "polls": 0, "auths": []}
 
     def do_POST(self):
@@ -380,13 +549,35 @@ class StubBluesky(Stub):
         if u.path == "/xrpc/com.atproto.server.createSession":
             d = json.loads(self.body())
             assert d == {"identifier": "agentsee.work", "password": "app-pass"}, d
-            return self.out(200, {"accessJwt": "JWT", "refreshJwt": "R", "did": "did:plc:test", "handle": "agentsee.work",
-                                  "didDoc": {"service": [{"id": "#atproto_pds", "type": "AtprotoPersonalDataServer", "serviceEndpoint": base}]}})
+            return self.out(
+                200,
+                {
+                    "accessJwt": "JWT",
+                    "refreshJwt": "R",
+                    "did": "did:plc:test",
+                    "handle": "agentsee.work",
+                    "didDoc": {
+                        "service": [
+                            {"id": "#atproto_pds", "type": "AtprotoPersonalDataServer", "serviceEndpoint": base}
+                        ]
+                    },
+                },
+            )
         if u.path == "/xrpc/com.atproto.repo.uploadBlob":
             assert self.headers.get("Authorization") == "Bearer JWT"
             data = self.body()
             s["blobs"].append((self.headers["Content-Type"], len(data)))
-            return self.out(200, {"blob": {"$type": "blob", "ref": {"$link": "bafyimg"}, "mimeType": self.headers["Content-Type"], "size": len(data)}})
+            return self.out(
+                200,
+                {
+                    "blob": {
+                        "$type": "blob",
+                        "ref": {"$link": "bafyimg"},
+                        "mimeType": self.headers["Content-Type"],
+                        "size": len(data),
+                    }
+                },
+            )
         if u.path == "/xrpc/app.bsky.video.uploadVideo":
             assert self.headers.get("Authorization") == "Bearer SVC", self.headers.get("Authorization")
             assert self.headers["Content-Type"] == "video/mp4"
@@ -413,14 +604,25 @@ class StubBluesky(Stub):
         if u.path == "/xrpc/app.bsky.video.getJobStatus":
             s["polls"] += 1
             if s["polls"] % 2:
-                return self.out(200, {"jobStatus": {"jobId": q["jobId"][0], "state": "JOB_STATE_PROCESSING", "progress": 50}})
-            return self.out(200, {"jobStatus": {"jobId": q["jobId"][0], "state": "JOB_STATE_COMPLETED",
-                                                "blob": {"$type": "blob", "ref": {"$link": "bafyvid"}, "mimeType": "video/mp4", "size": 1}}})
+                return self.out(
+                    200, {"jobStatus": {"jobId": q["jobId"][0], "state": "JOB_STATE_PROCESSING", "progress": 50}}
+                )
+            return self.out(
+                200,
+                {
+                    "jobStatus": {
+                        "jobId": q["jobId"][0],
+                        "state": "JOB_STATE_COMPLETED",
+                        "blob": {"$type": "blob", "ref": {"$link": "bafyvid"}, "mimeType": "video/mp4", "size": 1},
+                    }
+                },
+            )
         self.out(404, {"error": "NotFound", "message": "no"})
 
 
 class StubMastodon(Stub):
     """An instance: the media upload (an image at once, a video after a poll), the status."""
+
     state = {"media": [], "statuses": [], "polls": 0}
 
     def do_POST(self):
@@ -433,7 +635,9 @@ class StubMastodon(Stub):
             body = self.body()
             m = re.search(rb'name="file"; filename="([^"]+)"\r\nContent-Type: ([^\r]+)\r\n\r\n', body)
             d = re.search(rb'name="description"\r\n\r\n([^\r]*)\r\n', body)
-            s["media"].append({"file": m.group(1).decode(), "type": m.group(2).decode(), "description": d.group(1).decode()})
+            s["media"].append(
+                {"file": m.group(1).decode(), "type": m.group(2).decode(), "description": d.group(1).decode()}
+            )
             mid = f"m{len(s['media'])}"
             if m.group(2) == b"video/mp4":
                 return self.out(202, {"id": mid, "type": "video", "url": None})
@@ -451,8 +655,17 @@ class StubMastodon(Stub):
         s = StubMastodon.state
         m = re.fullmatch(r"/api/v1/statuses/(\d+)", u.path)
         if m:
-            return self.out(200, {"id": m.group(1), "url": f"http://{self.headers['Host']}/@agentseework/{m.group(1)}",
-                                  "created_at": "2026-10-20T09:00:00Z", "favourites_count": 4, "reblogs_count": 1, "replies_count": 0})
+            return self.out(
+                200,
+                {
+                    "id": m.group(1),
+                    "url": f"http://{self.headers['Host']}/@agentseework/{m.group(1)}",
+                    "created_at": "2026-10-20T09:00:00Z",
+                    "favourites_count": 4,
+                    "reblogs_count": 1,
+                    "replies_count": 0,
+                },
+            )
         m = re.fullmatch(r"/api/v1/media/(m\d+)", u.path)
         if m:
             s["polls"] += 1
@@ -464,6 +677,7 @@ class StubMastodon(Stub):
 
 class FakeVault:
     """The one item the engine writes, in memory. Can refuse one write."""
+
     def __init__(self, value):
         self.value, self.fail_write, self.writes = value, False, 0
 
@@ -509,8 +723,13 @@ class EngineTest(unittest.TestCase):
         cls.xenv = {"X_APP_ID": "cid", "X_APP_SECRET": "cs", "X_TOKEN": "123", "X_TOKEN_SECRET": "r1"}
         cls.r2 = http.server.HTTPServer(("127.0.0.1", 0), FakeR2)
         threading.Thread(target=cls.r2.serve_forever, daemon=True).start()
-        cls.r2env = {"R2_ACCOUNT_ID": "acct", "R2_ARCHIVE_BUCKET": "archive-test", "AWS_ACCESS_KEY_ID": "AKID",
-                     "AWS_SECRET_ACCESS_KEY": "secret", "R2_ENDPOINT": f"http://127.0.0.1:{cls.r2.server_address[1]}"}
+        cls.r2env = {
+            "R2_ACCOUNT_ID": "acct",
+            "R2_ARCHIVE_BUCKET": "archive-test",
+            "AWS_ACCESS_KEY_ID": "AKID",
+            "AWS_SECRET_ACCESS_KEY": "secret",
+            "R2_ENDPOINT": f"http://127.0.0.1:{cls.r2.server_address[1]}",
+        }
         cls.reach = http.server.HTTPServer(("127.0.0.1", 0), StubReach)
         threading.Thread(target=cls.reach.serve_forever, daemon=True).start()
         rbase = f"http://127.0.0.1:{cls.reach.server_address[1]}"
@@ -524,8 +743,12 @@ class EngineTest(unittest.TestCase):
         cls.masto = http.server.HTTPServer(("127.0.0.1", 0), StubMastodon)
         threading.Thread(target=cls.masto.serve_forever, daemon=True).start()
         mastodon.POLL = 0
-        cls.senv = {"BLUESKY_IDENTIFIER": "agentsee.work", "BLUESKY_APP_PASSWORD": "app-pass", "MASTODON_ACCESS_TOKEN": "MTOK",
-                    "MASTODON_INSTANCE": f"http://127.0.0.1:{cls.masto.server_address[1]}"}
+        cls.senv = {
+            "BLUESKY_IDENTIFIER": "agentsee.work",
+            "BLUESKY_APP_PASSWORD": "app-pass",
+            "MASTODON_ACCESS_TOKEN": "MTOK",
+            "MASTODON_INSTANCE": f"http://127.0.0.1:{cls.masto.server_address[1]}",
+        }
         cls.data = root / "data"
         os.environ["ENGINE_DATA"] = str(cls.data)
 
@@ -548,7 +771,10 @@ class EngineTest(unittest.TestCase):
         e = ledger.episode(c, "ep9")
         self.assertEqual(e["title"], "Nine")
         self.assertTrue(e["release_at"].startswith(DAY0 + "T06:00"))
-        kinds = {r["name"]: (r["kind"], r["url"], r["archived"]) for r in c.execute("SELECT * FROM deliverable WHERE episode='ep9'")}
+        kinds = {
+            r["name"]: (r["kind"], r["url"], r["archived"])
+            for r in c.execute("SELECT * FROM deliverable WHERE episode='ep9'")
+        }
         self.assertEqual(kinds["episode.mp4"], ("video", None, 1))
         self.assertEqual(kinds["clips/01-the-point.mp4"], ("clip", MEDIA + "clips/01-the-point.mp4", 1))
         self.assertEqual(kinds["clips/01-the-point.vtt"][0], "clip-captions")
@@ -585,14 +811,24 @@ class EngineTest(unittest.TestCase):
         self.assertFalse(yt["text"].startswith("Nine |"), "the title opens youtube.txt and is not the description")
         xe = next(p for p in posts if p["account"] == "x" and p["asset"] == "episode")
         self.assertLessEqual(len(xe["text"]), 280)
-        self.assertTrue(xe["text"].startswith("Nine\n\nWhat happened in nine.\n\nhttps://agentsee.work/p/e9xe"), xe["text"])
+        self.assertTrue(
+            xe["text"].startswith("Nine\n\nWhat happened in nine.\n\nhttps://agentsee.work/p/e9xe"), xe["text"]
+        )
         long = "A sentence that is long enough to matter. " * 12
         fitted = plan.fit("Head", long, ["https://agentsee.work/p/e9xe", "#AgentSee"], 280)
         self.assertLessEqual(len(fitted), 280)
         self.assertTrue(fitted.startswith("Head\n\nA sentence") and fitted.endswith("#AgentSee"), fitted)
-        self.assertEqual(plan.fit("Head", "", ["https://agentsee.work/p/e9xe", "#AgentSee"], 40), "Head\n\nhttps://agentsee.work/p/e9xe")
+        self.assertEqual(
+            plan.fit("Head", "", ["https://agentsee.work/p/e9xe", "#AgentSee"], 40),
+            "Head\n\nhttps://agentsee.work/p/e9xe",
+        )
         self.assertEqual(plan.fit("Head", "", ["https://agentsee.work/p/e9xe"], 10), "Head")
-        teaser = plan.fit("Head", "One very long opening sentence that will not fit in the budget as it stands. Second.", ["https://agentsee.work/p/e9xe"], 90)
+        teaser = plan.fit(
+            "Head",
+            "One very long opening sentence that will not fit in the budget as it stands. Second.",
+            ["https://agentsee.work/p/e9xe"],
+            90,
+        )
         self.assertLessEqual(len(teaser), 90)
         self.assertTrue(teaser.startswith("Head\n\nOne very long") and "…\n\nhttps://" in teaser, teaser)
         self.assertEqual(plan.plan(c, "ep9"), [], "a second plan adds nothing")
@@ -604,20 +840,34 @@ class EngineTest(unittest.TestCase):
     def test_02b_prune(self):
         c = self.c()
         kept = list(plan.ACCOUNTS["threads"]["assets"])
-        clips = [p["id"] for p in c.execute("SELECT id FROM post WHERE episode='ep9' AND account='threads' AND asset LIKE 'clip:%' ORDER BY id")]
-        episode = c.execute("SELECT id FROM post WHERE episode='ep9' AND account='threads' AND asset='episode'").fetchone()["id"]
+        clips = [
+            p["id"]
+            for p in c.execute(
+                "SELECT id FROM post WHERE episode='ep9' AND account='threads' AND asset LIKE 'clip:%' ORDER BY id"
+            )
+        ]
+        episode = c.execute(
+            "SELECT id FROM post WHERE episode='ep9' AND account='threads' AND asset='episode'"
+        ).fetchone()["id"]
         self.assertTrue(clips)
         ledger.update_post(c, clips[0], status="hand")  # a card a person already has
         try:
             plan.ACCOUNTS["threads"]["assets"] = ["episode"]
             gone = plan.prune(c, "ep9", "tester")
-            self.assertEqual(set(gone), set(clips[1:]), "every planned post of the kind the account no longer takes, and only those")
+            self.assertEqual(
+                set(gone), set(clips[1:]), "every planned post of the kind the account no longer takes, and only those"
+            )
             self.assertEqual(ledger.post(c, clips[0])["status"], "hand", "a card a person has is left alone")
             ledger.update_post(c, clips[0], status="planned")
             self.assertEqual(plan.prune(c, "ep9", "tester"), [clips[0]], "planned again, it goes")
             self.assertEqual(ledger.post(c, clips[0])["status"], "skipped")
             self.assertEqual(ledger.post(c, episode)["status"], "planned", "the kind the account still takes stays")
-            self.assertEqual(c.execute("SELECT COUNT(*) FROM post WHERE episode='ep9' AND account!='threads' AND status='skipped'").fetchone()[0], 0)
+            self.assertEqual(
+                c.execute(
+                    "SELECT COUNT(*) FROM post WHERE episode='ep9' AND account!='threads' AND status='skipped'"
+                ).fetchone()[0],
+                0,
+            )
             why = c.execute("SELECT detail FROM event WHERE what='prune' AND post=?", (clips[0],)).fetchone()["detail"]
             self.assertIn("threads no longer takes a clip", why)
             self.assertEqual(plan.plan(c, "ep9"), [], "a re-plan does not bring a pruned post back")
@@ -625,7 +875,10 @@ class EngineTest(unittest.TestCase):
             account = plan.ACCOUNTS.pop("threads")
             self.assertEqual(plan.prune(c, "ep9"), [episode], "an account dropped altogether loses its planned posts")
             plan.ACCOUNTS["threads"] = account
-            self.assertIn("gone from accounts.json", c.execute("SELECT detail FROM event WHERE what='prune' AND post=?", (episode,)).fetchone()["detail"])
+            self.assertIn(
+                "gone from accounts.json",
+                c.execute("SELECT detail FROM event WHERE what='prune' AND post=?", (episode,)).fetchone()["detail"],
+            )
         finally:
             plan.ACCOUNTS["threads"]["assets"] = kept
             for pid in clips + [episode]:
@@ -636,16 +889,22 @@ class EngineTest(unittest.TestCase):
         got = {}
         n = plan.links(c, "ep9", put=lambda k, v: got.__setitem__(k, v))
         self.assertEqual(n, len(got))
-        self.assertEqual(got["e9xc01"], {"url": EP_URL + "#t=42", "episode": "ep9", "post": "clip:01-the-point", "platform": "x"})
+        self.assertEqual(
+            got["e9xc01"], {"url": EP_URL + "#t=42", "episode": "ep9", "post": "clip:01-the-point", "platform": "x"}
+        )
         self.assertEqual(got["e9lpe"]["url"], EP_URL)
         with self.assertRaises(RuntimeError):
-            plan.kv_put("e9xc01", {}, token=None) if not os.environ.get("CLOUDFLARE_API_TOKEN") else (_ for _ in ()).throw(RuntimeError())
+            plan.kv_put("e9xc01", {}, token=None) if not os.environ.get("CLOUDFLARE_API_TOKEN") else (
+                _ for _ in ()
+            ).throw(RuntimeError())
 
     def test_04_due(self):
         c = self.c()
         before = publish.due(c, "2026-01-01T00:00:00+00:00")
         self.assertEqual({p["account"] for p in before}, {"youtube"}, "only the platform that schedules is due early")
-        xe = c.execute("SELECT scheduled_at FROM post WHERE episode='ep9' AND account='x' AND asset='episode'").fetchone()[0]
+        xe = c.execute(
+            "SELECT scheduled_at FROM post WHERE episode='ep9' AND account='x' AND asset='episode'"
+        ).fetchone()[0]
         plus = lambda iso, h: (dt.datetime.fromisoformat(iso) + dt.timedelta(hours=h)).isoformat()  # noqa: E731
         later = publish.due(c, plus(xe, 7))
         accounts = {p["account"] for p in later}
@@ -680,15 +939,24 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(ep_meta["status"]["publishAt"], want)
         self.assertFalse(ep_meta["status"]["selfDeclaredMadeForKids"])
         self.assertEqual(ep_meta["snippet"]["categoryId"], "28")
-        self.assertEqual(ep_meta["snippet"]["tags"], ["AgentSee", "x" * 490], "tags stop before the 500th character, quotes and commas counted")
+        self.assertEqual(
+            ep_meta["snippet"]["tags"],
+            ["AgentSee", "x" * 490],
+            "tags stop before the 500th character, quotes and commas counted",
+        )
         for up in s["uploads"].values():
             self.assertEqual(up["got"], up["size"], "every byte arrived despite the 503")
             self.assertTrue(up["failed_once"])
         self.assertEqual(len(s["captions"]), 2)
         self.assertEqual(s["items"][0]["snippet"]["resourceId"]["videoId"], ep["remote_id"])
-        self.assertIn(ep["remote_id"], s["aborted"], "the first playlist call was aborted with a 409; the retry went through")
+        self.assertIn(
+            ep["remote_id"], s["aborted"], "the first playlist call was aborted with a 409; the retry went through"
+        )
         self.assertEqual(len(s["playlists"]), 1, "the playlist was created once")
-        notes = {ev["post"]: json.loads(ev["detail"])["note"] for ev in c.execute("SELECT * FROM event WHERE what='publish:scheduled'")}
+        notes = {
+            ev["post"]: json.loads(ev["detail"])["note"]
+            for ev in c.execute("SELECT * FROM event WHERE what='publish:scheduled'")
+        }
         self.assertIn("playlist (created)", notes[ep["id"]])
         self.assertIn("thumbnail set", notes[ep["id"]])
         self.assertIn("not verified", notes[clip["id"]])
@@ -732,7 +1000,9 @@ class EngineTest(unittest.TestCase):
         later = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)).isoformat()
         self.assertIn(p["id"], [q["id"] for q in publish.due(c, later)], "after the hold the account is due again")
         self.assertEqual(publish.HELD, {}, "an expired hold is forgotten")
-        self.assertIn("publish:held", [ev["what"] for ev in c.execute("SELECT what FROM event WHERE post=?", (p["id"],))])
+        self.assertIn(
+            "publish:held", [ev["what"] for ev in c.execute("SELECT what FROM event WHERE post=?", (p["id"],))]
+        )
         s["fail_session"] = False
         ledger.update_post(c, clip["id"], status=clip["status"])
         # The playlist refusing for good: the video is up, so the post is published with a note, never failed
@@ -742,8 +1012,11 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(res[0][1], "published", "a step after the upload is a note, never the loss of the video")
         p3 = ledger.post(c, p["id"])
         self.assertTrue(p3["remote_id"].startswith("VIDep"))
-        note = json.loads(c.execute("SELECT detail FROM event WHERE post=? AND what='publish:published' ORDER BY id DESC",
-                                    (p["id"],)).fetchone()[0])["note"]
+        note = json.loads(
+            c.execute(
+                "SELECT detail FROM event WHERE post=? AND what='publish:published' ORDER BY id DESC", (p["id"],)
+            ).fetchone()[0]
+        )["note"]
         self.assertIn("could not add to the playlist: 409", note)
         self.assertIn("by hand", note)
         StubYouTube.state["playlist_down"] = False
@@ -760,23 +1033,49 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(web.recover(c, "tester"), 0)
         soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)).isoformat()
         ledger.update_post(c, p["id"], scheduled_at=soon)
-        self.assertEqual(web.act(c, ledger.post(c, p["id"]), "done", {"permalink": "https://www.youtube.com/watch?v=abcDEF12-_5&t=9"}, "james"),
-                         "Recorded; the platform holds it until its time")
+        self.assertEqual(
+            web.act(
+                c,
+                ledger.post(c, p["id"]),
+                "done",
+                {"permalink": "https://www.youtube.com/watch?v=abcDEF12-_5&t=9"},
+                "james",
+            ),
+            "Recorded; the platform holds it until its time",
+        )
         p3 = ledger.post(c, p["id"])
-        self.assertEqual((p3["status"], p3["remote_id"], p3["published_at"]), ("scheduled", "abcDEF12-_5", soon),
-                         "a YouTube link pasted before its time: the id out of the link, scheduled, public at its hour")
+        self.assertEqual(
+            (p3["status"], p3["remote_id"], p3["published_at"]),
+            ("scheduled", "abcDEF12-_5", soon),
+            "a YouTube link pasted before its time: the id out of the link, scheduled, public at its hour",
+        )
         ledger.update_post(c, p["id"], status="failed", scheduled_at="2026-01-01T09:00:00+00:00")
-        self.assertEqual(web.act(c, ledger.post(c, p["id"]), "done", {"permalink": "https://youtu.be/abcDEF12-_5"}, "james"), "Published, by hand")
+        self.assertEqual(
+            web.act(c, ledger.post(c, p["id"]), "done", {"permalink": "https://youtu.be/abcDEF12-_5"}, "james"),
+            "Published, by hand",
+        )
         self.assertEqual(ledger.post(c, p["id"])["status"], "published")
-        ledger.update_post(c, p["id"], status=p["status"], remote_id=p["remote_id"], permalink=p["permalink"],
-                           scheduled_at=p["scheduled_at"], published_at=p["published_at"])
+        ledger.update_post(
+            c,
+            p["id"],
+            status=p["status"],
+            remote_id=p["remote_id"],
+            permalink=p["permalink"],
+            scheduled_at=p["scheduled_at"],
+            published_at=p["published_at"],
+        )
 
     def test_07_hand(self):
         c = self.c()
-        p = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='linkedin-page' AND asset='episode'").fetchone()
+        p = c.execute(
+            "SELECT * FROM post WHERE episode='ep9' AND account='linkedin-page' AND asset='episode'"
+        ).fetchone()
         res = publish.run(c, [p], log=lambda s: None)
         self.assertEqual(res[0][1], "hand")
-        self.assertEqual(web.act(c, ledger.post(c, p["id"]), "done", {"permalink": "https://www.linkedin.com/posts/x"}, "james"), "Published, by hand")
+        self.assertEqual(
+            web.act(c, ledger.post(c, p["id"]), "done", {"permalink": "https://www.linkedin.com/posts/x"}, "james"),
+            "Published, by hand",
+        )
         p2 = ledger.post(c, p["id"])
         self.assertEqual((p2["status"], p2["permalink"]), ("published", "https://www.linkedin.com/posts/x"))
         with self.assertRaises(ValueError):
@@ -841,7 +1140,9 @@ class EngineTest(unittest.TestCase):
         self.assertIn("Paste the permalink", body)
         st, h, body = post(f"/posts/{x['id']}/text", {"_t": "wrong", "text": "nope"})
         self.assertEqual(st, 403)
-        st, h, body = post(f"/posts/{x['id']}/text", {"_t": web.CSRF, "title": "New title", "text": "New text\r\nwith lines"})
+        st, h, body = post(
+            f"/posts/{x['id']}/text", {"_t": web.CSRF, "title": "New title", "text": "New text\r\nwith lines"}
+        )
         self.assertEqual(st, 303)
         self.assertTrue(h["Location"].startswith(f"/posts/{x['id']}?msg="))
         x2 = ledger.post(c, x["id"])
@@ -851,9 +1152,17 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(ledger.post(c, x["id"])["scheduled_at"].startswith(DAY1 + "T17:30"))
         st, h, body = post(f"/posts/{x['id']}/schedule", {"_t": web.CSRF, "date": "soon", "time": "17:30"})
         self.assertEqual(st, 400)
-        self.assertEqual(post(f"/posts/{bs['id']}/done", {"_t": web.CSRF, "permalink": "https://bsky.app/profile/agentsee.work/post/1"})[0], 303)
+        self.assertEqual(
+            post(
+                f"/posts/{bs['id']}/done",
+                {"_t": web.CSRF, "permalink": "https://bsky.app/profile/agentsee.work/post/1"},
+            )[0],
+            303,
+        )
         self.assertEqual(ledger.post(c, bs["id"])["status"], "published")
-        self.assertEqual(c.execute("SELECT who FROM event WHERE what='hand:done' AND post=?", (bs["id"],)).fetchone()[0], "local")
+        self.assertEqual(
+            c.execute("SELECT who FROM event WHERE what='hand:done' AND post=?", (bs["id"],)).fetchone()[0], "local"
+        )
         st, h, body = get("/due")
         self.assertEqual(st, 200)
         st, h, body = get("/health")
@@ -866,7 +1175,6 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(get("/assets/nope.css")[0], 404)
         self.assertEqual(get("/")[0], 200, "the root lands on the episodes")
         srv.shutdown()
-
 
     def test_09_x(self):
         c = self.c()
@@ -898,7 +1206,10 @@ class EngineTest(unittest.TestCase):
         self.assertIn(clip["text"], texts)
         self.assertIn("https://agentsee.work/p/e9xe", ep["text"])
         self.assertEqual(len(texts[clip["text"]]["media"]["media_ids"]), 1)
-        notes = {ev["post"]: json.loads(ev["detail"])["note"] for ev in c.execute("SELECT * FROM event WHERE what='publish:published'")}
+        notes = {
+            ev["post"]: json.loads(ev["detail"])["note"]
+            for ev in c.execute("SELECT * FROM event WHERE what='publish:published'")
+        }
         self.assertIn("of 280 characters", notes[clip["id"]])
         self.assertIn("with a link", notes[ep["id"]])
 
@@ -923,7 +1234,9 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(res[0][1], "published", res)
         self.assertEqual(self.vault.value, "r3", "the held token went to the vault first")
         self.assertIsNone(x._token["unsaved"])
-        self.assertEqual(StubX.state["refreshes"], 2, "the access token from the held refresh was used, not another refresh")
+        self.assertEqual(
+            StubX.state["refreshes"], 2, "the access token from the held refresh was used, not another refresh"
+        )
         # the vault holding a token something else already used
         x._token.update(access=None, until=0.0)
         self.vault.value = "r1"
@@ -938,7 +1251,9 @@ class EngineTest(unittest.TestCase):
     def test_11_late(self):
         c = self.c()
         p = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='x' AND asset!='episode'").fetchone()
-        card = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='linkedin-page' AND asset='episode'").fetchone()
+        card = c.execute(
+            "SELECT * FROM post WHERE episode='ep9' AND account='linkedin-page' AND asset='episode'"
+        ).fetchone()
         now = dt.datetime.now(dt.timezone.utc)
         ago = lambda h: (now - dt.timedelta(hours=h)).isoformat(timespec="seconds")  # noqa: E731
         ids = lambda rows: [r["id"] for r in rows]  # noqa: E731
@@ -957,18 +1272,27 @@ class EngineTest(unittest.TestCase):
         ledger.update_post(c, p["id"], status="skipped")
         ledger.update_post(c, card["id"], status="published")
 
-
     def test_12_signer(self):
         # Fixed on 15 October 2026 against botocore 1.43.112's SigV4Auth for the same inputs.
         when = dt.datetime(2026, 10, 15, 18, 0, 0, tzinfo=dt.timezone.utc)
-        h = archive.sign("PUT", "9468eccb7caed9f96283a9139c37a4df.r2.cloudflarestorage.com",
-                         "/agentsee-podcast-archive/engine/ledger-latest.sqlite", {},
-                         {"content-type": "application/vnd.sqlite3", "x-amz-meta-sha256": "ab" * 32},
-                         hashlib.sha256(b"hello ledger").hexdigest(),
-                         "AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "auto", when)
-        self.assertEqual(h["authorization"], "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20261015/auto/s3/aws4_request, "
-                         "SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date;x-amz-meta-sha256, "
-                         "Signature=cde30d8e9da6181aee80e9254e409b09b6d566487066c1d7079f31c0265a6260")
+        h = archive.sign(
+            "PUT",
+            "9468eccb7caed9f96283a9139c37a4df.r2.cloudflarestorage.com",
+            "/agentsee-podcast-archive/engine/ledger-latest.sqlite",
+            {},
+            {"content-type": "application/vnd.sqlite3", "x-amz-meta-sha256": "ab" * 32},
+            hashlib.sha256(b"hello ledger").hexdigest(),
+            "AKIAIOSFODNN7EXAMPLE",
+            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            "auto",
+            when,
+        )
+        self.assertEqual(
+            h["authorization"],
+            "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20261015/auto/s3/aws4_request, "
+            "SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date;x-amz-meta-sha256, "
+            "Signature=cde30d8e9da6181aee80e9254e409b09b6d566487066c1d7079f31c0265a6260",
+        )
         self.assertEqual(h["x-amz-date"], "20261015T180000Z")
 
     def test_13_archive_files(self):
@@ -1028,8 +1352,11 @@ class EngineTest(unittest.TestCase):
             n = ingest.ingest(c, "ep9", None, "tester", from_archive=True)
         self.assertGreater(n, 5)
         self.assertEqual(ledger.episode(c, "ep9")["source_dir"], str(d))
-        self.assertEqual(c.execute("SELECT COUNT(*) FROM post WHERE episode='ep9'").fetchone()[0],
-                         c.execute("SELECT COUNT(*) FROM post").fetchone()[0], "posts untouched")
+        self.assertEqual(
+            c.execute("SELECT COUNT(*) FROM post WHERE episode='ep9'").fetchone()[0],
+            c.execute("SELECT COUNT(*) FROM post").fetchone()[0],
+            "posts untouched",
+        )
         # the snapshot: two keys, the day's and latest, with the hash in the metadata
         key = archive.snapshot(c, client, who="tester", log=lambda s: None)
         day = dt.datetime.now(ledger.ZONE).strftime("%Y-%m-%d")
@@ -1045,7 +1372,9 @@ class EngineTest(unittest.TestCase):
         back = self.data / "restored.sqlite"
         archive.restore(back, client)
         r = ledger.connect(back)
-        self.assertEqual(r.execute("SELECT COUNT(*) FROM post").fetchone()[0], c.execute("SELECT COUNT(*) FROM post").fetchone()[0])
+        self.assertEqual(
+            r.execute("SELECT COUNT(*) FROM post").fetchone()[0], c.execute("SELECT COUNT(*) FROM post").fetchone()[0]
+        )
         r.close()
         with self.assertRaises(archive.ArchiveError):
             archive.restore(back, client)
@@ -1072,14 +1401,20 @@ class EngineTest(unittest.TestCase):
         ledger.CONFIG["snapshot_at"] = "23:59"
         web.STATE["snapshot_day"] = None
         web.snapshot_due()
-        self.assertEqual(web.STATE["snapshot_day"], dt.datetime.now(ledger.ZONE).date() - dt.timedelta(days=1), "before the hour: yesterday counts as done")
+        self.assertEqual(
+            web.STATE["snapshot_day"],
+            dt.datetime.now(ledger.ZONE).date() - dt.timedelta(days=1),
+            "before the hour: yesterday counts as done",
+        )
 
     def test_15_collect(self):
         c = self.c()
         quiet = lambda s: None  # noqa: E731
         ep = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='youtube' AND asset='episode'").fetchone()
         clip = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='youtube' AND asset!='episode'").fetchone()
-        ledger.update_post(c, ep["id"], status="scheduled", remote_id="VIDpublic", published_at="2026-10-20T05:00:00+00:00")
+        ledger.update_post(
+            c, ep["id"], status="scheduled", remote_id="VIDpublic", published_at="2026-10-20T05:00:00+00:00"
+        )
         ledger.update_post(c, clip["id"], status="scheduled", remote_id="VIDbad")
         bs = c.execute("SELECT * FROM post WHERE episode='ep9' AND platform='bluesky' AND asset='episode'").fetchone()
         web.act(c, bs, "done", {"permalink": "https://bsky.app/profile/agentsee.work/post/3abc"}, "james")
@@ -1087,7 +1422,9 @@ class EngineTest(unittest.TestCase):
         web.act(c, ma, "done", {"permalink": f"{self.rbase}/@agentseework/123"}, "james")
         xp = c.execute("SELECT * FROM post WHERE episode='ep9' AND platform='x' AND asset='episode'").fetchone()
         ledger.update_post(c, xp["id"], status="published", remote_id="777")
-        c.execute("UPDATE deliverable SET duration=600, bytes=12000000 WHERE episode='ep9' AND name='episode.mp3'")  # a minute is 1.2 MB
+        c.execute(
+            "UPDATE deliverable SET duration=600, bytes=12000000 WHERE episode='ep9' AND name='episode.mp3'"
+        )  # a minute is 1.2 MB
         env = {**self.env, **self.xenv, "CLOUDFLARE_API_TOKEN": "cf"}
         res = collect.run(c, env=env, who="tester", log=quiet)
         self.assertFalse([v for v in res.values() if v.startswith("failed")], res)
@@ -1099,7 +1436,9 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(collect.clicks(c), {"e9yte": 1}, "the 404 is not a click")
         self.assertEqual(collect.clicks_from(c), [("https://www.youtube.com", 1)])
         collect.run(c, only=["edge"], env=env, who="tester", log=quiet)
-        self.assertEqual(c.execute("SELECT COUNT(*) FROM download").fetchone()[0], 6, "the overlap is re-read, not counted twice")
+        self.assertEqual(
+            c.execute("SELECT COUNT(*) FROM download").fetchone()[0], 6, "the overlap is re-read, not counted twice"
+        )
         self.assertEqual(c.execute("SELECT COUNT(*) FROM click").fetchone()[0], 1)
         # YouTube: counts and state from videos.list, watch time from Analytics
         m = collect.latest(c)
@@ -1117,7 +1456,11 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(len(raw), 1, "the platform's answer is kept once per read, not per metric")
         # The user agents
         self.assertEqual(collect.classify("Overcast/2024 (+http://overcast.fm/; iOS podcast app)"), ("app", "Overcast"))
-        self.assertIn(collect.classify("python-requests/2.31")[0], ("bot", "library"), "the bots list is asked first and claims it; neither listens")
+        self.assertIn(
+            collect.classify("python-requests/2.31")[0],
+            ("bot", "library"),
+            "the bots list is asked first and claims it; neither listens",
+        )
         self.assertEqual(collect.classify("Googlebot/2.1 (+http://www.google.com/bot.html)")[0], "bot")
         self.assertEqual(collect.classify(""), ("unknown", ""))
         # The screens and Health
@@ -1147,20 +1490,30 @@ class EngineTest(unittest.TestCase):
             ids = {}
             for platform in ("bluesky", "mastodon"):
                 for asset in ("episode", "clip"):
-                    p = c.execute(f"SELECT * FROM post WHERE episode='ep9' AND platform=? AND asset {'=' if asset == 'episode' else '!='} 'episode'",
-                                  (platform,)).fetchone()
+                    p = c.execute(
+                        f"SELECT * FROM post WHERE episode='ep9' AND platform=? AND asset {'=' if asset == 'episode' else '!='} 'episode'",
+                        (platform,),
+                    ).fetchone()
                     ledger.update_post(c, p["id"], status="planned", remote_id=None, permalink=None, published_at=None)
                     ids[platform, asset] = p["id"]
             posts = [ledger.post(c, i) for i in ids.values()]
-            archive.Client(self.r2env).put("episodes/ep9/out/episode-art.jpg", self.src / "episode-art.jpg", "image/jpeg")
-            os.environ.update(self.r2env)  # the publisher fetches a file it lacks from the archive, with the process's credentials
+            archive.Client(self.r2env).put(
+                "episodes/ep9/out/episode-art.jpg", self.src / "episode-art.jpg", "image/jpeg"
+            )
+            os.environ.update(
+                self.r2env
+            )  # the publisher fetches a file it lacks from the archive, with the process's credentials
             res = publish.run(c, posts, env=self.senv, who="tester", log=quiet)
-            self.assertEqual([r[1] for r in res], ["published"] * 4, [(r, ledger.post(c, r[0])["last_error"]) for r in res])
+            self.assertEqual(
+                [r[1] for r in res], ["published"] * 4, [(r, ledger.post(c, r[0])["last_error"]) for r in res]
+            )
             # Bluesky: the episode with the art in an images embed, the clip through the video service
             s = StubBluesky.state
             ep, clip = ledger.post(c, ids["bluesky", "episode"]), ledger.post(c, ids["bluesky", "clip"])
             self.assertTrue(ep["remote_id"].startswith("at://did:plc:test/app.bsky.feed.post/"))
-            self.assertEqual(ep["permalink"], "https://bsky.app/profile/agentsee.work/post/" + ep["remote_id"].rsplit("/", 1)[1])
+            self.assertEqual(
+                ep["permalink"], "https://bsky.app/profile/agentsee.work/post/" + ep["remote_id"].rsplit("/", 1)[1]
+            )
             rec = next(r for r in s["records"] if r["embed"]["$type"] == "app.bsky.embed.images")
             self.assertEqual(rec["langs"], ["en-GB"])
             self.assertEqual(rec["embed"]["images"][0]["image"]["ref"]["$link"], "bafyimg")
@@ -1170,14 +1523,24 @@ class EngineTest(unittest.TestCase):
             self.assertEqual(len(links), 1, rec["facets"])
             b = rec["text"].encode("utf-8")
             idx = links[0]["index"]
-            self.assertEqual(b[idx["byteStart"]:idx["byteEnd"]].decode(), links[0]["features"][0]["uri"], "the facet points at the link's bytes")
+            self.assertEqual(
+                b[idx["byteStart"] : idx["byteEnd"]].decode(),
+                links[0]["features"][0]["uri"],
+                "the facet points at the link's bytes",
+            )
             self.assertTrue(links[0]["features"][0]["uri"].startswith("https://agentsee.work/p/"))
-            tags = [f["features"][0]["tag"] for f in rec["facets"] if f["features"][0]["$type"] == "app.bsky.richtext.facet#tag"]
+            tags = [
+                f["features"][0]["tag"]
+                for f in rec["facets"]
+                if f["features"][0]["$type"] == "app.bsky.richtext.facet#tag"
+            ]
             self.assertIn("AgentSee", tags)
             vrec = next(r for r in s["records"] if r["embed"]["$type"] == "app.bsky.embed.video")
             self.assertEqual(vrec["embed"]["video"]["ref"]["$link"], "bafyvid")
             self.assertEqual(s["videos"][0][0], "did:plc:test")
-            self.assertEqual(s["auths"][0]["lxm"], ["com.atproto.repo.uploadBlob"], "the service token is for uploadBlob on our PDS")
+            self.assertEqual(
+                s["auths"][0]["lxm"], ["com.atproto.repo.uploadBlob"], "the service token is for uploadBlob on our PDS"
+            )
             self.assertEqual(s["polls"], 2, "polled until the job carried the blob")
             self.assertEqual(s["blobs"], [("image/jpeg", 1)] if False else s["blobs"])  # the art went up as a blob
             self.assertEqual(s["blobs"][0][0], "image/jpeg")
@@ -1192,14 +1555,21 @@ class EngineTest(unittest.TestCase):
             self.assertIn("episode art", m["media"][0]["description"])
             self.assertEqual(m["polls"], 2, "the video was polled until processed")
             st = m["statuses"][0]
-            self.assertEqual((st["form"]["language"], st["form"]["visibility"], st["form"]["media_ids[]"]), (["en"], ["public"], ["m1"]))
+            self.assertEqual(
+                (st["form"]["language"], st["form"]["visibility"], st["form"]["media_ids[]"]),
+                (["en"], ["public"], ["m1"]),
+            )
             self.assertEqual(st["key"], f"agentsee-post-{mep['id']}-{mep['attempts'] - 1}")
             self.assertIn("agentsee.work/p/", st["form"]["status"][0])
             # The text budgets as each platform counts them
             self.assertEqual(mastodon.length("x https://agentsee.work/p/e9mae y"), 27)
             self.assertEqual(bluesky.facets("no links")[:], [])
             self.assertEqual(bluesky.facets("see https://a.b/c, now")[0]["features"][0]["uri"], "https://a.b/c")
-            self.assertEqual(bluesky.dimensions(self.src / "clips" / "01-the-point.png"), None, "a stub PNG header without IHDR size is no size")
+            self.assertEqual(
+                bluesky.dimensions(self.src / "clips" / "01-the-point.png"),
+                None,
+                "a stub PNG header without IHDR size is no size",
+            )
             # The collector reads them back from what the adapter recorded
             res = collect.run(c, only=["bluesky", "mastodon"], env=self.senv, who="tester", log=quiet)
             self.assertFalse([v for v in res.values() if v.startswith("failed")], res)

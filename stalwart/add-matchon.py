@@ -33,6 +33,7 @@ reads 11 unreadable lines twice. Sorting makes the serialisation canonical, so
 a diff means a change. `@type` still sorts first — `@` is 0x40, below the
 letters.
 """
+
 import json
 import sys
 

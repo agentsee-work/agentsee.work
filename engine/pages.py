@@ -19,7 +19,14 @@ _spec = importlib.util.spec_from_file_location("agentsee_site", ROOT / "tools" /
 _site = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_site)
 
-NAV = [("/episodes", "Episodes"), ("/posts", "Posts"), ("/due", "By hand"), ("/reach", "Reach"), ("/audience", "Audience"), ("/health", "Health")]
+NAV = [
+    ("/episodes", "Episodes"),
+    ("/posts", "Posts"),
+    ("/due", "By hand"),
+    ("/reach", "Reach"),
+    ("/audience", "Audience"),
+    ("/health", "Health"),
+]
 
 
 def esc(s):
@@ -84,9 +91,11 @@ def link(href, text=None, external=False):
 
 
 def button(action, label, csrf, cls="", confirm=False):
-    return (f'<form method="post" action="{esc(action)}" class="inline{" confirm" if confirm else ""}">'
-            f'<input type="hidden" name="_t" value="{esc(csrf)}">'
-            f'<button type="submit" class="{cls}">{esc(label)}</button></form>')
+    return (
+        f'<form method="post" action="{esc(action)}" class="inline{" confirm" if confirm else ""}">'
+        f'<input type="hidden" name="_t" value="{esc(csrf)}">'
+        f'<button type="submit" class="{cls}">{esc(label)}</button></form>'
+    )
 
 
 def composer(platform, text):
@@ -104,5 +113,7 @@ def composer(platform, text):
 
 def section(kicker, heading, inner, anchor=None):
     aid = f' id="{esc(anchor)}"' if anchor else ""
-    return (f'<section class="section engine-section"{aid}><p class="kicker">{kicker}</p>'
-            f"<h2>{esc(heading)}</h2>{inner}</section>")
+    return (
+        f'<section class="section engine-section"{aid}><p class="kicker">{kicker}</p>'
+        f"<h2>{esc(heading)}</h2>{inner}</section>"
+    )
