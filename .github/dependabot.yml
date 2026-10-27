@@ -5,10 +5,11 @@
 # decide, you just stop being the one who has to notice.
 #
 # Added 24 October 2026 (AGE-93), after the mail server was found sitting six
-# Stalwart releases behind within seven weeks. These image tags are the only
-# hand-updated dependency surface in the repo: the box's OS packages are kept
-# current by unattended-upgrades, and the engine is Python-stdlib-only with no
-# third-party packages to track.
+# Stalwart releases behind within seven weeks. These image tags, and the Ruff
+# version pinned in workflows/check.yml (dev-only; bumped by hand when a new
+# release is wanted), are the hand-updated dependency surface in the repo: the
+# box's OS packages are kept current by unattended-upgrades, and the engine is
+# Python-stdlib-only with no third-party packages to track.
 #
 # The `docker` ecosystem scans both docker-compose.yml image tags and the
 # Dockerfile FROM, so these two directories cover:

@@ -47,7 +47,8 @@ op run --env-file=engine/engine.env -- ./engine/engine.py links ep1          # s
 op run --env-file=engine/engine.env -- ./engine/engine.py publish --due      # for real
 op run --env-file=engine/engine.env -- ./engine/engine.py serve              # http://127.0.0.1:8877/
 
-python3 engine/test_engine.py
+python3 engine/test_engine.py                 # the suite, against stubs for every platform
+ruff check . && ruff format --check .         # the lint and the formatting (ruff.toml)
 ```
 
 The ledger lives at `$ENGINE_DATA/ledger.sqlite`, or `build/engine/` when
@@ -55,6 +56,11 @@ that is unset (gitignored). `--ledger` points a run elsewhere. Credentials
 come from the vault through `op run`, as everywhere in this repo; a run
 without them does what it can and says what it skipped, so the screens can
 be browsed bare.
+
+The suite and Ruff both run on every pull request and push to `main`
+(`.github/workflows/check.yml`), on the engine's own Python. A failing test
+or a lint error is a red tick; `ruff check --fix . && ruff format .` settles
+most of what the linter and the formatter ask for.
 
 ## How a post comes to be
 
