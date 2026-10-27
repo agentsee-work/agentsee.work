@@ -29,7 +29,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from banner import FONT, OUTDIR, ROOT, THEMES, render  # noqa: E402
+from banner import OUTDIR, ROOT, THEMES, render  # noqa: E402
 from eye import EXPRESSIONS, expr_mark, expr_vars, font_b64, mark_css, mark_svg  # noqa: E402
 
 # The standing credits. A guest is an argument; the hosts are the show.

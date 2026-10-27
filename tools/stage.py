@@ -30,11 +30,11 @@ tools/stage.env through `op run`; nothing is read from disk.
 import argparse
 import datetime as dt
 import os
-import re
 import pathlib
+import re
 import sys
-import time
 import threading
+import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from eplib import ROOT, die, ep_dir, load_json, save_json  # noqa: E402

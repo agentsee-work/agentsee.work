@@ -25,18 +25,35 @@ tracks mixed at -14 LUFS, which is what the platforms normalise to.
 """
 
 import argparse
-import json
-import math
 import pathlib
 import re
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from banner import THEMES, render  # noqa: E402
-from eplib import (RATE, ROOT, caption_cues, caption_words, cut_with_crossfades, dialogue_sum,  # noqa: E402
-                   die, ep_dir, hms, load_json, map_words, measure, need, normalise, run,
-                   save_json, speech_intervals, sub_edl, video_codec, wrap_two)
 from assemble import frame_plan  # noqa: E402
+from banner import THEMES, render  # noqa: E402
+from eplib import (  # noqa: E402
+    RATE,
+    ROOT,
+    caption_cues,
+    caption_words,
+    cut_with_crossfades,
+    dialogue_sum,
+    die,
+    ep_dir,
+    hms,
+    load_json,
+    map_words,
+    measure,
+    need,
+    normalise,
+    run,
+    save_json,
+    speech_intervals,
+    sub_edl,
+    video_codec,
+    wrap_two,
+)
 from show import CLIP_ZONES, build  # noqa: E402
 
 FONT_DIR = ROOT / "build" / "fonts"
@@ -143,8 +160,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     for cue in cues:
         words = [w["w"] for w in cue]
         lines = wrap_two(" ".join(words), max_chars)
-        # which line each word sits on, so the lit word is found after wrapping
-        flat = [w for ln in lines for w in ln.split()]
         for i, w in enumerate(cue):
             start = w["t0"] - t_start
             end = (cue[i + 1]["t0"] if i + 1 < len(cue) else cue[-1]["t1"]) - t_start

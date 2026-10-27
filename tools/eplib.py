@@ -457,6 +457,7 @@ def dialogue_sum(d, manifest, highpass_hz=80.0):
     """Every participant's track, offset onto the shared timeline and
     summed, mono. What the listener hears before any treatment."""
     import math
+
     import numpy as np
     import soundfile as sf
     from scipy.signal import butter, sosfiltfilt
@@ -508,6 +509,7 @@ def cut_with_crossfades(x, items, xf=0.02):
     `xf_out`: cut.py gives a join across a pause or a chapter seam, where
     both sides are quiet, a longer one than a join against a word."""
     import math
+
     import numpy as np
 
     def ramp(k):

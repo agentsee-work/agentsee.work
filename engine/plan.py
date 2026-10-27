@@ -188,7 +188,9 @@ def kv_put(link_id, value, token=None):
         with urllib.request.urlopen(req, timeout=30) as resp:
             body = json.load(resp)
     except urllib.error.HTTPError as e:
-        raise RuntimeError(f"KV answered {e.code}: {e.read().decode(errors='replace')[:300]}")
+        with e:
+            why = e.read().decode(errors="replace")[:300]
+        raise RuntimeError(f"KV answered {e.code}: {why}") from e
     if not body.get("success"):
         raise RuntimeError(f"KV refused {link_id}: {body.get('errors')}")
 

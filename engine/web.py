@@ -15,13 +15,11 @@ when a screen asks for something now.
 """
 
 import datetime as dt
-import json
 import mimetypes
 import os
 import pathlib
 import re
 import secrets
-import sys
 import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

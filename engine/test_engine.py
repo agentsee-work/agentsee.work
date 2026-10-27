@@ -8,11 +8,9 @@ checked is the engine's own logic, from the ledger to the screens: the
 platform is checked by the first real run.
 """
 
-import contextlib
 import datetime as dt
 import hashlib
 import http.server
-import io
 import json
 import os
 import pathlib
@@ -27,18 +25,20 @@ import urllib.parse
 import urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import archive  # noqa: E402
+import collect  # noqa: E402
 import ingest  # noqa: E402
 import ledger  # noqa: E402
 import plan  # noqa: E402
 import publish  # noqa: E402
-import web  # noqa: E402
-from publish import youtube  # noqa: E402
-from publish import x  # noqa: E402
-from publish import bluesky  # noqa: E402
-from publish import mastodon  # noqa: E402
 import vault  # noqa: E402
-import archive  # noqa: E402
-import collect  # noqa: E402
+import web  # noqa: E402
+from publish import (
+    bluesky,  # noqa: E402
+    mastodon,  # noqa: E402
+    x,  # noqa: E402
+    youtube,  # noqa: E402
+)
 
 DAY0 = (dt.date.today() + dt.timedelta(days=10)).isoformat()
 DAY1 = (dt.date.today() + dt.timedelta(days=11)).isoformat()
@@ -72,7 +72,7 @@ def fixture(root):
                       "sha256": hashlib.sha256(d).hexdigest()} for n, d in files.items()},
         "clips": [{"index": 1, "slug": "the-point", "title": "The point", "file": "clips/01-the-point.mp4",
                    "poster": "clips/01-the-point.png", "captions": "clips/01-the-point.vtt",
-                   "post": {"text": f"The point\n\nFrom episode 9.", "link": EP_URL, "link_at": EP_URL + "#t=42", "at_hms": "00:42"},
+                   "post": {"text": "The point\n\nFrom episode 9.", "link": EP_URL, "link_at": EP_URL + "#t=42", "at_hms": "00:42"},
                    "hashtags": ["AgentSee"]}],
         "plan": [{"asset": "episode", "day": 0, "date": DAY0}, {"asset": "clip:01-the-point", "day": 1, "date": DAY1}],
     }
@@ -537,7 +537,9 @@ class EngineTest(unittest.TestCase):
         cls.tmp.cleanup()
 
     def c(self):
-        return ledger.connect(self.db)
+        c = ledger.connect(self.db)
+        self.addCleanup(c.close)
+        return c
 
     def test_01_ingest(self):
         c = self.c()
@@ -786,6 +788,8 @@ class EngineTest(unittest.TestCase):
         web.STATE["ledger"] = str(self.db)
         srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
         base = f"http://127.0.0.1:{srv.server_address[1]}"
 
         def get(path):
@@ -793,7 +797,8 @@ class EngineTest(unittest.TestCase):
                 with urllib.request.urlopen(base + path, timeout=10) as r:
                     return r.status, dict(r.headers), r.read().decode(errors="replace")
             except urllib.error.HTTPError as e:
-                return e.code, dict(e.headers), e.read().decode(errors="replace")
+                with e:
+                    return e.code, dict(e.headers), e.read().decode(errors="replace")
 
         def post(path, data):
             req = urllib.request.Request(base + path, data=urllib.parse.urlencode(data).encode(), method="POST")
@@ -802,7 +807,8 @@ class EngineTest(unittest.TestCase):
                 with opener.open(req, timeout=10) as r:
                     return r.status, dict(r.headers), r.read().decode()
             except urllib.error.HTTPError as e:
-                return e.code, dict(e.headers), e.read().decode()
+                with e:
+                    return e.code, dict(e.headers), e.read().decode()
 
         st, h, body = get("/episodes")
         self.assertEqual(st, 200)
@@ -1180,6 +1186,7 @@ class EngineTest(unittest.TestCase):
             m = StubMastodon.state
             mep, mclip = ledger.post(c, ids["mastodon", "episode"]), ledger.post(c, ids["mastodon", "clip"])
             self.assertEqual(mep["status"], "published")
+            self.assertEqual(mclip["status"], "published")
             self.assertTrue(mep["permalink"].endswith("/@agentseework/101"))
             self.assertEqual([x["type"] for x in m["media"]], ["image/jpeg", "video/mp4"])
             self.assertIn("episode art", m["media"][0]["description"])

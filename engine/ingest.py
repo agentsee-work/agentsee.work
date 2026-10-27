@@ -15,10 +15,9 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "tools"))
-from eplib import EPISODES, die, load_json  # noqa: E402
-
 import archive  # noqa: E402
 import ledger  # noqa: E402
+from eplib import EPISODES, die, load_json  # noqa: E402
 
 KINDS = (
     ("episode.mp3", "audio"), ("episode.mp4", "video"), ("captions.srt", "captions"),

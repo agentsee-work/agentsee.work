@@ -1,0 +1,41 @@
+# Ruff is the linter and the formatter for the Python here (engine/, tools/,
+# stalwart/): one binary, dev-only, nothing at run time imports it. CI runs
+# `ruff check` and `ruff format --check` on every pull request and push to
+# main (.github/workflows/check.yml). The same two, before pushing:
+#
+#     pip install ruff                        # or: uvx ruff ...
+#     ruff check . && ruff format --check .
+#     ruff check --fix . && ruff format .     # let it fix what it can
+
+# What the code runs on: the engine's image (engine/home/Dockerfile), the
+# media tools' venvs under build/ and the workstations are all 3.14.
+target-version = "py314"
+line-length = 120
+
+# Where our own modules live, so isort knows `import ledger` and
+# `from eplib import ...` are first-party, not third-party.
+src = ["engine", "tools"]
+
+# build/ is episodes and venvs (a symlink, in a worktree); .claude/ is the
+# session worktrees. Both are ignored by the repo already, which Ruff respects;
+# named anyway so a run from a tree without that ignore file is not a slow
+# surprise.
+extend-exclude = ["build", ".claude"]
+
+[lint]
+# Ruff's defaults (pyflakes, the pycodestyle errors) plus the pycodestyle
+# warnings, bugbear for the real mistakes (mutable defaults, closures over a
+# loop variable, raise without from) and isort. Style is the formatter's.
+select = ["E4", "E7", "E9", "W", "F", "B", "I"]
+ignore = [
+    "E741",  # `l` as a name is fine in a comprehension over lines
+    "B007",  # an unused loop variable is not a bug
+    "B905",  # zip(strict=...) would change behaviour where lengths differ
+]
+
+[format]
+# The engine is formatted. The media pipeline in tools/ is not yet: running
+# the formatter over it is a 7,000-line diff that wants its own PR, after the
+# open work on those files lands (AGE-97 and AGE-98 touch them anyway).
+# Delete this exclusion then.
+exclude = ["tools/**"]

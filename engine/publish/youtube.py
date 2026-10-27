@@ -62,7 +62,9 @@ def token(env):
         with urllib.request.urlopen(req, timeout=30) as r:
             j = json.load(r)
     except urllib.error.HTTPError as e:
-        raise PublishError("Google would not refresh the token: " + e.read().decode(errors="replace")[:300])
+        with e:
+            why = e.read().decode(errors="replace")[:300]
+        raise PublishError("Google would not refresh the token: " + why) from e
     _token["value"], _token["until"] = j["access_token"], time.time() + int(j.get("expires_in", 3600))
     return _token["value"]
 

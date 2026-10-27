@@ -71,7 +71,7 @@ def keep(value):
         raise PublishError(
             f"X issued a new refresh token but the vault write failed ({e}). The old token is retired; "
             "the new one is held in this process only and the write is retried on the next attempt. "
-            "Do not restart the engine before that succeeds, or the token is lost and another must be minted")
+            "Do not restart the engine before that succeeds, or the token is lost and another must be minted") from e
     _token["unsaved"] = None
 
 
@@ -85,7 +85,7 @@ def token(env, log=print):
         current = vault.read(*item())
     except VaultError as e:
         raise PublishError(f"could not read the X refresh token from the vault ({e}): the engine needs an op "
-                           "session (run it under op run) to refresh the token and write the replacement back")
+                           "session (run it under op run) to refresh the token and write the replacement back") from e
     data = urllib.parse.urlencode({"grant_type": "refresh_token", "refresh_token": current,
                                    "client_id": env["X_APP_ID"]}).encode()
     auth = "Basic " + base64.b64encode(f"{env['X_APP_ID']}:{env['X_APP_SECRET']}".encode()).decode()
@@ -95,9 +95,11 @@ def token(env, log=print):
         with urllib.request.urlopen(req, timeout=30) as r:
             j = json.load(r)
     except urllib.error.HTTPError as e:
-        raise PublishError("X would not refresh the token: " + e.read().decode(errors="replace")[:300]
+        with e:
+            why = e.read().decode(errors="replace")[:300]
+        raise PublishError("X would not refresh the token: " + why
                            + ". If something else refreshed it first, the vault holds a retired token: "
-                           "mint another with tools/x.py auth, or in the Developer Console, and file it")
+                           "mint another with tools/x.py auth, or in the Developer Console, and file it") from e
     new = j.get("refresh_token")
     if not new:
         raise PublishError("X refreshed but sent no new refresh token: offline.access is missing from the consent")

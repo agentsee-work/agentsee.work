@@ -116,6 +116,7 @@ def decode(path):
     against (`metadata_errors` came and went), and ffmpeg is already a
     requirement of everything else here."""
     import subprocess
+
     import numpy as np
     raw = subprocess.run(
         ["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-ac", "1",
@@ -195,7 +196,6 @@ def main():
             die("no device could load the model")
         print(f"model {a.model} on {device}")
         cfg = load_json(d / "episode.json") if (d / "episode.json").exists() else {}
-        names = ", ".join(p["name"] for p in m["participants"])
         # No initial_prompt and no hotwords by default. On episode 0 a one-line
         # prompt with the names cost 40% of the words — whole chunks skipped,
         # and the prompt itself transcribed as speech — and hotwords alone cost

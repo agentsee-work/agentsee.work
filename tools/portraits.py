@@ -20,7 +20,8 @@ for head-and-shoulders, with both heads about the same size in frame.
 """
 
 import sys
-from PIL import Image, ImageOps, ImageEnhance, ImageFilter
+
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
 # Ink and paper, matching the light-theme palette in assets/styles.css
 INK = (0x16, 0x13, 0x0F)

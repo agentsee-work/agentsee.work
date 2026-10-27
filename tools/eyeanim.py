@@ -40,9 +40,15 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from banner import ROOT, THEMES  # noqa: E402
-from eye import (AXES, EXPRESSIONS, REST, axes as eye_axes,
-                 font_b64, mark_css, mark_svg)  # noqa: E402
-
+from eye import (
+    AXES,
+    EXPRESSIONS,
+    REST,
+    font_b64,  # noqa: E402
+    mark_css,
+    mark_svg,
+)
+from eye import axes as eye_axes
 
 MAX_GRID = 8000   # px per side; Chrome will go further, but not happily
 
@@ -328,6 +334,7 @@ def render_frames(frames, theme, cell, glow, ss, frames_dir, tmp, blur=1, jobs=8
     instead, which is free correctness-wise and suits a 32-core desk.
     """
     from concurrent.futures import ThreadPoolExecutor
+
     from PIL import Image
 
     # A hold is the same frame over and over, and this was paying a Chrome
@@ -474,6 +481,7 @@ def build_reel(theme, cell, fps, blur, ss, blink, jobs,
 
     Flattened on purpose — this is for watching, not compositing."""
     from concurrent.futures import ThreadPoolExecutor
+
     from PIL import Image
 
     out_dir = OUT / "_reel"

@@ -34,8 +34,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import (EPISODES, RATE, ROOT, die, ffprobe, load_json, need,  # noqa: E402
-                   run, save_json)
+from eplib import EPISODES, RATE, ROOT, die, ffprobe, load_json, need, run, save_json  # noqa: E402
 
 
 def parse_names(s):
