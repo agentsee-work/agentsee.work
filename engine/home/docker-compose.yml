@@ -43,8 +43,15 @@ services:
         max-file: "3"
 
   cloudflared:
-    # Pinned, like Stalwart. 2026.10.1 was current on 15 October 2026.
-    image: cloudflare/cloudflared:2026.10.1
+    # Pinned, like Stalwart. 2026.10.1 was current on 15 October 2026, but
+    # cloudflared before 2026.10.2 trusts eight eMudhra/emSign intermediate
+    # certificates whose private keys were found recoverable (Cloudflare
+    # advisory, 20 Oct 2026). 2026.10.3 is the Docker image that advisory
+    # named; restarting the old image does not apply the fix — the image
+    # must be re-pulled. Our ingress is http://engine:8877 (plain HTTP to the
+    # sibling container), so the advisory's rejected-HTTPS-origin caveat does
+    # not apply here.
+    image: cloudflare/cloudflared:2026.10.3
     container_name: agentsee-engine-tunnel
     restart: unless-stopped
     # cloudflared only holds an outbound connection to Cloudflare; it needs no
