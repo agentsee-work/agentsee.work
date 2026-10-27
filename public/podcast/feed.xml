@@ -30,6 +30,44 @@
     <podcast:person role="host" href="https://www.linkedin.com/in/james-hartt-78519132/" img="https://agentsee.work/assets/james-hartt.jpg">James Hartt</podcast:person>
     <podcast:person role="host" href="https://www.linkedin.com/in/abrar-m-339b61386/" img="https://agentsee.work/assets/abrar-mahmood.jpg">Abrar Mahmood</podcast:person>
     <item>
+      <title>Running our own mail server, on purpose</title>
+      <itunes:title>Running our own mail server, on purpose</itunes:title>
+      <link>https://agentsee.work/podcast/ep1/</link>
+      <guid isPermaLink="false">0b710958-6635-4743-a62b-a4e84f054ccf</guid>
+      <pubDate>Tue, 27 Oct 2026 06:00:00 +0000</pubDate>
+      <description><![CDATA[<p>James set up AgentSee&#x27;s own mail server on a Swiss VPS, with an agent writing the OpenTofu and most of the configuration: two afternoons&#x27; work rather than the weeks it would once have taken. Abrar asks what was hard, and the answer is the click ops inside Stalwart&#x27;s admin panel, a CLI that was not built for an agent, buttons the model insisted existed, and making the result reproducible afterwards with a snapshot script. They also cover borrowing sender reputation, the monitoring that is not built yet, whether either of them would recommend this to a client (no), and what it is like to let an agent drive the browser.</p>
+<p>Chapters:</p><ul><li>00:00 Why mail at all</li><li>02:15 The alternatives, and why Infomaniak</li><li>05:56 OpenTofu, and what the agent wrote</li><li>07:26 Stalwart: the click ops and a clunky CLI</li><li>12:31 Buttons that don&#x27;t exist, and the snapshot</li><li>16:40 Set and forget: spam, SES and the relay</li><li>19:00 Monitoring, and what we have not built</li><li>21:56 Reputation: borrow someone else&#x27;s</li><li>23:51 What the server holds</li><li>25:48 Would we do it again?</li><li>29:53 Letting an agent click</li><li>36:53 Where to find it all</li><li>38:00 Outro</li></ul>
+<p>Mentioned:</p><ul><li><a href="https://agentsee.work/issues/02-mail.html">Issue No. 2: the mail server, written up</a></li><li><a href="https://github.com/agentsee-work/agentsee.work/tree/main/infra">The infrastructure, as OpenTofu, on GitHub</a></li><li><a href="https://stalw.art">Stalwart mail server</a></li><li><a href="https://opentofu.org">OpenTofu</a></li><li><a href="https://www.infomaniak.com/en/hosting/public-cloud">Infomaniak Public Cloud</a></li><li><a href="https://www.smtp2go.com">SMTP2GO</a></li></ul>
+<p>Of the questions on the site, this one touches:</p><ul><li>4. Who is accountable for a system that nobody typed?</li><li>8. Do engineers still want the job? What is it now — author, reviewer, director, or something we don&#x27;t yet have a word for?</li></ul>
+<p>AgentSee is two people building a company in public, with agents doing the work.</p>
+<p><a href="https://agentsee.work">https://agentsee.work</a>  ·  hello@agentsee.work</p>
+<p>Subscribe: <a href="https://agentsee.work/podcast/feed.xml">https://agentsee.work/podcast/feed.xml</a></p>]]></description>
+      <content:encoded><![CDATA[<p>James set up AgentSee&#x27;s own mail server on a Swiss VPS, with an agent writing the OpenTofu and most of the configuration: two afternoons&#x27; work rather than the weeks it would once have taken. Abrar asks what was hard, and the answer is the click ops inside Stalwart&#x27;s admin panel, a CLI that was not built for an agent, buttons the model insisted existed, and making the result reproducible afterwards with a snapshot script. They also cover borrowing sender reputation, the monitoring that is not built yet, whether either of them would recommend this to a client (no), and what it is like to let an agent drive the browser.</p>
+<p>Chapters:</p><ul><li>00:00 Why mail at all</li><li>02:15 The alternatives, and why Infomaniak</li><li>05:56 OpenTofu, and what the agent wrote</li><li>07:26 Stalwart: the click ops and a clunky CLI</li><li>12:31 Buttons that don&#x27;t exist, and the snapshot</li><li>16:40 Set and forget: spam, SES and the relay</li><li>19:00 Monitoring, and what we have not built</li><li>21:56 Reputation: borrow someone else&#x27;s</li><li>23:51 What the server holds</li><li>25:48 Would we do it again?</li><li>29:53 Letting an agent click</li><li>36:53 Where to find it all</li><li>38:00 Outro</li></ul>
+<p>Mentioned:</p><ul><li><a href="https://agentsee.work/issues/02-mail.html">Issue No. 2: the mail server, written up</a></li><li><a href="https://github.com/agentsee-work/agentsee.work/tree/main/infra">The infrastructure, as OpenTofu, on GitHub</a></li><li><a href="https://stalw.art">Stalwart mail server</a></li><li><a href="https://opentofu.org">OpenTofu</a></li><li><a href="https://www.infomaniak.com/en/hosting/public-cloud">Infomaniak Public Cloud</a></li><li><a href="https://www.smtp2go.com">SMTP2GO</a></li></ul>
+<p>Of the questions on the site, this one touches:</p><ul><li>4. Who is accountable for a system that nobody typed?</li><li>8. Do engineers still want the job? What is it now — author, reviewer, director, or something we don&#x27;t yet have a word for?</li></ul>
+<p>AgentSee is two people building a company in public, with agents doing the work.</p>
+<p><a href="https://agentsee.work">https://agentsee.work</a>  ·  hello@agentsee.work</p>
+<p>Subscribe: <a href="https://agentsee.work/podcast/feed.xml">https://agentsee.work/podcast/feed.xml</a></p>]]></content:encoded>
+      <enclosure url="https://media.agentsee.work/podcast/ep1/episode.mp3" length="55265615" type="audio/mpeg"/>
+      <itunes:duration>2298</itunes:duration>
+      <itunes:episode>1</itunes:episode>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:image href="https://media.agentsee.work/podcast/ep1/episode-art.jpg"/>
+      <podcast:transcript url="https://media.agentsee.work/podcast/ep1/transcript.vtt" type="text/vtt" language="en"/>
+      <podcast:transcript url="https://media.agentsee.work/podcast/ep1/transcript.json" type="application/json" language="en"/>
+      <podcast:chapters url="https://media.agentsee.work/podcast/ep1/chapters.json" type="application/json+chapters"/>
+      <podcast:person role="host" href="https://www.linkedin.com/in/james-hartt-78519132/" img="https://agentsee.work/assets/james-hartt.jpg">James Hartt</podcast:person>
+      <podcast:person role="host" href="https://www.linkedin.com/in/abrar-m-339b61386/" img="https://agentsee.work/assets/abrar-mahmood.jpg">Abrar Mahmood</podcast:person>
+      <podcast:soundbite startTime="418.317" duration="27.7">If I&#x27;m clicking around in a console, I will forget this</podcast:soundbite>
+      <podcast:soundbite startTime="772.434" duration="30.4">Telling you to click buttons that don&#x27;t exist</podcast:soundbite>
+      <podcast:soundbite startTime="928.523" duration="41.7">The drudgery work of ops has just gone away</podcast:soundbite>
+      <podcast:soundbite startTime="1345.297" duration="26.5">Sending from your own server? Good luck</podcast:soundbite>
+      <podcast:soundbite startTime="1580.819" duration="44.5">Would I recommend it to any business? No</podcast:soundbite>
+      <podcast:soundbite startTime="2163.712" duration="30.6">Brute force gets it done; reproducibility is the bar</podcast:soundbite>
+    </item>
+    <item>
       <title>Introductions and the premise</title>
       <itunes:title>Introductions and the premise</itunes:title>
       <link>https://agentsee.work/podcast/ep0/</link>

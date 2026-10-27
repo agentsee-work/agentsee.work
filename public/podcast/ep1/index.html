@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Running our own mail server, on purpose — AgentSee Podcast, episode 1</title>
+<meta name="description" content="James set up AgentSee&#x27;s own mail server on a Swiss VPS, with an agent writing the OpenTofu and most of the configuration: two afternoons&#x27; work rather than the weeks it would once have taken. Abrar asks what was hard, and the answer is the click ops inside Stalwart&#x27;s admin panel, a CLI that was not built for an agent, buttons the model insisted existed, and making the result reproducible afterwards with a snapshot script. They also cover borrowing sender reputation, the monitoring that is not built yet, whether either of them would recommend this to a client (no), and what it is like to let an agent drive the browser.">
+<link rel="canonical" href="https://agentsee.work/podcast/ep1/">
+<link rel="alternate" type="application/rss+xml" title="AgentSee Podcast" href="/podcast/feed.xml">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://agentsee.work/podcast/ep1/">
+<meta property="og:title" content="Running our own mail server, on purpose — AgentSee Podcast, episode 1">
+<meta property="og:description" content="James set up AgentSee&#x27;s own mail server on a Swiss VPS, with an agent writing the OpenTofu and most of the configuration: two afternoons&#x27; work rather than the weeks it would once have taken. Abrar asks what was hard, and the answer is the click ops inside Stalwart&#x27;s admin panel, a CLI that was not built for an agent, buttons the model insisted existed, and making the result reproducible afterwards with a snapshot script. They also cover borrowing sender reputation, the monitoring that is not built yet, whether either of them would recommend this to a client (no), and what it is like to let an agent drive the browser.">
+<meta property="og:image" content="https://agentsee.work/podcast/ep1/art.jpg">
+<meta property="og:image:width" content="1400">
+<meta property="og:image:height" content="1400">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/podcast/ep1/art.jpg">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "PodcastEpisode", "url": "https://agentsee.work/podcast/ep1/", "name": "Running our own mail server, on purpose", "datePublished": "2026-10-27", "description": "James set up AgentSee's own mail server on a Swiss VPS, with an agent writing the OpenTofu and most of the configuration: two afternoons' work rather than the weeks it would once have taken. Abrar asks what was hard, and the answer is the click ops inside Stalwart's admin panel, a CLI that was not built for an agent, buttons the model insisted existed, and making the result reproducible afterwards with a snapshot script. They also cover borrowing sender reputation, the monitoring that is not built yet, whether either of them would recommend this to a client (no), and what it is like to let an agent drive the browser.", "duration": "PT38M18S", "image": "https://agentsee.work/podcast/ep1/art.jpg", "associatedMedia": {"@type": "MediaObject", "contentUrl": "https://media.agentsee.work/podcast/ep1/episode.mp3", "encodingFormat": "audio/mpeg"}, "partOfSeries": {"@type": "PodcastSeries", "name": "AgentSee Podcast", "url": "https://agentsee.work/podcast/", "webFeed": "https://agentsee.work/podcast/feed.xml"}, "author": [{"@type": "Person", "name": "James Hartt", "url": "https://www.linkedin.com/in/james-hartt-78519132/"}, {"@type": "Person", "name": "Abrar Mahmood", "url": "https://www.linkedin.com/in/abrar-m-339b61386/"}], "episodeNumber": 1}</script>
+</head>
+<body>
+
+<a class="skip" href="#opening">Skip to content</a>
+<header class="masthead">
+  <nav class="ear" aria-label="Listen to the podcast">
+    <a class="ear-label" href="/podcast/">Listen</a>
+    <a href="https://podcasts.apple.com/gb/podcast/agentsee-podcast/id6824580895">Apple Podcasts</a>
+    <a href="https://open.spotify.com/show/0YjxzDGgoCzjvEykcUAfPr">Spotify</a>
+    <a href="https://www.youtube.com/@agentseework">YouTube</a>
+    <a href="/podcast/feed.xml">RSS</a>
+  </nav>
+  <a class="nameplate home" href="/" aria-label="AgentSee, the front page">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+  </a>
+  <nav class="ear" aria-label="Follow AgentSee">
+    <span class="ear-label">Follow</span>
+    <a href="https://www.linkedin.com/company/agentseework">LinkedIn</a>
+    <a href="https://x.com/agentseework">X</a>
+    <a href="https://bsky.app/profile/agentsee.work">Bluesky</a>
+    <a href="https://mastodon.social/@agentseework">Mastodon</a>
+    <a href="https://www.instagram.com/agentsee.work/">Instagram</a>
+  </nav>
+</header>
+<div class="dateline">
+  <span class="edge">AgentSee Podcast</span>
+  <span class="mid">Episode 1 &middot; 27 October 2026</span>
+  <span class="edge">38 min 17 s &middot; Free, obviously</span>
+</div>
+
+<main>
+
+  <article class="lead" id="opening">
+    <h1>Running our own mail server, on purpose</h1>
+    <p class="deck">James set up AgentSee&#x27;s own mail server on a Swiss VPS, with an agent writing the OpenTofu and most of the configuration: two afternoons&#x27; work rather than the weeks it would once have taken. Abrar asks what was hard, and the answer is the click ops inside Stalwart&#x27;s admin panel, a CLI that was not built for an agent, buttons the model insisted existed, and making the result reproducible afterwards with a snapshot script. They also cover borrowing sender reputation, the monitoring that is not built yet, whether either of them would recommend this to a client (no), and what it is like to let an agent drive the browser.</p>
+  </article>
+
+  <figure class="plate">
+    <audio controls preload="none" data-player src="https://media.agentsee.work/podcast/ep1/episode.mp3"></audio>
+    <figcaption>Episode 1, 38:18. Chapters and the transcript below seek the player.</figcaption>
+    <p class="links listen">
+      <a href="https://podcasts.apple.com/gb/podcast/agentsee-podcast/id6824580895">Listen on Apple Podcasts</a>
+      <a href="https://open.spotify.com/show/0YjxzDGgoCzjvEykcUAfPr">Listen on Spotify</a>
+      <a href="https://media.agentsee.work/podcast/ep1/episode.mp3" download>Download the mp3</a>
+      <a href="/podcast/feed.xml">RSS feed</a>
+    </p>
+  </figure>
+
+  <section class="section" id="chapters">
+    <p class="kicker">01 — Chapters</p>
+    <ol class="chapters">
+      <li><a href="#t=0" data-t="0">00:00</a><span>Why mail at all</span></li>
+      <li><a href="#t=135" data-t="135">02:15</a><span>The alternatives, and why Infomaniak</span></li>
+      <li><a href="#t=356" data-t="356">05:57</a><span>OpenTofu, and what the agent wrote</span></li>
+      <li><a href="#t=446" data-t="446">07:26</a><span>Stalwart: the click ops and a clunky CLI</span></li>
+      <li><a href="#t=751" data-t="751">12:32</a><span>Buttons that don&#x27;t exist, and the snapshot</span></li>
+      <li><a href="#t=1000" data-t="1000">16:40</a><span>Set and forget: spam, SES and the relay</span></li>
+      <li><a href="#t=1140" data-t="1140">19:01</a><span>Monitoring, and what we have not built</span></li>
+      <li><a href="#t=1316" data-t="1316">21:57</a><span>Reputation: borrow someone else&#x27;s</span></li>
+      <li><a href="#t=1431" data-t="1431">23:51</a><span>What the server holds</span></li>
+      <li><a href="#t=1548" data-t="1548">25:49</a><span>Would we do it again?</span></li>
+      <li><a href="#t=1793" data-t="1793">29:54</a><span>Letting an agent click</span></li>
+      <li><a href="#t=2213" data-t="2213">36:54</a><span>Where to find it all</span></li>
+      <li><a href="#t=2280" data-t="2280">38:00</a><span>Outro</span></li>
+    </ol>
+  </section>
+
+  <section class="section" id="notes">
+    <p class="kicker">02 — Show notes</p>
+    <div class="notes">
+      <h3>Mentioned</h3>
+      <ul>
+        <li><a href="https://agentsee.work/issues/02-mail.html">Issue No. 2: the mail server, written up</a></li>
+        <li><a href="https://github.com/agentsee-work/agentsee.work/tree/main/infra">The infrastructure, as OpenTofu, on GitHub</a></li>
+        <li><a href="https://stalw.art">Stalwart mail server</a></li>
+        <li><a href="https://opentofu.org">OpenTofu</a></li>
+        <li><a href="https://www.infomaniak.com/en/hosting/public-cloud">Infomaniak Public Cloud</a></li>
+        <li><a href="https://www.smtp2go.com">SMTP2GO</a></li>
+      </ul>
+      <h3>Of the questions on the site, this one touches</h3>
+      <ul>
+        <li><a href="/#premise">4.</a> Who is accountable for a system that nobody typed?</li>
+        <li><a href="/#premise">8.</a> Do engineers still want the job? What is it now — author, reviewer, director, or something we don&#x27;t yet have a word for?</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="moments">
+    <p class="kicker">03 — Moments</p>
+    <p class="aside">The stretches that went out as clips. Each one seeks the player.</p>
+    <ol class="chapters">
+      <li><a href="#t=418" data-t="418">06:58</a><span>If I&#x27;m clicking around in a console, I will forget this</span></li>
+      <li><a href="#t=772" data-t="772">12:52</a><span>Telling you to click buttons that don&#x27;t exist</span></li>
+      <li><a href="#t=928" data-t="928">15:29</a><span>The drudgery work of ops has just gone away</span></li>
+      <li><a href="#t=1345" data-t="1345">22:25</a><span>Sending from your own server? Good luck</span></li>
+      <li><a href="#t=1580" data-t="1580">26:21</a><span>Would I recommend it to any business? No</span></li>
+      <li><a href="#t=2163" data-t="2163">36:04</a><span>Brute force gets it done; reproducibility is the bar</span></li>
+    </ol>
+  </section>
+
+  <section class="section" id="people">
+    <p class="kicker">04 — On this episode</p>
+    <div class="people">
+      <article class="person">
+        <div class="byline">
+          <img class="portrait" src="/assets/james-hartt.jpg" alt="" width="256" height="256" loading="lazy" decoding="async">
+          <div>
+            <h3>James Hartt</h3>
+            <p class="role">Host</p>
+          </div>
+        </div>
+        <div class="body"><p>Lead software engineer, agentic engineering. Hove.</p>
+          <p class="links"><a href="https://www.linkedin.com/in/james-hartt-78519132/">LinkedIn</a></p>
+        </div>
+      </article>
+      <article class="person">
+        <div class="byline">
+          <img class="portrait" src="/assets/abrar-mahmood.jpg" alt="" width="256" height="256" loading="lazy" decoding="async">
+          <div>
+            <h3>Abrar Mahmood</h3>
+            <p class="role">Host</p>
+          </div>
+        </div>
+        <div class="body"><p>Software architect; co-founder of GradeDrive. London.</p>
+          <p class="links"><a href="https://www.linkedin.com/in/abrar-m-339b61386/">LinkedIn</a></p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" id="transcript">
+    <p class="kicker">05 — Transcript</p>
+    <details class="transcript">
+      <summary>Read the transcript: 445 turns, 6,669 words</summary>
+      <p class="turn"><a class="at" href="#t=6" data-t="6">00:06</a><b class="who">Abrar Mahmood</b> Hello and welcome to another, episode of AgentSee podcast. I&#x27;m Abrar and together I&#x27;m with...</p>
+      <p class="turn"><a class="at" href="#t=12" data-t="12">00:12</a><b class="who">James Hartt</b> James, hi, nice to meet you. Hi.</p>
+      <p class="turn"><a class="at" href="#t=14" data-t="14">00:14</a><b class="who">Abrar Mahmood</b> Nice to meet you. So today we&#x27;re going to be talking about running our own email server. Let&#x27;s get straight into it. Okay, so let&#x27;s start with why mail at all. So how is mail useful for us And why have we decided to start with emails</p>
+      <p class="turn"><a class="at" href="#t=31" data-t="31">00:31</a><b class="who">James Hartt</b> So yeah, obviously when you start a business, Email is one of the first things that you can think of apart from a website. We already did the website with like Cloudflare pages</p>
+      <p class="turn"><a class="at" href="#t=41" data-t="41">00:41</a><b class="who">Abrar Mahmood</b> Yep</p>
+      <p class="turn"><a class="at" href="#t=41" data-t="41">00:41</a><b class="who">James Hartt</b> And we had Cloudflare email routing, which does work quite well for a really quick and dirty way to sort forward on Things. Things. But yeah, the entire premise of agency is to see what agents can Enable someone that has high tastes and wants to have a good working solution, but sort of lacks Maybe the kind of really fine grain Knowledge that you need to say run an email server and run it to a standard Most businesses that are going to obviously stake their delivery of important information through email for. So yeah, that&#x27;s why I kind of chose to like try and host our our own email servers.</p>
+      <p class="turn"><a class="at" href="#t=92" data-t="92">01:32</a><b class="who">Abrar Mahmood</b> And maybe just a quick one -liner just for our viewers in case they don&#x27;t know in terms of our current offering we are hosting with Cloudflare for the website Itself</p>
+      <p class="turn"><a class="at" href="#t=100" data-t="100">01:40</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=101" data-t="101">01:41</a><b class="who">Abrar Mahmood</b> And you mentioned we do email forwarding or we support email forwarding with Cloudflare we can do that but in terms of what We are actually doing it&#x27;s is it more the responses and like the two -way</p>
+      <p class="turn"><a class="at" href="#t=113" data-t="113">01:53</a><b class="who">James Hartt</b> Well,</p>
+      <p class="turn"><a class="at" href="#t=113" data-t="113">01:53</a><b class="who">Abrar Mahmood</b> Communication or</p>
+      <p class="turn"><a class="at" href="#t=114" data-t="114">01:54</a><b class="who">James Hartt</b> When we first Set up the website, I had the Cloudflare email routing,</p>
+      <p class="turn"><a class="at" href="#t=121" data-t="121">02:01</a><b class="who">Abrar Mahmood</b> Yes</p>
+      <p class="turn"><a class="at" href="#t=121" data-t="121">02:01</a><b class="who">James Hartt</b> But now it is fully going to our email server. So all the Cloudflare</p>
+      <p class="turn"><a class="at" href="#t=126" data-t="126">02:06</a><b class="who">Abrar Mahmood</b> Nice</p>
+      <p class="turn"><a class="at" href="#t=126" data-t="126">02:06</a><b class="who">James Hartt</b> Routing stuff has been taken away.</p>
+      <p class="turn"><a class="at" href="#t=129" data-t="129">02:09</a><b class="who">Abrar Mahmood</b> Cool.</p>
+      <p class="turn"><a class="at" href="#t=129" data-t="129">02:09</a><b class="who">James Hartt</b> So, yeah, does that answer your question? Yeah.</p>
+      <p class="turn"><a class="at" href="#t=132" data-t="132">02:12</a><b class="who">Abrar Mahmood</b> Yes it does yes</p>
+      <p class="turn"><a class="at" href="#t=133" data-t="133">02:13</a><b class="who">James Hartt</b> Yeah. Perfect.</p>
+      <p class="turn"><a class="at" href="#t=134" data-t="134">02:14</a><b class="who">Abrar Mahmood</b> Cool So if we go into sort of some of the traditional routes that people take, so we&#x27;ve spoken a little bit about Cloudflare. We&#x27;ve said that we&#x27;ve gone all the way and tried our own email server in terms of other potential offerings That people typically go for. Have we looked at any alternatives or anything</p>
+      <p class="turn"><a class="at" href="#t=159" data-t="159">02:39</a><b class="who">James Hartt</b> Yes</p>
+      <p class="turn"><a class="at" href="#t=159" data-t="159">02:39</a><b class="who">Abrar Mahmood</b> That we might</p>
+      <p class="turn"><a class="at" href="#t=160" data-t="160">02:40</a><b class="who">James Hartt</b> Absolutely</p>
+      <p class="turn"><a class="at" href="#t=160" data-t="160">02:40</a><b class="who">Abrar Mahmood</b> Have</p>
+      <p class="turn"><a class="at" href="#t=160" data-t="160">02:40</a><b class="who">James Hartt</b> So</p>
+      <p class="turn"><a class="at" href="#t=160" data-t="160">02:40</a><b class="who">Abrar Mahmood</b> Considered?</p>
+      <p class="turn"><a class="at" href="#t=161" data-t="161">02:41</a><b class="who">James Hartt</b> Yeah I mean obviously</p>
+      <p class="turn"><a class="at" href="#t=162" data-t="162">02:42</a><b class="who">Abrar Mahmood</b> That it?</p>
+      <p class="turn"><a class="at" href="#t=162" data-t="162">02:42</a><b class="who">James Hartt</b> You can choose anything from sort of Google Workspace</p>
+      <p class="turn"><a class="at" href="#t=165" data-t="165">02:45</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=166" data-t="166">02:46</a><b class="who">James Hartt</b> The actual cloud provider that I chose to run the VPS on was Infomaniak which are a swiss outfit and They have and basically a sort of microsoft suite I considered them as well just because like I quite Like all the principles of Infomaniak like they&#x27;re running on nice swiss like servers the sort of swiss care about their like Their privacy and data integrity and sovereignty</p>
+      <p class="turn"><a class="at" href="#t=192" data-t="192">03:12</a><b class="who">Abrar Mahmood</b> Ciao.</p>
+      <p class="turn"><a class="at" href="#t=193" data-t="193">03:13</a><b class="who">James Hartt</b> And they&#x27;re also all run on nice renewable energy so there was was just lots of like they&#x27;re I&#x27;m pretty sure they&#x27;re a B Corp as well like that there&#x27;s just There were lots of things that were just like it&#x27;s not a it&#x27;s not a ridiculous hyperscaler that I have to worry about sort of and yeah just yeah Not it was just a nice kind of routine like they all they support open stack and yeah got to use OpenTofu And lots of lots of other things that I&#x27;ve kind of wanted to try over the years and yeah kind of play around so</p>
+      <p class="turn"><a class="at" href="#t=224" data-t="224">03:44</a><b class="who">Abrar Mahmood</b> Nice and in terms of those details and the VPS Did you what did you have like a bare bones VPS that you&#x27;re working with or that because you</p>
+      <p class="turn"><a class="at" href="#t=234" data-t="234">03:54</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=234" data-t="234">03:54</a><b class="who">Abrar Mahmood</b> Mentioned OpenTofu</p>
+      <p class="turn"><a class="at" href="#t=236" data-t="236">03:56</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=236" data-t="236">03:56</a><b class="who">Abrar Mahmood</b> And a few other tools did</p>
+      <p class="turn"><a class="at" href="#t=238" data-t="238">03:58</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=238" data-t="238">03:58</a><b class="who">Abrar Mahmood</b> That sort of come with it or was it pretty bare bones and you had to sort of bring that in</p>
+      <p class="turn"><a class="at" href="#t=243" data-t="243">04:03</a><b class="who">James Hartt</b> No everything&#x27;s been instantiated by OpenTofu yeah so</p>
+      <p class="turn"><a class="at" href="#t=247" data-t="247">04:07</a><b class="who">Abrar Mahmood</b> Chill.</p>
+      <p class="turn"><a class="at" href="#t=248" data-t="248">04:08</a><b class="who">James Hartt</b> There was obviously when I was setting up Stalwart which was the email server that we used like we didn&#x27;t vibe code email server or anything Like that would have been absolutely nuts yes stuck it up on basically yeah OpenTofu took care of a lot of it including Yeah and it&#x27;s that&#x27;s all on our GitHub sort of showing how that&#x27;s finally put together but yeah it it was a lot of it a lot of those Decisions obviously all the all the Terraform files were written by the agent</p>
+      <p class="turn"><a class="at" href="#t=276" data-t="276">04:36</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=276" data-t="276">04:36</a><b class="who">James Hartt</b> All of the sort of DNS settings I had sort of put in various amounts of tokens for Cloudflare for changing DNS routing like I Had to obviously do a decent amount of click ops to get quite like the secrets working got it all injected with 1Password CLI</p>
+      <p class="turn"><a class="at" href="#t=294" data-t="294">04:54</a><b class="who">Abrar Mahmood</b> Nice</p>
+      <p class="turn"><a class="at" href="#t=295" data-t="295">04:55</a><b class="who">James Hartt</b> Yeah kind of did things how I would love to do it if I had sort of an infinite amount of time to work on a project like this</p>
+      <p class="turn"><a class="at" href="#t=302" data-t="302">05:02</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=303" data-t="303">05:03</a><b class="who">James Hartt</b> And I would have predicted in the old world like this would have taken me several weeks to</p>
+      <p class="turn"><a class="at" href="#t=308" data-t="308">05:08</a><b class="who">Abrar Mahmood</b> Yes</p>
+      <p class="turn"><a class="at" href="#t=308" data-t="308">05:08</a><b class="who">James Hartt</b> Do and it would have like quite a lot of it would have been miserable like</p>
+      <p class="turn"><a class="at" href="#t=312" data-t="312">05:12</a><b class="who">Abrar Mahmood</b> Yes.</p>
+      <p class="turn"><a class="at" href="#t=312" data-t="312">05:12</a><b class="who">James Hartt</b> It would just be making config files and the kind of stuff that makes you want to like run off a cliff so</p>
+      <p class="turn"><a class="at" href="#t=319" data-t="319">05:19</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=320" data-t="320">05:20</a><b class="who">James Hartt</b> And it genuinely so so yeah it was quite it could genuinely took me a couple two afternoons to complete and along on with Yeah sort of proper backups and at like a small amount of monitoring like I could probably put in some more monitoring to make sure that It&#x27;s a little bit more reliable but yeah it&#x27;s backups and if the backups don&#x27;t go up swimmingly then I&#x27;ll get told that&#x27;s not working two different backups So yeah it was overall the process was good there&#x27;s great assets being created and I feel like confident enough in its Security</p>
+      <p class="turn"><a class="at" href="#t=353" data-t="353">05:53</a><b class="who">Abrar Mahmood</b> Yep.</p>
+      <p class="turn"><a class="at" href="#t=353" data-t="353">05:53</a><b class="who">James Hartt</b> That like I&#x27;m telling telling the internet about it</p>
+      <p class="turn"><a class="at" href="#t=359" data-t="359">05:59</a><b class="who">Abrar Mahmood</b> So I guess just taking a step back so we&#x27;ve got a VPS</p>
+      <p class="turn"><a class="at" href="#t=364" data-t="364">06:04</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=364" data-t="364">06:04</a><b class="who">Abrar Mahmood</b> We&#x27;re using OpenTofu and I guess for those of the viewers that don&#x27;t know what OpenTofu is do we want to just have a quick one -Liner of like</p>
+      <p class="turn"><a class="at" href="#t=373" data-t="373">06:13</a><b class="who">James Hartt</b> Well,</p>
+      <p class="turn"><a class="at" href="#t=373" data-t="373">06:13</a><b class="who">Abrar Mahmood</b> What</p>
+      <p class="turn"><a class="at" href="#t=373" data-t="373">06:13</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=374" data-t="374">06:14</a><b class="who">Abrar Mahmood</b> That is</p>
+      <p class="turn"><a class="at" href="#t=374" data-t="374">06:14</a><b class="who">James Hartt</b> So</p>
+      <p class="turn"><a class="at" href="#t=374" data-t="374">06:14</a><b class="who">Abrar Mahmood</b> Yes</p>
+      <p class="turn"><a class="at" href="#t=375" data-t="375">06:15</a><b class="who">James Hartt</b> Yeah, OpenTofu is like the open source drop -in replacement for Terraform. It&#x27;s a way of sort of defining your infrastructure, Defining DNS, defining</p>
+      <p class="turn"><a class="at" href="#t=384" data-t="384">06:24</a><b class="who">Abrar Mahmood</b> Yes.</p>
+      <p class="turn"><a class="at" href="#t=385" data-t="385">06:25</a><b class="who">James Hartt</b> Basically everything that you need to connect up digital services. And yes, you&#x27;re writing the same Terraform that you would do if you were working with that</p>
+      <p class="turn"><a class="at" href="#t=397" data-t="397">06:37</a><b class="who">Abrar Mahmood</b> Yep</p>
+      <p class="turn"><a class="at" href="#t=398" data-t="398">06:38</a><b class="who">James Hartt</b> So yeah it&#x27;s it&#x27;s a way to fully define your infrastructure so with relatively ease if for some reason you need to move Your Infomaniak onto another provider that wouldn&#x27;t be hard</p>
+      <p class="turn"><a class="at" href="#t=411" data-t="411">06:51</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=411" data-t="411">06:51</a><b class="who">James Hartt</b> Yeah just a matter of sort different tokens and a and a and another plan and redeploy yeah just kind of it&#x27;s the way that I Certainly like making services is if I feel like I&#x27;m clicking around in a console like again I&#x27;m just like I Will forget this</p>
+      <p class="turn"><a class="at" href="#t=429" data-t="429">07:09</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=429" data-t="429">07:09</a><b class="who">James Hartt</b> I will forget how this has been done I will forget all the menus I&#x27;ll forget Like basically forget it so</p>
+      <p class="turn"><a class="at" href="#t=437" data-t="437">07:17</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=437" data-t="437">07:17</a><b class="who">James Hartt</b> If it&#x27;s written down and it&#x27;s reproducible</p>
+      <p class="turn"><a class="at" href="#t=438" data-t="438">07:18</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=439" data-t="439">07:19</a><b class="who">James Hartt</b> And you can spin it up spin spin it down, Like that&#x27;s great, like suits me to a T.</p>
+      <p class="turn"><a class="at" href="#t=448" data-t="448">07:28</a><b class="who">Abrar Mahmood</b> So we&#x27;ll go into a little bit about some of the areas where we found it a little bit more challenging.</p>
+      <p class="turn"><a class="at" href="#t=455" data-t="455">07:35</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=455" data-t="455">07:35</a><b class="who">Abrar Mahmood</b> Of course this principle of infrastructure with code in theory has been really good and we&#x27;ve spoken about some areas where</p>
+      <p class="turn"><a class="at" href="#t=462" data-t="462">07:42</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=462" data-t="462">07:42</a><b class="who">Abrar Mahmood</b> It&#x27;s done really well</p>
+      <p class="turn"><a class="at" href="#t=463" data-t="463">07:43</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=464" data-t="464">07:44</a><b class="who">Abrar Mahmood</b> We&#x27;ll go into some areas where it&#x27;s a little bit more challenging but I think it will be good to so we&#x27;ve established the foundation of OpenTofu What it is how it&#x27;s helped us maybe let&#x27;s go into sort of the next sort of level which is what are some of the things That we had to set up in order to get</p>
+      <p class="turn"><a class="at" href="#t=487" data-t="487">08:07</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=487" data-t="487">08:07</a><b class="who">Abrar Mahmood</b> Our Stalwart email server running so like what did that look like as a package</p>
+      <p class="turn"><a class="at" href="#t=494" data-t="494">08:14</a><b class="who">James Hartt</b> So,</p>
+      <p class="turn"><a class="at" href="#t=494" data-t="494">08:14</a><b class="who">Abrar Mahmood</b> Was it like a Docker container</p>
+      <p class="turn"><a class="at" href="#t=496" data-t="496">08:16</a><b class="who">James Hartt</b> Yes.</p>
+      <p class="turn"><a class="at" href="#t=496" data-t="496">08:16</a><b class="who">Abrar Mahmood</b> Image sorry or was it</p>
+      <p class="turn"><a class="at" href="#t=498" data-t="498">08:18</a><b class="who">James Hartt</b> Yeah,</p>
+      <p class="turn"><a class="at" href="#t=499" data-t="499">08:19</a><b class="who">Abrar Mahmood</b> Another</p>
+      <p class="turn"><a class="at" href="#t=499" data-t="499">08:19</a><b class="who">James Hartt</b> Like,</p>
+      <p class="turn"><a class="at" href="#t=499" data-t="499">08:19</a><b class="who">Abrar Mahmood</b> Format</p>
+      <p class="turn"><a class="at" href="#t=500" data-t="500">08:20</a><b class="who">James Hartt</b> Yeah, it was a Docker image with the store binary. Binary, And yeah, as soon as as soon as like, I was sort Of like, again, mainly using, in fact, for the initial setup, until I was sort of confident that we were just making tweaks, I had, I had the SSH key, Like, behind a passphrase so that the agent couldn&#x27;t do any SSH commands. Commands and that kind of kept me at least in the loop a little bit Until I was happy enough that we were just doing sort of tweaks and then I removed the passphrase and it was able to sort of just do that was when I Really had Stalwart set up but yeah to sort of go on to your point about the sort of click ops side like there was Unavoidable click ops inside Stalwart and that could have been avoided in hindsight if I&#x27;d like brought in the docs a Bit better into the agent</p>
+      <p class="turn"><a class="at" href="#t=553" data-t="553">09:13</a><b class="who">Abrar Mahmood</b> Sure.</p>
+      <p class="turn"><a class="at" href="#t=553" data-t="553">09:13</a><b class="who">James Hartt</b> Maybe into the context and the CLI for Stalwart is a little bit clunky like it&#x27;s specifically clunky around Like what like kind of what routes there are to get the information that you need and to mutate the information that you need like. It was hallucinating a bit and it especially found it wasn&#x27;t easy to Iterate with the CLI, the Stalwart CLI, because it would often, as soon as you added like an extra little bit of a domain That you needed to get the information you needed, you would then get the error saying, oh, you&#x27;re missing this or it&#x27;s linked to this and therefore you can&#x27;t remove that. That so it just it felt like the CLI maybe wasn&#x27;t the Stalwart CLI wasn&#x27;t built for an agentic Workflow</p>
+      <p class="turn"><a class="at" href="#t=599" data-t="599">09:59</a><b class="who">Abrar Mahmood</b> Show.</p>
+      <p class="turn"><a class="at" href="#t=599" data-t="599">09:59</a><b class="who">James Hartt</b> So yeah that those that was the pain and that was where</p>
+      <p class="turn"><a class="at" href="#t=602" data-t="602">10:02</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=602" data-t="602">10:02</a><b class="who">James Hartt</b> I spent basically all of my time was just messing around with Stalwart getting our emails set email accounts set up and just yeah looking at Sort logs of CLI logs and trying to sort of get them around and in into the agent to kind of like speed Things up</p>
+      <p class="turn"><a class="at" href="#t=619" data-t="619">10:19</a><b class="who">Abrar Mahmood</b> Yeah,</p>
+      <p class="turn"><a class="at" href="#t=620" data-t="620">10:20</a><b class="who">James Hartt</b> So yeah does that does that answer your question</p>
+      <p class="turn"><a class="at" href="#t=623" data-t="623">10:23</a><b class="who">Abrar Mahmood</b> It does. I think it would be good to</p>
+      <p class="turn"><a class="at" href="#t=624" data-t="624">10:24</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=624" data-t="624">10:24</a><b class="who">Abrar Mahmood</b> Talk a little bit more, talk in a little bit more detail about your interaction and how you&#x27;ve tried to, some of The paths you&#x27;ve tried to take to overcome the click ops</p>
+      <p class="turn"><a class="at" href="#t=635" data-t="635">10:35</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=635" data-t="635">10:35</a><b class="who">Abrar Mahmood</b> So of course you&#x27;ve mentioned the CLI which</p>
+      <p class="turn"><a class="at" href="#t=638" data-t="638">10:38</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=639" data-t="639">10:39</a><b class="who">Abrar Mahmood</b> Is a it&#x27;s one mechanism we can use</p>
+      <p class="turn"><a class="at" href="#t=643" data-t="643">10:43</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=643" data-t="643">10:43</a><b class="who">Abrar Mahmood</b> To try and automate things that aren&#x27;t directly in Terraform and it&#x27;s kind of like provisioning your instance After it&#x27;s already had the infrastructure so that you&#x27;re setting up your config and all of that so we&#x27;ve got the CLI Which was perhaps a little bit clunky does Stalwart have like a management http API which is probably what what the CLI is using Anyway.</p>
+      <p class="turn"><a class="at" href="#t=668" data-t="668">11:08</a><b class="who">James Hartt</b> Yeah, potentially, I think that&#x27;s what it&#x27;s all based on. It&#x27;s</p>
+      <p class="turn"><a class="at" href="#t=671" data-t="671">11:11</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=671" data-t="671">11:11</a><b class="who">James Hartt</b> All based on the sort of the admin panels</p>
+      <p class="turn"><a class="at" href="#t=674" data-t="674">11:14</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=676" data-t="676">11:16</a><b class="who">James Hartt</b> Like that you&#x27;re mutating. So yeah, it would make total sense. And</p>
+      <p class="turn"><a class="at" href="#t=679" data-t="679">11:19</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=681" data-t="681">11:21</a><b class="who">James Hartt</b> Possibly why it was sort of hallucinating a little bit because you can see the routes inside the URLs for each of these Configuration panels and maybe a few here were wrong in the docs, wrong on the box, wrong like changed, Moved around. I certainly noticed Some things that had been sort of moved around between versions and that&#x27;s the kind of stuff that can really mess up a an LLM workflow is that</p>
+      <p class="turn"><a class="at" href="#t=708" data-t="708">11:48</a><b class="who">Abrar Mahmood</b> Absolutely</p>
+      <p class="turn"><a class="at" href="#t=708" data-t="708">11:48</a><b class="who">James Hartt</b> That sort of little bit of mutation between how it used to work and everything&#x27;s trained on to then What it is now and then</p>
+      <p class="turn"><a class="at" href="#t=716" data-t="716">11:56</a><b class="who">Abrar Mahmood</b> Yeah Yeah.</p>
+      <p class="turn"><a class="at" href="#t=717" data-t="717">11:57</a><b class="who">James Hartt</b> And that becomes a sticking point that it then needs to somehow get the context to figure out that that&#x27;s what&#x27;s going on</p>
+      <p class="turn"><a class="at" href="#t=723" data-t="723">12:03</a><b class="who">Abrar Mahmood</b> Interesting.</p>
+      <p class="turn"><a class="at" href="#t=724" data-t="724">12:04</a><b class="who">James Hartt</b> Because because it&#x27;s yeah and that it you got a hint of that&#x27;s what was happening But as with working with LLMs and Agents, like there&#x27;s always walls of text to read and you&#x27;re always going to miss something that&#x27;s really subtle, and, just not Part of it. So yeah, like that was the, that was the sort of the worst part of the experience, but ultimately when it was done, It was, it was was okay, like I</p>
+      <p class="turn"><a class="at" href="#t=750" data-t="750">12:30</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=750" data-t="750">12:30</a><b class="who">James Hartt</b> Was happy enough.</p>
+      <p class="turn"><a class="at" href="#t=754" data-t="754">12:34</a><b class="who">Abrar Mahmood</b> Interesting you mentioned the point about the sort of mutations across versions because it&#x27;s something I&#x27;ve hit personally quite A lot in my own projects so an example which is somewhat relevant is I&#x27;m using cloud for in a couple of projects of my Own and I&#x27;ve I&#x27;ve had situations where the LLM would kind of give you a step -by -step list of what to do In the cloud fair console but of course more often than not what happens is the steps the LLM is Giving you are essentially telling you to click buttons that don&#x27;t exist</p>
+      <p class="turn"><a class="at" href="#t=791" data-t="791">13:11</a><b class="who">James Hartt</b> Yeah absolutely</p>
+      <p class="turn"><a class="at" href="#t=792" data-t="792">13:12</a><b class="who">Abrar Mahmood</b> So so you often find yourself in a situation where hang on a minute like you&#x27;re telling</p>
+      <p class="turn"><a class="at" href="#t=797" data-t="797">13:17</a><b class="who">James Hartt</b> That</p>
+      <p class="turn"><a class="at" href="#t=797" data-t="797">13:17</a><b class="who">Abrar Mahmood</b> Me</p>
+      <p class="turn"><a class="at" href="#t=797" data-t="797">13:17</a><b class="who">James Hartt</b> That</p>
+      <p class="turn"><a class="at" href="#t=797" data-t="797">13:17</a><b class="who">Abrar Mahmood</b> To</p>
+      <p class="turn"><a class="at" href="#t=797" data-t="797">13:17</a><b class="who">James Hartt</b> Path</p>
+      <p class="turn"><a class="at" href="#t=797" data-t="797">13:17</a><b class="who">Abrar Mahmood</b> Click</p>
+      <p class="turn"><a class="at" href="#t=798" data-t="798">13:18</a><b class="who">James Hartt</b> Yeah you&#x27;re telling me</p>
+      <p class="turn"><a class="at" href="#t=798" data-t="798">13:18</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=798" data-t="798">13:18</a><b class="who">James Hartt</b> To go to settings this panel</p>
+      <p class="turn"><a class="at" href="#t=800" data-t="800">13:20</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=800" data-t="800">13:20</a><b class="who">James Hartt</b> That panel that panel and And it&#x27;s</p>
+      <p class="turn"><a class="at" href="#t=801" data-t="801">13:21</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=801" data-t="801">13:21</a><b class="who">James Hartt</b> Like, that doesn&#x27;t exist.</p>
+      <p class="turn"><a class="at" href="#t=803" data-t="803">13:23</a><b class="who">Abrar Mahmood</b> Yeah so I think I think like absolutely infrastructure as code and having that all sort of Reproducible</p>
+      <p class="turn"><a class="at" href="#t=812" data-t="812">13:32</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=812" data-t="812">13:32</a><b class="who">Abrar Mahmood</b> In code is the best way like we can&#x27;t really rely on uis for click ops and I guess like that&#x27;s sort of the point where you Hit pretty quickly and like that&#x27;s kind of where it fell apart a little bit as well but of course we&#x27;ve got there in the end so I think it&#x27;ll be good to Go into a little bit about so we&#x27;ve got there we&#x27;ve done the click ops what have we got now at this point in time In terms of a representation presentation of the click ops And... What do you think we can do to move forwards to sort of Make sure we&#x27;ve got something that&#x27;s reproducible going forwards</p>
+      <p class="turn"><a class="at" href="#t=849" data-t="849">14:09</a><b class="who">James Hartt</b> Well, yeah. Yeah that&#x27;s where like again the sort of brute force of agents you can kind of you can one If you have gone through a hard spot you can still do the cleanup really quickly and that&#x27;s what saw eventually once I&#x27;ve wrestled enough context Together it basically just it I was able to make a really quick snapshot script that did take all of the like our Entire store was set up and was able to back it up Or to commit it even because it&#x27;s not it&#x27;s not got any secrets in there it&#x27;s not got anything And then yeah therefore we can we can deploy an instance of Stalwart that&#x27;s exactly as we would want to want to have Minus yeah minus sort setting up accounts again you would want to put a new app password in if you if you Set it up again So,</p>
+      <p class="turn"><a class="at" href="#t=902" data-t="902">15:02</a><b class="who">Abrar Mahmood</b> Thank</p>
+      <p class="turn"><a class="at" href="#t=902" data-t="902">15:02</a><b class="who">James Hartt</b> Like, and just, and rotate credentials and stuff. So, yeah, I was, And again, that&#x27;s the kind of drudgery work that would have been miserable. Beforehand, like making sure you&#x27;ve got a reliable, and yeah, During this process, I set up a, just a throwaway dry instance with this configuration just to check that it would take it,</p>
+      <p class="turn"><a class="at" href="#t=922" data-t="922">15:22</a><b class="who">Abrar Mahmood</b> Yes.</p>
+      <p class="turn"><a class="at" href="#t=924" data-t="924">15:24</a><b class="who">James Hartt</b> And, yeah, that was approved as part of it so</p>
+      <p class="turn"><a class="at" href="#t=926" data-t="926">15:26</a><b class="who">Abrar Mahmood</b> Nice.</p>
+      <p class="turn"><a class="at" href="#t=926" data-t="926">15:26</a><b class="who">James Hartt</b> Yeah yeah just sort of those The drudgery work of ops is just gone away and I think that&#x27;s probably what like we&#x27;re both developers that Level of like obviously in large orgs you have you had an ops team that would do a lot of this for you or help you or like Maintain it whereas I just feel like when like the balance is shifted like you can you can you can just do this drudgery really Quickly and</p>
+      <p class="turn"><a class="at" href="#t=955" data-t="955">15:55</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=956" data-t="956">15:56</a><b class="who">James Hartt</b> And like be sure that like or at least quickly test that it&#x27;s gonna work</p>
+      <p class="turn"><a class="at" href="#t=962" data-t="962">16:02</a><b class="who">Abrar Mahmood</b> Yes.</p>
+      <p class="turn"><a class="at" href="#t=963" data-t="963">16:03</a><b class="who">James Hartt</b> Rather than spending like this again to go back like this would have taken me weeks and I would</p>
+      <p class="turn"><a class="at" href="#t=968" data-t="968">16:08</a><b class="who">Abrar Mahmood</b> Yes.</p>
+      <p class="turn"><a class="at" href="#t=968" data-t="968">16:08</a><b class="who">James Hartt</b> Have hated every second of it like</p>
+      <p class="turn"><a class="at" href="#t=971" data-t="971">16:11</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=971" data-t="971">16:11</a><b class="who">James Hartt</b> So yeah and I feel like yes with agents like sometimes you lose you lose a little bit of the understanding but I felt like I did all have an understanding of all the different email terms and like your DMARCs your DKIMs Your like yeah the glossary of terms like was re yeah I kind of revised it I think this would have been a lot harder if I&#x27;d never come Across these terms before</p>
+      <p class="turn"><a class="at" href="#t=997" data-t="997">16:37</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=998" data-t="998">16:38</a><b class="who">James Hartt</b> And like just didn&#x27;t know what they meant</p>
+      <p class="turn"><a class="at" href="#t=1002" data-t="1002">16:42</a><b class="who">Abrar Mahmood</b> Personally email of course for me email is something that I really don&#x27;t enjoy working with</p>
+      <p class="turn"><a class="at" href="#t=1010" data-t="1010">16:50</a><b class="who">James Hartt</b> Yeah I mean</p>
+      <p class="turn"><a class="at" href="#t=1011" data-t="1011">16:51</a><b class="who">Abrar Mahmood</b> And</p>
+      <p class="turn"><a class="at" href="#t=1011" data-t="1011">16:51</a><b class="who">James Hartt</b> It&#x27;s</p>
+      <p class="turn"><a class="at" href="#t=1011" data-t="1011">16:51</a><b class="who">Abrar Mahmood</b> I&#x27;m</p>
+      <p class="turn"><a class="at" href="#t=1011" data-t="1011">16:51</a><b class="who">James Hartt</b> A</p>
+      <p class="turn"><a class="at" href="#t=1011" data-t="1011">16:51</a><b class="who">Abrar Mahmood</b> Sure it&#x27;s a shed</p>
+      <p class="turn"><a class="at" href="#t=1012" data-t="1012">16:52</a><b class="who">James Hartt</b> It&#x27;s a</p>
+      <p class="turn"><a class="at" href="#t=1012" data-t="1012">16:52</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1013" data-t="1013">16:53</a><b class="who">James Hartt</b> It&#x27;s a year old protocol isn&#x27;t it</p>
+      <p class="turn"><a class="at" href="#t=1015" data-t="1015">16:55</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1015" data-t="1015">16:55</a><b class="who">James Hartt</b> So it&#x27;s ancient</p>
+      <p class="turn"><a class="at" href="#t=1017" data-t="1017">16:57</a><b class="who">Abrar Mahmood</b> Yeah and it&#x27;s also the kind of thing you set up once</p>
+      <p class="turn"><a class="at" href="#t=1021" data-t="1021">17:01</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1021" data-t="1021">17:01</a><b class="who">Abrar Mahmood</b> In an organization and never revisit</p>
+      <p class="turn"><a class="at" href="#t=1024" data-t="1024">17:04</a><b class="who">James Hartt</b> Forget</p>
+      <p class="turn"><a class="at" href="#t=1025" data-t="1025">17:05</a><b class="who">Abrar Mahmood</b> Until</p>
+      <p class="turn"><a class="at" href="#t=1025" data-t="1025">17:05</a><b class="who">James Hartt</b> Yeah hopefully</p>
+      <p class="turn"><a class="at" href="#t=1026" data-t="1026">17:06</a><b class="who">Abrar Mahmood</b> Yes. Until there&#x27;s that time where something&#x27;s not working</p>
+      <p class="turn"><a class="at" href="#t=1030" data-t="1030">17:10</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1031" data-t="1031">17:11</a><b class="who">Abrar Mahmood</b> And whoops there was this key or whatever I needed to recycle because it had expired whatever it is and that only that is When you need to refresh yourself and revise</p>
+      <p class="turn"><a class="at" href="#t=1042" data-t="1042">17:22</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1042" data-t="1042">17:22</a><b class="who">Abrar Mahmood</b> All your detail about how emails work in order to know what it is</p>
+      <p class="turn"><a class="at" href="#t=1046" data-t="1046">17:26</a><b class="who">James Hartt</b> And if</p>
+      <p class="turn"><a class="at" href="#t=1047" data-t="1047">17:27</a><b class="who">Abrar Mahmood</b> That needs to be done</p>
+      <p class="turn"><a class="at" href="#t=1048" data-t="1048">17:28</a><b class="who">James Hartt</b> If you&#x27;re executing. Agents to do that like that&#x27;s what we&#x27;re like no one I don&#x27;t think is everyone is ever going to say like I&#x27;m going to have to Sort of SSH into this box or to fix a small configuration issue that&#x27;s stopping it from working like That I would hope hope those days are behind us so it means that I think when we do encounter like an issue with the with email I think yeah we&#x27;ve got a couple of open problems with spam detection because obviously if you set up a new email account you don&#x27;t have enough information to Set up your spam like that will</p>
+      <p class="turn"><a class="at" href="#t=1082" data-t="1082">18:02</a><b class="who">Abrar Mahmood</b> You.</p>
+      <p class="turn"><a class="at" href="#t=1082" data-t="1082">18:02</a><b class="who">James Hartt</b> Take some kicking I&#x27;m sure there&#x27;ll be like if we ever have to send out mailing lists I&#x27;ll have to upgrade the outgoing Track because I just shoved in SMTP to go as our outgoing and like signed the headers correctly for them and Yeah I&#x27;m sure if we&#x27;re sending out more volume we&#x27;ll either have to pay them or move I think one of the original parts of the the agent -led Plan was to use SES and I was like I don&#x27;t I don&#x27;t want to get an amazon account just for SES and have to go through the manual process of of Like because I I&#x27;ve set up SES before in the past and you</p>
+      <p class="turn"><a class="at" href="#t=1117" data-t="1117">18:37</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1117" data-t="1117">18:37</a><b class="who">James Hartt</b> You actually have to have a human review to make sure you&#x27;re not like spam basically</p>
+      <p class="turn"><a class="at" href="#t=1122" data-t="1122">18:42</a><b class="who">Abrar Mahmood</b> Yeah which</p>
+      <p class="turn"><a class="at" href="#t=1122" data-t="1122">18:42</a><b class="who">James Hartt</b> So</p>
+      <p class="turn"><a class="at" href="#t=1122" data-t="1122">18:42</a><b class="who">Abrar Mahmood</b> Is actually in my experience not easy to</p>
+      <p class="turn"><a class="at" href="#t=1126" data-t="1126">18:46</a><b class="who">James Hartt</b> No</p>
+      <p class="turn"><a class="at" href="#t=1126" data-t="1126">18:46</a><b class="who">Abrar Mahmood</b> Overcome as well especially when you&#x27;re a very small business</p>
+      <p class="turn"><a class="at" href="#t=1129" data-t="1129">18:49</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1129" data-t="1129">18:49</a><b class="who">Abrar Mahmood</b> It&#x27;s not easy to get the correct approvals that SES need to</p>
+      <p class="turn"><a class="at" href="#t=1134" data-t="1134">18:54</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1134" data-t="1134">18:54</a><b class="who">Abrar Mahmood</b> Use</p>
+      <p class="turn"><a class="at" href="#t=1134" data-t="1134">18:54</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1134" data-t="1134">18:54</a><b class="who">Abrar Mahmood</b> In production like you remain in the sandbox quite long</p>
+      <p class="turn"><a class="at" href="#t=1138" data-t="1138">18:58</a><b class="who">James Hartt</b> Absolutely cool</p>
+      <p class="turn"><a class="at" href="#t=1143" data-t="1143">19:03</a><b class="who">Abrar Mahmood</b> So we&#x27;ve spoken a lot about the OpenTofu setup on the VPS next layer up is the Docker service after that we&#x27;ve Got the click ops that we did on the Stalwart service we&#x27;ve done spoken about the snapshot and the restore but I think one area That people are particularly nervous about when self -hosting is the monitoring and alerting when</p>
+      <p class="turn"><a class="at" href="#t=1166" data-t="1166">19:26</a><b class="who">James Hartt</b> Oh, yeah.</p>
+      <p class="turn"><a class="at" href="#t=1166" data-t="1166">19:26</a><b class="who">Abrar Mahmood</b> Something goes wrong so I think it would be good to talk a little bit about what we have in place at the moment what we deem Necessary given our current state our agency and then moving forward what we&#x27;d like to introduce to ensure that We&#x27;ve got our correct monitoring and alerting in place to give ourselves confidence with the infrastructure and lastly a part of that Could be okay so these are the particular requirements what I guess based on prior experience how Much other limbs will help us with that I think I&#x27;ll be good to go into that a little bit</p>
+      <p class="turn"><a class="at" href="#t=1202" data-t="1202">20:02</a><b class="who">James Hartt</b> Yeah absolutely so obviously the only kind of monitoring that I have are failed backups and they&#x27;re sort of they&#x27;re going to two places they&#x27;re going to a Sort of Infomaniak S3 clone and they&#x27;re going to a Cloudflare R2 And both of those are monitored for whether or not they&#x27;re happening or not so that would obviously count as if the actual the whole service would go Down but that&#x27;s probably not like great like you would like to know whether incomings and outgoings are working potentially Like whether inboxes are full like sizes and stuff so there&#x27;s definitely some outstanding work to do but those are things That you&#x27;re not like certainly like inboxes becoming full like you could that could happen if someone wanted to send us an absolutely Enormous amount of spam but like we&#x27;ll deal with that if anyone throws that our way but yeah it&#x27;s I think those sort of things will Happen like as and when we need to and I think would they would be very discreet operations to happen like from an agent it Wouldn&#x27;t be anything that would be particularly onerous to do so I think it&#x27;s kind of like as like as and when is Needed for that and then yeah it&#x27;ll be something to do when I&#x27;ve got some downtime I guess like as a little follow -ups and yeah we were able to Like track those loose ends quite well</p>
+      <p class="turn"><a class="at" href="#t=1283" data-t="1283">21:23</a><b class="who">Abrar Mahmood</b> Nice.</p>
+      <p class="turn"><a class="at" href="#t=1283" data-t="1283">21:23</a><b class="who">James Hartt</b> Using so yeah It&#x27;s none of these things like would ever be absolutely perfect if you&#x27;re going to do it yourself with agents you&#x27;re you&#x27;re not going to Have the monitoring that say like Gmail would have</p>
+      <p class="turn"><a class="at" href="#t=1297" data-t="1297">21:37</a><b class="who">Abrar Mahmood</b> Yes.</p>
+      <p class="turn"><a class="at" href="#t=1297" data-t="1297">21:37</a><b class="who">James Hartt</b> So yeah there are still open ends But yeah, well, I guess we&#x27;ll just have to, that is, You&#x27;re always going to have to find these sort of things when you&#x27;re setting up services yourself.</p>
+      <p class="turn"><a class="at" href="#t=1311" data-t="1311">21:51</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1312" data-t="1312">21:52</a><b class="who">James Hartt</b> You&#x27;re never going touch every single base when</p>
+      <p class="turn"><a class="at" href="#t=1315" data-t="1315">21:55</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1315" data-t="1315">21:55</a><b class="who">James Hartt</b> You stand stuff up.</p>
+      <p class="turn"><a class="at" href="#t=1319" data-t="1319">21:59</a><b class="who">Abrar Mahmood</b> Another thing that I personally would be quite interested to know because I don&#x27;t have a huge amount of Email experience so in terms of reputation</p>
+      <p class="turn"><a class="at" href="#t=1330" data-t="1330">22:10</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1331" data-t="1331">22:11</a><b class="who">Abrar Mahmood</b> How does that play into all this because I assume if you for example are using Google</p>
+      <p class="turn"><a class="at" href="#t=1336" data-t="1336">22:16</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1337" data-t="1337">22:17</a><b class="who">Abrar Mahmood</b> You I would have thought you&#x27;d have a reasonable level of reputation from the sender</p>
+      <p class="turn"><a class="at" href="#t=1342" data-t="1342">22:22</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1343" data-t="1343">22:23</a><b class="who">Abrar Mahmood</b> How does how is it impacted</p>
+      <p class="turn"><a class="at" href="#t=1345" data-t="1345">22:25</a><b class="who">James Hartt</b> So</p>
+      <p class="turn"><a class="at" href="#t=1345" data-t="1345">22:25</a><b class="who">Abrar Mahmood</b> When</p>
+      <p class="turn"><a class="at" href="#t=1345" data-t="1345">22:25</a><b class="who">James Hartt</b> Obviously</p>
+      <p class="turn"><a class="at" href="#t=1345" data-t="1345">22:25</a><b class="who">Abrar Mahmood</b> Running around mail server</p>
+      <p class="turn"><a class="at" href="#t=1346" data-t="1346">22:26</a><b class="who">James Hartt</b> Like receiving emails is just that&#x27;s no problem that&#x27;s just</p>
+      <p class="turn"><a class="at" href="#t=1350" data-t="1350">22:30</a><b class="who">Abrar Mahmood</b> Yes</p>
+      <p class="turn"><a class="at" href="#t=1350" data-t="1350">22:30</a><b class="who">James Hartt</b> Just an open port to the internet but like sending that&#x27;s why I used sm SMTP2GO for the outgoing is that yeah if you&#x27;re Trying to send outgoing mail from your own server good luck with that everyone will treat you as spam there&#x27;s just. No there&#x27;s no other way of going about it like you do need to borrow the reputation from someone</p>
+      <p class="turn"><a class="at" href="#t=1370" data-t="1370">22:50</a><b class="who">Abrar Mahmood</b> Right.</p>
+      <p class="turn"><a class="at" href="#t=1370" data-t="1370">22:50</a><b class="who">James Hartt</b> And yeah so that&#x27;s why I mentioned yeah SES was the first agent suggested option and I just immediately saw Through it and just thought for the first go we need to just go with someone that&#x27;s got good enough rep yeah good enough reputation to just sort of Piggyback up off a free service like with as long as we&#x27;re not sending a thousand more than a thousand emails a month which I think is highly unlikely For a good while like that will keep us going and again and I think even if we want to just keep exactly the same setup I think it&#x27;s Dollars a month single digit dollars a month to get some more capacity but yeah it&#x27;s basically it&#x27;s SMTP to go&#x27;s rep And they obviously are a business that don&#x27;t want to be known as spammers so</p>
+      <p class="turn"><a class="at" href="#t=1416" data-t="1416">23:36</a><b class="who">Abrar Mahmood</b> Yes.</p>
+      <p class="turn"><a class="at" href="#t=1417" data-t="1417">23:37</a><b class="who">James Hartt</b> They&#x27;re they&#x27;re quite like I would trust them well enough and Again it would it would be wouldn&#x27;t be hard to find another outgoing provider and Set it off to change set off an agent to change it</p>
+      <p class="turn"><a class="at" href="#t=1434" data-t="1434">23:54</a><b class="who">Abrar Mahmood</b> I also want to talk a little bit. So just like slightly sort of like bringing together the entire sort of technical part of it. In terms of the mail server itself and running on the VPS. Like what does that contain like does it like have its own database or is it like is it a stateless service that Persists or is it ephemeral or</p>
+      <p class="turn"><a class="at" href="#t=1459" data-t="1459">24:19</a><b class="who">James Hartt</b> I</p>
+      <p class="turn"><a class="at" href="#t=1459" data-t="1459">24:19</a><b class="who">Abrar Mahmood</b> Like</p>
+      <p class="turn"><a class="at" href="#t=1459" data-t="1459">24:19</a><b class="who">James Hartt</b> Think</p>
+      <p class="turn"><a class="at" href="#t=1459" data-t="1459">24:19</a><b class="who">Abrar Mahmood</b> What does that look like</p>
+      <p class="turn"><a class="at" href="#t=1460" data-t="1460">24:20</a><b class="who">James Hartt</b> I think from what I remember seeing again I didn&#x27;t have to deal with the gubbins of Stalwart</p>
+      <p class="turn"><a class="at" href="#t=1465" data-t="1465">24:25</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1465" data-t="1465">24:25</a><b class="who">James Hartt</b> But I think it has its own its own like it&#x27;s got rock in the name I think but it&#x27;s their own flavor of MySQL or</p>
+      <p class="turn"><a class="at" href="#t=1472" data-t="1472">24:32</a><b class="who">Abrar Mahmood</b> Right.</p>
+      <p class="turn"><a class="at" href="#t=1472" data-t="1472">24:32</a><b class="who">James Hartt</b> Postgres or something so</p>
+      <p class="turn"><a class="at" href="#t=1474" data-t="1474">24:34</a><b class="who">Abrar Mahmood</b> Okay.</p>
+      <p class="turn"><a class="at" href="#t=1474" data-t="1474">24:34</a><b class="who">James Hartt</b> It is all on the and that is in fact what the backup is the backup of the DB there&#x27;s no state</p>
+      <p class="turn"><a class="at" href="#t=1480" data-t="1480">24:40</a><b class="who">Abrar Mahmood</b> Cool.</p>
+      <p class="turn"><a class="at" href="#t=1480" data-t="1480">24:40</a><b class="who">James Hartt</b> Of there&#x27;s no state of the machine or anything like that&#x27;s we hope again that&#x27;s all covered by the by the IaC and the and the Outputs of the Stalwart CLI config so yeah did that answer your question</p>
+      <p class="turn"><a class="at" href="#t=1493" data-t="1493">24:53</a><b class="who">Abrar Mahmood</b> Yeah it does yeah</p>
+      <p class="turn"><a class="at" href="#t=1494" data-t="1494">24:54</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1494" data-t="1494">24:54</a><b class="who">Abrar Mahmood</b> No that&#x27;s</p>
+      <p class="turn"><a class="at" href="#t=1494" data-t="1494">24:54</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1495" data-t="1495">24:55</a><b class="who">Abrar Mahmood</b> Really good yeah I think like in my experience like I typically try to aim for ephemeral runtimes</p>
+      <p class="turn"><a class="at" href="#t=1502" data-t="1502">25:02</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1503" data-t="1503">25:03</a><b class="who">Abrar Mahmood</b> That are of course stateless</p>
+      <p class="turn"><a class="at" href="#t=1504" data-t="1504">25:04</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1504" data-t="1504">25:04</a><b class="who">Abrar Mahmood</b> So just it was it was just quite good to</p>
+      <p class="turn"><a class="at" href="#t=1506" data-t="1506">25:06</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1507" data-t="1507">25:07</a><b class="who">Abrar Mahmood</b> Sort of</p>
+      <p class="turn"><a class="at" href="#t=1507" data-t="1507">25:07</a><b class="who">James Hartt</b> And</p>
+      <p class="turn"><a class="at" href="#t=1507" data-t="1507">25:07</a><b class="who">Abrar Mahmood</b> Clarify</p>
+      <p class="turn"><a class="at" href="#t=1507" data-t="1507">25:07</a><b class="who">James Hartt</b> I</p>
+      <p class="turn"><a class="at" href="#t=1507" data-t="1507">25:07</a><b class="who">Abrar Mahmood</b> That.</p>
+      <p class="turn"><a class="at" href="#t=1508" data-t="1508">25:08</a><b class="who">James Hartt</b> I think obviously you could you could experiment with like changes to the db config if you wanted to</p>
+      <p class="turn"><a class="at" href="#t=1516" data-t="1516">25:16</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1516" data-t="1516">25:16</a><b class="who">James Hartt</b> But I thought it was fine I think again we&#x27;ll have to see whether this like It&#x27;s obviously running on the on the local storage of the of the VPS we&#x27;ll have to see when that starts becoming a problem if it does ever Like yeah we could find that people send us sort of yeah an enormous amount of spam email and we&#x27;ll have to figure out what we do But like yeah I think for regular business use for sort of like it should be fine for a good long while and then we can deal with It when it starts that&#x27;s becoming a problem.</p>
+      <p class="turn"><a class="at" href="#t=1551" data-t="1551">25:51</a><b class="who">Abrar Mahmood</b> We&#x27;ve spoken about quite a wide range of things both technically and operationally What sort of comes to mind if you were to do this again are there particular things you&#x27;ll do a little bit differently or</p>
+      <p class="turn"><a class="at" href="#t=1565" data-t="1565">26:05</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1566" data-t="1566">26:06</a><b class="who">Abrar Mahmood</b> Anything that you would want to call out to people that are going to try it</p>
+      <p class="turn"><a class="at" href="#t=1570" data-t="1570">26:10</a><b class="who">James Hartt</b> I think on the whole, I would recommend it in our context.</p>
+      <p class="turn"><a class="at" href="#t=1574" data-t="1574">26:14</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1575" data-t="1575">26:15</a><b class="who">James Hartt</b> Would I recommend it to any business probably not Like this really is very specific to our selling point is that we want to use these kind of Workflows when developing other people&#x27;s products we have to eat our dog food and see what the problems Become and know them intimately for the most core thing for a business like we needed this so that I could sample The social networking things to publish this podcast so like it it&#x27;s it will be Like it&#x27;s highly contextual for us</p>
+      <p class="turn"><a class="at" href="#t=1614" data-t="1614">26:54</a><b class="who">Abrar Mahmood</b> Yes.</p>
+      <p class="turn"><a class="at" href="#t=1614" data-t="1614">26:54</a><b class="who">James Hartt</b> Would I still recommend it for every business to go along this way absolutely not don&#x27;t I don&#x27;t do it like but just for us it Was it is also something that we can move away from very quickly if it becomes an issue and that&#x27;s a Follow -up question that we will answer if and when we do move away from self-hosted email we&#x27;ll tell you about it</p>
+      <p class="turn"><a class="at" href="#t=1638" data-t="1638">27:18</a><b class="who">Abrar Mahmood</b> I think looking at looking at it like slightly more from an abstract perspective so rather than Email specifically I guess this is an example where agency agency is experimenting with the idea of Taking a problem that we need to solve where we usually go for a a out -Of -the -box solution I .e Gmail but we are taking this opportunity to take a self -hosted solution and host it Ourself</p>
+      <p class="turn"><a class="at" href="#t=1670" data-t="1670">27:50</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1671" data-t="1671">27:51</a><b class="who">Abrar Mahmood</b> What would I guess like would you say that this is something that we would be doing like I guess like Sorry what would you suggest we look for the next time we do something like this because of course that one of the main challenges was of course A click ops of the actual configuration</p>
+      <p class="turn"><a class="at" href="#t=1690" data-t="1690">28:10</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1690" data-t="1690">28:10</a><b class="who">Abrar Mahmood</b> Are there any particular details of like the next candidate we look at</p>
+      <p class="turn"><a class="at" href="#t=1694" data-t="1694">28:14</a><b class="who">James Hartt</b> Well, that&#x27;s</p>
+      <p class="turn"><a class="at" href="#t=1695" data-t="1695">28:15</a><b class="who">Abrar Mahmood</b> Or</p>
+      <p class="turn"><a class="at" href="#t=1695" data-t="1695">28:15</a><b class="who">James Hartt</b> I</p>
+      <p class="turn"><a class="at" href="#t=1695" data-t="1695">28:15</a><b class="who">Abrar Mahmood</b> Any</p>
+      <p class="turn"><a class="at" href="#t=1695" data-t="1695">28:15</a><b class="who">James Hartt</b> Think,</p>
+      <p class="turn"><a class="at" href="#t=1695" data-t="1695">28:15</a><b class="who">Abrar Mahmood</b> Particular</p>
+      <p class="turn"><a class="at" href="#t=1695" data-t="1695">28:15</a><b class="who">James Hartt</b> Yeah,</p>
+      <p class="turn"><a class="at" href="#t=1696" data-t="1696">28:16</a><b class="who">Abrar Mahmood</b> Tools</p>
+      <p class="turn"><a class="at" href="#t=1697" data-t="1697">28:17</a><b class="who">James Hartt</b> I think I would definitely attempt to Gather more context for For third party applications that may not be particularly well trained. That&#x27;s definitely how I would do it again is That just make sure that they&#x27;ve like make sure during the agent workflow like have we got all of the docs are we sure How this CLI works can how can we avoid more manual work that could have because I Yeah I do ultimately think my click ops inside Stalwart could have been avoided if I had just pushed a little bit bit harder and said Look the we&#x27;ve we want to set up a couple accounts a bit of like a mailing a mailing list for like hello agentsee.work and a Few other things like this can&#x27;t this can&#x27;t be that difficult try</p>
+      <p class="turn"><a class="at" href="#t=1747" data-t="1747">29:07</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1747" data-t="1747">29:07</a><b class="who">James Hartt</b> And do it without me clicking on a on a panel so yeah I would definitely push for more autonomy push for yeah for stuff like that So yes I agree like the click ops still needs to be minimized to for these workflows to really shine</p>
+      <p class="turn"><a class="at" href="#t=1763" data-t="1763">29:23</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1764" data-t="1764">29:24</a><b class="who">James Hartt</b> And yeah I mean you would want that in the old world right but that was like that was tough</p>
+      <p class="turn"><a class="at" href="#t=1769" data-t="1769">29:29</a><b class="who">Abrar Mahmood</b> Yes</p>
+      <p class="turn"><a class="at" href="#t=1770" data-t="1770">29:30</a><b class="who">James Hartt</b> It was tough</p>
+      <p class="turn"><a class="at" href="#t=1770" data-t="1770">29:30</a><b class="who">Abrar Mahmood</b> I think</p>
+      <p class="turn"><a class="at" href="#t=1770" data-t="1770">29:30</a><b class="who">James Hartt</b> And</p>
+      <p class="turn"><a class="at" href="#t=1771" data-t="1771">29:31</a><b class="who">Abrar Mahmood</b> Yeah I think in the old world though it&#x27;s because we didn&#x27;t have everything before it it automated</p>
+      <p class="turn"><a class="at" href="#t=1777" data-t="1777">29:37</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1777" data-t="1777">29:37</a><b class="who">Abrar Mahmood</b> It was relatively a small piece of work but because</p>
+      <p class="turn"><a class="at" href="#t=1780" data-t="1780">29:40</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1781" data-t="1781">29:41</a><b class="who">Abrar Mahmood</b> We get to that so much quicker now it feels more painful having that last bit</p>
+      <p class="turn"><a class="at" href="#t=1786" data-t="1786">29:46</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1786" data-t="1786">29:46</a><b class="who">Abrar Mahmood</b> Because relative to everything else you&#x27;re doing it&#x27;s now much more work</p>
+      <p class="turn"><a class="at" href="#t=1791" data-t="1791">29:51</a><b class="who">James Hartt</b> Yeah yes</p>
+      <p class="turn"><a class="at" href="#t=1791" data-t="1791">29:51</a><b class="who">Abrar Mahmood</b> So it&#x27;s kind of highlighted in a way In terms of the actual click ops part of it I was just wondering if you&#x27;ve played with or have any thoughts on On like using AI And LLM tools for like browser automation or anything like that.</p>
+      <p class="turn"><a class="at" href="#t=1812" data-t="1812">30:12</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1812" data-t="1812">30:12</a><b class="who">Abrar Mahmood</b> I know there&#x27;s significant drawbacks with doing that which is reproducibility, et cetera.</p>
+      <p class="turn"><a class="at" href="#t=1816" data-t="1816">30:16</a><b class="who">James Hartt</b> Yeah,</p>
+      <p class="turn"><a class="at" href="#t=1817" data-t="1817">30:17</a><b class="who">Abrar Mahmood</b> But have you played with that at all? And we</p>
+      <p class="turn"><a class="at" href="#t=1819" data-t="1819">30:19</a><b class="who">James Hartt</b> I</p>
+      <p class="turn"><a class="at" href="#t=1819" data-t="1819">30:19</a><b class="who">Abrar Mahmood</b> Thought</p>
+      <p class="turn"><a class="at" href="#t=1819" data-t="1819">30:19</a><b class="who">James Hartt</b> Mean</p>
+      <p class="turn"><a class="at" href="#t=1819" data-t="1819">30:19</a><b class="who">Abrar Mahmood</b> So.</p>
+      <p class="turn"><a class="at" href="#t=1819" data-t="1819">30:19</a><b class="who">James Hartt</b> I haven&#x27;t used, it&#x27;s part of the thing that sort of the Anthropic tools are lacking a little bit is that sort of computer use Aspect that sort of say some of the OpenAI tools and I I think I think for this specific instance I did Want a little bit more control over what was and That was happening that I I kind of at least understood some aspects of it I don&#x27;t think that would be the case for every workflow and I think yeah Having the ad the admin panel be navigated by an agent could have could have worked</p>
+      <p class="turn"><a class="at" href="#t=1854" data-t="1854">30:54</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1855" data-t="1855">30:55</a><b class="who">James Hartt</b> For sure I just think I still needed some level of like of understanding of of the config</p>
+      <p class="turn"><a class="at" href="#t=1862" data-t="1862">31:02</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1862" data-t="1862">31:02</a><b class="who">James Hartt</b> At least whilst it was happening but yes I think yeah what tell me more about your experience of like</p>
+      <p class="turn"><a class="at" href="#t=1868" data-t="1868">31:08</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1868" data-t="1868">31:08</a><b class="who">James Hartt</b> Because yeah obviously OpenAI products for computer use are a lot better currently</p>
+      <p class="turn"><a class="at" href="#t=1872" data-t="1872">31:12</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1873" data-t="1873">31:13</a><b class="who">James Hartt</b> And they can actually click through and it&#x27;s only available on Mac as well right</p>
+      <p class="turn"><a class="at" href="#t=1877" data-t="1877">31:17</a><b class="who">Abrar Mahmood</b> Oh, I didn&#x27;t know that.</p>
+      <p class="turn"><a class="at" href="#t=1879" data-t="1879">31:19</a><b class="who">James Hartt</b> I</p>
+      <p class="turn"><a class="at" href="#t=1879" data-t="1879">31:19</a><b class="who">Abrar Mahmood</b> Oh okay</p>
+      <p class="turn"><a class="at" href="#t=1879" data-t="1879">31:19</a><b class="who">James Hartt</b> Thought I thought it was</p>
+      <p class="turn"><a class="at" href="#t=1880" data-t="1880">31:20</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1881" data-t="1881">31:21</a><b class="who">James Hartt</b> That might be very recent</p>
+      <p class="turn"><a class="at" href="#t=1882" data-t="1882">31:22</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1883" data-t="1883">31:23</a><b class="who">James Hartt</b> Recent changes</p>
+      <p class="turn"><a class="at" href="#t=1884" data-t="1884">31:24</a><b class="who">Abrar Mahmood</b> Perhaps yeah</p>
+      <p class="turn"><a class="at" href="#t=1885" data-t="1885">31:25</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1885" data-t="1885">31:25</a><b class="who">Abrar Mahmood</b> So yeah I have used it quite a bit both Claude and Codex and I often I found it works Extremely well for doing what you&#x27;re actually asking it to do</p>
+      <p class="turn"><a class="at" href="#t=1897" data-t="1897">31:37</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1898" data-t="1898">31:38</a><b class="who">Abrar Mahmood</b> So in this scenario I would probably have a Claude Code chrome extension I use chrome</p>
+      <p class="turn"><a class="at" href="#t=1904" data-t="1904">31:44</a><b class="who">James Hartt</b> Right, yeah.</p>
+      <p class="turn"><a class="at" href="#t=1905" data-t="1905">31:45</a><b class="who">Abrar Mahmood</b> And I would say open a tab on this port I need you to set up the email server with this find. Your way around the menus and it will do it and</p>
+      <p class="turn"><a class="at" href="#t=1916" data-t="1916">31:56</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1916" data-t="1916">31:56</a><b class="who">Abrar Mahmood</b> It will do it really well</p>
+      <p class="turn"><a class="at" href="#t=1918" data-t="1918">31:58</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1918" data-t="1918">31:58</a><b class="who">Abrar Mahmood</b> And you do I I I imagine there&#x27;s probably a way to probably record the browser session to sort of see what it&#x27;s doing like perhaps from a reproducibility Perspective but I think I think the reproducibility of that is probably the issue for me although you can probably record it I&#x27;ve never Recorded doing any sort of click ops before but like it&#x27;s</p>
+      <p class="turn"><a class="at" href="#t=1937" data-t="1937">32:17</a><b class="who">James Hartt</b> You wouldn&#x27;t want to watch it as well that&#x27;d</p>
+      <p class="turn"><a class="at" href="#t=1939" data-t="1939">32:19</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1939" data-t="1939">32:19</a><b class="who">James Hartt</b> Be even worse doing it yourself</p>
+      <p class="turn"><a class="at" href="#t=1941" data-t="1941">32:21</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1941" data-t="1941">32:21</a><b class="who">James Hartt</b> Watching</p>
+      <p class="turn"><a class="at" href="#t=1942" data-t="1942">32:22</a><b class="who">Abrar Mahmood</b> So</p>
+      <p class="turn"><a class="at" href="#t=1942" data-t="1942">32:22</a><b class="who">James Hartt</b> Someone Someone else click around,</p>
+      <p class="turn"><a class="at" href="#t=1944" data-t="1944">32:24</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1944" data-t="1944">32:24</a><b class="who">James Hartt</b> Yeah,</p>
+      <p class="turn"><a class="at" href="#t=1944" data-t="1944">32:24</a><b class="who">Abrar Mahmood</b> And like</p>
+      <p class="turn"><a class="at" href="#t=1944" data-t="1944">32:24</a><b class="who">James Hartt</b> And</p>
+      <p class="turn"><a class="at" href="#t=1944" data-t="1944">32:24</a><b class="who">Abrar Mahmood</b> Quite</p>
+      <p class="turn"><a class="at" href="#t=1944" data-t="1944">32:24</a><b class="who">James Hartt</b> Someone.</p>
+      <p class="turn"><a class="at" href="#t=1945" data-t="1945">32:25</a><b class="who">Abrar Mahmood</b> Often you see it like clicking in like different sort of like coordinates before it actually gets a button</p>
+      <p class="turn"><a class="at" href="#t=1950" data-t="1950">32:30</a><b class="who">James Hartt</b> Finds</p>
+      <p class="turn"><a class="at" href="#t=1950" data-t="1950">32:30</a><b class="who">Abrar Mahmood</b> And whatever</p>
+      <p class="turn"><a class="at" href="#t=1950" data-t="1950">32:30</a><b class="who">James Hartt</b> The button,</p>
+      <p class="turn"><a class="at" href="#t=1951" data-t="1951">32:31</a><b class="who">Abrar Mahmood</b> But</p>
+      <p class="turn"><a class="at" href="#t=1951" data-t="1951">32:31</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1952" data-t="1952">32:32</a><b class="who">Abrar Mahmood</b> It does work really well and I think the really good thing is that if you set it a goal like it might take a while to get there but it does get There and having a clear test case to tell it when it&#x27;s done is really important as well and I think Overall my experience with it has been very positive and I&#x27;ve found it works really well to tackle these sort of click ops</p>
+      <p class="turn"><a class="at" href="#t=1975" data-t="1975">32:55</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1975" data-t="1975">32:55</a><b class="who">Abrar Mahmood</b> Styles of tasks I think two other things I&#x27;ve personally found to be really useful for again click ops Is so there&#x27;s a number of I think there&#x27;s a number of sort of like open source tools out there for this but like when using skills there&#x27;s a concept I think there&#x27;s a skill a particular one which is called which is the concept of building a wizard</p>
+      <p class="turn"><a class="at" href="#t=1998" data-t="1998">33:18</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1998" data-t="1998">33:18</a><b class="who">Abrar Mahmood</b> And you basically invoke the skill and it will like basically figure out what a step by step looks Like in order to go through all your click ops tasks so</p>
+      <p class="turn"><a class="at" href="#t=2010" data-t="2010">33:30</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2010" data-t="2010">33:30</a><b class="who">Abrar Mahmood</b> This is one I&#x27;ve used several all times and it works really well because it because it does as much as it can so for example if you&#x27;re doing A whole bunch of click ops on like Google tag manager for example and setting up GA it will use the APIs that are available so it Will tell you go step one click into the console and log in step two go to API keys step three create an API key and then you Shove that API key into your wizard and then it will automate as much as it can using the API key and then if there&#x27;s anything else left that&#x27;s click ops it will Tell you what to do so it</p>
+      <p class="turn"><a class="at" href="#t=2043" data-t="2043">34:03</a><b class="who">James Hartt</b> Nice.</p>
+      <p class="turn"><a class="at" href="#t=2043" data-t="2043">34:03</a><b class="who">Abrar Mahmood</b> Kind of guides you through it</p>
+      <p class="turn"><a class="at" href="#t=2045" data-t="2045">34:05</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2045" data-t="2045">34:05</a><b class="who">Abrar Mahmood</b> And it creates it as a shell script so it is reproducible which is good</p>
+      <p class="turn"><a class="at" href="#t=2050" data-t="2050">34:10</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=2051" data-t="2051">34:11</a><b class="who">Abrar Mahmood</b> Of course there are some</p>
+      <p class="turn"><a class="at" href="#t=2052" data-t="2052">34:12</a><b class="who">James Hartt</b> Well</p>
+      <p class="turn"><a class="at" href="#t=2052" data-t="2052">34:12</a><b class="who">Abrar Mahmood</b> I mean</p>
+      <p class="turn"><a class="at" href="#t=2052" data-t="2052">34:12</a><b class="who">James Hartt</b> What</p>
+      <p class="turn"><a class="at" href="#t=2052" data-t="2052">34:12</a><b class="who">Abrar Mahmood</b> Like</p>
+      <p class="turn"><a class="at" href="#t=2053" data-t="2053">34:13</a><b class="who">James Hartt</b> How is it like actually Yeah what do you know like any of the underlying packages like of how it&#x27;s interacting with the browser it&#x27;s all written by like</p>
+      <p class="turn"><a class="at" href="#t=2063" data-t="2063">34:23</a><b class="who">Abrar Mahmood</b> So</p>
+      <p class="turn"><a class="at" href="#t=2063" data-t="2063">34:23</a><b class="who">James Hartt</b> Yeah do</p>
+      <p class="turn"><a class="at" href="#t=2064" data-t="2064">34:24</a><b class="who">Abrar Mahmood</b> So</p>
+      <p class="turn"><a class="at" href="#t=2064" data-t="2064">34:24</a><b class="who">James Hartt</b> You</p>
+      <p class="turn"><a class="at" href="#t=2064" data-t="2064">34:24</a><b class="who">Abrar Mahmood</b> There&#x27;s</p>
+      <p class="turn"><a class="at" href="#t=2064" data-t="2064">34:24</a><b class="who">James Hartt</b> Know</p>
+      <p class="turn"><a class="at" href="#t=2064" data-t="2064">34:24</a><b class="who">Abrar Mahmood</b> Two</p>
+      <p class="turn"><a class="at" href="#t=2064" data-t="2064">34:24</a><b class="who">James Hartt</b> Any</p>
+      <p class="turn"><a class="at" href="#t=2064" data-t="2064">34:24</a><b class="who">Abrar Mahmood</b> Different</p>
+      <p class="turn"><a class="at" href="#t=2064" data-t="2064">34:24</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=2065" data-t="2065">34:25</a><b class="who">Abrar Mahmood</b> Two different things there so the Claude Chrome extension is interacting</p>
+      <p class="turn"><a class="at" href="#t=2069" data-t="2069">34:29</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=2069" data-t="2069">34:29</a><b class="who">Abrar Mahmood</b> With the browser course and that&#x27;s</p>
+      <p class="turn"><a class="at" href="#t=2070" data-t="2070">34:30</a><b class="who">James Hartt</b> Yeah Yeah,</p>
+      <p class="turn"><a class="at" href="#t=2071" data-t="2071">34:31</a><b class="who">Abrar Mahmood</b> Just Anthropic building the wizard thing I spoke about is purely a skill that will go out and discover APIs available for Whatever you&#x27;re trying to build a wizard for</p>
+      <p class="turn"><a class="at" href="#t=2081" data-t="2081">34:41</a><b class="who">James Hartt</b> Right,</p>
+      <p class="turn"><a class="at" href="#t=2081" data-t="2081">34:41</a><b class="who">Abrar Mahmood</b> So for</p>
+      <p class="turn"><a class="at" href="#t=2081" data-t="2081">34:41</a><b class="who">James Hartt</b> Yeah,</p>
+      <p class="turn"><a class="at" href="#t=2081" data-t="2081">34:41</a><b class="who">Abrar Mahmood</b> The GA GTM use case it will discover what APIs are available figure</p>
+      <p class="turn"><a class="at" href="#t=2087" data-t="2087">34:47</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2087" data-t="2087">34:47</a><b class="who">Abrar Mahmood</b> Out what it can and figure out what needs to remain as click ops and then it will save everything like that Entire wizard is basically saved as a shell script that you can rerun</p>
+      <p class="turn"><a class="at" href="#t=2100" data-t="2100">35:00</a><b class="who">James Hartt</b> Right, yeah.</p>
+      <p class="turn"><a class="at" href="#t=2100" data-t="2100">35:00</a><b class="who">Abrar Mahmood</b> Of course one of the real drawbacks which I&#x27;ve not gone into to is whether it will like if you create a wizard to Set up your email server right now and then in two years time we need to reset it up</p>
+      <p class="turn"><a class="at" href="#t=2114" data-t="2114">35:14</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2115" data-t="2115">35:15</a><b class="who">Abrar Mahmood</b> And you do it at a different version I imagine it&#x27;s probably not going to consider the fact</p>
+      <p class="turn"><a class="at" href="#t=2119" data-t="2119">35:19</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2119" data-t="2119">35:19</a><b class="who">Abrar Mahmood</b> That you&#x27;re running it at newer version</p>
+      <p class="turn"><a class="at" href="#t=2121" data-t="2121">35:21</a><b class="who">James Hartt</b> Or anything</p>
+      <p class="turn"><a class="at" href="#t=2122" data-t="2122">35:22</a><b class="who">Abrar Mahmood</b> However</p>
+      <p class="turn"><a class="at" href="#t=2122" data-t="2122">35:22</a><b class="who">James Hartt</b> Has changed in the meantime,</p>
+      <p class="turn"><a class="at" href="#t=2123" data-t="2123">35:23</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=2123" data-t="2123">35:23</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2124" data-t="2124">35:24</a><b class="who">Abrar Mahmood</b> However the good thing is that you if you commit that into your repo you probably can infer what sort of time you run it Out so you can probably get an idea of what version that wizard was built for</p>
+      <p class="turn"><a class="at" href="#t=2135" data-t="2135">35:35</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=2135" data-t="2135">35:35</a><b class="who">Abrar Mahmood</b> So perhaps you might be able to migrate it to work with a later version so I found that really useful and of course the third thing that we&#x27;ve not really touched On too much is MCPs like perhaps if it had an MCP endpoint</p>
+      <p class="turn"><a class="at" href="#t=2147" data-t="2147">35:47</a><b class="who">James Hartt</b> Yeah yeah</p>
+      <p class="turn"><a class="at" href="#t=2149" data-t="2149">35:49</a><b class="who">Abrar Mahmood</b> You could shove that</p>
+      <p class="turn"><a class="at" href="#t=2149" data-t="2149">35:49</a><b class="who">James Hartt</b> I</p>
+      <p class="turn"><a class="at" href="#t=2150" data-t="2150">35:50</a><b class="who">Abrar Mahmood</b> In yeah</p>
+      <p class="turn"><a class="at" href="#t=2150" data-t="2150">35:50</a><b class="who">James Hartt</b> That&#x27;s a good but I think I did see some rumbling links potentially of a Stalwart paid MCP but that might be me just forgetting but yeah there Were there are some paid options inside Stalwart if you get a license so</p>
+      <p class="turn"><a class="at" href="#t=2163" data-t="2163">36:03</a><b class="who">Abrar Mahmood</b> But yeah I found that really useful as well for click up style stuff but I think I think with agents we are at a point where like Brute force you can get things done pretty quick and pretty autonomously it&#x27;s just the whole reproducibility of it which Gets a little bit sketchy when when doing config for your click ops.</p>
+      <p class="turn"><a class="at" href="#t=2184" data-t="2184">36:24</a><b class="who">James Hartt</b> Yeah when you definitely want to do it again I think that&#x27;s the bar that I tried to meet is like how like could I do this Again and</p>
+      <p class="turn"><a class="at" href="#t=2193" data-t="2193">36:33</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2193" data-t="2193">36:33</a><b class="who">James Hartt</b> Quickly</p>
+      <p class="turn"><a class="at" href="#t=2193" data-t="2193">36:33</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2194" data-t="2194">36:34</a><b class="who">James Hartt</b> And yeah not like I feel like if I really did let a let a computer use agent free I just wouldn&#x27;t have even remotely have understood That it done what I&#x27;d asked it to do so yeah but I think for certain tasks I&#x27;ll just have to play around with that a bit more and see If it does still meet that bar</p>
+      <p class="turn"><a class="at" href="#t=2212" data-t="2212">36:52</a><b class="who">Abrar Mahmood</b> Cool</p>
+      <p class="turn"><a class="at" href="#t=2212" data-t="2212">36:52</a><b class="who">James Hartt</b> Yeah nice</p>
+      <p class="turn"><a class="at" href="#t=2213" data-t="2213">36:53</a><b class="who">Abrar Mahmood</b> So if anyone wants to sort of see the journey that you&#x27;ve gone through the repo is public so I think have you committed Your sort of a document</p>
+      <p class="turn"><a class="at" href="#t=2222" data-t="2222">37:02</a><b class="who">James Hartt</b> Okay,</p>
+      <p class="turn"><a class="at" href="#t=2222" data-t="2222">37:02</a><b class="who">Abrar Mahmood</b> As to</p>
+      <p class="turn"><a class="at" href="#t=2223" data-t="2223">37:03</a><b class="who">James Hartt</b> Yeah,</p>
+      <p class="turn"><a class="at" href="#t=2223" data-t="2223">37:03</a><b class="who">Abrar Mahmood</b> What you&#x27;ve</p>
+      <p class="turn"><a class="at" href="#t=2223" data-t="2223">37:03</a><b class="who">James Hartt</b> All</p>
+      <p class="turn"><a class="at" href="#t=2223" data-t="2223">37:03</a><b class="who">Abrar Mahmood</b> Done</p>
+      <p class="turn"><a class="at" href="#t=2223" data-t="2223">37:03</a><b class="who">James Hartt</b> The terraforms up there, I believe the Configs are up there. You&#x27;ll see that there&#x27;s a 1Password environment that obviously doesn&#x27;t have any of the secrets in it. And yeah you kind of get to see the whole the whole journey Really so yeah it&#x27;s all up there</p>
+      <p class="turn"><a class="at" href="#t=2243" data-t="2243">37:23</a><b class="who">Abrar Mahmood</b> All right. Well, anything else before we close off?</p>
+      <p class="turn"><a class="at" href="#t=2247" data-t="2247">37:27</a><b class="who">James Hartt</b> No other than yeah carry on looking out for another more podcasts we&#x27;ll</p>
+      <p class="turn"><a class="at" href="#t=2251" data-t="2251">37:31</a><b class="who">Abrar Mahmood</b> Yep.</p>
+      <p class="turn"><a class="at" href="#t=2251" data-t="2251">37:31</a><b class="who">James Hartt</b> Be going into sort of some other like maybe not technical things like some of the sort creative stuff that I&#x27;ve had to do for Setting up podcast and if you like we&#x27;re gonna once these are these are out we&#x27;ll definitely be wanting to get some guests on to get out of our bubble And yeah talk to other people and see their experiences so yeah I&#x27;m looking forward to it</p>
+      <p class="turn"><a class="at" href="#t=2272" data-t="2272">37:52</a><b class="who">Abrar Mahmood</b> Absolutely well thank you very much for having us and we&#x27;ll catch you next time</p>
+      <p class="turn"><a class="at" href="#t=2277" data-t="2277">37:57</a><b class="who">James Hartt</b> Cheers bye</p>
+      <p class="turn"><a class="at" href="#t=2278" data-t="2278">37:58</a><b class="who">Abrar Mahmood</b> Cheers bye</p>
+    </details>
+  </section>
+
+  <section class="section" id="contact">
+    <p class="kicker">06 — Classifieds</p>
+    <h2>Everything below reaches both of us directly. No sequence, no drip, no CRM.</h2>
+
+    <div class="classifieds">
+
+      <a class="ad" href="mailto:show@agentsee.work?subject=AgentSee%3A%20Come%20on%20the%20show">
+        <span class="ad-head">Wanted</span>
+        <span class="ad-title">Come on the show</span>
+        <span class="ad-body">
+          People who have run an agency, bought from one, or been chewed up by one.
+          Especially if your experience contradicts ours.
+        </span>
+        <span class="ad-cue">Pitch yourself &rarr;</span>
+      </a>
+
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20Follow%20the%20build">
+        <span class="ad-head">Subscriptions</span>
+        <span class="ad-title">Follow the build</span>
+        <span class="ad-body">
+          Streams, episodes, and what we get wrong. Low volume, no marketing, and
+          we'll tell you when it stops being interesting.
+        </span>
+        <span class="ad-cue">Get the updates &rarr;</span>
+      </a>
+
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20You%27re%20wrong">
+        <span class="ad-head">Corrections</span>
+        <span class="ad-title">Tell us we're wrong</span>
+        <span class="ad-body">
+          If you think the premise is nonsense, we would much rather hear it now than
+          in two years. The strongest disagreement gets a whole episode.
+        </span>
+        <span class="ad-cue">Take the swing &rarr;</span>
+      </a>
+
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20Build%20alongside%20us">
+        <span class="ad-head">Situations vacant</span>
+        <span class="ad-title">Build alongside us</span>
+        <span class="ad-body">
+          Not today — we're still in discovery. But if you'd take a real risk on a new
+          way of working for a real share of the reward, that's who we want to start
+          with. You'll hear what we charge before you hear a pitch.
+        </span>
+        <span class="ad-cue">Put your name down &rarr;</span>
+      </a>
+
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee Podcast &middot; Episode 1</span>
+    <span>Released 27 October 2026</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <nav class="links social" aria-label="AgentSee elsewhere">
+    <!-- rel="me" is load-bearing: Mastodon verifies a profile link by looking for
+         a reciprocal one here. Without it the field shows unverified. -->
+    <a href="/podcast/">Podcast</a>
+    <a rel="me" href="https://mastodon.social/@agentseework">Mastodon</a>
+    <a href="https://bsky.app/profile/agentsee.work">Bluesky</a>
+    <a href="https://www.youtube.com/@agentseework">YouTube</a>
+    <a href="https://www.twitch.tv/agentseework">Twitch</a>
+    <a href="https://www.instagram.com/agentsee.work/">Instagram</a>
+    <a href="https://x.com/agentseework">X</a>
+    <a href="https://www.linkedin.com/company/agentseework">LinkedIn</a>
+  </nav>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here, and in the <a href="/privacy/">privacy notice</a>.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+<script src="/assets/player.js" defer></script>
+</body>
+</html>
