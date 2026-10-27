@@ -59,6 +59,17 @@ write_files:
       PasswordAuthentication no
       PermitRootLogin prohibit-password
       KbdInteractiveAuthentication no
+      # No forwarding: this box is a login-and-sudo endpoint, not a jump host.
+      # X11, agent and TCP forwarding are attack surface it never uses — the
+      # engine is reached through its own Cloudflare tunnel, never an `ssh -L`.
+      X11Forwarding no
+      AllowAgentForwarding no
+      AllowTcpForwarding no
+      # Drop the SHA-1 and 64-bit-tag MACs from the default set, keep the rest
+      # ('-' removes, wildcards allowed): legacy, and nothing that logs in here
+      # needs them. Leaves the ETM SHA-2 and umac-128 MACs, which every current
+      # client negotiates.
+      MACs -hmac-sha1*,umac-64*
 
   # fail2ban's local overrides. The package above enables an sshd jail, but its
   # stock settings do not fit this box three ways, and all three must be fixed
