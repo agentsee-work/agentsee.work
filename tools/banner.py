@@ -222,10 +222,14 @@ def check_safe(path, preset):
               f"vs safe {sw}x{sh} at ({sx0},{sy0})")
     if not ok:
         over = []
-        if box[0] < sx0: over.append(f"left by {sx0-box[0]}px")
-        if box[1] < sy0: over.append(f"top by {sy0-box[1]}px")
-        if box[2] > sx1: over.append(f"right by {box[2]-sx1}px")
-        if box[3] > sy1: over.append(f"bottom by {box[3]-sy1}px")
+        if box[0] < sx0:
+            over.append(f"left by {sx0-box[0]}px")
+        if box[1] < sy0:
+            over.append(f"top by {sy0-box[1]}px")
+        if box[2] > sx1:
+            over.append(f"right by {box[2]-sx1}px")
+        if box[3] > sy1:
+            over.append(f"bottom by {box[3]-sy1}px")
         detail += " — overflows " + ", ".join(over)
     return ok, detail
 

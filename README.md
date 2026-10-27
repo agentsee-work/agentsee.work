@@ -139,6 +139,14 @@ The whole build — why, what broke, and every checkpoint — is in
 [docs/MAIL-SELFHOST.md](docs/MAIL-SELFHOST.md) and
 [docs/MAIL-BUILD-RUNBOOK.md](docs/MAIL-BUILD-RUNBOOK.md).
 
+## Checks
+
+Every pull request and push to `main` runs `.github/workflows/check.yml`: the
+engine's test suite (`python3 engine/test_engine.py`) and Ruff (`ruff check`
+and `ruff format --check`; the rules are in `ruff.toml`). A failing test or a
+lint error is a red tick. Deploying is separate and does not wait for it: the
+site is `public/`, which neither check looks at.
+
 ## Deploying
 
 **Pushing to `main` publishes the site.** `.github/workflows/deploy.yml` runs

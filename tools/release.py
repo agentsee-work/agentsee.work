@@ -48,15 +48,27 @@ import argparse
 import datetime as dt
 import hashlib
 import html
-import json
 import pathlib
 import re
 import sys
 import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import (ROOT, cap_first, caption_cues, caption_words, die, ep_dir, ffprobe,  # noqa: E402
-                   hms, load_json, map_words, save_json, sub_edl, tidy_words)
+from eplib import (  # noqa: E402
+    ROOT,
+    cap_first,
+    caption_cues,
+    caption_words,
+    die,
+    ep_dir,
+    ffprobe,
+    hms,
+    load_json,
+    map_words,
+    save_json,
+    sub_edl,
+    tidy_words,
+)
 
 SHOW = ROOT / "tools" / "show.json"
 PI_NAMESPACE = uuid.UUID("ead4c236-bf58-58c6-a2c6-a6b28d128cb6")   # podcast:guid, per the spec

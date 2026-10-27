@@ -1,0 +1,59 @@
+name: Check
+
+# Every pull request and every push to main runs the engine's test suite and
+# Ruff. Both are quick and both stay on the runner: the suite is stdlib-only
+# against stubs (about fifteen seconds) and Ruff is one binary. A red tick
+# here is a failure in the code, not a platform wobble.
+#
+# Deploying is deploy.yml and does not wait for this: the site is public/,
+# which neither job looks at (README).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer push to the same branch supersedes the run for the older one.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    name: Engine tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # The same interpreter the engine runs on (engine/home/Dockerfile).
+          python-version: "3.14"
+
+      - name: Run the suite
+        # Dev mode prints a leaked connection, socket or response body as a
+        # ResourceWarning beside the dots, so a leak is seen before it is a
+        # problem. It does not fail the run; a failing test does.
+        run: python3 -X dev engine/test_engine.py
+
+  ruff:
+    name: Ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/ruff-action@v3
+        with:
+          # Pinned, so a new release's new rule cannot turn main red on its own.
+          # Bump it deliberately; `pip install ruff==<version>` locally to match.
+          version: "0.17.3"
+          args: check
+
+      - name: Formatting
+        run: ruff format --check

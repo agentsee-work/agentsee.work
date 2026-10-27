@@ -88,7 +88,7 @@ def main():
             a, b = max(0.0, h0 - 0.4), min(dur, h1 + 0.4)
             seg = decode(track, a, b - a)
 
-            def on_sound(ws_):
+            def on_sound(ws_, a=a, h0=h0, h1=h1):  # this hole's bounds, bound now
                 return [{**w, "t0": round(a + w["t0"], 3), "t1": round(a + w["t1"], 3), "filled": True}
                         for w in ws_
                         if h0 - 0.15 <= a + (w["t0"] + w["t1"]) / 2 <= h1 + 0.15

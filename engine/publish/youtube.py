@@ -52,17 +52,24 @@ def ready(env):
 def token(env):
     if _token["value"] and time.time() < _token["until"] - 120:
         return _token["value"]
-    data = urllib.parse.urlencode({
-        "client_id": env["YOUTUBE_CLIENT_ID"], "client_secret": env["YOUTUBE_CLIENT_SECRET"],
-        "refresh_token": env["YOUTUBE_REFRESH_TOKEN"], "grant_type": "refresh_token",
-    }).encode()
-    req = urllib.request.Request(TOKEN_URL, data=data, method="POST",
-                                 headers={"Content-Type": "application/x-www-form-urlencoded"})
+    data = urllib.parse.urlencode(
+        {
+            "client_id": env["YOUTUBE_CLIENT_ID"],
+            "client_secret": env["YOUTUBE_CLIENT_SECRET"],
+            "refresh_token": env["YOUTUBE_REFRESH_TOKEN"],
+            "grant_type": "refresh_token",
+        }
+    ).encode()
+    req = urllib.request.Request(
+        TOKEN_URL, data=data, method="POST", headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             j = json.load(r)
     except urllib.error.HTTPError as e:
-        raise PublishError("Google would not refresh the token: " + e.read().decode(errors="replace")[:300])
+        with e:
+            why = e.read().decode(errors="replace")[:300]
+        raise PublishError("Google would not refresh the token: " + why) from e
     _token["value"], _token["until"] = j["access_token"], time.time() + int(j.get("expires_in", 3600))
     return _token["value"]
 
@@ -82,7 +89,7 @@ def request(method, url, tok, body=None, headers=None, timeout=120):
 def reason(body):
     try:
         return (json.loads(body)["error"].get("errors") or [{}])[0].get("reason")
-    except (ValueError, KeyError, TypeError, AttributeError):
+    except ValueError, KeyError, TypeError, AttributeError:
         return None
 
 
@@ -91,17 +98,26 @@ def said(status, body):
         err = json.loads(body)["error"]
         reason = (err.get("errors") or [{}])[0].get("reason")
         return f"{status}: {err.get('message')}" + (f" ({reason})" if reason else "")
-    except (ValueError, KeyError, TypeError, AttributeError):
+    except ValueError, KeyError, TypeError, AttributeError:
         return f"{status}: {body[:300]!r}"
 
 
 def upload(path, meta, env, log, content_type, notify):
     size = path.stat().st_size
-    url = f"{UPLOAD}/videos?" + urllib.parse.urlencode({
-        "uploadType": "resumable", "part": "snippet,status", "notifySubscribers": "true" if notify else "false"})
-    st, h, body = request("POST", url, token(env), json.dumps(meta).encode(), {
-        "Content-Type": "application/json; charset=UTF-8",
-        "X-Upload-Content-Type": content_type, "X-Upload-Content-Length": str(size)})
+    url = f"{UPLOAD}/videos?" + urllib.parse.urlencode(
+        {"uploadType": "resumable", "part": "snippet,status", "notifySubscribers": "true" if notify else "false"}
+    )
+    st, h, body = request(
+        "POST",
+        url,
+        token(env),
+        json.dumps(meta).encode(),
+        {
+            "Content-Type": "application/json; charset=UTF-8",
+            "X-Upload-Content-Type": content_type,
+            "X-Upload-Content-Length": str(size),
+        },
+    )
     if st != 200:
         if reason(body) in ("uploadLimitExceeded", "quotaExceeded"):
             # The channel's uploads for the day, or the API quota: not now, not no.
@@ -114,8 +130,14 @@ def upload(path, meta, env, log, content_type, notify):
             f.seek(sent)
             chunk = f.read(CHUNK)
             end = sent + len(chunk) - 1
-            st, h, body = request("PUT", session, token(env), chunk, {
-                "Content-Type": content_type, "Content-Range": f"bytes {sent}-{end}/{size}"}, timeout=900)
+            st, h, body = request(
+                "PUT",
+                session,
+                token(env),
+                chunk,
+                {"Content-Type": content_type, "Content-Range": f"bytes {sent}-{end}/{size}"},
+                timeout=900,
+            )
             if st in (200, 201):
                 return json.loads(body)
             if st == 308:
@@ -130,7 +152,9 @@ def upload(path, meta, env, log, content_type, notify):
             if st in RETRY:
                 time.sleep(backoff)
                 backoff = min(backoff * 2, 64)
-                st2, h2, body2 = request("PUT", session, token(env), b"", {"Content-Range": f"bytes */{size}"}, timeout=60)
+                st2, h2, body2 = request(
+                    "PUT", session, token(env), b"", {"Content-Range": f"bytes */{size}"}, timeout=60
+                )
                 if st2 in (200, 201):
                     return json.loads(body2)
                 if st2 == 404:
@@ -144,11 +168,21 @@ def upload(path, meta, env, log, content_type, notify):
 def captions(video_id, path, env, language, name):
     boundary = "agentsee" + secrets.token_hex(8)
     meta = json.dumps({"snippet": {"videoId": video_id, "language": language, "name": name, "isDraft": False}})
-    body = (f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{meta}\r\n"
-            f"--{boundary}\r\nContent-Type: application/octet-stream\r\n\r\n").encode() + path.read_bytes() \
+    body = (
+        (
+            f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{meta}\r\n"
+            f"--{boundary}\r\nContent-Type: application/octet-stream\r\n\r\n"
+        ).encode()
+        + path.read_bytes()
         + f"\r\n--{boundary}--\r\n".encode()
-    st, h, b = request("POST", f"{UPLOAD}/captions?uploadType=multipart&part=snippet", token(env), body,
-                       {"Content-Type": f"multipart/related; boundary={boundary}"})
+    )
+    st, h, b = request(
+        "POST",
+        f"{UPLOAD}/captions?uploadType=multipart&part=snippet",
+        token(env),
+        body,
+        {"Content-Type": f"multipart/related; boundary={boundary}"},
+    )
     if st not in (200, 201):
         raise PublishError("captions refused: " + said(st, b))
     return json.loads(b)["id"]
@@ -156,8 +190,9 @@ def captions(video_id, path, env, language, name):
 
 def thumbnail(video_id, path, env):
     ctype = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
-    st, h, b = request("POST", f"{UPLOAD}/thumbnails/set?videoId={video_id}", token(env), path.read_bytes(),
-                       {"Content-Type": ctype})
+    st, h, b = request(
+        "POST", f"{UPLOAD}/thumbnails/set?videoId={video_id}", token(env), path.read_bytes(), {"Content-Type": ctype}
+    )
     if st == 403:
         return "thumbnail refused: the channel is not verified for custom thumbnails"
     if st not in (200, 201):
@@ -181,9 +216,13 @@ def playlist_id(title, env):
         page = j.get("nextPageToken")
         if not page:
             break
-    st, h, b = request("POST", f"{API}/playlists?part=snippet,status", token(env),
-                       json.dumps({"snippet": {"title": title}, "status": {"privacyStatus": "public"}}).encode(),
-                       {"Content-Type": "application/json"})
+    st, h, b = request(
+        "POST",
+        f"{API}/playlists?part=snippet,status",
+        token(env),
+        json.dumps({"snippet": {"title": title}, "status": {"privacyStatus": "public"}}).encode(),
+        {"Content-Type": "application/json"},
+    )
     if st not in (200, 201):
         raise PublishError("could not create the playlist: " + said(st, b))
     return json.loads(b)["id"], True
@@ -193,9 +232,15 @@ def add_to_playlist(pid, video_id, env):
     """Three tries. playlistItems.insert aborts the odd call with a 409
     (SERVICE_UNAVAILABLE) that the next call does not repeat."""
     for wait in PLAYLIST_WAIT + (None,):
-        st, h, b = request("POST", f"{API}/playlistItems?part=snippet", token(env), json.dumps({
-            "snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).encode(),
-            {"Content-Type": "application/json"})
+        st, h, b = request(
+            "POST",
+            f"{API}/playlistItems?part=snippet",
+            token(env),
+            json.dumps(
+                {"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}
+            ).encode(),
+            {"Content-Type": "application/json"},
+        )
         if st in (200, 201):
             return
         if wait is None or st not in (409,) + RETRY:
@@ -280,10 +325,13 @@ def publish(post, episode, release, files, env, account, log):
                 notes.append(f"{e}; add it to the playlist by hand")
     except Exception as e:  # noqa: BLE001 — a note, for the reason above
         notes.append(f"after the upload, {type(e).__name__}: {e}"[:300])
-    permalink = f"https://www.youtube.com/watch?v={vid}" if kind == "episode" else f"https://www.youtube.com/shorts/{vid}"
+    permalink = (
+        f"https://www.youtube.com/watch?v={vid}" if kind == "episode" else f"https://www.youtube.com/shorts/{vid}"
+    )
     return {
         "status": "scheduled" if "publishAt" in status else "published",
-        "remote_id": vid, "permalink": permalink,
+        "remote_id": vid,
+        "permalink": permalink,
         "published_at": when.isoformat() if "publishAt" in status else ledger.now(),
         "note": "; ".join(notes),
     }

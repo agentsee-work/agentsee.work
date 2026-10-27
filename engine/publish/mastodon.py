@@ -63,7 +63,7 @@ def request(method, url, body=None, headers=None, timeout=120):
 def said(status, body):
     try:
         return f"{status}: {json.loads(body).get('error', '')}".strip()
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         return f"{status}: {body[:300]!r}"
 
 
@@ -71,9 +71,15 @@ def multipart(fields, name, filename, ctype, data):
     boundary = "agentsee" + secrets.token_hex(8)
     body = b""
     for k, v in fields.items():
-        body += f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode()
-    body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"; filename=\"{filename}\"\r\n"
-             f"Content-Type: {ctype}\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
+        body += f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
+    body += (
+        (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'
+            f"Content-Type: {ctype}\r\n\r\n"
+        ).encode()
+        + data
+        + f"\r\n--{boundary}--\r\n".encode()
+    )
     return body, f"multipart/form-data; boundary={boundary}"
 
 
@@ -82,7 +88,9 @@ def upload(path, description, base, tok, log):
     if not ctype:
         raise PublishError(f"Mastodon takes no {path.suffix} files here")
     body, ct = multipart({"description": description}, "file", path.name, ctype, path.read_bytes())
-    st, h, b = request("POST", f"{base}/api/v2/media", body, {"Authorization": f"Bearer {tok}", "Content-Type": ct}, timeout=900)
+    st, h, b = request(
+        "POST", f"{base}/api/v2/media", body, {"Authorization": f"Bearer {tok}", "Content-Type": ct}, timeout=900
+    )
     if st not in (200, 202):
         raise PublishError("the instance refused the file: " + said(st, b))
     mid = json.loads(b)["id"]
@@ -101,14 +109,18 @@ def upload(path, description, base, tok, log):
 
 
 def describe(post, episode, release):
-    return f"post to Mastodon with {post['media'] or 'no media'}, {length(post['text'] or '')} of {LIMIT}: {post['title']}"
+    return (
+        f"post to Mastodon with {post['media'] or 'no media'}, {length(post['text'] or '')} of {LIMIT}: {post['title']}"
+    )
 
 
 def publish(post, episode, release, files, env, account, log):
     text = (post["text"] or "").strip()
     n = length(text)
     if n > LIMIT:
-        raise PublishError(f"the text is {n} characters as Mastodon counts them; the limit is {LIMIT}. Cut it on the post's page")
+        raise PublishError(
+            f"the text is {n} characters as Mastodon counts them; the limit is {LIMIT}. Cut it on the post's page"
+        )
     if not text and not post["media"]:
         raise PublishError("nothing to post: no text and no media")
     base, tok = instance(account, env), env["MASTODON_ACCESS_TOKEN"]
@@ -123,11 +135,23 @@ def publish(post, episode, release, files, env, account, log):
         media.append(upload(path, alt, base, tok, log))
     lang = (ledger.CONFIG.get("language") or ledger.CONFIG["youtube"]["language"])[:2]
     form = [("status", text), ("language", lang), ("visibility", "public")] + [("media_ids[]", m) for m in media]
-    st, h, b = request("POST", f"{base}/api/v1/statuses", urllib.parse.urlencode(form).encode(), {
-        "Authorization": f"Bearer {tok}", "Content-Type": "application/x-www-form-urlencoded",
-        "Idempotency-Key": f"agentsee-post-{post['id']}-{post['attempts']}"})
+    st, h, b = request(
+        "POST",
+        f"{base}/api/v1/statuses",
+        urllib.parse.urlencode(form).encode(),
+        {
+            "Authorization": f"Bearer {tok}",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Idempotency-Key": f"agentsee-post-{post['id']}-{post['attempts']}",
+        },
+    )
     if st != 200:
         raise PublishError("the instance refused the post: " + said(st, b))
     d = json.loads(b)
-    return {"status": "published", "remote_id": str(d["id"]), "permalink": d.get("url") or d.get("uri"),
-            "published_at": ledger.now(), "note": f"{n} of {LIMIT} characters" + ("; " + post["media"] if media else "")}
+    return {
+        "status": "published",
+        "remote_id": str(d["id"]),
+        "permalink": d.get("url") or d.get("uri"),
+        "published_at": ledger.now(),
+        "note": f"{n} of {LIMIT} characters" + ("; " + post["media"] if media else ""),
+    }

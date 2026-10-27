@@ -35,7 +35,7 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import ROOT, die, ep_dir, load_json, need, run  # noqa: E402
+from eplib import ROOT, ep_dir, load_json, need, run  # noqa: E402
 from eyeanim import CHAINS, frame_key, timeline  # noqa: E402
 from show import ASSETS, build  # noqa: E402
 

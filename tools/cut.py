@@ -45,8 +45,21 @@ import sys
 import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import (ENV_HOP, RATE, ROOT, dialogue_sum, die, edl_finalise, ep_dir,  # noqa: E402
-                   envelope_db, hms, load_json, save_json, snap_quiet, src_to_out)
+from eplib import (  # noqa: E402
+    ENV_HOP,
+    RATE,
+    ROOT,
+    dialogue_sum,
+    die,
+    edl_finalise,
+    envelope_db,
+    ep_dir,
+    hms,
+    load_json,
+    save_json,
+    snap_quiet,
+    src_to_out,
+)
 
 BUTTON_LEN = 2.7   # 04-button's first phrase; see AGE-62 for why not 5.0
 FILLERS = {"um", "uh", "erm", "er", "hmm", "mm", "mhm", "ah", "uhm", "umm", "uhh",
@@ -362,8 +375,6 @@ def main():
 
     skipped = []
     removed_words = {}
-    quiet_edge = thr + a.quiet_join_db
-    quiet_hops = max(2, int(0.03 / HOP))
 
     def edge_db(tt):
         i = int(tt / HOP)
@@ -797,8 +808,6 @@ def main():
         span_sound[p0:p1] = sound[p0:p1]
         protected |= word_sound(span_sound)
 
-    n_untr = 0
-
     # ── erm's fillers ─────────────────────────────────────────────────────
     # Per track, in that track's time. A cut is only taken where the other
     # speaker has no word, because the edit is one shared timeline. Where
@@ -895,7 +904,7 @@ def main():
             reason[r0:r1] = 0
 
     # ── chapters ──────────────────────────────────────────────────────────
-    chapters, seams = [], []
+    chapters = []
     if not a.no_chapters:
         src = load_json(a.chapters) if a.chapters else m.get("chapters", [])
         kw = [words[i] for i in kept]

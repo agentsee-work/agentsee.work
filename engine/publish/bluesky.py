@@ -65,16 +65,19 @@ def said(status, body):
     try:
         d = json.loads(body)
         return f"{status}: {d.get('error', '')} {d.get('message', '')}".strip()
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         return f"{status}: {body[:300]!r}"
 
 
 def session(env):
     if _session["jwt"] and time.time() < _session["until"]:
         return _session
-    st, h, b = request("POST", f"{ENTRY}/xrpc/com.atproto.server.createSession", json.dumps({
-        "identifier": env["BLUESKY_IDENTIFIER"], "password": env["BLUESKY_APP_PASSWORD"]}).encode(),
-        {"Content-Type": "application/json"})
+    st, h, b = request(
+        "POST",
+        f"{ENTRY}/xrpc/com.atproto.server.createSession",
+        json.dumps({"identifier": env["BLUESKY_IDENTIFIER"], "password": env["BLUESKY_APP_PASSWORD"]}).encode(),
+        {"Content-Type": "application/json"},
+    )
     if st != 200:
         raise PublishError("Bluesky would not open a session: " + said(st, b))
     d = json.loads(b)
@@ -91,13 +94,21 @@ def facets(text):
     b, out = text.encode("utf-8"), []
     for m in re.finditer(rb"https?://[^\s<>\"'\])]+", b):
         s, e = m.start(), m.end()
-        while e > s and b[e - 1:e] in (b".", b",", b";", b":", b"!", b"?"):
+        while e > s and b[e - 1 : e] in (b".", b",", b";", b":", b"!", b"?"):
             e -= 1
-        out.append({"index": {"byteStart": s, "byteEnd": e},
-                    "features": [{"$type": "app.bsky.richtext.facet#link", "uri": b[s:e].decode()}]})
+        out.append(
+            {
+                "index": {"byteStart": s, "byteEnd": e},
+                "features": [{"$type": "app.bsky.richtext.facet#link", "uri": b[s:e].decode()}],
+            }
+        )
     for m in re.finditer(rb"(?<![\w/#])#([A-Za-z]\w*)", b):
-        out.append({"index": {"byteStart": m.start(), "byteEnd": m.end()},
-                    "features": [{"$type": "app.bsky.richtext.facet#tag", "tag": m.group(1).decode()}]})
+        out.append(
+            {
+                "index": {"byteStart": m.start(), "byteEnd": m.end()},
+                "features": [{"$type": "app.bsky.richtext.facet#tag", "tag": m.group(1).decode()}],
+            }
+        )
     return sorted(out, key=lambda f: f["index"]["byteStart"])
 
 
@@ -123,8 +134,13 @@ def dimensions(path):
 
 
 def upload_blob(path, ctype, s):
-    st, h, b = request("POST", f"{s['pds']}/xrpc/com.atproto.repo.uploadBlob", path.read_bytes(),
-                       {"Authorization": f"Bearer {s['jwt']}", "Content-Type": ctype}, timeout=300)
+    st, h, b = request(
+        "POST",
+        f"{s['pds']}/xrpc/com.atproto.repo.uploadBlob",
+        path.read_bytes(),
+        {"Authorization": f"Bearer {s['jwt']}", "Content-Type": ctype},
+        timeout=300,
+    )
     if st != 200:
         raise PublishError("the PDS refused the file: " + said(st, b))
     return json.loads(b)["blob"]
@@ -132,14 +148,23 @@ def upload_blob(path, ctype, s):
 
 def upload_video(path, s, log):
     host = urllib.parse.urlparse(s["pds"]).hostname
-    q = urllib.parse.urlencode({"aud": f"did:web:{host}", "lxm": "com.atproto.repo.uploadBlob", "exp": int(time.time()) + 1800})
-    st, h, b = request("GET", f"{s['pds']}/xrpc/com.atproto.server.getServiceAuth?{q}", headers={"Authorization": f"Bearer {s['jwt']}"})
+    q = urllib.parse.urlencode(
+        {"aud": f"did:web:{host}", "lxm": "com.atproto.repo.uploadBlob", "exp": int(time.time()) + 1800}
+    )
+    st, h, b = request(
+        "GET", f"{s['pds']}/xrpc/com.atproto.server.getServiceAuth?{q}", headers={"Authorization": f"Bearer {s['jwt']}"}
+    )
     if st != 200:
         raise PublishError("the PDS would not issue a service token: " + said(st, b))
     tok = json.loads(b)["token"]
     q = urllib.parse.urlencode({"did": s["did"], "name": path.name})
-    st, h, b = request("POST", f"{VIDEO}/xrpc/app.bsky.video.uploadVideo?{q}", path.read_bytes(),
-                       {"Authorization": f"Bearer {tok}", "Content-Type": "video/mp4"}, timeout=900)
+    st, h, b = request(
+        "POST",
+        f"{VIDEO}/xrpc/app.bsky.video.uploadVideo?{q}",
+        path.read_bytes(),
+        {"Authorization": f"Bearer {tok}", "Content-Type": "video/mp4"},
+        timeout=900,
+    )
     try:
         job = json.loads(b)
     except ValueError:
@@ -150,11 +175,16 @@ def upload_video(path, s, log):
     deadline = time.time() + WAIT
     while not job.get("blob"):
         if job.get("state") == "JOB_STATE_FAILED":
-            raise PublishError(f"the video service could not process the clip: {job.get('error') or job.get('message') or 'no reason'}")
+            raise PublishError(
+                f"the video service could not process the clip: {job.get('error') or job.get('message') or 'no reason'}"
+            )
         if time.time() > deadline:
             raise PublishError("the video service is still processing the clip after ten minutes; try again later")
         time.sleep(POLL)
-        st, h, b = request("GET", f"{VIDEO}/xrpc/app.bsky.video.getJobStatus?" + urllib.parse.urlencode({"jobId": job.get("jobId", "")}))
+        st, h, b = request(
+            "GET",
+            f"{VIDEO}/xrpc/app.bsky.video.getJobStatus?" + urllib.parse.urlencode({"jobId": job.get("jobId", "")}),
+        )
         d = json.loads(b) if b else {}
         job = d.get("jobStatus", d)
         if job.get("progress") is not None:
@@ -173,8 +203,12 @@ def publish(post, episode, release, files, env, account, log):
     if not text and not post["media"]:
         raise PublishError("nothing to post: no text and no media")
     s = session(env)
-    record = {"$type": "app.bsky.feed.post", "text": text,
-              "createdAt": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z", "langs": [language()]}
+    record = {
+        "$type": "app.bsky.feed.post",
+        "text": text,
+        "createdAt": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+        "langs": [language()],
+    }
     f = facets(text)
     if f:
         record["facets"] = f
@@ -191,7 +225,11 @@ def publish(post, episode, release, files, env, account, log):
         if ctype == "video/mp4":
             log(f"  uploading {post['media']} ({size:,} bytes) to the video service")
             clip = next((x for x in release.get("clips", []) if x["file"] == post["media"]), {})
-            embed = {"$type": "app.bsky.embed.video", "video": upload_video(path, s, log), "alt": clip.get("alt") or post["title"] or ""}
+            embed = {
+                "$type": "app.bsky.embed.video",
+                "video": upload_video(path, s, log),
+                "alt": clip.get("alt") or post["title"] or "",
+            }
             if meta.get("width") and meta.get("height"):
                 embed["aspectRatio"] = {"width": int(meta["width"]), "height": int(meta["height"])}
             notes.append("video")
@@ -206,12 +244,20 @@ def publish(post, episode, release, files, env, account, log):
             embed = {"$type": "app.bsky.embed.images", "images": [img]}
             notes.append("image")
         record["embed"] = embed
-    st, h, b = request("POST", f"{s['pds']}/xrpc/com.atproto.repo.createRecord", json.dumps({
-        "repo": s["did"], "collection": "app.bsky.feed.post", "record": record}).encode(),
-        {"Authorization": f"Bearer {s['jwt']}", "Content-Type": "application/json"})
+    st, h, b = request(
+        "POST",
+        f"{s['pds']}/xrpc/com.atproto.repo.createRecord",
+        json.dumps({"repo": s["did"], "collection": "app.bsky.feed.post", "record": record}).encode(),
+        {"Authorization": f"Bearer {s['jwt']}", "Content-Type": "application/json"},
+    )
     if st != 200:
         raise PublishError("Bluesky refused the post: " + said(st, b))
     uri = json.loads(b)["uri"]
     handle = (account.get("handle") or "").lstrip("@") or s["did"]
-    return {"status": "published", "remote_id": uri, "permalink": f"https://bsky.app/profile/{handle}/post/{uri.rsplit('/', 1)[1]}",
-            "published_at": ledger.now(), "note": "; ".join(notes)}
+    return {
+        "status": "published",
+        "remote_id": uri,
+        "permalink": f"https://bsky.app/profile/{handle}/post/{uri.rsplit('/', 1)[1]}",
+        "published_at": ledger.now(),
+        "note": "; ".join(notes),
+    }

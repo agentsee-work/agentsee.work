@@ -26,8 +26,9 @@ import urllib.request
 import ledger
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-ACCOUNTS = {k: v for k, v in json.loads((ROOT / "engine" / "accounts.json").read_text(encoding="utf-8")).items()
-            if k != "note"}
+ACCOUNTS = {
+    k: v for k, v in json.loads((ROOT / "engine" / "accounts.json").read_text(encoding="utf-8")).items() if k != "note"
+}
 
 
 def short(link_id):
@@ -50,8 +51,10 @@ def fit(head, body, tail, limit):
     """A post within a platform's budget: the head (a title, a hook) stays,
     the body gives way a sentence at a time, then the tail (the hashtags);
     the link is in the tail before the tags and is the last thing to go."""
+
     def build(b, t):
         return "\n\n".join(x for x in (head, b, *t) if x)
+
     sentences = [x for x in re.split(r"(?<=[.!?])\s+", body.strip()) if x] if body else []
     for n in range(len(sentences), 0, -1):
         text = build(" ".join(sentences[:n]), tail)
@@ -60,13 +63,13 @@ def fit(head, body, tail, limit):
     if sentences and len(build("", tail)) <= limit:
         room = limit - len(build("", tail)) - 2
         if room >= 40:  # a teaser of the first sentence, cut at a word
-            teaser = sentences[0][:room - 1].rsplit(" ", 1)[0] + "…"
+            teaser = sentences[0][: room - 1].rsplit(" ", 1)[0] + "…"
             return build(teaser, tail)
     for t in (tail, tail[:-1], tail[:1], []):
         text = build("", t)
         if len(text) <= limit:
             return text
-    return head[:max(limit - 1, 0)] + "…"
+    return head[: max(limit - 1, 0)] + "…"
 
 
 def art_for(r):
@@ -137,18 +140,35 @@ def plan(c, slug, who="engine"):
         for account, a in ACCOUNTS.items():
             if kind not in a["assets"]:
                 continue
-            if c.execute("SELECT 1 FROM post WHERE episode=? AND asset=? AND platform=? AND account=?",
-                         (slug, asset, a["platform"], account)).fetchone():
+            if c.execute(
+                "SELECT 1 FROM post WHERE episode=? AND asset=? AND platform=? AND account=?",
+                (slug, asset, a["platform"], account),
+            ).fetchone():
                 continue
             title, text, media = compose(r, asset, account, link_id(row["number"], account, asset, r))
             if text is None:
                 continue
             lid = link_id(row["number"], account, asset, r)
             t = ledger.now()
-            cur = c.execute("""INSERT INTO post (episode, asset, platform, account, link_id, link_url, media, title, text,
+            cur = c.execute(
+                """INSERT INTO post (episode, asset, platform, account, link_id, link_url, media, title, text,
                                  scheduled_at, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                            (slug, asset, a["platform"], account, lid, link_url(r, asset), media, title, text,
-                             ledger.at(entry["date"], a.get("at", "09:00")), "planned", t, t))
+                (
+                    slug,
+                    asset,
+                    a["platform"],
+                    account,
+                    lid,
+                    link_url(r, asset),
+                    media,
+                    title,
+                    text,
+                    ledger.at(entry["date"], a.get("at", "09:00")),
+                    "planned",
+                    t,
+                    t,
+                ),
+            )
             made.append(cur.lastrowid)
     if made:
         ledger.event(c, "plan", who, episode=slug, detail={"posts": len(made)})
@@ -161,8 +181,9 @@ def prune(c, slug, who="engine"):
     is gone from accounts.json, or no longer takes that kind of asset. Only
     `planned`: anything a person or a platform has touched is left alone."""
     gone = []
-    for p in c.execute("SELECT id, asset, account FROM post WHERE episode=? AND status='planned' ORDER BY id",
-                       (slug,)).fetchall():
+    for p in c.execute(
+        "SELECT id, asset, account FROM post WHERE episode=? AND status='planned' ORDER BY id", (slug,)
+    ).fetchall():
         a = ACCOUNTS.get(p["account"])
         kind = "episode" if p["asset"] == "episode" else "clip"
         if a and kind in a["assets"]:
@@ -180,15 +201,23 @@ def kv_put(link_id, value, token=None):
     if not token:
         raise RuntimeError("CLOUDFLARE_API_TOKEN is not set: run under `op run --env-file=engine/engine.env`")
     cfg = ledger.CONFIG
-    url = (f"https://api.cloudflare.com/client/v4/accounts/{cfg['cloudflare_account']}/storage/kv/namespaces/"
-           f"{cfg['links_namespace']}/values/{link_id}")
-    req = urllib.request.Request(url, data=json.dumps(value).encode(), method="PUT",
-                                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    url = (
+        f"https://api.cloudflare.com/client/v4/accounts/{cfg['cloudflare_account']}/storage/kv/namespaces/"
+        f"{cfg['links_namespace']}/values/{link_id}"
+    )
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(value).encode(),
+        method="PUT",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             body = json.load(resp)
     except urllib.error.HTTPError as e:
-        raise RuntimeError(f"KV answered {e.code}: {e.read().decode(errors='replace')[:300]}")
+        with e:
+            why = e.read().decode(errors="replace")[:300]
+        raise RuntimeError(f"KV answered {e.code}: {why}") from e
     if not body.get("success"):
         raise RuntimeError(f"KV refused {link_id}: {body.get('errors')}")
 
@@ -198,7 +227,9 @@ def links(c, slug=None, put=kv_put, who="engine"):
     q = "SELECT id, link_id, link_url, episode, asset, platform FROM post WHERE link_id IS NOT NULL"
     rows = c.execute(q + (" AND episode = ?" if slug else ""), (slug,) if slug else ()).fetchall()
     for p in rows:
-        put(p["link_id"], {"url": p["link_url"], "episode": p["episode"], "post": p["asset"], "platform": p["platform"]})
+        put(
+            p["link_id"], {"url": p["link_url"], "episode": p["episode"], "post": p["asset"], "platform": p["platform"]}
+        )
     if rows:
         ledger.event(c, "links", who, episode=slug, detail={"links": len(rows)})
     return len(rows)

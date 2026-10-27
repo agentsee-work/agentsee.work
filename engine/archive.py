@@ -68,10 +68,16 @@ def sign(method, host, path, query, headers, payload_hash, key, secret, region="
     h = {k.lower(): " ".join(str(v).split()) for k, v in headers.items()}
     h.update({"host": host, "x-amz-date": amz, "x-amz-content-sha256": payload_hash})
     signed = ";".join(sorted(h))
-    canonical = "\n".join([
-        method, quote(path, "/-_.~"),
-        "&".join(f"{quote(k, '-_.~')}={quote(v, '-_.~')}" for k, v in sorted(query.items())),
-        "".join(f"{k}:{h[k]}\n" for k in sorted(h)), signed, payload_hash])
+    canonical = "\n".join(
+        [
+            method,
+            quote(path, "/-_.~"),
+            "&".join(f"{quote(k, '-_.~')}={quote(v, '-_.~')}" for k, v in sorted(query.items())),
+            "".join(f"{k}:{h[k]}\n" for k in sorted(h)),
+            signed,
+            payload_hash,
+        ]
+    )
     scope = f"{day}/{region}/s3/aws4_request"
     to_sign = "\n".join(["AWS4-HMAC-SHA256", amz, scope, _sha(canonical.encode())])
     k = _hmac(_hmac(_hmac(_hmac(("AWS4" + secret).encode(), day), region), "s3"), "aws4_request")
@@ -96,7 +102,9 @@ class Client:
             raise ArchiveError(" / ".join(missing) + " not set: run under `op run --env-file=engine/engine.env`")
         self.bucket = env["R2_ARCHIVE_BUCKET"]
         self.key, self.secret = env["AWS_ACCESS_KEY_ID"], env["AWS_SECRET_ACCESS_KEY"]
-        self.endpoint = (env.get("R2_ENDPOINT") or f"https://{env['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com").rstrip("/")
+        self.endpoint = (env.get("R2_ENDPOINT") or f"https://{env['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com").rstrip(
+            "/"
+        )
         self.host = urllib.parse.urlparse(self.endpoint).netloc
 
     def request(self, method, key, body=b"", headers=None, query=None, timeout=120):
@@ -122,7 +130,10 @@ class Client:
     def said(self, status, resp):
         with resp:
             text = resp.read(600).decode(errors="replace")
-        why = {401: "R2 does not know these credentials", 403: "the token is not allowed this (Object Read & Write on the podcast buckets)"}.get(status, "")
+        why = {
+            401: "R2 does not know these credentials",
+            403: "the token is not allowed this (Object Read & Write on the podcast buckets)",
+        }.get(status, "")
         return f"{status}{': ' + why if why else ''} {text.strip()}".strip()
 
     def head(self, key):
@@ -212,8 +223,9 @@ class Files:
         p = self.local / name
         if p.exists():
             return p
-        row = self.c.execute("SELECT sha256, archived FROM deliverable WHERE episode=? AND name=?",
-                             (self.slug, name)).fetchone()
+        row = self.c.execute(
+            "SELECT sha256, archived FROM deliverable WHERE episode=? AND name=?", (self.slug, name)
+        ).fetchone()
         if not row or not row["archived"]:
             return p
         try:
@@ -238,8 +250,14 @@ def fetch_release(slug, client=None):
     for name in ("release.json", "staged.json"):
         j = client.get_json(f"episodes/{slug}/out/{name}")
         if j is None:
-            raise ArchiveError(f"episodes/{slug}/out/{name} is not in the archive" + (
-                ": stage puts staged.json there last; re-run `episode.py stage` for this episode" if name == "staged.json" else ""))
+            raise ArchiveError(
+                f"episodes/{slug}/out/{name} is not in the archive"
+                + (
+                    ": stage puts staged.json there last; re-run `episode.py stage` for this episode"
+                    if name == "staged.json"
+                    else ""
+                )
+            )
         d.mkdir(parents=True, exist_ok=True)
         (d / name).write_text(json.dumps(j, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return d
@@ -263,7 +281,8 @@ def snapshot(c, client=None, who="engine", log=print):
         raise ArchiveError(
             "the ledger has no episodes and no posts: refusing to snapshot, "
             "because it would overwrite the archive's good copy (and latest) "
-            "with an empty one. On a rebuilt box run `engine.py restore` first.")
+            "with an empty one. On a rebuilt box run `engine.py restore` first."
+        )
     client = client or Client()
     day = dt.datetime.now(ledger.ZONE).strftime("%Y-%m-%d")
     fd, tmp = tempfile.mkstemp(suffix=".sqlite")

@@ -258,7 +258,7 @@ def main():
         hop = SR // 100
         nn = len(audio) // hop * hop
         env = 20 * np.log10(np.sqrt((audio[:nn].reshape(-1, hop) ** 2).mean(1)) + 1e-9)
-        def level(s0, s1):
+        def level(s0, s1, env=env):  # this track's env, bound now
             a_, b_ = max(0, int(s0 * 100) - 5), min(len(env), int(s1 * 100) + 5)
             return float(env[a_:b_].max()) if b_ > a_ else -99.0
 

@@ -48,10 +48,30 @@ import numpy as np
 import soundfile as sf
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import (CUES, RATE, ROOT, cap_first, caption_cues, cut_with_crossfades, die,  # noqa: E402
-                   ep_dir, hms, level_to, load_json, map_words, measure, need, normalise,
-                   run, save_json, show_name, speech_intervals, tidy_words, video_codec,
-                   write_srt)
+from eplib import (  # noqa: E402
+    CUES,
+    RATE,
+    ROOT,
+    cap_first,
+    caption_cues,
+    cut_with_crossfades,
+    die,
+    ep_dir,
+    hms,
+    level_to,
+    load_json,
+    map_words,
+    measure,
+    need,
+    normalise,
+    run,
+    save_json,
+    show_name,
+    speech_intervals,
+    tidy_words,
+    video_codec,
+    write_srt,
+)
 
 CUE = {"sting": "01-sting.wav", "bed": "bed-loop.wav", "button": "04-button.wav",
        "outro": "02-outro.wav"}
