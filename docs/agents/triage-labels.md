@@ -12,4 +12,6 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
+One label of our own, outside the skills' vocabulary: `frozen` means kept on purpose but not being worked (no current need; thaw when there is one). A frozen issue stays in Backlog and carries no `ready-for-*` label, so nothing picks it up.
+
 Edit the right-hand column to match whatever vocabulary you actually use.
