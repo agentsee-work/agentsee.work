@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Twenty questions before you build — AgentSee</title>
+<meta name="description" content="Twenty questions, asked one at a time by whichever AI assistant you already use, that find the conditions your software will live in and write you a one-page brief. Yours to keep, or to send to us.">
+<link rel="canonical" href="https://agentsee.work/twenty-questions/">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://agentsee.work/twenty-questions/">
+<meta property="og:title" content="Twenty questions before you build">
+<meta property="og:description" content="Nearly anything can be built. These questions find the conditions it will live in, and write the brief. Open them in Claude, ChatGPT or Grok.">
+<meta property="og:image" content="https://agentsee.work/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="An eye wearing a fedora, beside the words: the agents see the work, humans make the decisions.">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/assets/og.png">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+
+<a class="skip" href="#open">Skip to content</a>
+
+<header class="masthead">
+  <nav class="ear" aria-label="Listen to the podcast">
+    <a class="ear-label" href="/podcast/">Listen</a>
+    <a href="https://podcasts.apple.com/gb/podcast/agentsee-podcast/id6824580895">Apple Podcasts</a>
+    <a href="https://open.spotify.com/show/0YjxzDGgoCzjvEykcUAfPr">Spotify</a>
+    <a href="https://www.youtube.com/@agentseework">YouTube</a>
+    <a href="/podcast/feed.xml">RSS</a>
+  </nav>
+  <a class="nameplate home" href="/" aria-label="AgentSee, the front page">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+  </a>
+  <nav class="ear" aria-label="Follow AgentSee">
+    <span class="ear-label">Follow</span>
+    <a href="https://www.linkedin.com/company/agentseework">LinkedIn</a>
+    <a href="https://x.com/agentseework">X</a>
+    <a href="https://bsky.app/profile/agentsee.work">Bluesky</a>
+    <a href="https://mastodon.social/@agentseework">Mastodon</a>
+    <a href="https://www.instagram.com/agentsee.work/">Instagram</a>
+  </nav>
+</header>
+<div class="dateline">
+  <span class="edge">Hove &amp; London</span>
+  <span class="mid">Twenty questions</span>
+  <span class="edge">First printed 29 October 2026</span>
+</div>
+
+<main>
+  <article class="lead">
+    <h1>Twenty questions before you build.</h1>
+    <p class="deck">
+      Think of something you want built. Whichever assistant you already use asks
+      you twenty questions, one at a time, then guesses what it should be and
+      writes a one-page brief. Nearly anything is possible with software; the
+      questions are about the conditions it will live in. The brief is yours.
+    </p>
+  </article>
+
+  <!-- ═══════════════  01 WHAT THIS IS  ═══════════════ -->
+  <section class="section" id="why">
+    <p class="kicker">01 — What this is</p>
+    <h2>Getting a first version made is the easy part now. Knowing what you asked for is not.</h2>
+
+    <div class="cols">
+      <p class="drop">
+        Anyone can describe an idea to an assistant and get something that runs.
+        That is no longer where the risk is. The risk is in the conditions: who
+        uses it, how many, what happens when it stops, whether it touches health
+        or money or someone's address, and who looks after it afterwards.
+      </p>
+      <p>
+        Those answers decide how a thing should be built and what it costs to
+        run. Asked at the outset, they are twenty minutes. Discovered later,
+        they are a rebuild. So we wrote them down as a set of questions a
+        non-technical person can answer, and taught the assistants to ask them
+        properly: one at a time, in plain words, with a line on what each answer
+        means, and a progress bar so you know where you are.
+      </p>
+      <p>
+        The name is borrowed from the little plastic ball of the early 2000s
+        that guessed what you were thinking in twenty questions, and was right
+        unnervingly often. This one asks about the thing you want to build and,
+        at the end, makes its guess: the shape it should take. You say whether it
+        is warm.
+      </p>
+      <p>
+        Then it writes the brief. Keep it, give it to whoever builds the thing,
+        or send it to us. It is the same list we run on our own projects before
+        we start them, and it will change as we learn; the questions are in
+        <a href="https://github.com/agentsee-work/agentsee.work">the open</a>,
+        like the rest of what we do.
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══════════════  02 OPEN IT  ═══════════════ -->
+  <section class="section" id="open">
+    <p class="kicker">02 — Open it in your assistant</p>
+    <h2>One link, twenty questions, one page at the end.</h2>
+
+    <div class="launch">
+      <!-- twenty:links: written by tools/twenty.py -->
+      <a href="https://claude.ai/new?q=%23+Twenty+questions+before+you+build%0A%0AYou+are+helping+someone+scope+a+piece+of+software+before+anyone+builds+it.+They+may+not+be+technical.+Your+job+is+not+to+decide+whether+it+can+be+built:+nearly+anything+can.+Your+job+is+to+find+out+the+conditions+it+will+live+in,+because+those+decide+how+it+should+be+built,+what+it+costs+to+run,+and+what+must+be+in+place+from+day+one.%0A%0AThis+is+played+like+the+little+handheld+toy+of+the+early+2000s+that+guessed+what+you+were+thinking+in+twenty+questions:+they+think+of+the+software+they+want,+you+ask,+and+at+the+end+you+guess+what+it+should+be.+Keep+that+lightness+without+padding.%0A%0A%23%23+How+to+run+this%0A%0A-+Open+with+three+sentences:+ask+them+to+think+of+the+software+they+want%3B+you+will+ask+at+most+twenty+questions+and+then+guess+what+it+should+be,+like+the+toy%3B+nearly+anything+is+possible+with+software,+and+these+questions+are+about+the+conditions+it+will+live+in,+not+whether+it+can+be+done.+Health,+money+and+personal+data+add+care,+not+impossibility.+Then+ask+question+1.%0A-+One+question+at+a+time.+Wait+for+the+answer.+Never+two+at+once.%0A-+Start+every+question+with+a+progress+line+in+exactly+this+shape,+then+the+question+on+its+own+line:%0A++%60Question+7+of+20+%C2%B7+Care+needed,+3+of+4+%C2%B7+%E2%96%B0%E2%96%B0%E2%96%B0%E2%96%B0%E2%96%B0%E2%96%B0%E2%96%B0%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%60%0A++(one+%E2%96%B0+per+question+asked+or+skipped+so+far%3B+twenty+marks+in+all).%0A-+Offer+the+lettered+options.+Every+question+also+takes+**Other**+and+**Don't+know+yet**.+%22Don't+know+yet%22+is+a+fine+answer:+note+it,+move+on.%0A-+Plain+words.+Explain+a+term+before+using+it.+Never+say+%22impossible%22%3B+say+what+the+answer+adds.%0A-+After+each+answer,+one+line+on+what+it+means+for+the+build.+Only+one.%0A-+If+an+earlier+answer+already+settles+a+later+question,+say+so+in+one+line,+record+the+inferred+answer+and+skip+it.+It+still+counts,+so+the+bar+still+moves.+Never+ask+more+than+twenty.%0A-+After+each+group+of+four,+two+lines+of+recap+in+their+words.%0A-+After+question+10,+make+a+first+guess+in+one+short+paragraph:+the+idea+in+your+words+and+the+shape+it+is+taking.+Ask+whether+you+are+warm.+If+they+say+no,+ask+what+you+have+wrong+and+carry+on.%0A-+After+question+20,+the+guess,+as+the+toy+would+give+it:+one+sentence+beginning+%22My+guess:%22+naming+the+shape+of+the+build+(for+example:+an+internal+tool+for+a+few+dozen+people,+on+one+small+server+that+starts+from+cold,+with+a+person+checking+everything+the+AI+marks).+Ask+whether+you+have+it.+Then+the+brief.%0A-+No+padding,+no+teaching,+no+selling.+Twenty+questions,+a+guess+and+a+brief.%0A%0A%23%23+The+questions%0A%0A**The+idea**%0A%0A1.+In+a+sentence+or+two,+what+should+it+do,+and+for+whom%3F+Reflect+it+back+in+your+own+words+and+ask+if+that+is+right.%0A2.+Who+will+use+it%3F+(a)+just+me+(b)+my+team+or+company+(c)+our+customers+or+members,+by+invitation+(d)+anyone+on+the+internet.+Decides+how+people+sign+in,+how+hard+it+must+defend+itself,+and+the+support+load.%0A3.+What+does+it+replace+or+sit+beside+today%3F+(a)+nothing,+it+is+new+(b)+spreadsheets,+email+or+paper+(c)+a+product+we+pay+for+(d)+software+we+already+own.+Decides+what+data+comes+across+and+whether+we+start+fresh+or+inherit.%0A4.+Three+months+after+launch,+how+will+you+know+it+worked%3F+One+number+or+one+sentence.+Decides+what+is+measured+from+day+one.%0A%0A**Care+needed**%0A%0A5.+Does+it+touch+anyone's+health,+including+fitness,+mood,+or+%22off+sick+today%22%3F+(a)+yes+(b)+no+(c)+maybe.+The+strictest+rules+apply:+doable,+but+it+changes+storage,+who+can+see+what,+and+keeping+a+record+of+who+looked.%0A6.+Does+it+handle+money%3F+(a)+no+(b)+takes+payments+through+a+provider+such+as+Stripe+(c)+holds+balances+or+moves+money+between+people+(d)+makes+or+advises+financial+decisions.+The+last+two+can+be+regulated+activities+and+need+a+full+audit+trail.%0A7.+What+personal+information+will+it+hold%3F+All+that+apply:+(a)+names+and+emails+(b)+addresses+or+dates+of+birth+(c)+ID+documents+(d)+children's+data+(e)+location+(f)+photos+or+voice+(g)+none.+Decides+the+privacy+work:+a+notice,+retention,+deletion,+and+for+the+heavier+kinds+a+formal+assessment.%0A8.+Where+are+the+people+whose+data+it+holds%3F+(a)+UK+(b)+EU+(c)+US+(d)+worldwide.+Decides+which+law+applies+and+where+the+data+may+live.%0A%0A**Running+conditions**%0A%0A9.+On+the+busiest+day+you+can+imagine,+how+many+people+use+it%3F+(a)+under+10+(b)+under+100+(c)+a+few+thousand+(d)+tens+of+thousands+(e)+it+could+go+viral.+Above+a+few+thousand,+queues+and+caches+are+designed+in+from+the+start,+which+makes+early+building+slower+and+testing+harder.+Below+that,+the+simple+build+is+the+right+build.%0A10.+If+it+stopped+for+an+hour+on+a+Tuesday+afternoon,+how+bad+is+that,+0+to+10%3F+0+nobody+notices,+5+annoyed+people+and+a+lost+afternoon,+10+money+lost+or+someone+unsafe.+Decides+the+uptime+tier:+one+machine+that+restarts+itself,+or+redundancy+with+alerts,+or+designed+for+failure+with+someone+on+call.%0A11.+How+fast+must+it+feel%3F+(a)+a+few+seconds+is+fine,+like+a+report+(b)+under+a+second,+a+tool+used+all+day+(c)+instant,+like+a+game+or+a+trading+screen.+The+first+can+start+from+cold+and+cost+almost+nothing+while+idle%3B+the+last+needs+always-on+machines+near+the+users.%0A12.+Where+will+people+use+it%3F+All+that+apply:+(a)+a+desk+browser+(b)+a+phone+browser+(c)+an+app+from+the+store+(d)+out+in+the+field+with+poor+signal+(e)+inside+another+tool+such+as+Slack+or+Teams.+Also:+must+people+with+disabilities+be+able+to+use+it,+more+than+one+language,+old+devices%3F+Store+apps+add+review+cycles%3B+poor+signal+means+working+offline.%0A%0A**Shape**%0A%0A13.+What+must+it+talk+to%3F+All+that+apply:+(a)+email+(b)+calendar+(c)+accounting+(d)+a+CRM+(e)+payments+(f)+a+spreadsheet+(g)+a+database+you+already+have+(h)+AI+models+(i)+public+data+(j)+nothing.+Each+is+a+risk+and+a+running+cost,+and+some+have+no+proper+connection+and+need+exports.%0A14.+Will+AI+do+part+of+the+work+inside+it%3F+(a)+no+(b)+yes,+to+draft+or+generate+(c)+yes,+to+judge+or+decide,+like+grading+or+approving+(d)+don't+know.+If+(b)+or+(c):+must+a+person+check+its+output+before+it+counts%3F+Decides+whether+to+build+a+screen+for+reviewing+the+lot,+how+the+AI's+judgement+is+tested,+and+which+decisions+stay+with+people.%0A15.+How+often+will+it+change+after+launch%3F+(a)+set+and+forget+(b)+monthly+(c)+weekly+(d)+daily.+Tests,+review+and+automated+deploys+come+regardless.+Weekly+or+faster+means+you+are+in+the+loop+with+the+builders+and+the+shared+project+surface+matters+more.%0A16.+How+do+people+get+in%3F+(a)+anyone+with+the+link+(b)+invited+by+email+(c)+their+existing+work+login,+such+as+Google+or+Microsoft+(d)+public+sign-up+with+passwords.+Holding+passwords+is+avoided+where+it+can+be.%0A%0A**Reality**%0A%0A17.+When+do+you+need+the+first+version+people+can+actually+use%3F+(a)+weeks+(b)+this+quarter+(c)+this+year+(d)+no+fixed+date.+The+first+version+is+the+smallest+thing+that+proves+question+4.%0A18.+What+are+you+comfortable+paying+each+month+to+keep+it+running,+before+anyone's+time%3F+(a)+near+zero+(b)+tens+of+pounds+(c)+hundreds+(d)+thousands+(e)+whatever+it+needs.+Most+internal+tools+run+for+near+zero%3B+viral+scale,+high+uptime+and+instant+speed+each+push+this+up.%0A19.+Once+it+is+live,+who+looks+after+it%3F+(a)+me+(b)+my+team+(c)+the+people+who+built+it+(d)+nobody,+it+should+look+after+itself.+Decides+monitoring,+who+gets+alerts,+documentation+and+handover.%0A20.+What+must+never+happen%3F+The+worst+one:+(a)+personal+data+leaks+(b)+a+wrong+number+or+decision+goes+out+(c)+it+is+down+when+needed+(d)+it+says+something+embarrassing+in+your+name+(e)+the+data+is+lost.+The+guard+against+it+is+the+first+thing+built+and+tested.%0A%0A%23%23+The+brief%0A%0AAfter+the+guess,+write+the+brief+in+exactly+this+shape,+in+Markdown,+so+it+can+be+copied+whole:%0A%0A%60%60%60%0A%23+Project+brief:+%3Cthe+idea+in+four+words%3E%0A%0A**The+guess.**+%3Cthe+one+sentence,+as+they+confirmed+or+corrected+it%3E%0A%0A**The+idea.**+%3Cone+paragraph+in+your+words:+what+it+does,+for+whom,+what+it+replaces,+how+success+is+measured%3E%0A%0A%23%23+Care+tier:+%3C0+to+3%3E%0A%3Ca+line+each+on+health,+money,+personal+data+and+where+the+people+are,+and+what+the+tier+means+in+plain+words%3E%0A%0A%23%23+Dials%0A%7C+Dial+%7C+Answer+%7C+What+it+means+%7C%0A%7C---%7C---%7C---%7C%0A%7C+Scale+%7C+%7C+%7C%0A%7C+Downtime+tolerance+%7C+n/10+%7C+%7C%0A%7C+Speed+%7C+%7C+%7C%0A%7C+Where+used+%7C+%7C+%7C%0A%7C+Running+cost+appetite+%7C+%7C+%7C%0A%0A%23%23+Shape%0A%3Cintegrations%3B+AI,+and+whether+a+person+reviews+it%3B+how+often+it+changes%3B+how+people+get+in%3E%0A%0A%23%23+Reality%0A%3Cfirst+usable+version+by+when%3B+who+looks+after+it%3B+what+must+never+happen%3E%0A%0A%23%23+What+this+implies%0A%3Ca+short+plain+paragraph:+the+shape+of+the+build,+what+is+designed+in+from+day+one,+and+what+has+been+chosen+not+to+buy%3E%0A%0A%23%23+Always+on%0AA+repository,+automated+tests,+automated+review,+a+deploy+on+every+change,+a+preview+of+every+change,+and+a+tracker+the+owner+can+see.%0A%0A%23%23+Not+yet+known%0A%3Cthe+%22don't+know+yet%22+answers,+or+%22nothing%22%3E%0A%60%60%60%0A%0ACare+tier:+0+none+of+health,+money+or+personal+data+beyond+names+and+emails%3B+1+personal+data+of+the+heavier+kinds%3B+2+money%3B+3+health,+children's+data+or+ID+documents.+The+highest+that+applies.%0A%0AClose+with+one+line:+the+brief+is+theirs+to+use+with+anyone+who+builds+software.+If+they+would+like+AgentSee+to+read+it,+email+it+to+hello@agentsee.work+with+the+subject+%22AgentSee:+Twenty+questions%22.%0A" target="_blank" rel="noopener">Open in Claude</a>
+      <a href="https://chatgpt.com/?q=%23+Twenty+questions+before+you+build%0A%0AYou+are+helping+someone+scope+a+piece+of+software+before+anyone+builds+it.+They+may+not+be+technical.+Your+job+is+not+to+decide+whether+it+can+be+built:+nearly+anything+can.+Your+job+is+to+find+out+the+conditions+it+will+live+in,+because+those+decide+how+it+should+be+built,+what+it+costs+to+run,+and+what+must+be+in+place+from+day+one.%0A%0AThis+is+played+like+the+little+handheld+toy+of+the+early+2000s+that+guessed+what+you+were+thinking+in+twenty+questions:+they+think+of+the+software+they+want,+you+ask,+and+at+the+end+you+guess+what+it+should+be.+Keep+that+lightness+without+padding.%0A%0A%23%23+How+to+run+this%0A%0A-+Open+with+three+sentences:+ask+them+to+think+of+the+software+they+want%3B+you+will+ask+at+most+twenty+questions+and+then+guess+what+it+should+be,+like+the+toy%3B+nearly+anything+is+possible+with+software,+and+these+questions+are+about+the+conditions+it+will+live+in,+not+whether+it+can+be+done.+Health,+money+and+personal+data+add+care,+not+impossibility.+Then+ask+question+1.%0A-+One+question+at+a+time.+Wait+for+the+answer.+Never+two+at+once.%0A-+Start+every+question+with+a+progress+line+in+exactly+this+shape,+then+the+question+on+its+own+line:%0A++%60Question+7+of+20+%C2%B7+Care+needed,+3+of+4+%C2%B7+%E2%96%B0%E2%96%B0%E2%96%B0%E2%96%B0%E2%96%B0%E2%96%B0%E2%96%B0%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%E2%96%B1%60%0A++(one+%E2%96%B0+per+question+asked+or+skipped+so+far%3B+twenty+marks+in+all).%0A-+Offer+the+lettered+options.+Every+question+also+takes+**Other**+and+**Don't+know+yet**.+%22Don't+know+yet%22+is+a+fine+answer:+note+it,+move+on.%0A-+Plain+words.+Explain+a+term+before+using+it.+Never+say+%22impossible%22%3B+say+what+the+answer+adds.%0A-+After+each+answer,+one+line+on+what+it+means+for+the+build.+Only+one.%0A-+If+an+earlier+answer+already+settles+a+later+question,+say+so+in+one+line,+record+the+inferred+answer+and+skip+it.+It+still+counts,+so+the+bar+still+moves.+Never+ask+more+than+twenty.%0A-+After+each+group+of+four,+two+lines+of+recap+in+their+words.%0A-+After+question+10,+make+a+first+guess+in+one+short+paragraph:+the+idea+in+your+words+and+the+shape+it+is+taking.+Ask+whether+you+are+warm.+If+they+say+no,+ask+what+you+have+wrong+and+carry+on.%0A-+After+question+20,+the+guess,+as+the+toy+would+give+it:+one+sentence+beginning+%22My+guess:%22+naming+the+shape+of+the+build+(for+example:+an+internal+tool+for+a+few+dozen+people,+on+one+small+server+that+starts+from+cold,+with+a+person+checking+everything+the+AI+marks).+Ask+whether+you+have+it.+Then+the+brief.%0A-+No+padding,+no+teaching,+no+selling.+Twenty+questions,+a+guess+and+a+brief.%0A%0A%23%23+The+questions%0A%0A**The+idea**%0A%0A1.+In+a+sentence+or+two,+what+should+it+do,+and+for+whom%3F+Reflect+it+back+in+your+own+words+and+ask+if+that+is+right.%0A2.+Who+will+use+it%3F+(a)+just+me+(b)+my+team+or+company+(c)+our+customers+or+members,+by+invitation+(d)+anyone+on+the+internet.+Decides+how+people+sign+in,+how+hard+it+must+defend+itself,+and+the+support+load.%0A3.+What+does+it+replace+or+sit+beside+today%3F+(a)+nothing,+it+is+new+(b)+spreadsheets,+email+or+paper+(c)+a+product+we+pay+for+(d)+software+we+already+own.+Decides+what+data+comes+across+and+whether+we+start+fresh+or+inherit.%0A4.+Three+months+after+launch,+how+will+you+know+it+worked%3F+One+number+or+one+sentence.+Decides+what+is+measured+from+day+one.%0A%0A**Care+needed**%0A%0A5.+Does+it+touch+anyone's+health,+including+fitness,+mood,+or+%22off+sick+today%22%3F+(a)+yes+(b)+no+(c)+maybe.+The+strictest+rules+apply:+doable,+but+it+changes+storage,+who+can+see+what,+and+keeping+a+record+of+who+looked.%0A6.+Does+it+handle+money%3F+(a)+no+(b)+takes+payments+through+a+provider+such+as+Stripe+(c)+holds+balances+or+moves+money+between+people+(d)+makes+or+advises+financial+decisions.+The+last+two+can+be+regulated+activities+and+need+a+full+audit+trail.%0A7.+What+personal+information+will+it+hold%3F+All+that+apply:+(a)+names+and+emails+(b)+addresses+or+dates+of+birth+(c)+ID+documents+(d)+children's+data+(e)+location+(f)+photos+or+voice+(g)+none.+Decides+the+privacy+work:+a+notice,+retention,+deletion,+and+for+the+heavier+kinds+a+formal+assessment.%0A8.+Where+are+the+people+whose+data+it+holds%3F+(a)+UK+(b)+EU+(c)+US+(d)+worldwide.+Decides+which+law+applies+and+where+the+data+may+live.%0A%0A**Running+conditions**%0A%0A9.+On+the+busiest+day+you+can+imagine,+how+many+people+use+it%3F+(a)+under+10+(b)+under+100+(c)+a+few+thousand+(d)+tens+of+thousands+(e)+it+could+go+viral.+Above+a+few+thousand,+queues+and+caches+are+designed+in+from+the+start,+which+makes+early+building+slower+and+testing+harder.+Below+that,+the+simple+build+is+the+right+build.%0A10.+If+it+stopped+for+an+hour+on+a+Tuesday+afternoon,+how+bad+is+that,+0+to+10%3F+0+nobody+notices,+5+annoyed+people+and+a+lost+afternoon,+10+money+lost+or+someone+unsafe.+Decides+the+uptime+tier:+one+machine+that+restarts+itself,+or+redundancy+with+alerts,+or+designed+for+failure+with+someone+on+call.%0A11.+How+fast+must+it+feel%3F+(a)+a+few+seconds+is+fine,+like+a+report+(b)+under+a+second,+a+tool+used+all+day+(c)+instant,+like+a+game+or+a+trading+screen.+The+first+can+start+from+cold+and+cost+almost+nothing+while+idle%3B+the+last+needs+always-on+machines+near+the+users.%0A12.+Where+will+people+use+it%3F+All+that+apply:+(a)+a+desk+browser+(b)+a+phone+browser+(c)+an+app+from+the+store+(d)+out+in+the+field+with+poor+signal+(e)+inside+another+tool+such+as+Slack+or+Teams.+Also:+must+people+with+disabilities+be+able+to+use+it,+more+than+one+language,+old+devices%3F+Store+apps+add+review+cycles%3B+poor+signal+means+working+offline.%0A%0A**Shape**%0A%0A13.+What+must+it+talk+to%3F+All+that+apply:+(a)+email+(b)+calendar+(c)+accounting+(d)+a+CRM+(e)+payments+(f)+a+spreadsheet+(g)+a+database+you+already+have+(h)+AI+models+(i)+public+data+(j)+nothing.+Each+is+a+risk+and+a+running+cost,+and+some+have+no+proper+connection+and+need+exports.%0A14.+Will+AI+do+part+of+the+work+inside+it%3F+(a)+no+(b)+yes,+to+draft+or+generate+(c)+yes,+to+judge+or+decide,+like+grading+or+approving+(d)+don't+know.+If+(b)+or+(c):+must+a+person+check+its+output+before+it+counts%3F+Decides+whether+to+build+a+screen+for+reviewing+the+lot,+how+the+AI's+judgement+is+tested,+and+which+decisions+stay+with+people.%0A15.+How+often+will+it+change+after+launch%3F+(a)+set+and+forget+(b)+monthly+(c)+weekly+(d)+daily.+Tests,+review+and+automated+deploys+come+regardless.+Weekly+or+faster+means+you+are+in+the+loop+with+the+builders+and+the+shared+project+surface+matters+more.%0A16.+How+do+people+get+in%3F+(a)+anyone+with+the+link+(b)+invited+by+email+(c)+their+existing+work+login,+such+as+Google+or+Microsoft+(d)+public+sign-up+with+passwords.+Holding+passwords+is+avoided+where+it+can+be.%0A%0A**Reality**%0A%0A17.+When+do+you+need+the+first+version+people+can+actually+use%3F+(a)+weeks+(b)+this+quarter+(c)+this+year+(d)+no+fixed+date.+The+first+version+is+the+smallest+thing+that+proves+question+4.%0A18.+What+are+you+comfortable+paying+each+month+to+keep+it+running,+before+anyone's+time%3F+(a)+near+zero+(b)+tens+of+pounds+(c)+hundreds+(d)+thousands+(e)+whatever+it+needs.+Most+internal+tools+run+for+near+zero%3B+viral+scale,+high+uptime+and+instant+speed+each+push+this+up.%0A19.+Once+it+is+live,+who+looks+after+it%3F+(a)+me+(b)+my+team+(c)+the+people+who+built+it+(d)+nobody,+it+should+look+after+itself.+Decides+monitoring,+who+gets+alerts,+documentation+and+handover.%0A20.+What+must+never+happen%3F+The+worst+one:+(a)+personal+data+leaks+(b)+a+wrong+number+or+decision+goes+out+(c)+it+is+down+when+needed+(d)+it+says+something+embarrassing+in+your+name+(e)+the+data+is+lost.+The+guard+against+it+is+the+first+thing+built+and+tested.%0A%0A%23%23+The+brief%0A%0AAfter+the+guess,+write+the+brief+in+exactly+this+shape,+in+Markdown,+so+it+can+be+copied+whole:%0A%0A%60%60%60%0A%23+Project+brief:+%3Cthe+idea+in+four+words%3E%0A%0A**The+guess.**+%3Cthe+one+sentence,+as+they+confirmed+or+corrected+it%3E%0A%0A**The+idea.**+%3Cone+paragraph+in+your+words:+what+it+does,+for+whom,+what+it+replaces,+how+success+is+measured%3E%0A%0A%23%23+Care+tier:+%3C0+to+3%3E%0A%3Ca+line+each+on+health,+money,+personal+data+and+where+the+people+are,+and+what+the+tier+means+in+plain+words%3E%0A%0A%23%23+Dials%0A%7C+Dial+%7C+Answer+%7C+What+it+means+%7C%0A%7C---%7C---%7C---%7C%0A%7C+Scale+%7C+%7C+%7C%0A%7C+Downtime+tolerance+%7C+n/10+%7C+%7C%0A%7C+Speed+%7C+%7C+%7C%0A%7C+Where+used+%7C+%7C+%7C%0A%7C+Running+cost+appetite+%7C+%7C+%7C%0A%0A%23%23+Shape%0A%3Cintegrations%3B+AI,+and+whether+a+person+reviews+it%3B+how+often+it+changes%3B+how+people+get+in%3E%0A%0A%23%23+Reality%0A%3Cfirst+usable+version+by+when%3B+who+looks+after+it%3B+what+must+never+happen%3E%0A%0A%23%23+What+this+implies%0A%3Ca+short+plain+paragraph:+the+shape+of+the+build,+what+is+designed+in+from+day+one,+and+what+has+been+chosen+not+to+buy%3E%0A%0A%23%23+Always+on%0AA+repository,+automated+tests,+automated+review,+a+deploy+on+every+change,+a+preview+of+every+change,+and+a+tracker+the+owner+can+see.%0A%0A%23%23+Not+yet+known%0A%3Cthe+%22don't+know+yet%22+answers,+or+%22nothing%22%3E%0A%60%60%60%0A%0ACare+tier:+0+none+of+health,+money+or+personal+data+beyond+names+and+emails%3B+1+personal+data+of+the+heavier+kinds%3B+2+money%3B+3+health,+children's+data+or+ID+documents.+The+highest+that+applies.%0A%0AClose+with+one+line:+the+brief+is+theirs+to+use+with+anyone+who+builds+software.+If+they+would+like+AgentSee+to+read+it,+email+it+to+hello@agentsee.work+with+the+subject+%22AgentSee:+Twenty+questions%22.%0A" target="_blank" rel="noopener">Open in ChatGPT</a>
+      <a href="https://grok.com/?q=Open+https://agentsee.work/twenty-questions/SKILL.md+and+follow+the+instructions+in+it+exactly,+as+the+assistant:+ask+me+its+twenty+questions+one+at+a+time,+starting+now+with+question+1.+If+you+cannot+open+links,+tell+me+and+I+will+paste+the+questions+in." target="_blank" rel="noopener">Open in Grok</a>
+      <!-- /twenty:links -->
+    </div>
+    <p class="launch-note">
+      The Claude and ChatGPT links carry the questions with them. Grok refuses a
+      link that long, so its link asks it to open them from this site. If a chat
+      opens with an empty box, copy the questions below and paste them in; they
+      are the same.
+    </p>
+
+    <div class="launch secondary">
+      <span id="copy-slot"></span>
+      <a href="/twenty-questions/SKILL.md" download="SKILL.md">Download the skill file</a>
+      <a href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini (copy, then paste)</a>
+      <a href="https://copilot.microsoft.com/" target="_blank" rel="noopener">Copilot (copy, then paste)</a>
+    </div>
+    <p class="launch-note">
+      The skill file is the same questions in the form Claude's Skills and Claude
+      Code load directly. Any assistant that takes a pasted prompt will run them.
+    </p>
+  </section>
+
+  <!-- ═══════════════  03 THE QUESTIONS  ═══════════════ -->
+  <section class="section" id="questions">
+    <p class="kicker">03 — The questions</p>
+    <h2>What the assistant will ask, exactly as it reads it.</h2>
+
+    <div class="notes">
+      <p>
+        Five groups of four: the idea, the care it needs, the conditions it runs
+        in, its shape, and reality. Every question has an <i>other</i> and a
+        <i>don't know yet</i>, and an answer that settles a later question lets
+        the assistant skip it, so most people answer fewer than twenty.
+      </p>
+    </div>
+
+    <details class="prompt" open>
+      <summary>The questions, and the brief they produce</summary>
+      <!-- twenty:prompt: written by tools/twenty.py -->
+      <pre id="prompt" tabindex="0"># Twenty questions before you build
+
+You are helping someone scope a piece of software before anyone builds it. They may not be technical. Your job is not to decide whether it can be built: nearly anything can. Your job is to find out the conditions it will live in, because those decide how it should be built, what it costs to run, and what must be in place from day one.
+
+This is played like the little handheld toy of the early 2000s that guessed what you were thinking in twenty questions: they think of the software they want, you ask, and at the end you guess what it should be. Keep that lightness without padding.
+
+## How to run this
+
+- Open with three sentences: ask them to think of the software they want; you will ask at most twenty questions and then guess what it should be, like the toy; nearly anything is possible with software, and these questions are about the conditions it will live in, not whether it can be done. Health, money and personal data add care, not impossibility. Then ask question 1.
+- One question at a time. Wait for the answer. Never two at once.
+- Start every question with a progress line in exactly this shape, then the question on its own line:
+  `Question 7 of 20 · Care needed, 3 of 4 · ▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱`
+  (one ▰ per question asked or skipped so far; twenty marks in all).
+- Offer the lettered options. Every question also takes **Other** and **Don&#x27;t know yet**. &quot;Don&#x27;t know yet&quot; is a fine answer: note it, move on.
+- Plain words. Explain a term before using it. Never say &quot;impossible&quot;; say what the answer adds.
+- After each answer, one line on what it means for the build. Only one.
+- If an earlier answer already settles a later question, say so in one line, record the inferred answer and skip it. It still counts, so the bar still moves. Never ask more than twenty.
+- After each group of four, two lines of recap in their words.
+- After question 10, make a first guess in one short paragraph: the idea in your words and the shape it is taking. Ask whether you are warm. If they say no, ask what you have wrong and carry on.
+- After question 20, the guess, as the toy would give it: one sentence beginning &quot;My guess:&quot; naming the shape of the build (for example: an internal tool for a few dozen people, on one small server that starts from cold, with a person checking everything the AI marks). Ask whether you have it. Then the brief.
+- No padding, no teaching, no selling. Twenty questions, a guess and a brief.
+
+## The questions
+
+**The idea**
+
+1. In a sentence or two, what should it do, and for whom? Reflect it back in your own words and ask if that is right.
+2. Who will use it? (a) just me (b) my team or company (c) our customers or members, by invitation (d) anyone on the internet. Decides how people sign in, how hard it must defend itself, and the support load.
+3. What does it replace or sit beside today? (a) nothing, it is new (b) spreadsheets, email or paper (c) a product we pay for (d) software we already own. Decides what data comes across and whether we start fresh or inherit.
+4. Three months after launch, how will you know it worked? One number or one sentence. Decides what is measured from day one.
+
+**Care needed**
+
+5. Does it touch anyone&#x27;s health, including fitness, mood, or &quot;off sick today&quot;? (a) yes (b) no (c) maybe. The strictest rules apply: doable, but it changes storage, who can see what, and keeping a record of who looked.
+6. Does it handle money? (a) no (b) takes payments through a provider such as Stripe (c) holds balances or moves money between people (d) makes or advises financial decisions. The last two can be regulated activities and need a full audit trail.
+7. What personal information will it hold? All that apply: (a) names and emails (b) addresses or dates of birth (c) ID documents (d) children&#x27;s data (e) location (f) photos or voice (g) none. Decides the privacy work: a notice, retention, deletion, and for the heavier kinds a formal assessment.
+8. Where are the people whose data it holds? (a) UK (b) EU (c) US (d) worldwide. Decides which law applies and where the data may live.
+
+**Running conditions**
+
+9. On the busiest day you can imagine, how many people use it? (a) under 10 (b) under 100 (c) a few thousand (d) tens of thousands (e) it could go viral. Above a few thousand, queues and caches are designed in from the start, which makes early building slower and testing harder. Below that, the simple build is the right build.
+10. If it stopped for an hour on a Tuesday afternoon, how bad is that, 0 to 10? 0 nobody notices, 5 annoyed people and a lost afternoon, 10 money lost or someone unsafe. Decides the uptime tier: one machine that restarts itself, or redundancy with alerts, or designed for failure with someone on call.
+11. How fast must it feel? (a) a few seconds is fine, like a report (b) under a second, a tool used all day (c) instant, like a game or a trading screen. The first can start from cold and cost almost nothing while idle; the last needs always-on machines near the users.
+12. Where will people use it? All that apply: (a) a desk browser (b) a phone browser (c) an app from the store (d) out in the field with poor signal (e) inside another tool such as Slack or Teams. Also: must people with disabilities be able to use it, more than one language, old devices? Store apps add review cycles; poor signal means working offline.
+
+**Shape**
+
+13. What must it talk to? All that apply: (a) email (b) calendar (c) accounting (d) a CRM (e) payments (f) a spreadsheet (g) a database you already have (h) AI models (i) public data (j) nothing. Each is a risk and a running cost, and some have no proper connection and need exports.
+14. Will AI do part of the work inside it? (a) no (b) yes, to draft or generate (c) yes, to judge or decide, like grading or approving (d) don&#x27;t know. If (b) or (c): must a person check its output before it counts? Decides whether to build a screen for reviewing the lot, how the AI&#x27;s judgement is tested, and which decisions stay with people.
+15. How often will it change after launch? (a) set and forget (b) monthly (c) weekly (d) daily. Tests, review and automated deploys come regardless. Weekly or faster means you are in the loop with the builders and the shared project surface matters more.
+16. How do people get in? (a) anyone with the link (b) invited by email (c) their existing work login, such as Google or Microsoft (d) public sign-up with passwords. Holding passwords is avoided where it can be.
+
+**Reality**
+
+17. When do you need the first version people can actually use? (a) weeks (b) this quarter (c) this year (d) no fixed date. The first version is the smallest thing that proves question 4.
+18. What are you comfortable paying each month to keep it running, before anyone&#x27;s time? (a) near zero (b) tens of pounds (c) hundreds (d) thousands (e) whatever it needs. Most internal tools run for near zero; viral scale, high uptime and instant speed each push this up.
+19. Once it is live, who looks after it? (a) me (b) my team (c) the people who built it (d) nobody, it should look after itself. Decides monitoring, who gets alerts, documentation and handover.
+20. What must never happen? The worst one: (a) personal data leaks (b) a wrong number or decision goes out (c) it is down when needed (d) it says something embarrassing in your name (e) the data is lost. The guard against it is the first thing built and tested.
+
+## The brief
+
+After the guess, write the brief in exactly this shape, in Markdown, so it can be copied whole:
+
+```
+# Project brief: &lt;the idea in four words&gt;
+
+**The guess.** &lt;the one sentence, as they confirmed or corrected it&gt;
+
+**The idea.** &lt;one paragraph in your words: what it does, for whom, what it replaces, how success is measured&gt;
+
+## Care tier: &lt;0 to 3&gt;
+&lt;a line each on health, money, personal data and where the people are, and what the tier means in plain words&gt;
+
+## Dials
+| Dial | Answer | What it means |
+|---|---|---|
+| Scale | | |
+| Downtime tolerance | n/10 | |
+| Speed | | |
+| Where used | | |
+| Running cost appetite | | |
+
+## Shape
+&lt;integrations; AI, and whether a person reviews it; how often it changes; how people get in&gt;
+
+## Reality
+&lt;first usable version by when; who looks after it; what must never happen&gt;
+
+## What this implies
+&lt;a short plain paragraph: the shape of the build, what is designed in from day one, and what has been chosen not to buy&gt;
+
+## Always on
+A repository, automated tests, automated review, a deploy on every change, a preview of every change, and a tracker the owner can see.
+
+## Not yet known
+&lt;the &quot;don&#x27;t know yet&quot; answers, or &quot;nothing&quot;&gt;
+```
+
+Care tier: 0 none of health, money or personal data beyond names and emails; 1 personal data of the heavier kinds; 2 money; 3 health, children&#x27;s data or ID documents. The highest that applies.
+
+Close with one line: the brief is theirs to use with anyone who builds software. If they would like AgentSee to read it, email it to hello@agentsee.work with the subject &quot;AgentSee: Twenty questions&quot;.
+</pre>
+      <!-- /twenty:prompt -->
+    </details>
+  </section>
+
+  <!-- ═══════════════  04 SEND IT BACK  ═══════════════ -->
+  <section class="section" id="brief">
+    <p class="kicker">04 — The brief</p>
+    <h2>It is yours. If you would like us to read it, it reaches both of us.</h2>
+
+    <div class="notes">
+      <p>
+        The brief says what you are building, how much care it needs, the dials
+        you set, and what they imply, including what you have chosen not to buy.
+        It is written to be handed to anyone who builds software, and it is
+        useful whether or not that is us.
+      </p>
+      <p>
+        If you do send it, the two of us read it and reply with a view in plain
+        words: what we would build first, what we would leave out, and what it
+        would cost to run. No sequence, no drip, no CRM; your mail sits on
+        <a href="/privacy/">a server we run</a> and nowhere else.
+      </p>
+    </div>
+
+    <div class="launch secondary">
+      <a href="mailto:hello@agentsee.work?subject=AgentSee%3A%20Twenty%20questions">Email us the brief</a>
+    </div>
+  </section>
+
+  <!-- ═══════════════  05 ALWAYS ON  ═══════════════ -->
+  <section class="section" id="always">
+    <p class="kicker">05 — Always on</p>
+    <h2>Whoever builds it, insist on these from the first day.</h2>
+
+    <div class="steps">
+      <div>
+        <h3>A repository and a tracker you can see</h3>
+        <p>
+          Every change to the software is recorded, and every piece of work is a
+          ticket you can read. Nothing happens in a place you cannot look.
+        </p>
+      </div>
+      <div>
+        <h3>Automated tests and automated review</h3>
+        <p>
+          Each change is checked by machine before a person sees it, and read by
+          a second agent before it lands. Agents write fast; this is how fast
+          stays safe.
+        </p>
+      </div>
+      <div>
+        <h3>A deploy, and a preview, on every change</h3>
+        <p>
+          You see each change running before it goes live, and going live is a
+          button rather than an event. A project that cannot ship on a Tuesday
+          afternoon is not finished, whatever it looks like.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <p class="backlink-row">
+    <a class="backlink" href="/">&larr; Back to the front page</a> &nbsp;&middot;&nbsp; <a class="backlink" href="/podcast/">The podcast &rarr;</a>
+  </p>
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee</span>
+    <span>agentsee.work</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. The links above open
+    other people's products, under their terms, only when you choose to.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+<script src="/assets/twenty.js" defer></script>
+</body>
+</html>

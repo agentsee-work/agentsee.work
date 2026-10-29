@@ -38,12 +38,15 @@ public/                       ← the only thing that gets deployed
   issues/04-music.html        Issue No. 4 — the theme music, and six tools wrong in silence
   issues/05-podcast.html      Issue No. 5 — the first episode cut by script, and the um that stayed
   issues/06-publishing.html   Issue No. 6 — everything after the render, and the token the vault would not take
+  twenty-questions/           the questions to answer before building, in any assistant;
+                              the page and SKILL.md are written by tools/twenty.py
   404.html                    Issue No. 404, never printed
   robots.txt / sitemap.xml    so crawlers get those, not the homepage
   apple-touch-icon.png        iOS home screen; from assets/brand/
   _headers                    Cloudflare Pages security + cache headers
   assets/styles.css           the whole stylesheet
   assets/eye.js               pointer tracking, saccades, day counter
+  assets/twenty.js            the copy button on /twenty-questions/, added only when it can work
   assets/og.png               social card, rendered from the site's own CSS
   assets/*-hartt|mahmood.jpg  portraits (see tools/portraits.py)
   assets/brand/               avatars and profile banners, not used by the page
@@ -73,6 +76,7 @@ tools/portraits.py            regenerates the portraits from source photos
 tools/handle-probe.sh         is a social handle free? calibrated, so the answer means something
 tools/banner.py               profile banners, rendered from the site's own palette
 tools/episode.py              the podcast pipeline's runner; the stages are the other tools/*.py
+tools/twenty.py               the twenty questions on the site, from .claude/skills/twenty-questions/
 workers/email-fanout/         was the hello@/show@ fan-out; now the agent-intake prototype
 ```
 
