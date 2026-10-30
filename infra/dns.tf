@@ -311,7 +311,7 @@ resource "cloudflare_dns_record" "see" {
   content = "${var.engine_tunnel_id}.cfargotunnel.com"
   ttl     = 1
   proxied = true
-  comment = "The guest's office on the podcast engine, through the same Tunnel (infra/podcast/engine.tf). Managed by OpenTofu."
+  comment = "The guest's office, through the engine's Tunnel (infra/podcast/engine.tf). Managed by OpenTofu."
 }
 
 # ─── DNSSEC ───────────────────────────────────────────────────────────────────
