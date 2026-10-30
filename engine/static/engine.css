@@ -42,7 +42,7 @@ main.engine .deck { color: var(--ink-2); max-width: 44rem; margin: 0 0 1.4rem; }
 form.block { max-width: 60rem; margin: .4rem 0 1rem; }
 form.inline { display: inline-block; margin: 0 .4rem .4rem 0; }
 .actions { display: flex; flex-wrap: wrap; gap: .2rem; align-items: center; }
-textarea, input[type=text], input[type=url], input[type=date], input[type=time], select {
+textarea, input[type=text], input[type=email], input[type=url], input[type=date], input[type=time], select {
   font: inherit; color: var(--ink); background: var(--paper-2); border: var(--hairline); border-radius: 2px; padding: .45rem .6rem; width: 100%; }
 textarea { min-height: 11rem; line-height: 1.45; }
 input[type=date], input[type=time], select { width: auto; }
