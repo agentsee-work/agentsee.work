@@ -300,6 +300,20 @@ resource "cloudflare_dns_record" "engine" {
   comment = "The podcast engine, through its Tunnel (infra/podcast/engine.tf). Managed by OpenTofu."
 }
 
+# The guest's office: the same tunnel under a second name, which the tunnel's
+# ingress routes to the same container without Access (podcast/engine.tf).
+resource "cloudflare_dns_record" "see" {
+  count = var.engine_tunnel_id == null ? 0 : 1
+
+  zone_id = var.cloudflare_zone_id
+  name    = "${var.see_subdomain}.${var.domain}"
+  type    = "CNAME"
+  content = "${var.engine_tunnel_id}.cfargotunnel.com"
+  ttl     = 1
+  proxied = true
+  comment = "The guest's office on the podcast engine, through the same Tunnel (infra/podcast/engine.tf). Managed by OpenTofu."
+}
+
 # ─── DNSSEC ───────────────────────────────────────────────────────────────────
 # Sign the zone, so a validating resolver can tell our answers from a forged
 # one. For a p=reject mail domain this is what protects the records above —

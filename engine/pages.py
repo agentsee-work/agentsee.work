@@ -10,6 +10,7 @@ import datetime as dt
 import html as _html
 import importlib.util
 import pathlib
+import re
 import urllib.parse
 
 import ledger
@@ -23,6 +24,7 @@ NAV = [
     ("/episodes", "Episodes"),
     ("/posts", "Posts"),
     ("/due", "By hand"),
+    ("/guests", "Guests"),
     ("/reach", "Reach"),
     ("/audience", "Audience"),
     ("/health", "Health"),
@@ -65,6 +67,56 @@ def page(title, body, who="", path="/", lifted=None):
 {parts["masthead"]}
 <nav class="engine-nav" aria-label="Engine">{nav}<span class="who">{esc(who)}</span></nav>
 <main id="main" class="engine">
+{body}
+</main>
+{footer}
+
+<script src="/assets/eye.js" defer></script>
+</body>
+</html>
+"""
+
+
+def see_page(title, body, lifted=None):
+    """The guest host's shell (engine/guests.py): the site's masthead and
+    footer, no engine nav and no identity line, because the person reading
+    it is the guest, and the only script is the site's own eye, which the
+    door says so.
+
+    The lifted parts are the site's, so their links go to the site, not to
+    this host; and the site's footer promises no cookies, which this host
+    cannot, so its note is replaced with the truth about the two it sets."""
+    parts = lifted or _site.lifted()
+    site = ledger.CONFIG.get("site", "https://agentsee.work").rstrip("/")
+    today = dt.datetime.now(ledger.ZONE).strftime("%-d %B %Y")
+    masthead = parts["masthead"].replace('href="/', f'href="{site}/')
+    footer = _site.footer_for(parts, "AgentSee &middot; The office", today).replace('href="/', f'href="{site}/')
+    note = (
+        '<p class="footer-note">This host, unlike the rest of agentsee.work, sets two cookies of its own, both for '
+        "the door: one that binds a code to this device for ten minutes, one that keeps you signed in for thirty days. "
+        "No trackers, no analytics, no third-party requests of any kind. The office keeps your address, when you "
+        "signed in and from what; nothing else, and nothing is shared or sold. "
+        f'The site\'s <a href="{site}/privacy/">privacy notice</a> covers the rest.</p>'
+    )
+    footer = re.sub(r'<p class="footer-note">.*?</p>', lambda m: note, footer, count=1, flags=re.S)
+    return f"""<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{esc(title)} — AgentSee</title>
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+<link rel="stylesheet" href="/engine.css">
+<link rel="stylesheet" href="/see.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+{masthead}
+<main id="main" class="engine see">
 {body}
 </main>
 {footer}

@@ -2,8 +2,11 @@
 
 The engine runs on the box `infra/` provisions, beside the mail server, as
 two containers: the engine, and `cloudflared` holding the tunnel that is the
-only way in. Cloudflare Access is the lock: a one-time code to one of the
-two addresses, then a passkey. Nothing listens on the box; nothing is in the
+only way in. Cloudflare Access is the lock on `engine.agentsee.work`: a
+one-time code to one of the two addresses, then a passkey. The same tunnel
+also carries `see.agentsee.work`, the guest's office, to the same
+container without Access; that host's lock is the engine's own code by
+email (`../guests.py`). Nothing listens on the box; nothing is in the
 security groups; there is no password of ours anywhere.
 
 ```
@@ -17,9 +20,10 @@ What is declared where:
 
 | | File | Token |
 |---|---|---|
-| Tunnel, Access application, policy, one-time-code login | `infra/podcast/engine.tf` | the podcast's |
-| The `engine.agentsee.work` CNAME to the tunnel | `infra/dns.tf` | the DNS one |
+| Tunnel, Access application, policy, one-time-code login; the guest host's ingress | `infra/podcast/engine.tf` | the podcast's |
+| The `engine.agentsee.work` and `see.agentsee.work` CNAMEs to the tunnel | `infra/dns.tf` | the DNS one |
 | The containers | this directory | none |
+| The zone's rate-limiting rule on the guest host's sign-in paths | the dashboard, by hand (AGE-115) | none |
 
 The box's own rule applies (`infra/cloud-init.yaml`, `/root/README`):
 nothing here is hand-fixed. The engine is a permanent service, so it lives
@@ -169,7 +173,18 @@ cd /opt/agentsee/engine && docker compose restart engine
 ```
 
 The code is mounted read-only; the image changes only when the interpreter
-or the op CLI should (`docker compose build`).
+or the op CLI should (`docker compose build`). When the pull adds a line to
+`engine/engine.env`, a restart is not enough: `op run` reads the file at
+container start, so it is `docker compose up -d --force-recreate engine`,
+and the vault item the new line names must exist first, or `op run`
+refuses to start and the log says which reference it could not resolve.
+
+The office's mail credential is proved once, from the box, with a message
+to one of your own addresses:
+
+```sh
+docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py mail you@example.com
+```
 
 ## Two engines at once
 

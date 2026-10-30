@@ -39,6 +39,12 @@ variable "engine_subdomain" {
   default     = "engine"
 }
 
+variable "see_subdomain" {
+  description = "Hostname of the guest's office on the engine (engine/guests.py), under the apex: the same container through the same tunnel, without Access. ../dns.tf must agree."
+  type        = string
+  default     = "see"
+}
+
 variable "zero_trust_team" {
   description = "The Zero Trust organisation's team name: <team>.cloudflareaccess.com is the login page, and cloudflared checks tokens against it. Chosen once in the dashboard; an identifier, in tfvars."
   type        = string

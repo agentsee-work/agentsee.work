@@ -32,6 +32,7 @@
 
 locals {
   engine_fqdn = "${var.engine_subdomain}.${var.domain}"
+  see_fqdn    = "${var.see_subdomain}.${var.domain}"
 }
 
 # ─── Who may come in ─────────────────────────────────────────────────────────
@@ -132,6 +133,15 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "engine" {
             aud_tag   = [cloudflare_zero_trust_access_application.engine.aud]
           }
         }
+      },
+      {
+        # The guest's office (engine/guests.py): the same container, no
+        # Access in front. The engine tells the two apart by the Host header
+        # cloudflared passes through, signs guests in with its own emailed
+        # code, and rate-limits the sign-in paths itself; the zone's one
+        # rate-limiting rule sits in front of them as well (by hand: AGE-115).
+        hostname = local.see_fqdn
+        service  = "http://engine:8877"
       },
       # Everything else the tunnel is asked for: nothing.
       { service = "http_status:404" },
