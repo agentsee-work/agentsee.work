@@ -186,6 +186,13 @@ to one of your own addresses:
 docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py mail you@example.com
 ```
 
+The Linear bridge the same way, with a comment on an issue of yours, which
+Linear should show as written by AgentSee Engine:
+
+```sh
+docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py linear AGE-106
+```
+
 ## Two engines at once
 
 Do not run a second engine against the same vault while this one is up: the

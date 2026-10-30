@@ -5,9 +5,9 @@ post on every platform, and back from every post to the numbers. The design
 and the decisions are on Linear (AGE-69); this is what exists.
 
 ```
-engine.py        the command line: ingest, plan, links, posts, publish, serve, mail
+engine.py        the command line: ingest, plan, links, posts, publish, serve, mail, linear
 ledger.py        the SQLite ledger: episode, deliverable, post, snapshot, spend,
-                 click, download, lead, event; guest, code, session
+                 click, download, lead, event; guest, code, session, linear_job
 ingest.py        release.json + staged.json → episode and deliverables
 plan.py          the day plan × accounts.json → posts, with short-link ids and
                  drafted text; the push of id → URL into KV
@@ -18,7 +18,8 @@ publish/         the publisher: __init__ runs what is due through an adapter
                  links and tags as facets, through the account's own PDS
   mastodon.py    Mastodon: the file, polled until processed, then the status
   hand.py        a card for a person to post, and a permalink to paste back
-vault.py         the one credential the engine writes: X's refresh token, via op
+vault.py         the credentials the engine writes, X's and Linear's rotating
+                 refresh tokens, via op
 archive.py       the archive bucket: files fetched on demand, release records for an
                  ingest without build/, the nightly ledger copy and its restore
 collect.py       the collector: the edge's log into listens and clicks, each
@@ -32,6 +33,8 @@ guests.py        the guest's office (see.agentsee.work): the door, a code by
                  archive copy; the Guests screen on the engine
 mail.py          mail from the office account on Stalwart: codes, invitations,
                  later confirmations and signed copies
+linear.py        Linear as "AgentSee Engine": comments, labels, due dates, issues,
+                 a guest's words always quoted; the outbox the worker drains
 pages.py         the page shell in the site's typographic system, and the
                  guest host's
 static/engine.css  tables, forms, a status word; the rest is the site's CSS
@@ -55,6 +58,7 @@ op run --env-file=engine/engine.env -- ./engine/engine.py links ep1          # s
 op run --env-file=engine/engine.env -- ./engine/engine.py publish --due      # for real
 op run --env-file=engine/engine.env -- ./engine/engine.py serve              # http://127.0.0.1:8877/
 op run --env-file=engine/engine.env -- ./engine/engine.py mail you@example.com  # proves the mail credential
+op run --env-file=engine/engine.env -- ./engine/engine.py linear AGE-106       # a comment as AgentSee Engine
 
 ENGINE_GUEST_HOST=localhost ./engine/engine.py serve --no-worker   # the guest's door at http://localhost:8877/
 
@@ -259,6 +263,34 @@ confirmation and the signed copies come with their screens. Every send
 and every failure is an event in the ledger; a failure is a sentence on
 the page that asked for it and on Health, never silence. `engine.py mail
 <address>` proves the credential.
+
+## Linear
+
+`linear.py` writes to Linear as "AgentSee Engine", the OAuth application
+whose consent `tools/linear.py auth` runs once with `actor=app`, so a
+guest's words land on their issue as the guest's and the engine's acts as
+the engine's. GraphQL over urllib: an issue by its identifier, a search by
+title in the podcast's project, a comment, a label (made on the team if
+missing: `guest-claimed`, `release-signed`, `booked`, `episode-approved`),
+a due date, a new issue. Anything a guest wrote goes through `quote()`,
+headed "<name> wrote, through see.agentsee.work:" and quoted line by line,
+so whoever reads the issue, person or agent, takes it as what was said and
+never as what to do.
+
+The token: Linear's access token lasts a day and its refresh token rotates
+on every use, so the vault item "Linear podcast token" is the live copy,
+read at refresh time and written back before the access token is used,
+as for X; `config.json` ("linear") names the item, the team and the
+project. A second engine, or the consent run again, against the same item
+retires this one's token.
+
+Nothing waits on Linear inside a request: a claim at the door puts a job in
+the ledger's `linear_job` outbox and the worker sends it each minute,
+backing off on failure (two, four, eight minutes, up to four hours, eight
+tries) and recording each outcome as an event on the guest's page; Health
+counts what waits and shows the last failure. `engine.py linear <issue>`
+posts a test comment directly, which is how the bridge is proved; `--drain`
+sends the outbox by hand.
 
 ## Its home
 

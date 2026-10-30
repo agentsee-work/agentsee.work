@@ -31,6 +31,7 @@ import collect  # noqa: E402
 import guests  # noqa: E402
 import ingest  # noqa: E402
 import ledger  # noqa: E402
+import linear  # noqa: E402
 import mail  # noqa: E402
 import plan  # noqa: E402
 import publish  # noqa: E402
@@ -679,13 +680,13 @@ class StubMastodon(Stub):
 
 
 class FakeVault:
-    """The one item the engine writes, in memory. Can refuse one write."""
+    """One item the engine writes, in memory. Can refuse one write."""
 
-    def __init__(self, value):
-        self.value, self.fail_write, self.writes = value, False, 0
+    def __init__(self, value, item="X podcast token"):
+        self.value, self.fail_write, self.writes, self.item = value, False, 0, item
 
     def read(self, vault_, item, field):
-        assert (vault_, item, field) == ("Engineering", "X podcast token", "credential")
+        assert (vault_, item, field) == ("Engineering", self.item, "credential")
         return self.value
 
     def write(self, vault_, item, field, value):
@@ -694,6 +695,109 @@ class FakeVault:
             self.fail_write = False
             raise vault.VaultError("no session")
         self.value = value
+
+
+class FakeLinear:
+    """Linear's token endpoint and its GraphQL, as far as engine/linear.py
+    uses them, in memory: a rotating refresh token, one issue, labels,
+    comments, and a failure to order."""
+
+    def __init__(self):
+        self.refresh, self.access, self.n = "lr1", None, 0
+        self.issues = {
+            "AGE-73": {
+                "id": "i-73",
+                "identifier": "AGE-73",
+                "title": "Ada Lovelace, on engines",
+                "url": "https://linear.app/agentsee/issue/AGE-73",
+                "labelIds": [],
+                "dueDate": None,
+                "team": {"id": "t-age", "key": "AGE"},
+            }
+        }
+        self.labels, self.comments, self.calls = {}, [], []
+        self.fail = None  # a status to answer the next GraphQL call with, once
+
+    def __call__(self, url, data, headers, timeout=30):
+        if url.endswith("/oauth/token"):
+            f = urllib.parse.parse_qs(data.decode())
+            if (f.get("grant_type"), f.get("client_id"), f.get("client_secret")) != (
+                ["refresh_token"],
+                ["lcid"],
+                ["lcs"],
+            ):
+                return 400, b'{"error":"invalid_request"}'
+            if f.get("refresh_token") != [self.refresh]:
+                return 400, b'{"error":"invalid_grant","error_description":"The refresh token is invalid"}'
+            self.n += 1
+            self.refresh, self.access = f"lr{self.n + 1}", f"la{self.n}"
+            tok = {
+                "access_token": self.access,
+                "token_type": "Bearer",
+                "expires_in": 86399,
+                "scope": "read write issues:create comments:create",
+                "refresh_token": self.refresh,
+            }
+            return 200, json.dumps(tok).encode()
+        if headers.get("Authorization") != f"Bearer {self.access}":
+            return 401, b'{"errors":[{"message":"Authentication required, not authenticated"}]}'
+        if self.fail:
+            status, self.fail = self.fail, None
+            return status, b'{"errors":[{"message":"Something went wrong"}]}'
+        q = json.loads(data)
+        op, v = q["operationName"], q["variables"]
+        self.calls.append(op)
+        return 200, json.dumps({"data": self.answer(op, v)}).encode()
+
+    def by_id(self, uuid):
+        return next(i for i in self.issues.values() if i["id"] == uuid)
+
+    def answer(self, op, v):
+        if op == "Me":
+            return {"viewer": {"id": "app-1", "name": "AgentSee Engine"}}
+        if op == "Issue":
+            return {
+                "issue": self.issues.get(v["id"]) or next((i for i in self.issues.values() if i["id"] == v["id"]), None)
+            }
+        if op == "Issues":
+            hits = [i for i in self.issues.values() if v["text"].lower() in i["title"].lower()]
+            return {"issues": {"nodes": [{**i, "state": {"name": "Backlog"}} for i in hits]}}
+        if op == "Team":
+            return {"teams": {"nodes": [{"id": "t-age"}] if v["key"] == "AGE" else []}}
+        if op == "Project":
+            return {"projects": {"nodes": [{"id": "p-pod"}] if v["name"] == "Podcast" else []}}
+        if op == "Labels":
+            return {
+                "issueLabels": {"nodes": [x for x in self.labels.values() if x["name"].lower() == v["name"].lower()]}
+            }
+        if op == "Label":
+            lid = f"l-{len(self.labels) + 1}"
+            self.labels[lid] = {"id": lid, "name": v["name"], "team": {"id": v["team"]}}
+            return {"issueLabelCreate": {"success": True, "issueLabel": {"id": lid}}}
+        if op == "Update":
+            i = self.by_id(v["id"])
+            i.update({k: v["input"][k] for k in ("labelIds", "dueDate") if k in v["input"]})
+            return {"issueUpdate": {"success": True, "issue": i}}
+        if op == "Comment":
+            i = self.by_id(v["issue"])
+            self.comments.append((i["identifier"], v["body"]))
+            n = len(self.comments)
+            return {"commentCreate": {"success": True, "comment": {"id": f"c-{n}", "url": f"{i['url']}#comment-{n}"}}}
+        if op == "Create":
+            n = 100 + len(self.issues)
+            i = {
+                "id": f"i-{n}",
+                "identifier": f"AGE-{n}",
+                "title": v["input"]["title"],
+                "description": v["input"].get("description"),
+                "url": f"https://linear.app/agentsee/issue/AGE-{n}",
+                "labelIds": v["input"].get("labelIds", []),
+                "dueDate": None,
+                "team": {"id": v["input"]["teamId"], "key": "AGE"},
+            }
+            self.issues[i["identifier"]] = i
+            return {"issueCreate": {"success": True, "issue": i}}
+        raise AssertionError(f"FakeLinear has no answer for {op}")
 
 
 class FakeSMTP:
@@ -1809,6 +1913,12 @@ class EngineTest(unittest.TestCase):
         g = guests.guest(c, gid)
         self.assertEqual((g["state"], g["address"]), ("claimed", "ada@example.com"))
         self.assertTrue(g["claimed_at"])
+        job = c.execute("SELECT * FROM linear_job WHERE guest=?", (gid,)).fetchone()
+        self.assertEqual(
+            (job["kind"], json.loads(job["args"])["issue"], job["done_at"]),
+            ("claimed", "AGE-73", None),
+            "the claim is for the worker to tell Linear, never this request",
+        )
         doc = json.loads(objs[f"guests/{gid}/guest.json"]["body"])
         self.assertEqual(doc["state"], "claimed")
         self.assertEqual(len(doc["sessions"]), 1)
@@ -1964,6 +2074,120 @@ class EngineTest(unittest.TestCase):
         os.environ["ENGINE_SESSION_KEY"] = "a-key-for-the-tests"
         self.assertEqual(req("GET", "/office", host=SEE, cookies=sb)[0], 200)
         srv.shutdown()
+
+    def test_19_linear(self):
+        """The bridge: the outbox the worker drains (the claim test 18 left),
+        the token refreshed and rotated into the vault, a comment, a label
+        made once, a due date, a search, an issue made; then the day's end,
+        a 401, a vault write that fails, a retired token; Health and the
+        guest's page."""
+        c = self.c()
+        fake = FakeLinear()
+        linear.post = fake
+        linear.vault = FakeVault("lr1", item="Linear podcast token")
+        linear._token.update(access=None, until=0.0, unsaved=None)
+        env = {"LINEAR_CLIENT_ID": "lcid", "LINEAR_CLIENT_SECRET": "lcs", "LINEAR_REFRESH_TOKEN": "lr1"}
+        self.assertFalse(linear.ready({}))
+        self.assertTrue(linear.ready(env))
+        gid = c.execute("SELECT id FROM guest WHERE name='Ada Lovelace'").fetchone()[0]
+
+        # ── the outbox: the claim waits for the worker; a failure backs off; then it is sent ──
+        self.assertEqual(linear.drain(c, {}), 0, "nothing without the credential")
+        jobs = c.execute("SELECT * FROM linear_job ORDER BY id").fetchall()
+        self.assertEqual(
+            [(j["kind"], j["guest"]) for j in jobs],
+            [("claimed", gid)] * 2,
+            "the claim, and the claim after the reissue",
+        )
+        c.execute("DELETE FROM linear_job WHERE id=?", (jobs[1]["id"],))
+        self.assertEqual(linear.waiting(c), 1)
+        fake.fail = 500
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 0)
+        job = c.execute("SELECT * FROM linear_job").fetchone()
+        self.assertEqual((job["kind"], job["guest"], job["tries"], job["done_at"]), ("claimed", gid, 1, None))
+        self.assertIn("Something went wrong", job["last_error"])
+        self.assertGreater(job["next_at"], ledger.now())
+        self.assertEqual(linear.drain(c, env), 0, "not before its time")
+        ev = c.execute("SELECT * FROM event WHERE what='linear:failed'").fetchone()
+        self.assertEqual((ev["guest"], json.loads(ev["detail"])["try"]), (gid, 1))
+        c.execute("UPDATE linear_job SET next_at=NULL")
+        self.assertEqual(linear.drain(c, env), 1)
+        self.assertEqual((linear.waiting(c), linear.stuck(c)), (0, 0))
+        issue, body = fake.comments[-1]
+        self.assertEqual(issue, "AGE-73")
+        self.assertRegex(
+            body, r"^Ada Lovelace claimed their invitation through see\.agentsee\.work on .+, from ada@example\.com\.$"
+        )
+        self.assertEqual([fake.labels[x]["name"] for x in fake.issues["AGE-73"]["labelIds"]], ["guest-claimed"])
+        ev = c.execute("SELECT * FROM event WHERE what='linear:done'").fetchone()
+        self.assertEqual(ev["guest"], gid)
+        self.assertEqual(json.loads(ev["detail"])["comment"], "https://linear.app/agentsee/issue/AGE-73#comment-1")
+        self.assertEqual(
+            (fake.n, linear.vault.value, linear.vault.writes), (1, "lr2", 1), "one refresh, rotated into the vault"
+        )
+
+        # ── the verbs ──
+        self.assertEqual(linear.me(env)["name"], "AgentSee Engine")
+        q = linear.quote("Ada *Lovelace*", "First line.\n\nThird line.")
+        self.assertEqual(
+            q,
+            "**Ada \\*Lovelace\\* wrote, through [see.agentsee.work](https://see.agentsee.work):**\n\n"
+            "> First line.\n> \n> Third line.",
+        )
+        self.assertEqual(linear.comment(env, "AGE-73", q)["url"], "https://linear.app/agentsee/issue/AGE-73#comment-2")
+        self.assertEqual(fake.comments[-1], ("AGE-73", q))
+        n = len(fake.calls)
+        linear.label(env, "AGE-73", "guest-claimed")
+        self.assertEqual(fake.calls[n:], ["Issue", "Labels"], "a label already there is not set again")
+        i = linear.label(env, "AGE-73", "booked")
+        self.assertEqual(sorted(fake.labels[x]["name"] for x in i["labelIds"]), ["booked", "guest-claimed"])
+        self.assertEqual(linear.due(env, "AGE-73", "2026-11-03")["dueDate"], "2026-11-03")
+        self.assertEqual([i["identifier"] for i in linear.search(env, "ada")], ["AGE-73"])
+        self.assertEqual(linear.search(env, "nobody"), [])
+        idea = linear.quote("Grace Hopper", "An idea.")
+        new = linear.create_issue(env, "Grace Hopper, on compilers", idea, labels=("guest-claimed",))
+        self.assertEqual(
+            (new["identifier"], [fake.labels[x]["name"] for x in new["labelIds"]]), ("AGE-101", ["guest-claimed"])
+        )
+        self.assertEqual(fake.issues["AGE-101"]["description"], idea)
+        with self.assertRaises(linear.LinearError) as cm:
+            linear.issue(env, "AGE-999")
+        self.assertIn("no such issue", str(cm.exception))
+        self.assertEqual(fake.n, 1, "the access token is kept for the day")
+
+        # ── the token: the day's end, a 401, a vault write that fails, a retired token ──
+        linear._token["until"] = 0
+        linear.me(env)
+        self.assertEqual((fake.n, linear.vault.value), (2, "lr3"))
+        fake.access = "revoked-elsewhere"
+        linear.me(env)
+        self.assertEqual(fake.n, 3, "a 401 is one fresh token and one more try")
+        linear.vault.fail_write = True
+        linear._token["until"] = 0
+        with self.assertRaises(linear.LinearError) as cm:
+            linear.me(env)
+        self.assertIn("vault write failed", str(cm.exception))
+        self.assertEqual(linear._token["unsaved"], "lr5")
+        linear.me(env)
+        self.assertEqual(
+            (linear._token["unsaved"], linear.vault.value), (None, "lr5"), "held, then written on the next attempt"
+        )
+        linear.vault.value = "stale"
+        linear._token["until"] = 0
+        with self.assertRaises(linear.LinearError) as cm:
+            linear.me(env)
+        self.assertIn("consent again", str(cm.exception))
+        linear.vault.value = fake.refresh
+
+        # ── what the screens say ──
+        os.environ.update(env)
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in env])
+        title, body = web.health_page(c)
+        self.assertIn("AgentSee Engine", body)
+        self.assertIn("0 waiting, 0 given up; last failure", body)
+        name, body = guests.guest_page(c, gid, "t")
+        self.assertIn("linear:done", body)
+        self.assertIn("#comment-1", body)
 
 
 if __name__ == "__main__":

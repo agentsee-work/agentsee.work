@@ -12,6 +12,13 @@
   "collect_at": "05:30",
   "datasets": {"media": "podcast_media", "links": "podcast_links"},
   "x": {"vault": "Engineering", "item": "X podcast token", "field": "credential"},
+  "linear": {
+    "vault": "Engineering",
+    "item": "Linear podcast token",
+    "field": "credential",
+    "team": "AGE",
+    "project": "Podcast"
+  },
   "mail": {
     "host": "mail.agentsee.work",
     "port": 465,

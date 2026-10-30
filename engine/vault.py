@@ -1,6 +1,7 @@
 """
-The one credential the engine writes: X's refresh token, which X replaces
-on every use (see publish/x.py). Reads and writes go through the 1Password
+The credentials the engine writes: X's refresh token, which X replaces on
+every use (see publish/x.py), and Linear's, which rotates the same way
+(see linear.py). Reads and writes go through the 1Password
 CLI in this process, which has a session whenever the engine runs under
 `op run`: a signed-in terminal today, a service account on the VPS later.
 The write is a round trip through the item's JSON on stdin, never a value
