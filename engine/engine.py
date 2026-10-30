@@ -139,6 +139,24 @@ def cmd_serve(a):
     web.serve(a.port, not a.no_worker, a.ledger, a.host)
 
 
+def cmd_mail(a):
+    import mail
+
+    c = ledger.connect(a.ledger)
+    try:
+        msgid = mail.send(
+            a.to,
+            "A test from the engine",
+            "This is the engine, saying hello. If it reached the inbox rather than the junk folder, the office can "
+            "send mail: codes, invitations, confirmations and signed copies.",
+        )
+    except mail.MailError as e:
+        mail.record(c, who(), a.to, "test", error=e)
+        sys.exit(f"error: {e}")
+    mail.record(c, who(), a.to, "test", msgid)
+    print(f"sent to {a.to}: {msgid}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--ledger", help="the SQLite file (default $ENGINE_DATA/ledger.sqlite, or build/engine/)")
@@ -191,6 +209,9 @@ def main():
     )
     p.add_argument("--no-worker", action="store_true")
     p.set_defaults(fn=cmd_serve)
+    p = sub.add_parser("mail", help="a test message from the office account, to prove the mail credential")
+    p.add_argument("to", help="an address of yours")
+    p.set_defaults(fn=cmd_mail)
     p = sub.add_parser("snapshot", help="a copy of the ledger to the archive bucket, now (the worker does it nightly)")
     p.set_defaults(fn=cmd_snapshot)
     p = sub.add_parser("restore", help="the ledger back from the archive, for a rebuilt box")

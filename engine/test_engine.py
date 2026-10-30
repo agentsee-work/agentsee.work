@@ -15,6 +15,7 @@ import json
 import os
 import pathlib
 import re
+import smtplib
 import sys
 import tempfile
 import threading
@@ -27,8 +28,10 @@ import urllib.request
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import archive  # noqa: E402
 import collect  # noqa: E402
+import guests  # noqa: E402
 import ingest  # noqa: E402
 import ledger  # noqa: E402
+import mail  # noqa: E402
 import plan  # noqa: E402
 import publish  # noqa: E402
 import vault  # noqa: E402
@@ -693,6 +696,34 @@ class FakeVault:
         self.value = value
 
 
+class FakeSMTP:
+    """smtplib.SMTP_SSL as far as engine/mail.py uses it: a context manager
+    with login and send_message. Keeps what was sent; can refuse once."""
+
+    sent, logins, opened, fail = [], [], [], None
+
+    def __init__(self, host, port, timeout=None):
+        FakeSMTP.opened.append((host, port, timeout))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def login(self, user, password):
+        FakeSMTP.logins.append((user, password))
+        if FakeSMTP.fail == "login":
+            FakeSMTP.fail = None
+            raise smtplib.SMTPAuthenticationError(535, b"5.7.8 Authentication credentials invalid")
+
+    def send_message(self, m):
+        if FakeSMTP.fail == "send":
+            FakeSMTP.fail = None
+            raise smtplib.SMTPDataError(451, b"4.3.0 try later")
+        FakeSMTP.sent.append(m)
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -751,6 +782,8 @@ class EngineTest(unittest.TestCase):
         }
         cls.data = root / "data"
         os.environ["ENGINE_DATA"] = str(cls.data)
+        mail.SMTP = FakeSMTP
+        cls.menv = {"MAIL_USER": "office", "MAIL_PASSWORD": "office-pass"}
 
     @classmethod
     def tearDownClass(cls):
@@ -1577,6 +1610,354 @@ class EngineTest(unittest.TestCase):
             plan.ACCOUNTS["bluesky"]["adapter"] = plan.ACCOUNTS["mastodon"]["adapter"] = "hand"
             for k in self.r2env:
                 os.environ.pop(k, None)
+
+    def test_17_mail(self):
+        c = self.c()
+        self.assertFalse(mail.ready({}))
+        with self.assertRaises(mail.MailError) as cm:
+            mail.send("a@example.com", "x", "y", env={})
+        self.assertIn("MAIL_USER", str(cm.exception))
+        FakeSMTP.sent.clear()
+        msgid = mail.send(
+            "Ada <ada@example.com>",
+            "The subject",
+            "The body.",
+            env=self.menv,
+            attachments=[("signed.pdf", b"%PDF-1.4 x", "application/pdf")],
+            copy=True,
+        )
+        self.assertTrue(msgid.startswith("<") and msgid.endswith("@agentsee.work>"), msgid)
+        self.assertEqual(FakeSMTP.opened[-1], ("mail.agentsee.work", 465, mail.TIMEOUT))
+        self.assertEqual(FakeSMTP.logins[-1], ("office", "office-pass"))
+        m = FakeSMTP.sent[-1]
+        self.assertEqual(m["From"], "AgentSee <office@agentsee.work>")
+        self.assertEqual(m["To"], "Ada <ada@example.com>")
+        self.assertEqual(m["Cc"], "hello@agentsee.work")
+        self.assertEqual(m["Reply-To"], "hello@agentsee.work")
+        self.assertEqual(m["Subject"], "The subject")
+        self.assertEqual(m["Message-ID"], msgid)
+        self.assertTrue(m.is_multipart())
+        text = m.get_body(("plain",)).get_content()
+        self.assertTrue(text.startswith("The body.\n\n— AgentSee\n"), text)
+        self.assertIn("A reply reaches James and Abrar", text)
+        att = [p for p in m.iter_attachments()]
+        self.assertEqual((att[0].get_filename(), att[0].get_content_type()), ("signed.pdf", "application/pdf"))
+        self.assertEqual(att[0].get_content(), b"%PDF-1.4 x")
+        # plain text only, no copy, when not asked
+        mail.send("b@example.com", "s", "t", env=self.menv)
+        m = FakeSMTP.sent[-1]
+        self.assertFalse(m.is_multipart())
+        self.assertIsNone(m["Cc"])
+        self.assertEqual(m.get_content_type(), "text/plain")
+        # a refusal is a sentence, and the record keeps both outcomes
+        FakeSMTP.fail = "login"
+        with self.assertRaises(mail.MailError) as cm:
+            mail.send("b@example.com", "s", "t", env=self.menv)
+        self.assertIn("refused the office account's password", str(cm.exception))
+        FakeSMTP.fail = "send"
+        with self.assertRaises(mail.MailError) as cm:
+            mail.send("b@example.com", "s", "t", env=self.menv)
+        self.assertIn("SMTPDataError", str(cm.exception))
+        self.assertIsNone(mail.last_failure(c))
+        mail.record(c, "tester", "b@example.com", "s", error=cm.exception)
+        mail.record(c, "tester", "b@example.com", "s", msgid="<ok@agentsee.work>")
+        last = mail.last_failure(c)
+        self.assertIn("SMTPDataError", last["detail"])
+        ev = c.execute("SELECT detail FROM event WHERE what='mail:sent' ORDER BY id DESC LIMIT 1").fetchone()
+        self.assertEqual(json.loads(ev["detail"])["id"], "<ok@agentsee.work>")
+
+    def test_18_guests(self):
+        """The door on the guest host, end to end: an invitation made on the
+        engine, a code by email, the claim, a second device, a stranger, a
+        bound invitation, withdrawal and reissue, the limits."""
+        SEE = guests.HOST
+        os.environ.update(self.menv, ENGINE_SESSION_KEY="a-key-for-the-tests")
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in (*self.menv, "ENGINE_SESSION_KEY")])
+        client = archive.Client(self.r2env)
+        patch = unittest.mock.patch.object(archive, "Client", lambda env=None: client)
+        patch.start()
+        self.addCleanup(patch.stop)
+        web.STATE["ledger"] = str(self.db)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+        c = self.c()
+
+        def req(method, path, data=None, host=None, cookies=None, headers=None):
+            hdr = dict(headers or {})
+            if host:
+                hdr["Host"] = host
+            if cookies:
+                hdr["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+            body = urllib.parse.urlencode(data).encode() if data is not None else None
+            r = urllib.request.Request(base + path, data=body, method=method, headers=hdr)
+            opener = urllib.request.build_opener(NoRedirect)
+            try:
+                with opener.open(r, timeout=10) as resp:
+                    return resp.status, resp.headers, resp.read().decode(errors="replace")
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code, e.headers, e.read().decode(errors="replace")
+
+        def jar(h):
+            out = {}
+            for sc in h.get_all("Set-Cookie") or []:
+                k, _, rest = sc.partition("=")
+                out[k] = rest.split(";")[0]
+                self.assertIn("; Secure; HttpOnly; SameSite=Lax", sc)
+            return out
+
+        def code_from_mail():
+            m = FakeSMTP.sent[-1]
+            self.assertEqual(m["Subject"], "Your code for the AgentSee office")
+            self.assertNotIn(
+                SEE, m.get_content(), "no link to the door in the code mail: the code is typed, not clicked"
+            )
+            return "".join(re.search(r"\n    (\d{3}) (\d{3})\n", m.get_content()).groups()), m["To"]
+
+        def enter(address, invite=None, cookies=None, **headers):
+            data = {"address": address}
+            if invite:
+                data["invite"] = invite
+            st, h, body = req("POST", "/enter", data, SEE, cookies, headers or None)
+            if st != 200:
+                return st, body, None, None
+            cid = re.search(r'name="id" value="([^"]+)"', body).group(1)
+            return st, body, cid, jar(h)
+
+        def come_in(cid, code, bind):
+            return req("POST", "/code", {"id": cid, "code": code}, SEE, {"see_code": bind})
+
+        # ── the engine's side: an invitation without an address ──
+        st, h, body = req("GET", "/guests")
+        self.assertEqual(st, 200)
+        self.assertIn("No guests yet", body)
+        st, h, body = req("POST", "/guests/new", {"_t": web.CSRF, "name": "", "issue": "AGE-73"})
+        self.assertEqual(st, 303)
+        self.assertIn("msg=A+guest+has+a+name", h["Location"])
+        st, h, body = req("POST", "/guests/new", {"_t": web.CSRF, "name": "Ada Lovelace", "issue": "age-73"})
+        self.assertEqual(st, 303)
+        gid = re.search(r"/guests/([0-9a-f]{8})\?msg=Invitation\+made", h["Location"]).group(1)
+        g = guests.guest(c, gid)
+        self.assertEqual((g["name"], g["address"], g["issue"], g["state"]), ("Ada Lovelace", None, "AGE-73", "invited"))
+        st, h, body = req("GET", f"/guests/{gid}")
+        self.assertEqual(st, 200)
+        self.assertIn(f"https://{SEE}/i/{g['invite']}", body)
+        self.assertIn("linear.app/agentsee/issue/AGE-73", body)
+        objs = FakeR2.state["objects"]
+        doc = json.loads(objs[f"guests/{gid}/guest.json"]["body"])
+        self.assertEqual(
+            (doc["name"], doc["state"], doc["events"][0]["what"]), ("Ada Lovelace", "invited", "guest:invited")
+        )
+        st, h, body = req("GET", "/guests")
+        self.assertIn("Ada Lovelace", body)
+
+        # ── the guest host is another site on the same port ──
+        st, h, body = req("GET", "/", host=SEE)
+        self.assertEqual(st, 200)
+        self.assertIn("Send me a code", body)
+        self.assertIn("runs a little script of ours", body)
+        self.assertNotIn('class="engine-nav"', body, "nothing of the engine's on the guest host")
+        self.assertIn("sets two cookies of its own", body, "the site's no-cookies footer is not repeated here")
+        self.assertNotIn("No trackers, no cookies", body)
+        self.assertNotIn('href="/podcast/"', body, "the lifted links go to the site, not this host")
+        self.assertIn('href="https://agentsee.work/podcast/"', body)
+        self.assertIn('href="https://agentsee.work/privacy/"', body)
+        self.assertIn("default-src 'none'", h["Content-Security-Policy"])
+        self.assertEqual(req("GET", "/episodes", host=SEE)[0], 404, "the engine's screens are not here")
+        self.assertEqual(req("GET", "/guests", host=SEE)[0], 404)
+        self.assertEqual(req("GET", f"/i/{g['invite']}")[0], 404, "nor the door on the engine host")
+        st, h, body = req("GET", f"/i/{g['invite']}", host=SEE)
+        self.assertEqual(st, 200)
+        self.assertIn("An invitation for <b>Ada Lovelace</b>", body)
+        self.assertIn(f'name="invite" value="{g["invite"]}"', body)
+        st, h, body = req("GET", "/i/nothing-like-this", host=SEE)
+        self.assertIn("not one we know", body)
+        st, h, body = req("GET", "/office", host=SEE)
+        self.assertEqual((st, h["Location"]), (303, "/"))
+        self.assertEqual(req("GET", "/see.css", host=SEE)[0], 200)
+        self.assertEqual(req("GET", "/assets/styles.css", host=SEE)[0], 200)
+        self.assertEqual(req("GET", "/assets/..%2Fstyles.css", host=SEE)[0], 404)
+
+        # ── the code: bound to the browser, five tries, once ──
+        st, body, cid, ck = enter("not an address", g["invite"])
+        self.assertEqual(st, 400)
+        self.assertIn("not an email address", body)
+        st, body, cid, ck = enter("Ada@Example.com ", g["invite"])
+        self.assertEqual(st, 200)
+        self.assertIn("A code is on its way", body)
+        self.assertIn("ada@example.com", body)
+        code, to = code_from_mail()
+        self.assertEqual(to, "ada@example.com")
+        st, h, body = req("POST", "/code", {"id": cid, "code": code}, SEE)
+        self.assertEqual(st, 400)
+        self.assertIn("another device", body, "no binding cookie, no entry")
+        st, h, body = come_in(cid, "000000" if code != "000000" else "000001", ck["see_code"])
+        self.assertEqual(st, 400)
+        self.assertIn("Not that code; 4 more tries", body)
+        self.assertIn(f'name="id" value="{cid}"', body, "the same code can be tried again")
+        st, h, body = come_in(cid, code[:3] + " " + code[3:], ck["see_code"])
+        self.assertEqual((st, h["Location"]), (303, "/office"))
+        sess = jar(h)
+        self.assertEqual(sess["see_code"], "", "the binding cookie is cleared")
+        s1 = {"see_session": sess["see_session"]}
+        st, h, body = come_in(cid, code, ck["see_code"])
+        self.assertEqual(st, 400)
+        self.assertIn("expired or was used", body, "a code works once")
+        g = guests.guest(c, gid)
+        self.assertEqual((g["state"], g["address"]), ("claimed", "ada@example.com"))
+        self.assertTrue(g["claimed_at"])
+        doc = json.loads(objs[f"guests/{gid}/guest.json"]["body"])
+        self.assertEqual(doc["state"], "claimed")
+        self.assertEqual(len(doc["sessions"]), 1)
+        self.assertEqual([e["what"] for e in doc["events"]], ["guest:invited", "guest:claimed", "guest:signin"])
+        self.assertEqual(doc["events"][2]["who"], "ada@example.com", "the guest's acts are in the guest's name")
+
+        # ── the office, on this device; a second device needs a code of its own ──
+        st, h, body = req("GET", "/office", host=SEE, cookies=s1)
+        self.assertEqual(st, 200)
+        self.assertIn("You're in, Ada.", body)
+        self.assertIn("ada@example.com", body)
+        st, h, body = req("GET", "/", host=SEE, cookies=s1)
+        self.assertIn("You're in, Ada.", body, "the door opens straight onto the office")
+        st, h, body = req("GET", f"/i/{g['invite']}", host=SEE, cookies=s1)
+        self.assertEqual((st, h["Location"]), (303, "/office"))
+        st, h, body = req("GET", "/office", host=SEE, cookies={"see_session": sess["see_session"][:-1] + "0"})
+        self.assertEqual(st, 303, "a forged signature is no session")
+        st, body, cid, ck = enter("ada@example.com")  # no invite in the link this time: the address is known
+        code, to = code_from_mail()
+        st, h, body = come_in(cid, code, ck["see_code"])
+        self.assertEqual(st, 303)
+        s2 = {"see_session": jar(h)["see_session"]}
+        self.assertEqual(
+            c.execute("SELECT COUNT(*) FROM session WHERE guest=? AND revoked_at IS NULL", (gid,)).fetchone()[0], 2
+        )
+        st, h, body = req("GET", f"/guests/{gid}")
+        self.assertIn("2 signed in", body)
+
+        # ── a stranger with a right code sees no invitation ──
+        st, body, cid, ck = enter("mallory@example.com")
+        code, to = code_from_mail()
+        st, h, body = come_in(cid, code, ck["see_code"])
+        self.assertEqual(st, 403)
+        self.assertIn("no invitation for this address", body)
+        self.assertEqual(h.get_all("Set-Cookie"), None)
+        self.assertEqual(
+            c.execute("SELECT who FROM event WHERE what='guest:refused'").fetchone()[0], "mallory@example.com"
+        )
+
+        # ── an invitation made with an address refuses any other ──
+        st, h, body = req("POST", "/guests/new", {"_t": web.CSRF, "name": "Bob Builder", "address": "Bob@example.com"})
+        gid2 = re.search(r"/guests/([0-9a-f]{8})", h["Location"]).group(1)
+        g2 = guests.guest(c, gid2)
+        self.assertEqual(g2["address"], "bob@example.com")
+        st, body, cid, ck = enter("eve@example.com", g2["invite"])
+        code, to = code_from_mail()
+        self.assertEqual(come_in(cid, code, ck["see_code"])[0], 403)
+        self.assertEqual(guests.guest(c, gid2)["state"], "invited")
+        st, body, cid, ck = enter("bob@example.com", g2["invite"])
+        code, to = code_from_mail()
+        st, h, body = come_in(cid, code, ck["see_code"])
+        self.assertEqual(st, 303)
+        sb = {"see_session": jar(h)["see_session"]}
+        self.assertEqual(guests.guest(c, gid2)["state"], "claimed")
+        st, h, body = req("POST", f"/guests/{gid2}/send", {"_t": web.CSRF})
+        self.assertEqual(st, 303)
+        self.assertIn("Sent+to+bob%40example.com", h["Location"])
+        m = FakeSMTP.sent[-1]
+        self.assertEqual((m["To"], m["Subject"]), ("bob@example.com", "An invitation to the AgentSee podcast"))
+        self.assertIn(f"https://{SEE}/i/{g2['invite']}", m.get_content())
+        self.assertIn("Local would like to record", m.get_content())
+
+        # ── withdrawn: both devices out, the link dead; reissued: a new link, the address still bound ──
+        st, h, body = req("POST", f"/guests/{gid}/revoke", {"_t": web.CSRF})
+        self.assertEqual(st, 303)
+        for s in (s1, s2):
+            self.assertEqual(req("GET", "/office", host=SEE, cookies=s)[0], 303)
+        self.assertIn("not one we know", req("GET", f"/i/{g['invite']}", host=SEE)[2])
+        self.assertEqual(guests.guest(c, gid)["state"], "revoked")
+        self.assertEqual(json.loads(objs[f"guests/{gid}/guest.json"]["body"])["state"], "revoked")
+        st, h, body = req("GET", f"/guests/{gid}")
+        self.assertIn("Reissue, with a new link", body)
+        self.assertIn("withdrawn", body)
+        st, h, body = req("POST", f"/guests/{gid}/reissue", {"_t": web.CSRF})
+        g = guests.guest(c, gid)
+        self.assertEqual((g["state"], g["address"], g["revoked_at"]), ("invited", "ada@example.com", None))
+        self.assertNotEqual(g["invite"], doc["invite"])
+        st, body, cid, ck = enter("other@example.com", g["invite"])
+        code, to = code_from_mail()
+        self.assertEqual(come_in(cid, code, ck["see_code"])[0], 403, "the address stays bound through a reissue")
+        st, body, cid, ck = enter("ada@example.com", g["invite"])
+        code, to = code_from_mail()
+        st, h, body = come_in(cid, code, ck["see_code"])
+        self.assertEqual(st, 303)
+        s3 = {"see_session": jar(h)["see_session"]}
+        self.assertEqual(guests.guest(c, gid)["state"], "claimed")
+
+        # ── leaving ──
+        st, h, body = req("POST", "/leave", host=SEE, cookies=s3)
+        self.assertEqual((st, h["Location"], jar(h)["see_session"]), (303, "/", ""))
+        self.assertEqual(req("GET", "/office", host=SEE, cookies=s3)[0], 303)
+        self.assertEqual(c.execute("SELECT who FROM event WHERE what='guest:left'").fetchone()[0], "ada@example.com")
+
+        # ── a browser's POST from another site is refused ──
+        st, h, body = req("POST", "/leave", host=SEE, cookies=sb, headers={"Origin": "https://evil.example"})
+        self.assertEqual(st, 403)
+        st, h, body = req("POST", "/enter", {"address": "x@example.com"}, SEE, headers={"Sec-Fetch-Site": "cross-site"})
+        self.assertEqual(st, 403)
+        self.assertEqual(req("GET", "/office", host=SEE, cookies=sb)[0], 200, "Bob is still in")
+
+        # ── the limits: codes per address, wrong tries, the cooldown, expiry ──
+        sent = len(FakeSMTP.sent)
+        for i in range(3):
+            st, body, cid, ck = enter("many@example.com")
+            self.assertEqual(st, 200)
+        st, body, cid4, ck4 = enter("many@example.com")
+        self.assertEqual(st, 429)
+        self.assertIn("had its codes for now", body)
+        self.assertEqual(len(FakeSMTP.sent), sent + 3)
+        for i in range(4):
+            st, h, body = come_in(cid, "000000", ck["see_code"])
+            self.assertEqual(st, 400)
+        self.assertIn("Not that code; 1 more try", body)
+        st, h, body = come_in(cid, "000000", ck["see_code"])
+        self.assertIn("that was the last try", body)
+        self.assertNotIn('name="id"', body, "back at the door, not the code form")
+        st, h, body = come_in(cid, "000000", ck["see_code"])
+        self.assertIn("void after five wrong tries", body)
+        c.execute("DELETE FROM code WHERE address='many@example.com' AND id!=?", (cid,))
+        st, body, _, _ = enter("many@example.com")
+        self.assertEqual(st, 429)
+        self.assertIn("waits fifteen minutes", body)
+        st, body, cid, ck = enter("late@example.com")
+        c.execute("UPDATE code SET expires_at=? WHERE id=?", ("2000-01-01T00:00:00+00:00", cid))
+        code, to = code_from_mail()
+        self.assertIn("expired or was used", come_in(cid, code, ck["see_code"])[2])
+        guests.PER_IP = (1, 600)
+        try:
+            self.assertIn("from this connection", enter("ip@example.com")[1])
+        finally:
+            guests.PER_IP = (12, 600)
+
+        # ── mail that does not go is said so, on the guest's page and the engine's ──
+        FakeSMTP.fail = "send"
+        st, body, cid, ck = enter("quiet@example.com")
+        self.assertEqual(st, 502)
+        self.assertIn("could not send the code", body)
+        st, h, body = req("GET", "/health")
+        self.assertIn("Last mail failure", body)
+        self.assertIn("SMTPDataError", body)
+        self.assertIn("survive a restart", body)
+        self.assertIn("office@agentsee.work", body)
+
+        # ── a restart with the same key keeps the session; another key does not ──
+        os.environ["ENGINE_SESSION_KEY"] = "another-key"
+        self.assertEqual(req("GET", "/office", host=SEE, cookies=sb)[0], 303)
+        os.environ["ENGINE_SESSION_KEY"] = "a-key-for-the-tests"
+        self.assertEqual(req("GET", "/office", host=SEE, cookies=sb)[0], 200)
+        srv.shutdown()
 
 
 if __name__ == "__main__":

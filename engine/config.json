@@ -12,6 +12,14 @@
   "collect_at": "05:30",
   "datasets": {"media": "podcast_media", "links": "podcast_links"},
   "x": {"vault": "Engineering", "item": "X podcast token", "field": "credential"},
+  "mail": {
+    "host": "mail.agentsee.work",
+    "port": 465,
+    "from": "AgentSee <office@agentsee.work>",
+    "reply_to": "hello@agentsee.work",
+    "copy_to": "hello@agentsee.work"
+  },
+  "guest": {"host": "see.agentsee.work"},
   "youtube": {
     "playlist": "AgentSee Podcast",
     "language": "en-GB",

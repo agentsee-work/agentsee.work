@@ -26,7 +26,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import archive
 import collect
+import guests
 import ledger
+import mail
 import publish
 from pages import button, composer, esc, link, page, section, status, table, when
 from plan import ACCOUNTS, short
@@ -543,6 +545,14 @@ def health_page(c):
                 "ready" if mod.ready(os.environ) else f'<span class="error">missing: {esc(mod.NEEDS)}</span>',
             ]
         )
+    creds.append(
+        [
+            esc(mail.settings()["from"]),
+            "mail",
+            "ready" if mail.ready(os.environ) else f'<span class="error">missing: {esc(mail.NEEDS)}</span>',
+        ]
+    )
+    bounced = mail.last_failure(c)
     facts = [
         ("Ledger", f'<span class="mono">{esc(STATE["ledger"] or ledger.data_dir() / "ledger.sqlite")}</span>'),
         ("Worker last ran", when(STATE["last_run"]) or "not in this process"),
@@ -575,6 +585,19 @@ def health_page(c):
             else f"never (daily at {esc(ledger.CONFIG.get('collect_at', 'no hour set'))} London, by the worker)",
         ),
         ("Episodes", str(c.execute("SELECT COUNT(*) FROM episode").fetchone()[0])),
+        (
+            "Last mail failure",
+            f'{esc(when(bounced["at"]))} <span class="error">{esc(bounced["detail"])}</span>' if bounced else "none",
+        ),
+        (
+            "Guest host",
+            f"{esc(guests.HOST)}; sessions "
+            + (
+                "survive a restart (ENGINE_SESSION_KEY)"
+                if guests.persistent()
+                else '<span class="error">end at a restart: ENGINE_SESSION_KEY is not set</span>'
+            ),
+        ),
     ]
     body = (
         '<article class="lead"><h1>Health</h1></article><dl class="facts">'
@@ -601,7 +624,7 @@ class App(BaseHTTPRequestHandler):
         if os.environ.get("ENGINE_LOG"):
             super().log_message(fmt, *args)
 
-    def send(self, status_code, body, ctype="text/html; charset=utf-8", cache="no-store"):
+    def send(self, status_code, body, ctype="text/html; charset=utf-8", cache="no-store", headers=None):
         data = body.encode() if isinstance(body, str) else body
         self.send_response(status_code)
         self.send_header("Content-Type", ctype)
@@ -611,6 +634,8 @@ class App(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
+        for k, v in headers or ():
+            self.send_header(k, v)
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(data)
@@ -618,10 +643,12 @@ class App(BaseHTTPRequestHandler):
     def html(self, title, body, status_code=200):
         self.send(status_code, page(title, body, self.who(), self.path.split("?")[0], STATE["lifted"]))
 
-    def redirect(self, to):
+    def redirect(self, to, headers=None):
         self.send_response(303)
         self.send_header("Location", to)
         self.send_header("Content-Length", "0")
+        for k, v in headers or ():
+            self.send_header(k, v)
         self.end_headers()
 
     def fail(self, status_code, msg):
@@ -644,6 +671,12 @@ class App(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
         path = u.path
+        if guests.is_guest_host(self):  # the guest host: its door and its office, nothing of the engine's
+            c = ledger.connect(STATE["ledger"])
+            try:
+                return guests.get(self, c, path, q)
+            finally:
+                c.close()
         if path == "/":
             return self.redirect("/episodes")
         if path == "/engine.css":
@@ -674,6 +707,12 @@ class App(BaseHTTPRequestHandler):
                 return self.html(*audience_page(c))
             if path == "/health":
                 return self.html(*health_page(c))
+            if path == "/guests":
+                return self.html(*guests.guests_page(c, CSRF, q.get("msg")))
+            m = re.fullmatch(r"/guests/([0-9a-f]{8})", path)
+            if m:
+                r = guests.guest_page(c, m.group(1), CSRF, q.get("msg"))
+                return self.html(*r) if r else self.fail(404, "No such guest")
             return self.fail(404, "No such page")
         finally:
             c.close()
@@ -681,20 +720,41 @@ class App(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length") or 0)
         form = {k: v[0] for k, v in urllib.parse.parse_qs(self.rfile.read(n).decode()).items()}
+        path = urllib.parse.urlparse(self.path).path
+        if guests.is_guest_host(self):  # no form token on the guest host: its pages are public; the origin is checked
+            c = ledger.connect(STATE["ledger"])
+            try:
+                return guests.post(self, c, path, form)
+            finally:
+                c.close()
         if form.get("_t") != CSRF:
             return self.fail(403, "That form is stale; open the post again")
-        m = re.fullmatch(
-            r"/posts/(\d+)/(text|schedule|publish|retry|skip|unskip|done)", urllib.parse.urlparse(self.path).path
-        )
-        if not m:
-            return self.fail(404, "No such action")
-        pid, action = int(m.group(1)), m.group(2)
         c = ledger.connect(STATE["ledger"])
         try:
+            who = self.who()
+            if path == "/guests/new":
+                try:
+                    g = guests.create(c, form.get("name"), form.get("address"), form.get("issue"), who)
+                except ValueError as e:
+                    return self.redirect("/guests?" + urllib.parse.urlencode({"msg": str(e)}))
+                return self.redirect(f"/guests/{g['id']}?" + urllib.parse.urlencode({"msg": "Invitation made"}))
+            m = re.fullmatch(r"/guests/([0-9a-f]{8})/(send|revoke|reissue)", path)
+            if m:
+                g = guests.guest(c, m.group(1))
+                if not g:
+                    return self.fail(404, "No such guest")
+                try:
+                    msg = guests.act(c, g, m.group(2), who)
+                except ValueError as e:
+                    msg = str(e)
+                return self.redirect(f"/guests/{g['id']}?" + urllib.parse.urlencode({"msg": msg}))
+            m = re.fullmatch(r"/posts/(\d+)/(text|schedule|publish|retry|skip|unskip|done)", path)
+            if not m:
+                return self.fail(404, "No such action")
+            pid, action = int(m.group(1)), m.group(2)
             p = ledger.post(c, pid)
             if not p:
                 return self.fail(404, "No such post")
-            who = self.who()
             msg = act(c, p, action, form, who)
             if action in ("publish", "retry"):
                 STATE["poke"].set()
@@ -850,6 +910,11 @@ def serve(port=8877, with_worker=True, ledger_path=None, host="127.0.0.1"):
     srv = ThreadingHTTPServer((host, port), App)
     srv.daemon_threads = True
     print(f"engine at http://{host}:{srv.server_address[1]}/  (worker {'on' if with_worker else 'off'})", flush=True)
+    print(
+        f"guest host {guests.HOST} on the same port, by Host; sessions "
+        + ("survive a restart" if guests.persistent() else "END AT A RESTART: ENGINE_SESSION_KEY is not set"),
+        flush=True,
+    )
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

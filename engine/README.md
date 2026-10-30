@@ -5,9 +5,9 @@ post on every platform, and back from every post to the numbers. The design
 and the decisions are on Linear (AGE-69); this is what exists.
 
 ```
-engine.py        the command line: ingest, plan, links, posts, publish, serve
+engine.py        the command line: ingest, plan, links, posts, publish, serve, mail
 ledger.py        the SQLite ledger: episode, deliverable, post, snapshot, spend,
-                 click, download, lead, event
+                 click, download, lead, event; guest, code, session
 ingest.py        release.json + staged.json → episode and deliverables
 plan.py          the day plan × accounts.json → posts, with short-link ids and
                  drafted text; the push of id → URL into KV
@@ -25,9 +25,17 @@ collect.py       the collector: the edge's log into listens and clicks, each
                  platform's counts into dated snapshots; what the screens ask
 useragents.json  OPAWG's patterns for podcast apps, bots, libraries, browsers (MIT)
 home/            the box: Dockerfile, compose, the runbook
-web.py           the screens and the worker: a threaded HTTP server on loopback
-pages.py         the page shell in the site's typographic system
+web.py           the screens and the worker: a threaded HTTP server on loopback,
+                 routing the guest host to guests.py by Host
+guests.py        the guest's office (see.agentsee.work): the door, a code by
+                 email bound to the browser, sessions, invitations and their
+                 archive copy; the Guests screen on the engine
+mail.py          mail from the office account on Stalwart: codes, invitations,
+                 later confirmations and signed copies
+pages.py         the page shell in the site's typographic system, and the
+                 guest host's
 static/engine.css  tables, forms, a status word; the rest is the site's CSS
+static/see.css   the door and the office, on top of engine.css
 accounts.json    which accounts get which assets, at what hour, by which adapter
 config.json      the engine's settings, none secret
 engine.env       op:// references for `op run`; no values
@@ -46,6 +54,9 @@ test_engine.py   the whole thing against a made-up episode and stubs for every
 op run --env-file=engine/engine.env -- ./engine/engine.py links ep1          # short links into KV
 op run --env-file=engine/engine.env -- ./engine/engine.py publish --due      # for real
 op run --env-file=engine/engine.env -- ./engine/engine.py serve              # http://127.0.0.1:8877/
+op run --env-file=engine/engine.env -- ./engine/engine.py mail you@example.com  # proves the mail credential
+
+ENGINE_GUEST_HOST=localhost ./engine/engine.py serve --no-worker   # the guest's door at http://localhost:8877/
 
 python3 engine/test_engine.py                 # the suite, against stubs for every platform
 ruff check . && ruff format --check .         # the lint and the formatting (ruff.toml)
@@ -189,8 +200,11 @@ Reach (per episode: listens, the last week's, YouTube views, link clicks;
 per post: views or impressions, likes, reposts, replies, clicks, each with
 the last week's share beside it; YouTube's watch time), Audience (the last
 thirty days of listens by app and by country, clicks by where they came
-from, listens by day), Health (the ledger, the worker, the last snapshot
-and collection, counts, which adapters can see their credentials).
+from, listens by day), Guests (who is invited onto the podcast and how far
+each has come: an invitation is made here, sent by email when an address
+is known, withdrawn, reissued), Health (the ledger, the worker, the last
+snapshot and collection, counts, which adapters can see their credentials,
+the last mail that did not go, whether guest sessions survive a restart).
 
 Server-rendered, no script but the site's eye, the site's stylesheet and
 fonts served from `public/`, the same CSP as the site plus the media host
@@ -198,12 +212,56 @@ for posters. Every change is a POST carrying the process's own token. Who
 did it is the identity Cloudflare Access attaches to the request
 (`Cf-Access-Authenticated-User-Email`), or `ENGINE_USER`, or `local`.
 
+## The guest's office
+
+The same process answers a second hostname, `see.agentsee.work`
+(`guest.host` in `config.json`; `ENGINE_GUEST_HOST` overrides it for a
+look on a workstation), reached through the tunnel without Access. `web.py`
+routes by `Host`; `guests.py` is everything on that side, and the design
+is on AGE-92.
+
+The door: an email address, a six-digit code by email, a session cookie
+for that host only (thirty days, so a device is remembered and a new one
+asks for a code), `/leave`. The code is bound to the browser that asked
+for it (a cookie set when it is requested, required when it is typed), is
+good for ten minutes and once, allows five wrong tries, and then the
+address waits a quarter of an hour; an address gets three codes in ten
+minutes and a connection twelve. The email carries the code and no link.
+An invitation link carries an id, not a secret: one made without an
+address is claimed by the first address that passes a code, one made with
+an address refuses any other, and a stranger with a right code is told
+there is no invitation for that address. Every sign-in records the
+address, the time, the IP and the device, and enforces only the first.
+
+Sessions and bindings are signed with `ENGINE_SESSION_KEY` (the vault item
+"Engine session key"); without it the key is made up for the process,
+`serve` and Health say so, and a restart signs every guest out. Each change
+to a guest is copied to the archive as `guests/<id>/guest.json`, with the
+sessions and the record, because the ledger sits on the root disk.
+
+The guest host's pages carry the site's masthead and footer with their
+links pointed at the site, and a footer note of their own about the two
+cookies, since the site's promises none. No form token there, because the
+pages are public: a browser's POST from another origin is refused instead.
+
+## Mail
+
+`mail.py` sends plain text from "AgentSee <office@agentsee.work>" with
+Reply-To `hello@agentsee.work`, through Stalwart on the box over 465 as
+the `office` account (the vault item "Stalwart podcast submission";
+host, port and addresses in `config.json`), and Stalwart relays it. What
+goes out today: the sign-in code and the invitation; the booking
+confirmation and the signed copies come with their screens. Every send
+and every failure is an event in the ledger; a failure is a sentence on
+the page that asked for it and on Health, never silence. `engine.py mail
+<address>` proves the credential.
+
 ## Its home
 
 The engine lives on the box `infra/` provisions, in two containers behind a
 Cloudflare Tunnel with Access in front (a one-time code by email, then a
 passkey); `home/README.md` is the runbook, `infra/podcast/engine.tf` the
-tunnel and the lock, `infra/dns.tf` the one DNS record. On that box there
+tunnel and the lock, `infra/dns.tf` the two DNS records. On that box there
 is no `build/`: `ingest` reads `release.json` and `staged.json` from the
 archive bucket, where `stage` put them, and an adapter that needs a file
 gets it from the archive on demand, checked against the hash the ledger

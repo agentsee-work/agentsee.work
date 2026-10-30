@@ -1,0 +1,15 @@
+/* The guest host's additions to the engine's stylesheet (engine/guests.py):
+   a door that is one field and one button, and the office's list of steps.
+   The entrance animation is its own piece of work (AGE-113) and goes here
+   when it exists. */
+
+main.see { padding-top: 1.6rem; }
+main.see .lead .kicker { font-family: var(--mono); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 .4rem; }
+.door { max-width: 26rem; }
+.door input[type=email], .door input[type=text] { font-size: 1.1rem; }
+.door input[type=text] { font-family: var(--mono); letter-spacing: .3em; max-width: 12rem; }
+.door button { margin-top: .4rem; }
+.honesty { max-width: 44rem; }
+.steps { max-width: 44rem; padding-left: 1.4rem; line-height: 1.5; }
+.steps li { margin: .7rem 0; }
+.steps li .muted { font-family: var(--mono); font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; margin-left: .4rem; }

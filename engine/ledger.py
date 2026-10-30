@@ -63,11 +63,25 @@ CREATE INDEX IF NOT EXISTS snapshot_post ON snapshot(post, metric, observed_at);
 CREATE TABLE IF NOT EXISTS lead (id INTEGER PRIMARY KEY, at TEXT NOT NULL, source TEXT, note TEXT);
 CREATE TABLE IF NOT EXISTS event (
   id INTEGER PRIMARY KEY, at TEXT NOT NULL, who TEXT NOT NULL, what TEXT NOT NULL,
-  post INTEGER, episode TEXT, detail TEXT);
+  post INTEGER, episode TEXT, detail TEXT, guest TEXT);
 CREATE INDEX IF NOT EXISTS event_post ON event(post, at);
+CREATE TABLE IF NOT EXISTS guest (
+  id TEXT PRIMARY KEY, invite TEXT NOT NULL UNIQUE, name TEXT NOT NULL, address TEXT, issue TEXT,
+  state TEXT NOT NULL DEFAULT 'invited', slug TEXT, created_by TEXT NOT NULL, created_at TEXT NOT NULL,
+  claimed_at TEXT, revoked_at TEXT, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS code (
+  id TEXT PRIMARY KEY, address TEXT NOT NULL, invite TEXT, code_hash TEXT NOT NULL, binding_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL, expires_at TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, used_at TEXT,
+  ip TEXT, ua TEXT);
+CREATE INDEX IF NOT EXISTS code_address ON code(address, created_at);
+CREATE INDEX IF NOT EXISTS code_ip ON code(ip, created_at);
+CREATE TABLE IF NOT EXISTS session (
+  id TEXT PRIMARY KEY, guest TEXT NOT NULL REFERENCES guest(id) ON DELETE CASCADE, address TEXT NOT NULL,
+  ip TEXT, ua TEXT, created_at TEXT NOT NULL, last_seen TEXT NOT NULL, revoked_at TEXT);
+CREATE INDEX IF NOT EXISTS session_guest ON session(guest, created_at);
 """
 
-MIGRATIONS = [("download", "country", "TEXT")]
+MIGRATIONS = [("download", "country", "TEXT"), ("event", "guest", "TEXT")]
 
 STATUSES = {
     "planned": "waiting for its day",
@@ -116,10 +130,18 @@ def at(date, hhmm):
     return dt.datetime.combine(dt.date.fromisoformat(date), dt.time(h, m), tzinfo=ZONE).isoformat()
 
 
-def event(c, what, who="engine", post=None, episode=None, detail=None):
+def event(c, what, who="engine", post=None, episode=None, detail=None, guest=None):
     c.execute(
-        "INSERT INTO event (at, who, what, post, episode, detail) VALUES (?,?,?,?,?,?)",
-        (now(), who, what, post, episode, detail if isinstance(detail, str) or detail is None else json.dumps(detail)),
+        "INSERT INTO event (at, who, what, post, episode, detail, guest) VALUES (?,?,?,?,?,?,?)",
+        (
+            now(),
+            who,
+            what,
+            post,
+            episode,
+            detail if isinstance(detail, str) or detail is None else json.dumps(detail),
+            guest,
+        ),
     )
 
 

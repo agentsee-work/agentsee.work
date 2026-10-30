@@ -230,6 +230,12 @@ variable "engine_subdomain" {
   default     = "engine"
 }
 
+variable "see_subdomain" {
+  description = "Hostname of the guest's office on the engine, under the apex: a second CNAME to the same tunnel. podcast/variables.tf must agree."
+  type        = string
+  default     = "see"
+}
+
 variable "engine_tunnel_id" {
   description = "The engine's Cloudflare Tunnel id, from the apply's outputs in podcast/ (or `op run --env-file=op.env -- tofu output engine_tunnel_id` there). An identifier (it is visible in DNS), so tfvars is the place. Null until the tunnel exists."
   type        = string
