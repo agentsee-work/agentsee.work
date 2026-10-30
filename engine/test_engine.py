@@ -1824,7 +1824,8 @@ class EngineTest(unittest.TestCase):
         self.assertIn("You're in, Ada.", body, "the door opens straight onto the office")
         st, h, body = req("GET", f"/i/{g['invite']}", host=SEE, cookies=s1)
         self.assertEqual((st, h["Location"]), (303, "/office"))
-        st, h, body = req("GET", "/office", host=SEE, cookies={"see_session": sess["see_session"][:-1] + "0"})
+        forged = sess["see_session"][:-1] + ("1" if sess["see_session"].endswith("0") else "0")  # one digit changed
+        st, h, body = req("GET", "/office", host=SEE, cookies={"see_session": forged})
         self.assertEqual(st, 303, "a forged signature is no session")
         st, body, cid, ck = enter("ada@example.com")  # no invite in the link this time: the address is known
         code, to = code_from_mail()
