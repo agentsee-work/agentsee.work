@@ -1908,7 +1908,12 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(st, 403)
         st, h, body = req("POST", "/enter", {"address": "x@example.com"}, SEE, headers={"Sec-Fetch-Site": "cross-site"})
         self.assertEqual(st, 403)
+        st, h, body = req("POST", "/enter", {"address": "x@example.com"}, SEE, headers={"Origin": "null"})
+        self.assertEqual(st, 403, "an opaque origin is another site")
         self.assertEqual(req("GET", "/office", host=SEE, cookies=sb)[0], 200, "Bob is still in")
+        # which is why the guest host must not say no-referrer: under it a browser posts Origin: null to its own door
+        self.assertEqual(req("GET", "/", host=SEE)[1]["Referrer-Policy"], "same-origin")
+        self.assertEqual(req("GET", "/health")[1]["Referrer-Policy"], "no-referrer", "the engine host keeps its own")
 
         # ── the limits: codes per address, wrong tries, the cooldown, expiry ──
         sent = len(FakeSMTP.sent)

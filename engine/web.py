@@ -633,7 +633,10 @@ class App(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy", CSP)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Referrer-Policy", "no-referrer")
+        # The guest host's door checks a POST's Origin, and under no-referrer a browser sends `Origin: null` with
+        # every form it posts (Fetch, "append a request Origin header"), so that host keeps the referrer to itself
+        # instead of dropping it; the engine host has its form token and stays at no-referrer.
+        self.send_header("Referrer-Policy", "same-origin" if guests.is_guest_host(self) else "no-referrer")
         for k, v in headers or ():
             self.send_header(k, v)
         self.end_headers()

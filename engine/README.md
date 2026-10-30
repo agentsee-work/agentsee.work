@@ -243,6 +243,10 @@ The guest host's pages carry the site's masthead and footer with their
 links pointed at the site, and a footer note of their own about the two
 cookies, since the site's promises none. No form token there, because the
 pages are public: a browser's POST from another origin is refused instead.
+That check reads the `Origin` header, so the guest host's pages say
+`Referrer-Policy: same-origin` where the engine's say `no-referrer`: under
+`no-referrer` a browser posts `Origin: null` to the host's own forms, and
+the door would turn everyone away.
 
 ## Mail
 
