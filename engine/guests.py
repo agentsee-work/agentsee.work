@@ -522,9 +522,7 @@ def post(h, c, path, form):
         except Throttled as e:
             return door(c, h, invite, str(e), address, 429)
         try:
-            msgid = mail.send(
-                address, "Your code for the AgentSee office", CODE_MAIL.format(code=f"{code[:3]} {code[3:]}")
-            )
+            msgid = mail.send(address, "Your code for the AgentSee office", CODE_MAIL.format(code=code))
         except mail.MailError as e:
             mail.record(c, "see", address, "code", error=e)
             why = f"We could not send the code: {e}. Try again in a minute; if it keeps happening, write to hello@agentsee.work."

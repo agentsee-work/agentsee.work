@@ -1715,7 +1715,7 @@ class EngineTest(unittest.TestCase):
             self.assertNotIn(
                 SEE, m.get_content(), "no link to the door in the code mail: the code is typed, not clicked"
             )
-            return "".join(re.search(r"\n    (\d{3}) (\d{3})\n", m.get_content()).groups()), m["To"]
+            return re.search(r"\n    (\d{6})\n", m.get_content()).group(1), m["To"]
 
         def enter(address, invite=None, cookies=None, **headers):
             data = {"address": address}
