@@ -59,6 +59,22 @@ label { display: block; font-family: var(--mono); font-size: .75rem; letter-spac
 .choices input[type=radio] { flex: none; }
 .choices input[type=text] { width: auto; flex: 1 1 14rem; }
 
+/* The release (release.py): the text as a guest reads it, the signature pad, the signatures on a copy. */
+.release { max-width: 44rem; line-height: 1.55; }
+.release h1 { font-size: 1.6rem; margin: .2rem 0 .8rem; }
+.release h2 { font-size: 1.05rem; margin: 1.3rem 0 .3rem; }
+.release ul { padding-left: 1.3rem; }
+canvas.sig { display: block; width: 100%; max-width: 32rem; height: 12rem; color: var(--ink); background: var(--paper-2);
+  border: var(--hairline); border-radius: 2px; touch-action: none; cursor: crosshair; }
+.pad-row { align-items: center; margin: .5rem 0; }
+.sign label.file, .sign label.tick { display: inline-flex; gap: .5rem; align-items: baseline; font: inherit; letter-spacing: 0;
+  text-transform: none; color: var(--ink); margin: .5rem 0; }
+.sign label.file input { width: auto; }
+.signatures { display: flex; flex-wrap: wrap; gap: 1.4rem; margin: .8rem 0; }
+.signatures figure { margin: 0; max-width: 16rem; }
+.signatures img { display: block; width: 100%; height: auto; background: var(--paper-2); border-bottom: 1px solid var(--ink-2); }
+.signatures figcaption { font-size: .9rem; margin-top: .3rem; line-height: 1.4; }
+
 pre.card-text { white-space: pre-wrap; background: var(--paper-2); border: var(--hairline); padding: .8rem 1rem; max-width: 60rem; font: inherit; line-height: 1.45; }
 .card-links a { margin-right: 1.2rem; }
 .error { color: var(--signal); font-family: var(--mono); font-size: .85rem; overflow-wrap: anywhere; }

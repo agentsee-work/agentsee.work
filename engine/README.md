@@ -35,10 +35,14 @@ mail.py          mail from the office account on Stalwart: codes, invitations,
                  later confirmations and signed copies
 linear.py        Linear as "AgentSee Engine": comments, labels, due dates, issues,
                  a guest's words always quoted; the outbox the worker drains
+release.py       the release: versions with their hash, both hosts' signatures
+                 from their profile, the guest's signing with its record, the
+                 PDF, HTML and JSON copies in the archive and by email
 pages.py         the page shell in the site's typographic system, and the
                  guest host's
 static/engine.css  tables, forms, a status word; the rest is the site's CSS
 static/see.css   the door and the office, on top of engine.css
+static/sign.js   the signature pad: a canvas, a finger or a mouse, or a photo
 accounts.json    which accounts get which assets, at what hour, by which adapter
 config.json      the engine's settings, none secret
 engine.env       op:// references for `op run`; no values
@@ -304,6 +308,33 @@ Who did a thing is named by first name in the mail and on the issue:
 `hosts` in `config.json` lists the show's people, and the engine identity's
 local part is matched against it (`jameshartt@…` is James), so no address
 of ours is written anywhere.
+
+## The release
+
+The one document with a guest's name on it (AGE-108). Its text is a Linear
+document on AGE-55, in plain words, read by both hosts; `release.py` keeps
+it versioned. `engine.py release add --issue AGE-55` takes the document's
+text in as the next version with its sha256, mirrored to the archive as
+`release/v<n>.md` and `.json`; `release` lists the versions and who has
+signed them. Each host draws or uploads a signature once on their profile
+(You, keyed on the Access identity through `hosts` in `config.json`) and
+signs each version there. A version is issued, and shown to guests, only
+when every host has signed it, so no real copy carries a placeholder.
+
+The guest reads the issued version in the office, types their name, draws
+a signature on the pad (`static/sign.js`: a canvas for a finger or a mouse,
+or a photo of the signature placed on it), ticks and signs. Recorded with
+it: the address the code verified, the time, the IP, the device and the
+text's hash, which is what makes a simple electronic signature worth
+something. The copy is a PDF (fpdf2, the engine's one dependency, pinned in
+the image and in CI, with DejaVu embedded so a name in any alphabet sets)
+with the three signatures and the record on its last page, the same as one
+HTML file and a JSON record, all three in the archive as
+`guests/<id>/release-v<n>.*`. The PDF goes to the guest by email with a
+copy to hello@; the office and the engine's guest page re-render it on
+demand; the issue is told and labelled `release-signed`. A later version
+never voids an earlier signature: the guest's copy is the version they
+signed, and asking a guest to sign a newer one is not built yet.
 
 ## Its home
 

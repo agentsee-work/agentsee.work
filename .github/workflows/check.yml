@@ -35,6 +35,11 @@ jobs:
           # The same interpreter the engine runs on (engine/home/Dockerfile).
           python-version: "3.14"
 
+      - name: The engine's one dependency
+        # fpdf2 makes the release's signed copy (engine/release.py); the suite
+        # renders one. The same pin as engine/home/Dockerfile.
+        run: pip install fpdf2==2.8.9
+
       - name: Run the suite
         # Dev mode prints a leaked connection, socket or response body as a
         # ResourceWarning beside the dots, so a leak is seen before it is a

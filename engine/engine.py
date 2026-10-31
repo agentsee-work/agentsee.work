@@ -157,6 +157,62 @@ def cmd_mail(a):
     print(f"sent to {a.to}: {msgid}")
 
 
+def cmd_release(a):
+    import release
+
+    c = ledger.connect(a.ledger)
+    try:
+        if a.action == "add":
+            if a.issue:
+                import linear
+
+                try:
+                    docs = linear.documents(os.environ, a.issue)
+                except linear.LinearError as e:
+                    sys.exit(f"error: {e}")
+                if a.title:
+                    docs = [d for d in docs if d["title"] == a.title]
+                if len(docs) != 1:
+                    names = "; ".join(d["title"] for d in docs)
+                    sys.exit(
+                        f"error: {a.issue} has {len(docs)} documents"
+                        + (f": {names}; name one with --title" if docs else "")
+                    )
+                text, source = docs[0]["content"], f"{a.issue}: {docs[0]['title']}"
+            elif a.what:
+                text, source = pathlib.Path(a.what).read_text(encoding="utf-8"), a.what
+            else:
+                sys.exit("error: add takes a file, or --issue AGE-55 for the issue's document")
+            try:
+                v = release.add(c, text, who(), source)
+            except release.ReleaseError as e:
+                sys.exit(f"error: {e}")
+            print(f"version {v['n']}: {v['title']}, sha256 {v['sha256'][:16]}…")
+            print(f"{' and '.join(release.hosts())} sign it on /you before a guest sees it")
+            return
+        if a.action == "show":
+            v = release.version(c, int(a.what)) if a.what else release.latest(c)
+            if not v:
+                sys.exit("error: no such version")
+            print(v["text"], end="")
+            return
+        rows = release.versions(c)
+        if not rows:
+            print("no versions yet: engine.py release add <file>, or add --issue AGE-55")
+            return
+        cur = release.issued(c)
+        for v in rows:
+            signed = release.signed_by(c, v["n"])
+            waiting = release.waiting_for(c, v["n"])
+            state = "issued" if v["n"] == cur else (f"waiting for {', '.join(waiting)}" if waiting else "superseded")
+            by = ", ".join(f"{h} {r['at'][:10]}" for h, r in signed.items()) or "nobody"
+            print(
+                f"v{v['n']}  {v['title']}  {v['sha256'][:12]}  {v['created_at'][:10]} by {v['created_by']}  signed: {by}  [{state}]"
+            )
+    finally:
+        c.close()
+
+
 def cmd_linear(a):
     import linear
 
@@ -245,6 +301,12 @@ def main():
         "--drain", action="store_true", help="send what the outbox holds, now (the worker does it each minute)"
     )
     p.set_defaults(fn=cmd_linear)
+    p = sub.add_parser("release", help="the release's versions: list them, add one, show one")
+    p.add_argument("action", nargs="?", choices=["list", "add", "show"], default="list")
+    p.add_argument("what", nargs="?", help="add: the file holding the text; show: the version (default the latest)")
+    p.add_argument("--issue", help="add: the issue whose Linear document holds the text (AGE-55)")
+    p.add_argument("--title", help="add --issue: which document, when the issue has more than one")
+    p.set_defaults(fn=cmd_release)
     p = sub.add_parser("snapshot", help="a copy of the ledger to the archive bucket, now (the worker does it nightly)")
     p.set_defaults(fn=cmd_snapshot)
     p = sub.add_parser("restore", help="the ledger back from the archive, for a rebuilt box")

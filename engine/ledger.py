@@ -82,9 +82,23 @@ CREATE INDEX IF NOT EXISTS session_guest ON session(guest, created_at);
 CREATE TABLE IF NOT EXISTS linear_job (
   id INTEGER PRIMARY KEY, kind TEXT NOT NULL, args TEXT NOT NULL, guest TEXT, created_at TEXT NOT NULL,
   next_at TEXT, tries INTEGER NOT NULL DEFAULT 0, last_error TEXT, done_at TEXT);
+CREATE TABLE IF NOT EXISTS release_version (
+  n INTEGER PRIMARY KEY, sha256 TEXT NOT NULL, title TEXT NOT NULL, text TEXT NOT NULL,
+  created_by TEXT NOT NULL, created_at TEXT NOT NULL, source TEXT);
+CREATE TABLE IF NOT EXISTS host_signature (
+  host TEXT PRIMARY KEY, address TEXT NOT NULL, png BLOB NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS release_signature (
+  id INTEGER PRIMARY KEY, version INTEGER NOT NULL REFERENCES release_version(n), role TEXT NOT NULL,
+  host TEXT, guest TEXT REFERENCES guest(id) ON DELETE CASCADE, name TEXT NOT NULL, address TEXT NOT NULL,
+  png BLOB NOT NULL, ip TEXT, ua TEXT, at TEXT NOT NULL, sha256 TEXT NOT NULL, UNIQUE(version, host));
 """
 
-MIGRATIONS = [("download", "country", "TEXT"), ("event", "guest", "TEXT")]
+MIGRATIONS = [
+    ("download", "country", "TEXT"),
+    ("event", "guest", "TEXT"),
+    ("guest", "signed_at", "TEXT"),
+    ("guest", "signed_version", "INTEGER"),
+]
 
 STATUSES = {
     "planned": "waiting for its day",
