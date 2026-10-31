@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS session (
   id TEXT PRIMARY KEY, guest TEXT NOT NULL REFERENCES guest(id) ON DELETE CASCADE, address TEXT NOT NULL,
   ip TEXT, ua TEXT, created_at TEXT NOT NULL, last_seen TEXT NOT NULL, revoked_at TEXT);
 CREATE INDEX IF NOT EXISTS session_guest ON session(guest, created_at);
+CREATE TABLE IF NOT EXISTS linear_job (
+  id INTEGER PRIMARY KEY, kind TEXT NOT NULL, args TEXT NOT NULL, guest TEXT, created_at TEXT NOT NULL,
+  next_at TEXT, tries INTEGER NOT NULL DEFAULT 0, last_error TEXT, done_at TEXT);
 """
 
 MIGRATIONS = [("download", "country", "TEXT"), ("event", "guest", "TEXT")]

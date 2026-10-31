@@ -44,6 +44,7 @@ import urllib.parse
 
 import archive
 import ledger
+import linear
 import mail
 from pages import button, esc, link, section, see_page, table, when
 
@@ -359,11 +360,13 @@ def admit(c, row, ip, ua):
     """After a right code: the guest it admits and a session, or (None, None).
     The invite on the code, if any, is claimed by this address when it has
     none and refuses it when it has another; failing that, the address's own
-    invitation counts."""
+    invitation counts. A claim on a guest with an issue is told to Linear by
+    the worker (linear.py), never inside this request."""
     address = row["address"]
     g = by_invite(c, row["invite"]) if row["invite"] else None
     if g and (g["state"] == "revoked" or (g["address"] and g["address"] != address)):
         g = None
+    claimed = False
     if g and not g["address"]:
         change(
             c,
@@ -376,6 +379,7 @@ def admit(c, row, ip, ua):
             claimed_at=ledger.now(),
         )
         g = guest(c, g["id"])
+        claimed = True
     if not g:
         g = by_address(c, address)
     if not g:
@@ -390,7 +394,15 @@ def admit(c, row, ip, ua):
             state="claimed",
             claimed_at=ledger.now(),
         )
+        claimed = True
     sid = start_session(c, g["id"], address, ip, ua)
+    if claimed and g["issue"]:
+        linear.enqueue(
+            c,
+            "claimed",
+            {"issue": g["issue"], "name": g["name"], "address": address, "when": when(ledger.now())},
+            guest=g["id"],
+        )
     mirror(c, g["id"])
     return guest(c, g["id"]), sid
 

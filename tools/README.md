@@ -34,9 +34,10 @@ The podcast pipeline, one tool per stage, driven by `episode.py`:
 | `directories.py` | Where each released episode is, into its `episode.json` for the episode page, where the short links land: its video and each clip's Short on YouTube (the channel's own uploads, told apart by the short link in each description, public ones only), its link on Apple Podcasts (a public lookup on the guid) and on Spotify (its API, once an app exists). Credentials through `tools/directories.env`; without them Apple alone. Until a directory's link is found, the page links the show there. |
 | `youtube.py` | YouTube for the podcast. `auth` runs Google's consent once in a browser, for the brand channel, and prints the refresh token to file in the vault; upload and the analytics reads come with the publisher. |
 | `x.py` | X for the podcast. `check` says what the vault holds (the two-hour access token, the refresh token to file, or the OAuth 1.0a pair) and whose it is, and proves a refresh token on request; `auth` is the OAuth 2.0 consent in a browser if the console's token is not used. Posting, media uploads and the metrics reads come with the publisher. |
+| `linear.py` | Linear for the podcast engine. `auth` runs the consent once in a browser for the OAuth application AgentSee Engine, with `actor=app` so the token acts as the application, and prints the refresh token to file in the vault; the engine does the rest (`engine/linear.py`). |
 | `release.py` | Everything a publisher needs from what was made: notes, chapters in three shapes, VTT and JSON transcripts, episode art, every file hashed, the clips placed in the episode. `release.json` indexes it; `show.json` beside it holds the show's own words. |
 | `variants.py` | Every cut setting rendered as audio, side by side, with what each one removed. |
-| `consent.py` | What the one-time authorisations share: the loopback port the browser comes back to, the state check, PKCE, the token request. `youtube.py` and `x.py` import it. |
+| `consent.py` | What the one-time authorisations share: the loopback port the browser comes back to, the state check, PKCE, the token request. `youtube.py`, `x.py` and `linear.py` import it. |
 | `eplib.py` | What those share: paths, ffprobe, loudness measurement, the edit-list arithmetic. |
 
 How the podcast pipeline fits together is in

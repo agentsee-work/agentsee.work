@@ -28,6 +28,7 @@ import archive
 import collect
 import guests
 import ledger
+import linear
 import mail
 import publish
 from pages import button, composer, esc, link, page, section, status, table, when
@@ -552,7 +553,15 @@ def health_page(c):
             "ready" if mail.ready(os.environ) else f'<span class="error">missing: {esc(mail.NEEDS)}</span>',
         ]
     )
+    creds.append(
+        [
+            "AgentSee Engine",
+            "linear",
+            "ready" if linear.ready(os.environ) else f'<span class="error">missing: {esc(linear.NEEDS)}</span>',
+        ]
+    )
     bounced = mail.last_failure(c)
+    lf = linear.last_failure(c)
     facts = [
         ("Ledger", f'<span class="mono">{esc(STATE["ledger"] or ledger.data_dir() / "ledger.sqlite")}</span>'),
         ("Worker last ran", when(STATE["last_run"]) or "not in this process"),
@@ -596,6 +605,15 @@ def health_page(c):
                 "survive a restart (ENGINE_SESSION_KEY)"
                 if guests.persistent()
                 else '<span class="error">end at a restart: ENGINE_SESSION_KEY is not set</span>'
+            ),
+        ),
+        (
+            "Linear outbox",
+            f"{linear.waiting(c)} waiting, {linear.stuck(c)} given up"
+            + (
+                f'; last failure {esc(when(lf["at"]))} <span class="error">{esc(lf["detail"])}</span>'
+                if lf
+                else "; no failure recorded"
             ),
         ),
     ]
@@ -879,6 +897,7 @@ def worker(stop, interval=60):
                     res = publish.run(c, posts, who="worker", log=lambda s: print(s, flush=True))
                     ledger.event(c, "publisher:run", "worker", detail={"results": res})
                 STATE["last_run"] = ledger.now()
+                linear.drain(c, os.environ, log=lambda s: print(s, flush=True))
                 if snapshot_due():
                     try:
                         archive.snapshot(c, who="worker", log=lambda s: print(s, flush=True))

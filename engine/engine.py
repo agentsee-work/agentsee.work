@@ -157,6 +157,32 @@ def cmd_mail(a):
     print(f"sent to {a.to}: {msgid}")
 
 
+def cmd_linear(a):
+    import linear
+
+    c = ledger.connect(a.ledger)
+    try:
+        if a.drain:
+            n = linear.drain(c, os.environ)
+            print(f"{n} sent; {linear.waiting(c)} waiting, {linear.stuck(c)} given up")
+            return
+        if not a.issue:
+            sys.exit("error: name an issue (AGE-73), or --drain")
+        text = a.text or (
+            f"A test from the engine, {ledger.now()}. If this comment shows AgentSee Engine as its author, "
+            "the bridge is live."
+        )
+        try:
+            cm = linear.comment(os.environ, a.issue, text)
+        except linear.LinearError as e:
+            ledger.event(c, "linear:failed", who(), detail={"issue": a.issue, "error": str(e)[:500]})
+            sys.exit(f"error: {e}")
+        ledger.event(c, "linear:done", who(), detail={"issue": a.issue, "comment": cm["url"]})
+        print(f"commented on {a.issue}: {cm['url']}")
+    finally:
+        c.close()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--ledger", help="the SQLite file (default $ENGINE_DATA/ledger.sqlite, or build/engine/)")
@@ -212,6 +238,13 @@ def main():
     p = sub.add_parser("mail", help="a test message from the office account, to prove the mail credential")
     p.add_argument("to", help="an address of yours")
     p.set_defaults(fn=cmd_mail)
+    p = sub.add_parser("linear", help="a comment on an issue as AgentSee Engine, to prove the bridge")
+    p.add_argument("issue", nargs="?", help="the issue, AGE-73")
+    p.add_argument("--text", help="the comment's words (default: a test sentence)")
+    p.add_argument(
+        "--drain", action="store_true", help="send what the outbox holds, now (the worker does it each minute)"
+    )
+    p.set_defaults(fn=cmd_linear)
     p = sub.add_parser("snapshot", help="a copy of the ledger to the archive bucket, now (the worker does it nightly)")
     p.set_defaults(fn=cmd_snapshot)
     p = sub.add_parser("restore", help="the ledger back from the archive, for a rebuilt box")
