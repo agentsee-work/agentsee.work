@@ -91,6 +91,10 @@ Everything about it is arranged in one place, the office:
 Open it on any device. It asks for this email address and sends you a code;
 then you can read and sign the release, flesh the idea out and pick a time.
 
+If this reached your junk folder, mark it as not junk, so the code finds
+your inbox. A reply, even one word, helps as well: it tells your mail
+service that mail from AgentSee is wanted.
+
 If this was not expected, ignore it; the link does nothing on its own."""
 
 
