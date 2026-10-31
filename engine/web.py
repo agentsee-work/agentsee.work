@@ -753,9 +753,17 @@ class App(BaseHTTPRequestHandler):
         c = ledger.connect(STATE["ledger"])
         try:
             who = self.who()
+            if path == "/guests/find":  # the issue search: answered on the spot, so a POST that renders
+                r = guests.find_page(c, os.environ, CSRF, form.get("name"), form.get("address"))
+                if not r:
+                    return self.redirect("/guests?" + urllib.parse.urlencode({"msg": "A guest has a name"}))
+                return self.html(*r)
             if path == "/guests/new":
+                issue = form.get("other") or form.get("issue")  # an identifier typed wins over the choice
                 try:
-                    g = guests.create(c, form.get("name"), form.get("address"), form.get("issue"), who)
+                    g = guests.create(
+                        c, form.get("name"), form.get("address"), issue, who, form.get("angle"), os.environ
+                    )
                 except ValueError as e:
                     return self.redirect("/guests?" + urllib.parse.urlencode({"msg": str(e)}))
                 return self.redirect(f"/guests/{g['id']}?" + urllib.parse.urlencode({"msg": "Invitation made"}))

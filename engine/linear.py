@@ -15,11 +15,14 @@ dangerous than X's; it is still held in this process, retried on the next
 attempt, and said out loud. One refresher at a time: a second engine, or
 the consent script, against the same item retires this one's token.
 
-Nothing here waits on Linear inside a request. The door and the screens put
-a job in the outbox (the ledger's `linear_job` table) and the worker sends
-it, retrying with a growing pause, and each outcome is an event that the
-guest's page and Health show. `engine.py linear <issue>` posts a test
-comment directly, which is how the bridge is proved.
+Nothing a guest does waits on Linear inside a request. The door and the
+screens put a job in the outbox (the ledger's `linear_job` table) and the
+worker sends it, one guest's jobs in their order, retrying with a growing
+pause, and each outcome is an event that the guest's page and Health show.
+The Guests screen is the exception: its search of the project and the issue
+it makes are answered while a host waits, with the error on the page.
+`engine.py linear <issue>` posts a test comment directly, which is how the
+bridge is proved.
 """
 
 import datetime as dt
@@ -37,7 +40,7 @@ from vault import VaultError
 API = "https://api.linear.app/graphql"
 TOKEN_URL = "https://api.linear.app/oauth/token"
 NEEDS = "LINEAR_CLIENT_ID / LINEAR_CLIENT_SECRET / LINEAR_REFRESH_TOKEN"
-LABELS = ("guest-claimed", "release-signed", "booked", "episode-approved")
+LABELS = ("guest-invited", "guest-claimed", "release-signed", "booked", "episode-approved")
 TRIES = 8  # attempts at one job before it waits for a person
 TIMEOUT = 30
 _token = {"access": None, "until": 0.0, "unsaved": None}
@@ -309,18 +312,24 @@ def stuck(c):
 
 
 def drain(c, env, log=print):
-    """Send what is waiting, oldest first; each outcome an event. Nothing without the credential."""
+    """Send what is waiting, oldest first, and one guest's jobs in their order:
+    a job that fails, or is not yet due, or gave up, holds that guest's later
+    ones, so the issue tells the story in sequence. Each outcome is an event.
+    Nothing without the credential."""
     if not ready(env):
         return 0
-    rows = c.execute(
-        "SELECT * FROM linear_job WHERE done_at IS NULL AND tries < ? AND (next_at IS NULL OR next_at <= ?) ORDER BY id",
-        (TRIES, _stamp()),
-    ).fetchall()
-    sent = 0
+    rows = c.execute("SELECT * FROM linear_job WHERE done_at IS NULL ORDER BY id").fetchall()
+    sent, held, now = 0, set(), _stamp()
     for job in rows:
+        if job["guest"] and job["guest"] in held:
+            continue
+        if job["tries"] >= TRIES or (job["next_at"] and job["next_at"] > now):
+            held.add(job["guest"])
+            continue
         try:
             detail = JOBS[job["kind"]](env, json.loads(job["args"]))
         except (LinearError, KeyError, ValueError, TypeError) as e:
+            held.add(job["guest"])
             tries = job["tries"] + 1
             pause = min(2**tries, 240) * 60  # two, four, eight minutes ... at most four hours
             c.execute(
@@ -349,6 +358,39 @@ def last_failure(c):
     return c.execute("SELECT at, detail FROM event WHERE what='linear:failed' ORDER BY at DESC LIMIT 1").fetchone()
 
 
+def _invited(env, a):
+    """The invitation on the guest's issue: who made it, when, for which address; and the label."""
+    key = a["issue"]
+    text = f"{a['who']} made an invitation for {a['name']} on the engine on {a['when']}"
+    if a.get("address"):
+        text += f", bound to {a['address']}."
+    else:
+        text += "; no address yet, so the first to pass a code claims it."
+    if a.get("page"):
+        text += f" Its page: {a['page']}"
+    cm = comment(env, key, text)
+    label(env, key, "guest-invited")
+    return {"issue": key, "comment": cm["url"], "label": "guest-invited"}
+
+
+def _sent(env, a):
+    cm = comment(env, a["issue"], f"{a['who']} emailed the invitation to {a['address']} on {a['when']}.")
+    return {"issue": a["issue"], "comment": cm["url"]}
+
+
+def _revoked(env, a):
+    text = f"{a['who']} withdrew the invitation on {a['when']}; the link and every session are dead."
+    cm = comment(env, a["issue"], text)
+    return {"issue": a["issue"], "comment": cm["url"]}
+
+
+def _reissued(env, a):
+    text = f"{a['who']} issued {a['name']} a new link on {a['when']}; the old one and every session are dead"
+    text += f", and {a['address']} stays bound." if a.get("address") else "."
+    cm = comment(env, a["issue"], text)
+    return {"issue": a["issue"], "comment": cm["url"]}
+
+
 def _claimed(env, a):
     """The claim on the guest's issue: who, when, from which address; and the label."""
     key = a["issue"]
@@ -359,4 +401,4 @@ def _claimed(env, a):
     return {"issue": key, "comment": cm["url"], "label": "guest-claimed"}
 
 
-JOBS = {"claimed": _claimed}
+JOBS = {"invited": _invited, "sent": _sent, "revoked": _revoked, "reissued": _reissued, "claimed": _claimed}

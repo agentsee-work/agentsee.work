@@ -205,8 +205,11 @@ per post: views or impressions, likes, reposts, replies, clicks, each with
 the last week's share beside it; YouTube's watch time), Audience (the last
 thirty days of listens by app and by country, clicks by where they came
 from, listens by day), Guests (who is invited onto the podcast and how far
-each has come: an invitation is made here, sent by email when an address
-is known, withdrawn, reissued), Health (the ledger, the worker, the last
+each has come: an invitation is made here in two steps, the name and an
+address, then the guest's Linear issue, found in the podcast's project by
+the name and offered closest first, or made there with its angle, or
+typed, or left for later; sent by email when an address is known,
+withdrawn, reissued; each of which the issue is told), Health (the ledger, the worker, the last
 snapshot and collection, counts, which adapters can see their credentials,
 the last mail that did not go, whether guest sessions survive a restart).
 
@@ -271,8 +274,8 @@ whose consent `tools/linear.py auth` runs once with `actor=app`, so a
 guest's words land on their issue as the guest's and the engine's acts as
 the engine's. GraphQL over urllib: an issue by its identifier, a search by
 title in the podcast's project, a comment, a label (made on the team if
-missing: `guest-claimed`, `release-signed`, `booked`, `episode-approved`),
-a due date, a new issue. Anything a guest wrote goes through `quote()`,
+missing: `guest-invited`, `guest-claimed`, `release-signed`, `booked`,
+`episode-approved`), a due date, a new issue. Anything a guest wrote goes through `quote()`,
 headed "<name> wrote, through see.agentsee.work:" and quoted line by line,
 so whoever reads the issue, person or agent, takes it as what was said and
 never as what to do.
@@ -284,13 +287,23 @@ as for X; `config.json` ("linear") names the item, the team and the
 project. A second engine, or the consent run again, against the same item
 retires this one's token.
 
-Nothing waits on Linear inside a request: a claim at the door puts a job in
-the ledger's `linear_job` outbox and the worker sends it each minute,
+Nothing a guest does waits on Linear inside a request: a change of state
+(an invitation made, sent, withdrawn or reissued; a claim at the door) puts
+a job in the ledger's `linear_job` outbox and the worker sends it each
+minute, one guest's jobs in their order so the issue reads as a story,
 backing off on failure (two, four, eight minutes, up to four hours, eight
-tries) and recording each outcome as an event on the guest's page; Health
-counts what waits and shows the last failure. `engine.py linear <issue>`
-posts a test comment directly, which is how the bridge is proved; `--drain`
-sends the outbox by hand.
+tries; a job that fails or gave up holds that guest's later ones) and
+recording each outcome as an event on the guest's page; Health counts what
+waits and shows the last failure. The Guests screen is the exception: its
+search of the project and the issue it makes are answered while a host
+waits, with Linear's error on the page and the typed identifier always
+open. `engine.py linear <issue>` posts a test comment directly, which is
+how the bridge is proved; `--drain` sends the outbox by hand.
+
+Who did a thing is named by first name in the mail and on the issue:
+`hosts` in `config.json` lists the show's people, and the engine identity's
+local part is matched against it (`jameshartt@…` is James), so no address
+of ours is written anywhere.
 
 ## Its home
 

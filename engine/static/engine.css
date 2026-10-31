@@ -53,6 +53,11 @@ button.signal { color: var(--paper); background: var(--ink); border-color: var(-
 button.signal:hover { background: var(--signal); border-color: var(--signal); color: var(--paper); }
 label { display: block; font-family: var(--mono); font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); margin: .6rem 0 .25rem; }
 .row { display: flex; gap: .8rem; flex-wrap: wrap; align-items: end; }
+.choices { margin: .4rem 0 .8rem; }
+.choices label { display: flex; gap: .5rem; align-items: baseline; font: inherit; letter-spacing: 0; text-transform: none;
+  color: var(--ink); margin: .35rem 0; }
+.choices input[type=radio] { flex: none; }
+.choices input[type=text] { width: auto; flex: 1 1 14rem; }
 
 pre.card-text { white-space: pre-wrap; background: var(--paper-2); border: var(--hairline); padding: .8rem 1rem; max-width: 60rem; font: inherit; line-height: 1.45; }
 .card-links a { margin-right: 1.2rem; }

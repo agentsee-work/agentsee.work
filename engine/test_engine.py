@@ -1841,11 +1841,73 @@ class EngineTest(unittest.TestCase):
         st, h, body = req("POST", "/guests/new", {"_t": web.CSRF, "name": "", "issue": "AGE-73"})
         self.assertEqual(st, 303)
         self.assertIn("msg=A+guest+has+a+name", h["Location"])
+
+        # ── the issue: found in the project by name, closest first, or made there; Linear's absence and failure said ──
+        st, h, body = req("POST", "/guests/find", {"_t": web.CSRF, "name": " "})
+        self.assertEqual((st, h["Location"]), (303, "/guests?msg=A+guest+has+a+name"))
+        st, h, body = req("POST", "/guests/find", {"_t": web.CSRF, "name": "Ada Lovelace"})
+        self.assertEqual(st, 200)
+        self.assertIn("Linear is not set up on this engine", body)
+        self.assertIn('value="new" checked', body)
+        self.assertIn('name="other"', body, "the identifier can always be typed")
+        fake = FakeLinear()
+        linear.post = fake
+        linear.vault = FakeVault("lr1", item="Linear podcast token")
+        linear._token.update(access=None, until=0.0, unsaved=None)
+        lenv = {"LINEAR_CLIENT_ID": "lcid", "LINEAR_CLIENT_SECRET": "lcs", "LINEAR_REFRESH_TOKEN": "lr1"}
+        os.environ.update(lenv)
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in lenv])
+        fake.issues["AGE-74"] = {
+            **fake.issues["AGE-73"],
+            "id": "i-74",
+            "identifier": "AGE-74",
+            "title": "Guest episode: Ada Byron — on numbers",
+            "url": "https://linear.app/agentsee/issue/AGE-74",
+            "labelIds": [],
+        }
+        st, h, body = req(
+            "POST", "/guests/find", {"_t": web.CSRF, "name": "Ada Lovelace", "address": "ada@example.com"}
+        )
+        self.assertEqual(st, 200)
+        self.assertIn("2 in the Podcast project mention the name, closest first", body)
+        self.assertLess(body.index("AGE-73"), body.index("AGE-74"), "Ada Lovelace before Ada Byron")
+        self.assertIn('value="AGE-73" checked', body)
+        self.assertIn('name="address" value="ada@example.com"', body)
+        fake.fail = 500
+        st, h, body = req("POST", "/guests/find", {"_t": web.CSRF, "name": "Ada Lovelace"})
+        self.assertEqual(st, 200)
+        self.assertIn("Linear did not answer", body)
+        self.assertIn('name="other"', body, "the typed route stays when Linear is down")
+
         st, h, body = req("POST", "/guests/new", {"_t": web.CSRF, "name": "Ada Lovelace", "issue": "age-73"})
         self.assertEqual(st, 303)
         gid = re.search(r"/guests/([0-9a-f]{8})\?msg=Invitation\+made", h["Location"]).group(1)
         g = guests.guest(c, gid)
         self.assertEqual((g["name"], g["address"], g["issue"], g["state"]), ("Ada Lovelace", None, "AGE-73", "invited"))
+        self.assertEqual(
+            [tuple(j) for j in c.execute("SELECT kind, guest FROM linear_job")],
+            [("invited", gid)],
+            "told, by the worker",
+        )
+        st, h, body = req(
+            "POST", "/guests/new", {"_t": web.CSRF, "name": "Grace Hopper", "issue": "new", "angle": " on  compilers "}
+        )
+        self.assertEqual(st, 303)
+        grace = re.search(r"/guests/([0-9a-f]{8})\?msg=Invitation\+made", h["Location"]).group(1)
+        self.assertEqual(guests.guest(c, grace)["issue"], "AGE-102", "made in Linear while the host waits")
+        made = fake.issues["AGE-102"]
+        self.assertEqual(made["title"], "Guest episode: Grace Hopper — on compilers")
+        self.assertIn(f"**Status.** Invited through {SEE} by Local on ", made["description"])
+        self.assertIn("**Proposed angle.** on compilers", made["description"])
+        st, h, body = req("POST", "/guests/find", {"_t": web.CSRF, "name": "Grace Hopper"})
+        self.assertIn("already Grace Hopper&#8217;s", body, "an issue another invitation has is marked")
+        fake.fail = 500
+        st, h, body = req("POST", "/guests/new", {"_t": web.CSRF, "name": "Nobody", "issue": "new"})
+        self.assertIn("msg=Linear+would+not+make+the+issue", h["Location"])
+        self.assertIsNone(
+            c.execute("SELECT id FROM guest WHERE name='Nobody'").fetchone(), "no guest without its issue"
+        )
+        type(self).linear_made = {k: v for k, v in fake.issues.items() if k != "AGE-73"}  # for test 19's Linear
         st, h, body = req("GET", f"/guests/{gid}")
         self.assertEqual(st, 200)
         self.assertIn(f"https://{SEE}/i/{g['invite']}", body)
@@ -1913,7 +1975,7 @@ class EngineTest(unittest.TestCase):
         g = guests.guest(c, gid)
         self.assertEqual((g["state"], g["address"]), ("claimed", "ada@example.com"))
         self.assertTrue(g["claimed_at"])
-        job = c.execute("SELECT * FROM linear_job WHERE guest=?", (gid,)).fetchone()
+        job = c.execute("SELECT * FROM linear_job WHERE guest=? ORDER BY id DESC", (gid,)).fetchone()
         self.assertEqual(
             (job["kind"], json.loads(job["args"])["issue"], job["done_at"]),
             ("claimed", "AGE-73", None),
@@ -1997,6 +2059,8 @@ class EngineTest(unittest.TestCase):
         g = guests.guest(c, gid)
         self.assertEqual((g["state"], g["address"], g["revoked_at"]), ("invited", "ada@example.com", None))
         self.assertNotEqual(g["invite"], doc["invite"])
+        st, h, body = req("POST", f"/guests/{gid}/send", {"_t": web.CSRF})
+        self.assertEqual((st, FakeSMTP.sent[-1]["To"]), (303, "ada@example.com"), "the new link, to the bound address")
         st, body, cid, ck = enter("other@example.com", g["invite"])
         code, to = code_from_mail()
         self.assertEqual(come_in(cid, code, ck["see_code"])[0], 403, "the address stays bound through a reissue")
@@ -2076,13 +2140,14 @@ class EngineTest(unittest.TestCase):
         srv.shutdown()
 
     def test_19_linear(self):
-        """The bridge: the outbox the worker drains (the claim test 18 left),
-        the token refreshed and rotated into the vault, a comment, a label
-        made once, a due date, a search, an issue made; then the day's end,
-        a 401, a vault write that fails, a retired token; Health and the
-        guest's page."""
+        """The bridge: the outbox the worker drains (the story test 18 left,
+        told in order), the token refreshed and rotated into the vault, a
+        comment, a label made once, a due date, a search, an issue made; then
+        the day's end, a 401, a vault write that fails, a retired token;
+        Health and the guest's page."""
         c = self.c()
         fake = FakeLinear()
+        fake.issues.update(self.linear_made)  # what test 18 made, as Linear still has it
         linear.post = fake
         linear.vault = FakeVault("lr1", item="Linear podcast token")
         linear._token.update(access=None, until=0.0, unsaved=None)
@@ -2090,38 +2155,73 @@ class EngineTest(unittest.TestCase):
         self.assertFalse(linear.ready({}))
         self.assertTrue(linear.ready(env))
         gid = c.execute("SELECT id FROM guest WHERE name='Ada Lovelace'").fetchone()[0]
+        grace = c.execute("SELECT id FROM guest WHERE name='Grace Hopper'").fetchone()[0]
 
-        # ── the outbox: the claim waits for the worker; a failure backs off; then it is sent ──
+        # ── the outbox: the story waits for the worker; a failure holds that guest's later jobs; then it is told in order ──
         self.assertEqual(linear.drain(c, {}), 0, "nothing without the credential")
         jobs = c.execute("SELECT * FROM linear_job ORDER BY id").fetchall()
         self.assertEqual(
             [(j["kind"], j["guest"]) for j in jobs],
-            [("claimed", gid)] * 2,
-            "the claim, and the claim after the reissue",
+            [
+                ("invited", gid),
+                ("invited", grace),
+                ("claimed", gid),
+                ("revoked", gid),
+                ("reissued", gid),
+                ("sent", gid),
+                ("claimed", gid),
+            ],
+            "test 18's story, in order",
         )
-        c.execute("DELETE FROM linear_job WHERE id=?", (jobs[1]["id"],))
-        self.assertEqual(linear.waiting(c), 1)
+        self.assertEqual(linear.waiting(c), 7)
         fake.fail = 500
-        self.assertEqual(linear.drain(c, env, log=lambda s: None), 0)
-        job = c.execute("SELECT * FROM linear_job").fetchone()
-        self.assertEqual((job["kind"], job["guest"], job["tries"], job["done_at"]), ("claimed", gid, 1, None))
-        self.assertIn("Something went wrong", job["last_error"])
-        self.assertGreater(job["next_at"], ledger.now())
+        self.assertEqual(
+            linear.drain(c, env, log=lambda s: None), 1, "Grace's goes; Ada's first fails and holds the rest"
+        )
+        rows = c.execute("SELECT * FROM linear_job ORDER BY id").fetchall()
+        self.assertEqual(
+            (rows[0]["kind"], rows[0]["guest"], rows[0]["tries"], rows[0]["done_at"]), ("invited", gid, 1, None)
+        )
+        self.assertIn("Something went wrong", rows[0]["last_error"])
+        self.assertGreater(rows[0]["next_at"], ledger.now())
+        self.assertIsNotNone(rows[1]["done_at"])
+        self.assertEqual(
+            [(r["tries"], r["done_at"]) for r in rows[2:]], [(0, None)] * 5, "held behind the first, untried"
+        )
         self.assertEqual(linear.drain(c, env), 0, "not before its time")
         ev = c.execute("SELECT * FROM event WHERE what='linear:failed'").fetchone()
         self.assertEqual((ev["guest"], json.loads(ev["detail"])["try"]), (gid, 1))
         c.execute("UPDATE linear_job SET next_at=NULL")
-        self.assertEqual(linear.drain(c, env), 1)
+        self.assertEqual(linear.drain(c, env), 6)
         self.assertEqual((linear.waiting(c), linear.stuck(c)), (0, 0))
-        issue, body = fake.comments[-1]
-        self.assertEqual(issue, "AGE-73")
+        self.assertEqual(fake.comments[0][0], "AGE-102")
+        self.assertRegex(fake.comments[0][1], r"^Local made an invitation for Grace Hopper on the engine on .+")
+        self.assertEqual([fake.labels[x]["name"] for x in fake.issues["AGE-102"]["labelIds"]], ["guest-invited"])
+        story = [b for i, b in fake.comments if i == "AGE-73"]
+        self.assertEqual(len(story), 6)
+        page = re.escape(f"https://engine.agentsee.work/guests/{gid}")
         self.assertRegex(
-            body, r"^Ada Lovelace claimed their invitation through see\.agentsee\.work on .+, from ada@example\.com\.$"
+            story[0],
+            r"^Local made an invitation for Ada Lovelace on the engine on .+; no address yet, so the first to pass a "
+            rf"code claims it\. Its page: {page}$",
         )
-        self.assertEqual([fake.labels[x]["name"] for x in fake.issues["AGE-73"]["labelIds"]], ["guest-claimed"])
-        ev = c.execute("SELECT * FROM event WHERE what='linear:done'").fetchone()
-        self.assertEqual(ev["guest"], gid)
-        self.assertEqual(json.loads(ev["detail"])["comment"], "https://linear.app/agentsee/issue/AGE-73#comment-1")
+        self.assertRegex(
+            story[1],
+            r"^Ada Lovelace claimed their invitation through see\.agentsee\.work on .+, from ada@example\.com\.$",
+        )
+        self.assertRegex(story[2], r"^Local withdrew the invitation on .+; the link and every session are dead\.$")
+        self.assertRegex(
+            story[3],
+            r"^Local issued Ada Lovelace a new link on .+; the old one and every session are dead, and ada@example\.com "
+            r"stays bound\.$",
+        )
+        self.assertRegex(story[4], r"^Local emailed the invitation to ada@example\.com on .+\.$")
+        self.assertRegex(story[5], r"^Ada Lovelace claimed their invitation through .+$")
+        self.assertEqual(
+            [fake.labels[x]["name"] for x in fake.issues["AGE-73"]["labelIds"]], ["guest-invited", "guest-claimed"]
+        )
+        ev = c.execute("SELECT * FROM event WHERE what='linear:done' AND guest=? ORDER BY id", (gid,)).fetchone()
+        self.assertEqual(json.loads(ev["detail"])["comment"], "https://linear.app/agentsee/issue/AGE-73#comment-2")
         self.assertEqual(
             (fake.n, linear.vault.value, linear.vault.writes), (1, "lr2", 1), "one refresh, rotated into the vault"
         )
@@ -2134,22 +2234,24 @@ class EngineTest(unittest.TestCase):
             "**Ada \\*Lovelace\\* wrote, through [see.agentsee.work](https://see.agentsee.work):**\n\n"
             "> First line.\n> \n> Third line.",
         )
-        self.assertEqual(linear.comment(env, "AGE-73", q)["url"], "https://linear.app/agentsee/issue/AGE-73#comment-2")
+        self.assertEqual(linear.comment(env, "AGE-73", q)["url"], "https://linear.app/agentsee/issue/AGE-73#comment-8")
         self.assertEqual(fake.comments[-1], ("AGE-73", q))
         n = len(fake.calls)
         linear.label(env, "AGE-73", "guest-claimed")
         self.assertEqual(fake.calls[n:], ["Issue", "Labels"], "a label already there is not set again")
         i = linear.label(env, "AGE-73", "booked")
-        self.assertEqual(sorted(fake.labels[x]["name"] for x in i["labelIds"]), ["booked", "guest-claimed"])
+        self.assertEqual(
+            sorted(fake.labels[x]["name"] for x in i["labelIds"]), ["booked", "guest-claimed", "guest-invited"]
+        )
         self.assertEqual(linear.due(env, "AGE-73", "2026-11-03")["dueDate"], "2026-11-03")
-        self.assertEqual([i["identifier"] for i in linear.search(env, "ada")], ["AGE-73"])
+        self.assertEqual([i["identifier"] for i in linear.search(env, "ada")], ["AGE-73", "AGE-74"])
         self.assertEqual(linear.search(env, "nobody"), [])
         idea = linear.quote("Grace Hopper", "An idea.")
         new = linear.create_issue(env, "Grace Hopper, on compilers", idea, labels=("guest-claimed",))
         self.assertEqual(
-            (new["identifier"], [fake.labels[x]["name"] for x in new["labelIds"]]), ("AGE-101", ["guest-claimed"])
+            (new["identifier"], [fake.labels[x]["name"] for x in new["labelIds"]]), ("AGE-103", ["guest-claimed"])
         )
-        self.assertEqual(fake.issues["AGE-101"]["description"], idea)
+        self.assertEqual(fake.issues["AGE-103"]["description"], idea)
         with self.assertRaises(linear.LinearError) as cm:
             linear.issue(env, "AGE-999")
         self.assertIn("no such issue", str(cm.exception))
@@ -2187,7 +2289,7 @@ class EngineTest(unittest.TestCase):
         self.assertIn("0 waiting, 0 given up; last failure", body)
         name, body = guests.guest_page(c, gid, "t")
         self.assertIn("linear:done", body)
-        self.assertIn("#comment-1", body)
+        self.assertIn("#comment-2", body)
 
 
 if __name__ == "__main__":

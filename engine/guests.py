@@ -10,8 +10,10 @@ What is here:
   of a guest's record (guests/<id>/guest.json) made on every change of
   state, because the ledger sits on the root disk and was lost once;
   the door on the guest host: /, /i/<invite>, /enter, /code, /office, /leave;
-  the Guests screen on the engine host, where an invitation is made, sent,
-  withdrawn and reissued.
+  the Guests screen on the engine host, where an invitation is made (its
+  Linear issue found in the podcast's project by the guest's name, or made
+  there), sent, withdrawn and reissued; each of which the worker tells the
+  issue (linear.py).
 
 The code is bound to the browser that asked for it: /enter sets a cookie
 and /code accepts the code only together with it, so a code read over a
@@ -31,6 +33,7 @@ verified is the lock.
 """
 
 import datetime as dt
+import difflib
 import hashlib
 import hmac
 import http.cookies
@@ -53,6 +56,8 @@ PUBLIC = ROOT / "public"
 STATIC = ROOT / "engine" / "static"
 SAFE = re.compile(r"^[A-Za-z0-9._-]+$")
 HOST = os.environ.get("ENGINE_GUEST_HOST") or (ledger.CONFIG.get("guest") or {}).get("host", "see.agentsee.work")
+ENGINE = (ledger.CONFIG.get("engine") or {}).get("host", "engine.agentsee.work")
+HOSTS = ledger.CONFIG.get("hosts") or []  # the people of the show, by first name, for the mail and the issue
 
 CODE_TTL = 600  # a code lives ten minutes
 CODE_TRIES = 5  # wrong guesses before it is void
@@ -157,7 +162,34 @@ def invite_url(g):
     return f"https://{HOST}/i/{g['invite']}"
 
 
-def create(c, name, address, issue, who):
+def host_name(who):
+    """The person behind an engine identity, by first name: the address's local
+    part matched against the names in config.json, or capitalised as it is."""
+    local = (who or "").split("@")[0]
+    for name in HOSTS:
+        if local.lower().startswith(name.lower()):
+            return name
+    return local.capitalize() or "Someone"
+
+
+def tell(c, g, kind, who, **more):
+    """A change of state, for the guest's issue, through the worker. Nothing without an issue."""
+    if not g["issue"]:
+        return None
+    args = {
+        "issue": g["issue"],
+        "name": g["name"],
+        "address": g["address"],
+        "who": host_name(who),
+        "when": when(ledger.now()),
+        **more,
+    }
+    return linear.enqueue(c, kind, args, guest=g["id"])
+
+
+def create(c, name, address, issue, who, angle=None, env=None):
+    """A guest and their invitation. The issue is an identifier, "new" (made in
+    the podcast's project now, while the host waits) or nothing yet."""
     name = " ".join((name or "").split())[:80]
     if not name:
         raise ValueError("A guest has a name")
@@ -168,6 +200,8 @@ def create(c, name, address, issue, who):
     else:
         address = None
     issue = " ".join((issue or "").split()).upper() or None
+    if issue == "NEW":
+        issue = make_issue(env or os.environ, name, angle, who)
     if issue and not ISSUE.match(issue):
         raise ValueError("An issue is written AGE-73, or left empty until there is one")
     gid, now = secrets.token_hex(4), ledger.now()
@@ -177,8 +211,55 @@ def create(c, name, address, issue, who):
         (gid, secrets.token_urlsafe(12), name, address, issue, "invited", who, now, now),
     )
     ledger.event(c, "guest:invited", who, detail={"name": name, "address": address, "issue": issue}, guest=gid)
+    g = guest(c, gid)
+    tell(c, g, "invited", who, page=f"https://{ENGINE}/guests/{gid}")
     mirror(c, gid)
-    return guest(c, gid)
+    return g
+
+
+def make_issue(env, name, angle, who):
+    """A guest issue in the podcast's project, titled as the hand-made ones are
+    and headed the same way, for a host to fill in. Answered now, not by the
+    worker, because the invitation needs the identifier."""
+    angle = " ".join((angle or "").split())[:120]
+    title = f"Guest episode: {name}" + (f" — {angle}" if angle else "")
+    body = (
+        "**Who they are.** \n\n**How we know them.** \n\n"
+        f"**Status.** Invited through {HOST} by {host_name(who)} on {when(ledger.now())}.\n\n"
+        f"**Proposed angle.** {angle}\n\n**Caveats.** "
+    )
+    if not linear.ready(env):
+        raise ValueError(
+            f"Linear is not set up on this engine (missing {linear.NEEDS}); make the issue by hand and give its identifier"
+        )
+    try:
+        return linear.create_issue(env, title, body)["identifier"]
+    except linear.LinearError as e:
+        raise ValueError(f"Linear would not make the issue: {e}") from None
+
+
+def closeness(name, title):
+    """How much the person's name is the name in an issue's title, "Guest episode: Name — angle"."""
+    t = re.sub(r"^\s*guest episode\s*:\s*", "", title or "", flags=re.I)
+    t = re.split(r"\s+[—–-]\s+|,", t, maxsplit=1)[0]
+    return difflib.SequenceMatcher(None, name.lower(), t.strip().lower()).ratio()
+
+
+def candidates(c, env, name):
+    """Issues in the podcast's project that look like this person's, closest
+    first: Linear's search by the whole name and by each word of it, ranked on
+    the name in the title; with whose invitation an issue already is."""
+    found = {}
+    for text in list(dict.fromkeys([name, *[w for w in name.split() if len(w) >= 3]]))[:4]:
+        for i in linear.search(env, text):
+            found[i["id"]] = i
+    taken = {
+        r["issue"]: r["name"]
+        for r in c.execute("SELECT issue, name FROM guest WHERE issue IS NOT NULL AND state!='revoked'")
+    }
+    out = [{**i, "closeness": closeness(name, i["title"]), "taken": taken.get(i["identifier"])} for i in found.values()]
+    out.sort(key=lambda i: -i["closeness"])
+    return out
 
 
 def change(c, gid, who, what, detail=None, **fields):
@@ -194,6 +275,7 @@ def revoke(c, gid, who):
         raise ValueError("Already withdrawn")
     end_sessions(c, gid)
     change(c, gid, who, "guest:revoked", state="revoked", revoked_at=ledger.now())
+    tell(c, guest(c, gid), "revoked", who)
 
 
 def reissue(c, gid, who):
@@ -210,6 +292,7 @@ def reissue(c, gid, who):
         claimed_at=None,
         revoked_at=None,
     )
+    tell(c, guest(c, gid), "reissued", who)
 
 
 def record(c, gid):
@@ -596,13 +679,12 @@ def guests_page(c, csrf, msg=None):
         )
     note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
     form = (
-        f'<form method="post" action="/guests/new" class="block"><input type="hidden" name="_t" value="{esc(csrf)}">'
+        f'<form method="post" action="/guests/find" class="block"><input type="hidden" name="_t" value="{esc(csrf)}">'
         '<div class="row"><div><label for="name">Name</label><input type="text" id="name" name="name" required maxlength="80"></div>'
         '<div><label for="address">Email address, if known</label><input type="email" id="address" name="address"></div>'
-        '<div><label for="issue">Their issue</label><input type="text" id="issue" name="issue" placeholder="AGE-73" '
-        'pattern="[A-Za-z]{2,6}-[0-9]{1,6}"></div>'
-        '<div><button type="submit" class="signal">Make the invitation</button></div></div></form>'
-        '<p class="muted">A link carries an id, not a secret. Without an address, the first address that passes a code '
+        '<div><button type="submit" class="signal">Find their issue</button></div></div></form>'
+        "<p class=\"muted\">The next page finds the guest's issue in the podcast's project by their name, or makes one. "
+        "A link carries an id, not a secret. Without an address, the first address that passes a code "
         "claims it; with one, no other address can. Send it from the guest's page, or paste the link yourself.</p>"
     )
     body = (
@@ -619,6 +701,64 @@ def guests_page(c, csrf, msg=None):
         )
     )
     return "Guests", body
+
+
+def find_page(c, env, csrf, name, address):
+    """The second step of an invitation: which issue is the guest's. The
+    project's candidates by name, closest first and marked when another
+    invitation has them; a new issue with its angle; none yet; or an
+    identifier typed. Linear's failure is a sentence, and the typed route
+    still works."""
+    name = " ".join((name or "").split())[:80]
+    if not name:
+        return None
+    address = " ".join((address or "").split())
+    found, note = [], ""
+    if not linear.ready(env):
+        note = (
+            f'<p class="honesty">Linear is not set up on this engine (missing {esc(linear.NEEDS)}), so there is no '
+            "search: give the identifier, or none yet.</p>"
+        )
+    else:
+        try:
+            found = candidates(c, env, name)
+        except linear.LinearError as e:
+            note = f'<p class="honesty"><b>Linear did not answer: {esc(e)}</b> Give the identifier, or try again.</p>'
+    choices = []
+    for n, i in enumerate(found):
+        state = f' <span class="muted">{esc((i.get("state") or {}).get("name", ""))}</span>'
+        taken = f' <span class="muted">already {esc(i["taken"])}&#8217;s</span>' if i["taken"] else ""
+        choices.append(
+            f'<label><input type="radio" name="issue" value="{esc(i["identifier"])}"{" checked" if n == 0 else ""}>'
+            f'<span><b class="mono">{esc(i["identifier"])}</b> {esc(i["title"])}{state}{taken}</span></label>'
+        )
+    choices.append(
+        f'<label><input type="radio" name="issue" value="new"{"" if found else " checked"}>'
+        f'<span>A new issue, <span class="mono">Guest episode: {esc(name)} —</span></span>'
+        '<input type="text" name="angle" placeholder="the angle, in a few words" maxlength="120"></label>'
+        '<label><input type="radio" name="issue" value=""><span>No issue yet</span></label>'
+    )
+    project = (ledger.CONFIG.get("linear") or {}).get("project", "the podcast")
+    deck = (
+        f"{len(found)} in the {esc(project)} project mention the name, closest first."
+        if found
+        else f"Nothing in the {esc(project)} project mentions the name."
+    )
+    form = (
+        f'<form method="post" action="/guests/new" class="block"><input type="hidden" name="_t" value="{esc(csrf)}">'
+        f'<input type="hidden" name="name" value="{esc(name)}"><input type="hidden" name="address" value="{esc(address)}">'
+        '<div class="choices">' + "".join(choices) + "</div>"
+        '<div class="row"><div><label for="other">Or its identifier</label><input type="text" id="other" name="other" '
+        'placeholder="AGE-73" pattern="[A-Za-z]{2,6}-[0-9]{1,6}"></div>'
+        '<div><button type="submit" class="signal">Make the invitation</button></div></div></form>'
+    )
+    body = (
+        f'<article class="lead"><h1>{esc(name)}</h1><p class="deck">Which issue is theirs? {deck} '
+        f"The invitation goes to {esc(address) if address else 'no address yet'}.</p></article>"
+        + note
+        + section("Issue", "Theirs, or a new one", form)
+    )
+    return name, body
 
 
 def guest_page(c, gid, csrf, msg=None):
@@ -705,13 +845,14 @@ def act(c, g, action, who):
             raise ValueError("Withdrawn; reissue first")
         if not g["address"]:
             raise ValueError("No address to send it to; paste the link instead")
-        text = INVITE_MAIL.format(name=g["name"].split()[0], who=who.split("@")[0].capitalize(), url=invite_url(g))
+        text = INVITE_MAIL.format(name=g["name"].split()[0], who=host_name(who), url=invite_url(g))
         try:
             msgid = mail.send(g["address"], "An invitation to the AgentSee podcast", text)
         except mail.MailError as e:
             mail.record(c, who, g["address"], "invitation", error=e, guest=gid)
             raise ValueError(f"Not sent: {e}") from None
         mail.record(c, who, g["address"], "invitation", msgid, guest=gid)
+        tell(c, g, "sent", who)
         return f"Sent to {g['address']}"
     if action == "revoke":
         revoke(c, gid, who)
