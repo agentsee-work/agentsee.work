@@ -91,6 +91,13 @@ CREATE TABLE IF NOT EXISTS release_signature (
   id INTEGER PRIMARY KEY, version INTEGER NOT NULL REFERENCES release_version(n), role TEXT NOT NULL,
   host TEXT, guest TEXT REFERENCES guest(id) ON DELETE CASCADE, name TEXT NOT NULL, address TEXT NOT NULL,
   png BLOB NOT NULL, ip TEXT, ua TEXT, at TEXT NOT NULL, sha256 TEXT NOT NULL, UNIQUE(version, host));
+CREATE TABLE IF NOT EXISTS idea_turn (
+  id INTEGER PRIMARY KEY, guest TEXT NOT NULL REFERENCES guest(id) ON DELETE CASCADE, role TEXT NOT NULL,
+  text TEXT NOT NULL, at TEXT NOT NULL, input_tokens INTEGER, output_tokens INTEGER, model TEXT, stop TEXT);
+CREATE INDEX IF NOT EXISTS idea_turn_guest ON idea_turn(guest, id);
+CREATE TABLE IF NOT EXISTS guest_file (
+  id INTEGER PRIMARY KEY, guest TEXT NOT NULL REFERENCES guest(id) ON DELETE CASCADE, kind TEXT NOT NULL,
+  name TEXT, type TEXT, data BLOB NOT NULL, at TEXT NOT NULL, UNIQUE(guest, kind));
 """
 
 MIGRATIONS = [
@@ -98,6 +105,14 @@ MIGRATIONS = [
     ("event", "guest", "TEXT"),
     ("guest", "signed_at", "TEXT"),
     ("guest", "signed_version", "INTEGER"),
+    ("guest", "idea_tokens", "INTEGER"),
+    ("guest", "idea_comment", "TEXT"),
+    ("guest", "brief", "TEXT"),
+    ("guest", "brief_at", "TEXT"),
+    ("guest", "shown_name", "TEXT"),
+    ("guest", "bio", "TEXT"),
+    ("guest", "link", "TEXT"),
+    ("guest", "tz", "TEXT"),
 ]
 
 STATUSES = {

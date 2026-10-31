@@ -12,6 +12,7 @@ import base64
 import datetime as dt
 import hashlib
 import http.server
+import io
 import json
 import os
 import pathlib
@@ -805,7 +806,86 @@ class FakeLinear:
             i = self.issues.get(v["id"])
             docs = [{"id": "d-1", "title": "Guest release, version 1", "content": RELEASE_TEXT}]
             return {"issue": {"documents": {"nodes": docs}} if i else None}
+        if op == "CommentUpdate":
+            n = int(v["id"].split("-")[1])
+            ident = self.comments[n - 1][0]
+            self.comments[n - 1] = (ident, v["body"])
+            url = f"{self.issues[ident]['url']}#comment-{n}"
+            return {"commentUpdate": {"success": True, "comment": {"id": v["id"], "url": url}}}
         raise AssertionError(f"FakeLinear has no answer for {op}")
+
+
+class FakeStream(io.BytesIO):
+    """A response engine/idea.py reads line by line, with a status."""
+
+    def __init__(self, status, body):
+        super().__init__(body)
+        self.status = status
+
+
+class FakeAnthropic:
+    """The Messages API's stream, as far as engine/idea.py reads it: scripted
+    replies as server-sent events with usage, a thinking block with nothing in
+    it first; a status to fail with, once; every payload kept."""
+
+    def __init__(self):
+        self.replies, self.payloads, self.fail = [], [], None
+
+    def __call__(self, url, data, headers, timeout=None):
+        payload = json.loads(data)
+        self.payloads.append((payload, headers))
+        if self.fail:
+            status, self.fail = self.fail, None
+            return FakeStream(status, b'{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}')
+        n = sum(1 for m in payload["messages"] if m["role"] == "user")
+        text = (
+            self.replies.pop(0)
+            if self.replies
+            else f"Question {n} of about 20 · The idea · ▰▱\nWhat is it about? (a) this (b) that"
+        )
+        events = [
+            (
+                "message_start",
+                {
+                    "type": "message_start",
+                    "message": {
+                        "id": "msg_1",
+                        "model": payload["model"],
+                        "usage": {"input_tokens": 1000, "cache_read_input_tokens": 500, "output_tokens": 1},
+                    },
+                },
+            ),
+            (
+                "content_block_start",
+                {"type": "content_block_start", "index": 0, "content_block": {"type": "thinking", "thinking": ""}},
+            ),
+            ("content_block_stop", {"type": "content_block_stop", "index": 0}),
+            (
+                "content_block_start",
+                {"type": "content_block_start", "index": 1, "content_block": {"type": "text", "text": ""}},
+            ),
+        ]
+        for i in range(0, len(text), 7):
+            events.append(
+                (
+                    "content_block_delta",
+                    {
+                        "type": "content_block_delta",
+                        "index": 1,
+                        "delta": {"type": "text_delta", "text": text[i : i + 7]},
+                    },
+                )
+            )
+        events += [
+            ("content_block_stop", {"type": "content_block_stop", "index": 1}),
+            (
+                "message_delta",
+                {"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 50}},
+            ),
+            ("message_stop", {"type": "message_stop"}),
+        ]
+        body = "".join(f"event: {e}\ndata: {json.dumps(d)}\n\n" for e, d in events).encode("utf-8")
+        return FakeStream(200, body)
 
 
 class FakeSMTP:
@@ -2601,6 +2681,295 @@ class EngineTest(unittest.TestCase):
         self.assertIn("[issued]", r.stdout)
         self.assertIn("v2 ", r.stdout)
         self.assertIn("[waiting for James, Abrar]", r.stdout)
+        srv.shutdown()
+
+    def test_22_idea(self):
+        """The idea conversation: the skill as the system prompt and as a file;
+        the start, a reply streamed and a reply waited for; what the API is
+        sent and never sent; the ledger's turns and tokens; the issue's one
+        transcript comment created then rewritten; the run-sheet draft found,
+        saved, told and revised; the caps and a failure said in a sentence;
+        the about-you form with a headshot; who may not talk."""
+        import idea
+
+        SEE = guests.HOST
+        os.environ.update(self.menv, ENGINE_SESSION_KEY="a-key-for-the-tests", ANTHROPIC_API_KEY="sk-test")
+        self.addCleanup(
+            lambda: [os.environ.pop(k, None) for k in (*self.menv, "ENGINE_SESSION_KEY", "ANTHROPIC_API_KEY")]
+        )
+        client = archive.Client(self.r2env)
+        patch = unittest.mock.patch.object(archive, "Client", lambda env=None: client)
+        patch.start()
+        self.addCleanup(patch.stop)
+        c = self.c()
+        objs = FakeR2.state["objects"]
+        fake = FakeLinear()
+        fake.issues.update(self.linear_made)
+        linear.post = fake
+        linear.vault = FakeVault("lr1", item="Linear podcast token")
+        linear._token.update(access=None, until=0.0, unsaved=None)
+        env = {"LINEAR_CLIENT_ID": "lcid", "LINEAR_CLIENT_SECRET": "lcs", "LINEAR_REFRESH_TOKEN": "lr1"}
+        ai = FakeAnthropic()
+        idea.open_stream = ai
+        gid = c.execute("SELECT id FROM guest WHERE name='Ada Lovelace'").fetchone()[0]
+
+        # ── the skill: the one source, with the site's questions in it ──
+        text = idea.skill_text()
+        self.assertNotIn("---\nname:", text)
+        self.assertIn("Question 4 of about 20", text)
+        self.assertIn("1. If writing the code is no longer the expensive part", text)
+        self.assertIn("# Run-sheet draft:", text)
+        prompt = idea.system_prompt(guests.guest(c, gid))
+        self.assertIn("with Ada Lovelace, who has signed the release", prompt)
+
+        web.STATE["ledger"] = str(self.db)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+        def req(method, path, data=None, host=None, cookies=None, headers=None, raw=None):
+            hdr = dict(headers or {})
+            if host:
+                hdr["Host"] = host
+            if cookies:
+                hdr["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+            body = urllib.parse.urlencode(data).encode() if data is not None else None
+            if raw:
+                body, hdr["Content-Type"] = raw
+            r = urllib.request.Request(base + path, data=body, method=method, headers=hdr)
+            opener = urllib.request.build_opener(NoRedirect)
+            try:
+                with opener.open(r, timeout=20) as resp:
+                    return resp.status, resp.headers, resp.read().decode(errors="replace")
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code, e.headers, e.read().decode(errors="replace")
+
+        def jar(h):
+            return {sc.partition("=")[0]: sc.partition("=")[2].split(";")[0] for sc in h.get_all("Set-Cookie") or []}
+
+        def sign_in(address):
+            c.execute("DELETE FROM code WHERE address=?", (address,))
+            st, h, body = req("POST", "/enter", {"address": address}, SEE)
+            cid, bind = re.search(r'name="id" value="([^"]+)"', body).group(1), jar(h)["see_code"]
+            code = re.search(r"\n    (\d{6})\n", FakeSMTP.sent[-1].get_content()).group(1)
+            st, h, body = req("POST", "/code", {"id": cid, "code": code}, SEE, {"see_code": bind})
+            self.assertEqual(st, 303)
+            return {"see_session": jar(h)["see_session"]}
+
+        ada, bobs = sign_in("ada@example.com"), sign_in("bob@example.com")
+
+        # ── who may talk: a signed guest; the page before the first word ──
+        self.assertEqual(req("GET", "/idea", host=SEE)[0], 303)
+        st, h, body = req("GET", "/idea", host=SEE, cookies=bobs)
+        self.assertEqual(st, 200)
+        self.assertIn("The release comes first", body)
+        st, h, body = req("POST", "/idea/say", {"start": "1"}, SEE, bobs)
+        self.assertEqual(st, 400)
+        self.assertIn("The release comes first", body)
+        self.assertIn("After the release", req("GET", "/office", host=SEE, cookies=bobs)[2])
+        self.assertIn("Sit down with the office", req("GET", "/office", host=SEE, cookies=ada)[2])
+        st, h, body = req("GET", "/idea", host=SEE, cookies=ada)
+        self.assertEqual(st, 200)
+        for s in ("Begin", "/chat.js", "The questions, as a file", "Europe/London", "The run-sheet draft"):
+            self.assertIn(s, body)
+        st, h, body = req("GET", "/idea/skill.md", host=SEE, cookies=ada)
+        self.assertEqual((st, h["Content-Type"]), (200, "text/markdown; charset=utf-8"))
+        self.assertIn("1. If writing the code", body)
+
+        # ── the start, waited for; what the API is sent ──
+        st, h, body = req("POST", "/idea/say", {"start": "1"}, SEE, ada)
+        self.assertEqual((st, h["Location"]), (303, "/idea"))
+        payload, headers = ai.payloads[-1]
+        self.assertEqual(headers["x-api-key"], "sk-test")
+        self.assertEqual(headers["anthropic-beta"], "server-side-fallback-2026-07-01")
+        self.assertEqual((payload["model"], payload["max_tokens"], payload["stream"]), ("claude-opus-5-5", 1500, True))
+        self.assertEqual((payload["fallbacks"], payload["output_config"]), ("default", {"effort": "medium"}))
+        self.assertEqual(payload["system"][0]["cache_control"], {"type": "ephemeral"})
+        self.assertIn("The idea, before we record", payload["system"][0]["text"])
+        self.assertEqual(payload["messages"], [{"role": "user", "content": idea.START}])
+        self.assertNotIn("tools", payload)
+        self.assertNotIn("thinking", payload)
+        rows = idea.turns(c, gid)
+        self.assertEqual([t["role"] for t in rows], ["start", "agent"])
+        self.assertEqual((rows[1]["input_tokens"], rows[1]["output_tokens"], rows[1]["stop"]), (1500, 50, "end_turn"))
+        self.assertEqual(guests.guest(c, gid)["idea_tokens"], 1550)
+        st, h, body = req("GET", "/idea", host=SEE, cookies=ada)
+        self.assertIn('class="progress"', body)
+        self.assertIn("<textarea", body)
+        self.assertNotIn(">Begin<", body)
+        self.assertNotIn(idea.START, body, "the start is the engine's line, not the guest's")
+
+        # ── a reply streamed ──
+        st, h, body = req(
+            "POST", "/idea/say", {"text": "It is about compilers."}, SEE, ada, {"Accept": "text/event-stream"}
+        )
+        self.assertEqual((st, h["Content-Type"]), (200, "text/event-stream; charset=utf-8"))
+        events = [chunk.split("\n", 1) for chunk in body.strip().split("\n\n")]
+        kinds = [e[0] for e in events]
+        self.assertEqual(kinds[0], "event: delta")
+        self.assertEqual(kinds[-1], "event: done")
+        done = json.loads(events[-1][1][len("data: ") :])
+        self.assertIn('class="turn agent"', done["html"])
+        self.assertFalse(done["reload"])
+        streamed = "".join(json.loads(e[1][len("data: ") :])["t"] for e in events if e[0] == "event: delta")
+        self.assertEqual(streamed, idea.turns(c, gid)[-1]["text"])
+        self.assertEqual(ai.payloads[-1][0]["messages"][-1], {"role": "user", "content": "It is about compilers."})
+        self.assertEqual(idea.exchanges(c, gid), 1)
+
+        # ── the issue: one transcript comment, created then rewritten ──
+        jobs = c.execute("SELECT kind FROM linear_job WHERE guest=? AND done_at IS NULL ORDER BY id", (gid,)).fetchall()
+        self.assertEqual([j["kind"] for j in jobs], ["idea", "idea"])
+        before = len(fake.comments)
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 2)
+        self.assertEqual(len(fake.comments), before + 1, "the second exchange rewrote the comment, not a new one")
+        ident, transcript = fake.comments[-1]
+        self.assertEqual(ident, "AGE-73")
+        self.assertIn("**Ada Lovelace's conversation with the office", transcript)
+        self.assertIn("1 exchanges", transcript)
+        self.assertIn("> **The office:**", transcript)
+        self.assertIn("> **Ada:**\n> It is about compilers.", transcript)
+        self.assertNotIn(idea.START, transcript)
+        self.assertTrue(guests.guest(c, gid)["idea_comment"].startswith("c-"))
+
+        # ── the draft: found in the reply, saved, told, labelled; then revised ──
+        ai.replies.append(
+            "My guess: an hour on compilers.\n\n```markdown\n# Run-sheet draft: Compilers for everyone\n\n"
+            "Ada on compilers.\n\n**Run length: 30 minutes.**\n\n## Areas\n\n**1. Intro**\n\n- What the podcast is\n```\n\n"
+            "The office saves this and sends it to James and Abrar."
+        )
+        st, h, body = req("POST", "/idea/say", {"text": "Write it up."}, SEE, ada)
+        self.assertEqual(st, 303)
+        g = guests.guest(c, gid)
+        self.assertTrue(g["brief"].startswith("# Run-sheet draft: Compilers for everyone"))
+        self.assertIn("**1. Intro**", g["brief"])
+        self.assertNotIn("```", g["brief"])
+        st, h, body = req("GET", "/idea", host=SEE, cookies=ada)
+        self.assertIn("Saved", body)
+        self.assertIn("Compilers for everyone", body)
+        self.assertIn('<pre class="brief">', body)
+        self.assertIn("Drafted", req("GET", "/office", host=SEE, cookies=ada)[2])
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 2)
+        drafted = [b for i, b in fake.comments if "The run-sheet draft for Ada Lovelace" in b]
+        self.assertEqual(len(drafted), 1)
+        self.assertIn("written by the office from what they said", drafted[0])
+        self.assertIn("> # Run-sheet draft: Compilers for everyone", drafted[0])
+        self.assertIn("idea-drafted", [fake.labels[x]["name"] for x in fake.issues["AGE-73"]["labelIds"]])
+        st, h, body = req("POST", "/idea/brief", {"brief": "# Run-sheet draft: Better\n\nRevised by hand."}, SEE, ada)
+        self.assertEqual((st, h["Location"]), (303, "/idea"))
+        self.assertEqual(guests.guest(c, gid)["brief"], "# Run-sheet draft: Better\n\nRevised by hand.")
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
+        self.assertIn("as they revised it", fake.comments[-1][1])
+        st, h, body = req("POST", "/idea/brief", {"brief": "x"}, SEE, ada)
+        self.assertEqual(st, 400)
+        self.assertIn("not a run-sheet", body)
+        self.assertIn("Run-sheet draft: Better", req("GET", f"/guests/{gid}")[2])
+
+        # ── a failure said in a sentence, waited for and streamed; the caps ──
+        ai.fail = 529
+        st, h, body = req("POST", "/idea/say", {"text": "Again?"}, SEE, ada)
+        self.assertEqual(st, 400)
+        self.assertIn("would not answer: 529", body)
+        self.assertEqual(idea.turns(c, gid)[-1]["role"], "guest", "the guest's words are kept; the reply never came")
+        ai.fail = 529
+        st, h, body = req("POST", "/idea/say", {"text": "Again?"}, SEE, ada, {"Accept": "text/event-stream"})
+        self.assertEqual(st, 200)
+        self.assertIn("event: fail", body)
+        self.assertIn("would not answer", body)
+        st, h, body = req("POST", "/idea/say", {"text": "Once more."}, SEE, ada)
+        self.assertEqual(st, 303)
+        sent = ai.payloads[-1][0]["messages"]
+        self.assertEqual(sent[-1]["role"], "user")
+        self.assertEqual(sent[-1]["content"], "Again?\n\nAgain?\n\nOnce more.", "neighbours of one role joined")
+        self.assertEqual(
+            [m["role"] for m in sent], ["user", "assistant", "user", "assistant", "user", "assistant", "user"]
+        )
+        before = len(fake.comments)
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1, "the transcript, rewritten")
+        self.assertEqual(len(fake.comments), before)
+        self.assertIn(
+            "5 exchanges",
+            [b for i, b in fake.comments if "conversation with the office" in b][-1],
+            "the two the office never answered count: they were said",
+        )
+        cfg = dict(ledger.CONFIG.get("idea") or {})
+        ledger.CONFIG["idea"] = {**cfg, "max_turns": 5}
+        try:
+            st, h, body = req("POST", "/idea/say", {"text": "More."}, SEE, ada)
+            self.assertEqual(st, 400)
+            self.assertIn("limit of 5 turns", body)
+            ledger.CONFIG["idea"] = {**cfg, "token_budget": 10}
+            st, h, body = req("POST", "/idea/say", {"text": "More."}, SEE, ada)
+            self.assertEqual(st, 400)
+            self.assertIn("used all the office set aside", body)
+            self.assertIn("used all the office set aside", req("GET", "/idea", host=SEE, cookies=ada)[2])
+        finally:
+            ledger.CONFIG["idea"] = cfg
+        st, h, body = req("POST", "/idea/say", {"text": ""}, SEE, ada)
+        self.assertEqual(st, 400)
+        self.assertIn("Say something first", body)
+
+        # ── about you: the fields, the headshot, the issue ──
+        def multipart(fields, files):
+            b = "----agentsee-test"
+            out = []
+            for k, v in fields.items():
+                out.append(f'--{b}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode())
+            for k, (fn, data, ct) in files.items():
+                out.append(
+                    f'--{b}\r\nContent-Disposition: form-data; name="{k}"; filename="{fn}"\r\nContent-Type: {ct}\r\n\r\n'.encode()
+                    + data
+                    + b"\r\n"
+                )
+            out.append(f"--{b}--\r\n".encode())
+            return b"".join(out), f"multipart/form-data; boundary={b}"
+
+        png = test_png(32, 32)
+        about = {
+            "shown_name": " Ada  Lovelace ",
+            "bio": "Wrote the first program.",
+            "link": "https://example.com/ada",
+            "tz": "Europe/Paris",
+        }
+        st, h, body = req("POST", "/idea/about", host=SEE, cookies=ada, raw=multipart({**about, "link": "ftp://x"}, {}))
+        self.assertEqual(st, 400)
+        self.assertIn("should start with https://", body)
+        st, h, body = req(
+            "POST",
+            "/idea/about",
+            host=SEE,
+            cookies=ada,
+            raw=multipart(about, {"headshot": ("me.png", png, "image/png")}),
+        )
+        self.assertEqual((st, h["Location"]), (303, "/idea"))
+        g = guests.guest(c, gid)
+        self.assertEqual(
+            (g["shown_name"], g["bio"], g["link"], g["tz"]),
+            ("Ada Lovelace", about["bio"], about["link"], "Europe/Paris"),
+        )
+        shot = idea.headshot(c, gid)
+        self.assertEqual((shot["type"], shot["name"], shot["data"] == png), ("image/png", "me.png", True))
+        self.assertEqual(objs[f"guests/{gid}/headshot.png"]["body"], png)
+        st, h, body = req("GET", "/idea/headshot", host=SEE, cookies=ada)
+        self.assertEqual((st, h["Content-Type"]), (200, "image/png"))
+        self.assertIn('value="Europe/Paris" selected', req("GET", "/idea", host=SEE, cookies=ada)[2])
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
+        self.assertIn("About Ada Lovelace", fake.comments[-1][1])
+        self.assertIn("> Time zone: Europe/Paris", fake.comments[-1][1])
+        self.assertIn(f"guests/{gid}/headshot.png", fake.comments[-1][1])
+        st, h, body = req(
+            "POST",
+            "/idea/about",
+            host=SEE,
+            cookies=ada,
+            raw=multipart(about, {"headshot": ("x.gif", b"GIF89a....", "image/gif")}),
+        )
+        self.assertEqual(st, 400)
+        self.assertIn("JPEG or a PNG", body)
+        self.assertIn("shown as Ada Lovelace, Europe/Paris", req("GET", f"/guests/{gid}")[2])
+        self.assertIn("The office", req("GET", "/health")[2])
         srv.shutdown()
 
 

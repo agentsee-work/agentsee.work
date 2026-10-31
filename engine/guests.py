@@ -46,6 +46,7 @@ import tempfile
 import urllib.parse
 
 import archive
+import idea
 import ledger
 import linear
 import mail
@@ -568,6 +569,12 @@ def office(c, h, g, s):
         step1 = link("/release", "Read and sign it")
     else:
         step1 = '<span class="muted">Soon.</span>'
+    if g["brief"]:
+        step2 = f"Drafted {esc(when(g['brief_at']))}. {link('/idea', 'The conversation and the draft')}"
+    elif g["signed_version"]:
+        step2 = link("/idea", "Sit down with the office")
+    else:
+        step2 = '<span class="muted">After the release.</span>'
     body = (
         f'<article class="lead"><p class="kicker">The office</p><h1>You\'re in, {esc(first)}.</h1>'
         '<p class="deck">What happens from here, in order. Each step opens as it is ready; nothing is published '
@@ -576,7 +583,7 @@ def office(c, h, g, s):
         "<li><b>The release.</b> One page in plain words, already signed by James and Abrar; you read it and sign it. "
         f"{step1}</li>"
         "<li><b>The idea.</b> A conversation that fleshes it out to about an hour's listening and writes the run-sheet. "
-        '<span class="muted">Soon.</span></li>'
+        f"{step2}</li>"
         "<li><b>The time.</b> You pick a time and two backups; both hosts accept; you get a link that opens the studio "
         'when it is time. <span class="muted">Soon.</span></li>'
         "<li><b>The review.</b> The episode and the clips, to watch, note and approve before anything goes out. "
@@ -593,7 +600,7 @@ def not_found(h, status=404, msg="Not that"):
 
 
 def get(h, c, path, q):
-    if path in ("/see.css", "/engine.css", "/sign.js"):
+    if path in ("/see.css", "/engine.css", "/sign.js", "/chat.js"):
         return h.static(STATIC, path[1:])
     for prefix, base in (("/assets/", PUBLIC / "assets"), ("/fonts/", PUBLIC / "fonts")):
         if path.startswith(prefix):
@@ -626,15 +633,81 @@ def get(h, c, path, q):
     if m:
         png = release.signature_png(c, g, m.group(1)) if g else None
         return h.send(200, png, "image/png", "private, no-store") if png else not_found(h)
-    if path in ("/enter", "/code", "/leave", "/release/sign"):
+    if path == "/idea":
+        if not g:
+            return h.redirect("/")
+        return page(h, *idea.idea_page(c, g, os.environ))
+    if path == "/idea/skill.md":
+        if not g:
+            return h.redirect("/")
+        text = idea.skill_text()
+        return h.send(
+            200,
+            text.encode("utf-8"),
+            "text/markdown; charset=utf-8",
+            "private, no-store",
+            [("Content-Disposition", 'attachment; filename="agentsee-guest-episode.md"')],
+        )
+    if path == "/idea/headshot":
+        shot = idea.headshot(c, g["id"]) if g else None
+        return h.send(200, shot["data"], shot["type"], "private, no-store") if shot else not_found(h)
+    if path in ("/enter", "/code", "/leave", "/release/sign", "/idea/say", "/idea/brief", "/idea/about"):
         return h.redirect("/")
     return not_found(h)
 
 
-def post(h, c, path, form):
+def say(h, c, g, form):
+    """The guest's message to the office. With `Accept: text/event-stream` (static/chat.js) the reply
+    streams as it is written: `delta` events, then `done` with the turn's HTML, or `fail` with a sentence.
+    Without, the reply is waited for and the page comes back whole."""
+    streaming = "text/event-stream" in h.headers.get("Accept", "")
+    start = form.get("start") == "1"
+    if not streaming:
+        try:
+            idea.reply(c, g, os.environ, form.get("text"), start=start)
+        except idea.IdeaError as e:
+            return page(h, *idea.idea_page(c, g, os.environ, str(e), 400))
+        return h.redirect("/idea")
+    h.send_response(200)
+    h.send_header("Content-Type", "text/event-stream; charset=utf-8")
+    h.send_header("Cache-Control", "no-store")
+    h.send_header("X-Accel-Buffering", "no")
+    h.end_headers()
+
+    def emit(event, data):
+        h.wfile.write(f"event: {event}\ndata: {json.dumps(data)}\n\n".encode("utf-8"))
+        h.wfile.flush()
+
+    try:
+        out, stop, drafted = idea.reply(c, g, os.environ, form.get("text"), lambda s: emit("delta", {"t": s}), start)
+    except idea.IdeaError as e:
+        emit("fail", {"m": str(e)})
+        return None
+    emit("done", {"html": idea.turn_html("agent", out), "reload": bool(drafted or start)})
+    return None
+
+
+def post(h, c, path, form, files=None):
     if not same_site(h):
         return not_found(h, 403, "That form came from somewhere else")
     ip, ua = client_ip(h), h.headers.get("User-Agent", "")
+    if path.startswith("/idea/"):
+        g, s = current(c, h)
+        if not g:
+            return h.redirect("/")
+        if path == "/idea/say":
+            return say(h, c, g, form)
+        try:
+            if path == "/idea/brief":
+                idea.save_brief(c, g, form.get("brief"), "guest")
+            elif path == "/idea/about":
+                idea.save_about(c, g, form, files or {})
+            else:
+                return not_found(h)
+        except idea.IdeaError as e:
+            return page(h, *idea.idea_page(c, g, os.environ, str(e), 400))
+        mirror(c, g["id"])
+        return h.redirect("/idea")
     if path == "/enter":
         invite = " ".join((form.get("invite") or "").split()) or None
         if invite and not re.fullmatch(r"[A-Za-z0-9_-]{8,40}", invite):
@@ -839,6 +912,12 @@ def guest_page(c, gid, csrf, msg=None):
             if g["signed_version"]
             else '<span class="muted">not signed yet</span>',
         ),
+        (
+            "Idea",
+            f"{idea.exchanges(c, gid)} exchanges with the office"
+            + (f"; run-sheet drafted {esc(when(g['brief_at']))}" if g["brief"] else "; no draft yet")
+            + (f"; shown as {esc(g['shown_name'])}, {esc(g['tz'] or 'no time zone')}" if g["shown_name"] else ""),
+        ),
     ]
     if g["revoked_at"]:
         facts.append(("Withdrawn", esc(when(g["revoked_at"]))))
@@ -867,6 +946,8 @@ def guest_page(c, gid, csrf, msg=None):
     events = c.execute("SELECT * FROM event WHERE guest=? ORDER BY at DESC LIMIT 50", (gid,)).fetchall()
     body = f'<article class="lead"><h1>{esc(g["name"])}</h1></article>{note}{dl}'
     body += section("Now", "Actions", '<div class="actions">' + "".join(acts) + "</div>")
+    if g["brief"]:
+        body += section("Run-sheet", "The draft, as it stands", f'<pre class="brief">{esc(g["brief"])}</pre>')
     body += section(
         "Devices",
         f"{sum(1 for s in sessions if not s['revoked_at'])} signed in",
