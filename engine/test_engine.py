@@ -1981,6 +1981,8 @@ class EngineTest(unittest.TestCase):
         self.assertEqual((m["To"], m["Subject"]), ("bob@example.com", "An invitation to the AgentSee podcast"))
         self.assertIn(f"https://{SEE}/i/{g2['invite']}", m.get_content())
         self.assertIn("Local would like to record", m.get_content())
+        self.assertIn("mark it as not junk", m.get_content())  # the junk folder, and the reply that lifts it out
+        self.assertIn("A reply, even one word, helps", m.get_content())
 
         # ── withdrawn: both devices out, the link dead; reissued: a new link, the address still bound ──
         st, h, body = req("POST", f"/guests/{gid}/revoke", {"_t": web.CSRF})
