@@ -27,6 +27,8 @@
     "copy_to": "hello@agentsee.work"
   },
   "guest": {"host": "see.agentsee.work"},
+  "engine": {"host": "engine.agentsee.work"},
+  "hosts": ["James", "Abrar"],
   "youtube": {
     "playlist": "AgentSee Podcast",
     "language": "en-GB",
