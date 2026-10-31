@@ -14,7 +14,11 @@ import json
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "tools"))
+# tools/ for eplib, at the END of the path: tools/ has its own ingest.py,
+# linear.py, x.py and youtube.py, and ahead of engine/ it shadowed the
+# engine's linear.py for every module imported after this one (the engine
+# ran with the consent tool as its Linear bridge once, 31 October 2026).
+sys.path.append(str(pathlib.Path(__file__).resolve().parent.parent / "tools"))
 import archive  # noqa: E402
 import ledger  # noqa: E402
 from eplib import EPISODES, die, load_json  # noqa: E402

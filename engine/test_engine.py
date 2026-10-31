@@ -16,6 +16,7 @@ import os
 import pathlib
 import re
 import smtplib
+import subprocess
 import sys
 import tempfile
 import threading
@@ -2292,6 +2293,22 @@ class EngineTest(unittest.TestCase):
         name, body = guests.guest_page(c, gid, "t")
         self.assertIn("linear:done", body)
         self.assertIn("#comment-2", body)
+
+    def test_20_entry(self):
+        """engine.py as the box runs it, in a fresh interpreter, reaching a
+        module that tools/ also has a file called: ingest puts tools/ on the
+        path for eplib, and it must come after engine/, or tools/linear.py is
+        the bridge (which it was, for a morning)."""
+        env = {k: v for k, v in os.environ.items() if not k.startswith("LINEAR_")}
+        entry = pathlib.Path(__file__).resolve().parent / "engine.py"
+        r = subprocess.run(
+            [sys.executable, str(entry), "--ledger", str(self.db), "linear", "--drain"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+        )
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "0 sent; 0 waiting, 0 given up"), r.stderr)
 
 
 if __name__ == "__main__":
