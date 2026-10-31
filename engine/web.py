@@ -15,6 +15,8 @@ when a screen asks for something now.
 """
 
 import datetime as dt
+import email
+import email.policy
 import mimetypes
 import os
 import pathlib
@@ -27,6 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import archive
 import collect
 import guests
+import idea
 import ledger
 import linear
 import mail
@@ -44,6 +47,7 @@ CSP = (
     "img-src 'self' https://media.agentsee.work data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 )
 CSRF = secrets.token_urlsafe(24)
+MAX_BODY = 8_000_000  # a headshot and its form; nothing else posted here comes near
 STATE = {"ledger": None, "last_run": None, "poke": threading.Event(), "lifted": None, "snapshot_day": None}
 
 
@@ -561,6 +565,15 @@ def health_page(c):
             "ready" if linear.ready(os.environ) else f'<span class="error">missing: {esc(linear.NEEDS)}</span>',
         ]
     )
+    creds.append(
+        [
+            "The office",
+            "idea",
+            f"ready, {esc(idea.settings()['model'])}"
+            if idea.ready(os.environ)
+            else f'<span class="error">missing: {esc(idea.NEEDS)}</span>',
+        ]
+    )
     bounced = mail.last_failure(c)
     lf = linear.last_failure(c)
     facts = [
@@ -757,14 +770,38 @@ class App(BaseHTTPRequestHandler):
         finally:
             c.close()
 
-    def do_POST(self):
+    def form(self):
+        """The POST's fields; and its files when it is multipart (the guest's headshot, idea.py)."""
         n = int(self.headers.get("Content-Length") or 0)
-        form = {k: v[0] for k, v in urllib.parse.parse_qs(self.rfile.read(n).decode()).items()}
+        if n > MAX_BODY:
+            return None, None
+        body = self.rfile.read(n)
+        ctype = self.headers.get("Content-Type", "")
+        if not ctype.startswith("multipart/form-data"):
+            return {k: v[0] for k, v in urllib.parse.parse_qs(body.decode(errors="replace")).items()}, {}
+        head = f"Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n".encode("latin-1")
+        msg = email.message_from_bytes(head + body, policy=email.policy.default)
+        fields, files = {}, {}
+        for part in msg.iter_parts():
+            name = part.get_param("name", header="content-disposition")
+            if not name:
+                continue
+            data = part.get_payload(decode=True) or b""
+            if part.get_filename():
+                files[name] = (part.get_filename(), data, part.get_content_type())
+            else:
+                fields[name] = data.decode("utf-8", errors="replace")
+        return fields, files
+
+    def do_POST(self):
+        form, files = self.form()
+        if form is None:
+            return self.fail(413, "That is too big to send here")
         path = urllib.parse.urlparse(self.path).path
         if guests.is_guest_host(self):  # no form token on the guest host: its pages are public; the origin is checked
             c = ledger.connect(STATE["ledger"])
             try:
-                return guests.post(self, c, path, form)
+                return guests.post(self, c, path, form, files)
             finally:
                 c.close()
         if form.get("_t") != CSRF:

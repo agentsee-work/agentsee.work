@@ -157,6 +157,28 @@ def cmd_mail(a):
     print(f"sent to {a.to}: {msgid}")
 
 
+def cmd_idea(a):
+    import idea
+
+    if not idea.ready(os.environ):
+        sys.exit(f"error: {idea.NEEDS} is not set: run under op run --env-file=engine/engine.env")
+    cfg = idea.settings()
+    text = a.text or "In one sentence, say hello from the office and name today's day of the week."
+    try:
+        out, usage, stop, model = idea.request(
+            os.environ,
+            "You are the office at AgentSee, answering a test from the engine. One sentence.",
+            [{"role": "user", "content": text}],
+            on_delta=lambda s: print(s, end="", flush=True),
+        )
+    except idea.IdeaError as e:
+        sys.exit(f"\nerror: {e}")
+    print(
+        f"\n[{model}: {usage['input']} tokens in, {usage['output']} out, stop {stop}; "
+        f"a guest gets {cfg['max_turns']} turns and {cfg['token_budget']} tokens]"
+    )
+
+
 def cmd_release(a):
     import release
 
@@ -294,6 +316,9 @@ def main():
     p = sub.add_parser("mail", help="a test message from the office account, to prove the mail credential")
     p.add_argument("to", help="an address of yours")
     p.set_defaults(fn=cmd_mail)
+    p = sub.add_parser("idea", help="one streamed reply from the office's assistant, to prove the key")
+    p.add_argument("--text", help="what to say to it (default: a hello)")
+    p.set_defaults(fn=cmd_idea)
     p = sub.add_parser("linear", help="a comment on an issue as AgentSee Engine, to prove the bridge")
     p.add_argument("issue", nargs="?", help="the issue, AGE-73")
     p.add_argument("--text", help="the comment's words (default: a test sentence)")

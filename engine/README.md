@@ -38,11 +38,15 @@ linear.py        Linear as "AgentSee Engine": comments, labels, due dates, issue
 release.py       the release: versions with their hash, both hosts' signatures
                  from their profile, the guest's signing with its record, the
                  PDF, HTML and JSON copies in the archive and by email
+idea.py          the idea conversation: the guest-episode skill run with the
+                 Claude API, streamed, capped; the run-sheet draft; what the
+                 pipeline wants of the guest; the issue told
 pages.py         the page shell in the site's typographic system, and the
                  guest host's
 static/engine.css  tables, forms, a status word; the rest is the site's CSS
 static/see.css   the door and the office, on top of engine.css
 static/sign.js   the signature pad: a canvas, a finger or a mouse, or a photo
+static/chat.js   the conversation: the reply streamed to the page as it is written
 accounts.json    which accounts get which assets, at what hour, by which adapter
 config.json      the engine's settings, none secret
 engine.env       op:// references for `op run`; no values
@@ -335,6 +339,35 @@ copy to hello@; the office and the engine's guest page re-render it on
 demand; the issue is told and labelled `release-signed`. A later version
 never voids an earlier signature: the guest's copy is the version they
 signed, and asking a guest to sign a newer one is not built yet.
+
+## The idea
+
+Once the release is signed, the guest sits down with the office (AGE-110):
+a conversation, one question at a time, that ends in a run-sheet draft the
+hosts can record from. The skill `.claude/skills/guest-episode/SKILL.md` is
+the one source: `idea.py` makes the system prompt from it (with the site's
+ten questions read from `public/index.html`), and `/idea/skill.md` serves
+it to a guest who would rather take the questions to their own assistant
+and paste the run-sheet back.
+
+The Claude API over urllib, like every other platform here: the key is
+`ANTHROPIC_API_KEY` (the vault item "Anthropic podcast key", a service
+account key in a Console workspace of its own under a monthly cap, AGE-115
+step 4); the model and the caps are `idea` in `config.json`. The reply
+streams to the page as server-sent events (`static/chat.js`), and a browser
+without script posts the same form and gets the page back whole. The
+controls are what make hosting it safe: only a signed-in guest who has
+signed the release; forty turns and a token budget per guest; no tools; the
+system prompt cached; the model sees this guest's conversation and nothing
+else; one reply at a time per guest. The whole conversation is kept on the
+guest's issue as one comment the worker rewrites after each exchange, in
+the guest's words; the run-sheet draft, which the office writes in a fenced
+block the engine recognises, is its own comment with the label
+`idea-drafted`, and the guest can revise it. A form beside the conversation
+collects what the pipeline wants: the name as shown, a line, a link, a
+headshot (a multipart post; the image in the ledger and the archive) and a
+time zone, told to the issue too. `engine.py idea` proves the key with one
+streamed reply.
 
 ## Its home
 
