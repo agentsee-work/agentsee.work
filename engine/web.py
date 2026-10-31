@@ -31,6 +31,7 @@ import ledger
 import linear
 import mail
 import publish
+import release
 from pages import button, composer, esc, link, page, section, status, table, when
 from plan import ACCOUNTS, short
 
@@ -700,14 +701,32 @@ class App(BaseHTTPRequestHandler):
                 c.close()
         if path == "/":
             return self.redirect("/episodes")
-        if path == "/engine.css":
-            return self.static(STATIC, "engine.css")
+        if path in ("/engine.css", "/sign.js"):
+            return self.static(STATIC, path[1:])
         if path.startswith("/assets/"):
             return self.static(PUBLIC / "assets", path[8:])
         if path.startswith("/fonts/"):
             return self.static(PUBLIC / "fonts", path[7:])
         c = ledger.connect(STATE["ledger"])
         try:
+            if path == "/you":
+                return self.html(*release.you_page(c, guests.host_name(self.who()), self.who(), CSRF, q.get("msg")))
+            if path == "/you/signature.png":
+                row = release.host_image(c, guests.host_name(self.who()))
+                return (
+                    self.send(200, row["png"], "image/png", "private, no-store") if row else self.fail(404, "None yet")
+                )
+            m = re.fullmatch(r"/guests/([0-9a-f]{8})/release\.pdf", path)
+            if m:
+                g = guests.guest(c, m.group(1))
+                if not g or not g["signed_version"]:
+                    return self.fail(404, "No signed release for this guest")
+                try:
+                    data = release.pdf_copy(c, g, g["signed_version"])
+                except release.ReleaseError as e:
+                    return self.fail(503, str(e))
+                name = f'attachment; filename="agentsee-release-v{g["signed_version"]}-{g["id"]}.pdf"'
+                return self.send(200, data, "application/pdf", "private, no-store", [("Content-Disposition", name)])
             if path == "/episodes":
                 return self.html(*episodes_page(c))
             m = re.fullmatch(r"/episodes/([a-z0-9-]+)", path)
@@ -753,6 +772,30 @@ class App(BaseHTTPRequestHandler):
         c = ledger.connect(STATE["ledger"])
         try:
             who = self.who()
+            if path == "/you/signature":
+                try:
+                    if form.get("strokes", "0") == "0":
+                        raise release.ReleaseError("Draw or choose a signature first")
+                    release.save_host_image(c, guests.host_name(who), who, form.get("signature"))
+                    msg = "Saved; it goes on each version you sign from now"
+                except release.ReleaseError as e:
+                    msg = str(e)
+                return self.redirect("/you?" + urllib.parse.urlencode({"msg": msg}))
+            m = re.fullmatch(r"/you/sign/(\d{1,4})", path)
+            if m:
+                n = int(m.group(1))
+                try:
+                    done = release.sign_as_host(
+                        c, guests.host_name(who), who, n, guests.client_ip(self), self.headers.get("User-Agent", "")
+                    )
+                    msg = f"Signed version {n}" + (
+                        "; it is issued, and a guest sees it now"
+                        if done
+                        else "; waiting for " + ", ".join(release.waiting_for(c, n))
+                    )
+                except release.ReleaseError as e:
+                    msg = str(e)
+                return self.redirect("/you?" + urllib.parse.urlencode({"msg": msg}))
             if path == "/guests/find":  # the issue search: answered on the spot, so a POST that renders
                 r = guests.find_page(c, os.environ, CSRF, form.get("name"), form.get("address"))
                 if not r:

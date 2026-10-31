@@ -51,6 +51,7 @@ Q_ISSUES = (
     "query Issues($project: String!, $text: String!) { issues(first: 20, filter: { project: { name: { eq: $project } }, "
     "title: { containsIgnoreCase: $text } }) { nodes { id identifier title url state { name } } } }"
 )
+Q_DOCUMENTS = "query Documents($id: String!) { issue(id: $id) { documents { nodes { id title content } } } }"
 Q_TEAM = "query Team($key: String!) { teams(filter: { key: { eq: $key } }) { nodes { id } } }"
 Q_PROJECT = "query Project($name: String!) { projects(filter: { name: { eq: $name } }) { nodes { id } } }"
 Q_LABELS = (
@@ -210,6 +211,14 @@ def issue(env, key):
     if not i:
         raise LinearError(f"issue {key}: Linear has no such issue")
     return i
+
+
+def documents(env, key):
+    """The documents on an issue, title and markdown content: where the release's text is written (AGE-55)."""
+    i = query(env, "Documents", Q_DOCUMENTS, {"id": key})["issue"]
+    if not i:
+        raise LinearError(f"issue {key}: Linear has no such issue")
+    return i["documents"]["nodes"]
 
 
 def search(env, text, project=None):
@@ -401,4 +410,25 @@ def _claimed(env, a):
     return {"issue": key, "comment": cm["url"], "label": "guest-claimed"}
 
 
-JOBS = {"invited": _invited, "sent": _sent, "revoked": _revoked, "reissued": _reissued, "claimed": _claimed}
+def _signed(env, a):
+    """The guest's signature on the release: which version, when, from where; the copy's place; and the label."""
+    key = a["issue"]
+    text = (
+        f"{a['name']} signed the release, version {a['version']}, through {office()} on {a['when']}, "
+        f"from {a['address']}."
+    )
+    if a.get("copy"):
+        text += f" The signed copy: {a['copy']} in the archive."
+    cm = comment(env, key, text)
+    label(env, key, "release-signed")
+    return {"issue": key, "comment": cm["url"], "label": "release-signed"}
+
+
+JOBS = {
+    "invited": _invited,
+    "sent": _sent,
+    "revoked": _revoked,
+    "reissued": _reissued,
+    "claimed": _claimed,
+    "signed": _signed,
+}

@@ -8,6 +8,7 @@ checked is the engine's own logic, from the ledger to the screens: the
 platform is checked by the first real run.
 """
 
+import base64
 import datetime as dt
 import hashlib
 import http.server
@@ -16,6 +17,7 @@ import os
 import pathlib
 import re
 import smtplib
+import struct
 import subprocess
 import sys
 import tempfile
@@ -25,6 +27,7 @@ import unittest.mock
 import urllib.error
 import urllib.parse
 import urllib.request
+import zlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import archive  # noqa: E402
@@ -798,6 +801,10 @@ class FakeLinear:
             }
             self.issues[i["identifier"]] = i
             return {"issueCreate": {"success": True, "issue": i}}
+        if op == "Documents":
+            i = self.issues.get(v["id"])
+            docs = [{"id": "d-1", "title": "Guest release, version 1", "content": RELEASE_TEXT}]
+            return {"issue": {"documents": {"nodes": docs}} if i else None}
         raise AssertionError(f"FakeLinear has no answer for {op}")
 
 
@@ -827,6 +834,43 @@ class FakeSMTP:
             FakeSMTP.fail = None
             raise smtplib.SMTPDataError(451, b"4.3.0 try later")
         FakeSMTP.sent.append(m)
+
+
+RELEASE_TEXT = """# Appearing on the AgentSee podcast
+
+This is the agreement between you and AgentSee about the conversation we are
+about to record, in plain words, by us and not by a lawyer.
+
+## What we record
+
+A conversation with you, on video and audio, over a video link.
+
+## What we may publish
+
+The recording, edited, in full and in parts, with captions and your name.
+
+- On agentsee.work and on YouTube.
+- On podcast apps and social networks.
+
+## Signing
+
+Your typed name and your drawn signature, with the record, are how you agree.
+"""
+
+
+def test_png(w=16, h=8):
+    """A valid PNG, RGBA, opaque black, of a size a signature could have."""
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    raw = b"".join(b"\x00" + b"\x00\x00\x00\xff" * w for _ in range(h))
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw))
+        + chunk(b"IEND", b"")
+    )
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -2309,6 +2353,255 @@ class EngineTest(unittest.TestCase):
             timeout=60,
         )
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "0 sent; 0 waiting, 0 given up"), r.stderr)
+
+    def test_21_release(self):
+        """The release: a version taken in with its hash and mirrored; a host's
+        signature drawn and saved, each host signing the version once, which
+        issues it; the guest's page before and after; the signing and what it
+        refuses; the three copies in the archive, the PDF by email with a copy
+        to hello@, the issue told and labelled; the copy re-rendered on demand
+        on both hosts; a newer version leaving the signed one alone."""
+        import release
+
+        SEE = guests.HOST
+        os.environ.update(self.menv, ENGINE_SESSION_KEY="a-key-for-the-tests")
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in (*self.menv, "ENGINE_SESSION_KEY", "ENGINE_USER")])
+        client = archive.Client(self.r2env)
+        patch = unittest.mock.patch.object(archive, "Client", lambda env=None: client)
+        patch.start()
+        self.addCleanup(patch.stop)
+        c = self.c()
+        objs = FakeR2.state["objects"]
+        fake = FakeLinear()
+        fake.issues.update(self.linear_made)
+        linear.post = fake
+        linear.vault = FakeVault("lr1", item="Linear podcast token")
+        linear._token.update(access=None, until=0.0, unsaved=None)
+        env = {"LINEAR_CLIENT_ID": "lcid", "LINEAR_CLIENT_SECRET": "lcs", "LINEAR_REFRESH_TOKEN": "lr1"}
+        gid = c.execute("SELECT id FROM guest WHERE name='Ada Lovelace'").fetchone()[0]
+
+        # ── versions: from text, from the issue's document; the hash; the mirror ──
+        with self.assertRaises(release.ReleaseError):
+            release.add(c, "# Short\n\nToo short to be the release.", "jameshartt@example.com")
+        v1 = release.add(c, RELEASE_TEXT, "jameshartt@example.com", source="test")
+        want = hashlib.sha256(release.clean(RELEASE_TEXT).encode()).hexdigest()
+        self.assertEqual((v1["n"], v1["title"], v1["sha256"]), (1, "Appearing on the AgentSee podcast", want))
+        self.assertEqual(objs["release/v1.md"]["body"].decode(), release.clean(RELEASE_TEXT))
+        self.assertEqual(json.loads(objs["release/v1.json"]["body"])["signed"], {})
+        with self.assertRaises(release.ReleaseError) as cm:
+            release.add(c, RELEASE_TEXT, "x")
+        self.assertIn("already has exactly this text", str(cm.exception))
+        docs = linear.documents(env, "AGE-73")
+        self.assertEqual(([d["title"] for d in docs], docs[0]["content"]), (["Guest release, version 1"], RELEASE_TEXT))
+        self.assertIsNone(release.issued(c), "nobody has signed")
+        self.assertEqual(release.waiting_for(c, 1), ["James", "Abrar"])
+
+        web.STATE["ledger"] = str(self.db)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+        def req(method, path, data=None, host=None, cookies=None, headers=None):
+            hdr = dict(headers or {})
+            if host:
+                hdr["Host"] = host
+            if cookies:
+                hdr["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+            body = urllib.parse.urlencode(data).encode() if data is not None else None
+            r = urllib.request.Request(base + path, data=body, method=method, headers=hdr)
+            opener = urllib.request.build_opener(NoRedirect)
+            try:
+                with opener.open(r, timeout=10) as resp:
+                    return resp.status, resp.headers, resp.read().decode(errors="replace")
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code, e.headers, e.read().decode(errors="replace")
+
+        def jar(h):
+            return {sc.partition("=")[0]: sc.partition("=")[2].split(";")[0] for sc in h.get_all("Set-Cookie") or []}
+
+        png = test_png()
+        data_url = "data:image/png;base64," + base64.b64encode(png).decode()
+
+        # ── the hosts: a profile each, a signature on file, a version signed once by each; then issued ──
+        os.environ["ENGINE_USER"] = "nobody@example.com"
+        st, h, body = req("GET", "/you")
+        self.assertEqual(st, 200)
+        self.assertIn("signs as James and Abrar", body)
+        st, h, body = req("POST", "/you/sign/1", {"_t": web.CSRF})
+        self.assertIn("signs+as+James+and+Abrar", h["Location"])
+        os.environ["ENGINE_USER"] = "jameshartt@example.com"
+        st, h, body = req("GET", "/you")
+        self.assertEqual(st, 200)
+        for s in ("No signature on file", "<canvas", "/sign.js", "What we may publish", "waiting for James, Abrar"):
+            self.assertIn(s, body)
+        st, h, body = req("POST", "/you/sign/1", {"_t": web.CSRF})
+        self.assertIn("msg=Draw+or+upload+your+signature+first", h["Location"])
+        st, h, body = req("POST", "/you/signature", {"_t": web.CSRF, "signature": data_url, "strokes": "0"})
+        self.assertIn("msg=Draw+or+choose+a+signature+first", h["Location"])
+        st, h, body = req(
+            "POST", "/you/signature", {"_t": web.CSRF, "signature": "data:image/png;base64,AAAA", "strokes": "1"}
+        )
+        self.assertIn("msg=Not+a+PNG+image", h["Location"])
+        st, h, body = req("POST", "/you/signature", {"_t": web.CSRF, "signature": data_url, "strokes": "1"})
+        self.assertIn("msg=Saved", h["Location"])
+        self.assertEqual(objs["release/hosts/james.png"]["body"], png)
+        st, h, body = req("GET", "/you/signature.png")
+        self.assertEqual((st, h["Content-Type"]), (200, "image/png"))
+        st, h, body = req("POST", "/you/sign/1", {"_t": web.CSRF})
+        self.assertIn("msg=Signed+version+1%3B+waiting+for+Abrar", h["Location"])
+        st, h, body = req("POST", "/you/sign/1", {"_t": web.CSRF})
+        self.assertIn("already", h["Location"])
+        self.assertIsNone(release.issued(c), "Abrar has not signed")
+
+        c.execute("DELETE FROM code WHERE address='ada@example.com'")  # her three codes of test 18 are spent
+        st, h, body = req("POST", "/enter", {"address": "ada@example.com"}, SEE)
+        self.assertEqual(st, 200)
+        cid, bind = re.search(r'name="id" value="([^"]+)"', body).group(1), jar(h)["see_code"]
+        code = re.search(r"\n    (\d{6})\n", FakeSMTP.sent[-1].get_content()).group(1)
+        st, h, body = req("POST", "/code", {"id": cid, "code": code}, SEE, {"see_code": bind})
+        self.assertEqual(st, 303)
+        ada = {"see_session": jar(h)["see_session"]}
+        st, h, body = req("GET", "/release", host=SEE, cookies=ada)
+        self.assertEqual(st, 200)
+        self.assertIn("signing this version", body, "not issued: nothing to sign yet")
+        self.assertIn("Soon.", req("GET", "/office", host=SEE, cookies=ada)[2])
+
+        os.environ["ENGINE_USER"] = "abrar@example.com"
+        st, h, body = req("POST", "/you/signature", {"_t": web.CSRF, "signature": data_url, "strokes": "1"})
+        st, h, body = req("POST", "/you/sign/1", {"_t": web.CSRF})
+        self.assertIn("it+is+issued", h["Location"])
+        self.assertEqual(release.issued(c), 1)
+        self.assertEqual(sorted(json.loads(objs["release/v1.json"]["body"])["signed"]), ["Abrar", "James"])
+        self.assertIn("issued", req("GET", "/you")[2])
+
+        # ── the guest: the page, the refusals, the signing ──
+        st, h, body = req("GET", "/office", host=SEE, cookies=ada)
+        self.assertIn('href="/release"', body)
+        self.assertIn("Read and sign it", body)
+        st, h, body = req("GET", "/release", host=SEE, cookies=ada)
+        self.assertEqual(st, 200)
+        for s in (
+            "Appearing on the AgentSee podcast",
+            "What we may publish",
+            "<ul>",
+            "<canvas",
+            "/sign.js",
+            "/release/signature/James.png",
+            "/release/signature/Abrar.png",
+            'value="Ada Lovelace"',
+            "Recorded with your signature",
+        ):
+            self.assertIn(s, body)
+        st, h, body = req("GET", "/release/signature/James.png", host=SEE, cookies=ada)
+        self.assertEqual((st, h["Content-Type"]), (200, "image/png"))
+        self.assertEqual(req("GET", "/release/signature/James.png", host=SEE)[0], 404, "nothing without a session")
+        self.assertEqual(req("GET", "/release", host=SEE)[0], 303)
+        self.assertEqual(req("GET", "/release.pdf", host=SEE, cookies=ada)[1]["Location"], "/release")
+
+        def sign(**kw):
+            data = {"name": "Ada Lovelace", "signature": data_url, "strokes": "1", "agree": "yes", **kw}
+            return req("POST", "/release/sign", data, SEE, ada)
+
+        for kw, said in (
+            ({"strokes": "0"}, "Draw your signature in the box"),
+            ({"name": " "}, "Type your full name"),
+            ({"agree": ""}, "Tick the box"),
+            ({"signature": "data:image/png;base64,AAAA"}, "Not a PNG image"),
+        ):
+            st, h, body = sign(**kw)
+            self.assertEqual(st, 400, kw)
+            self.assertIn(said, body)
+        self.assertIsNone(guests.guest(c, gid)["signed_at"])
+        sent = len(FakeSMTP.sent)
+        st, h, body = sign(name="  Ada   Lovelace ")
+        self.assertEqual((st, h["Location"]), (303, "/release"))
+        g = guests.guest(c, gid)
+        self.assertEqual(g["signed_version"], 1)
+        self.assertTrue(g["signed_at"])
+        row = release.guest_signature(c, gid)
+        self.assertEqual(
+            (row["name"], row["address"], row["version"], row["png"] == png, row["sha256"]),
+            ("Ada Lovelace", "ada@example.com", 1, True, v1["sha256"]),
+        )
+        self.assertEqual(row["ip"], "127.0.0.1")
+
+        # ── the copies, the mail, the issue ──
+        rec = json.loads(objs[f"guests/{gid}/release-v1.json"]["body"])
+        self.assertEqual(
+            [(s["role"], s["name"]) for s in rec["signatures"]],
+            [("host", "James"), ("host", "Abrar"), ("guest", "Ada Lovelace")],
+        )
+        self.assertEqual((rec["version"]["sha256"], rec["signatures"][0]["address"]), (v1["sha256"], None))
+        self.assertIn("What we may publish", rec["text"])
+        page = objs[f"guests/{gid}/release-v1.html"]["body"].decode()
+        self.assertIn("data:image/png;base64,", page)
+        self.assertIn("Ada Lovelace", page)
+        self.assertIn("verified by a code", page)
+        pdf = objs[f"guests/{gid}/release-v1.pdf"]["body"]
+        self.assertTrue(pdf.startswith(b"%PDF-"), "fpdf2 is installed for the suite (check.yml)")
+        self.assertEqual(json.loads(objs[f"guests/{gid}/guest.json"]["body"])["signed_version"], 1)
+        self.assertEqual(len(FakeSMTP.sent), sent + 1)
+        m = FakeSMTP.sent[-1]
+        self.assertEqual(
+            (m["To"], m["Cc"], m["Subject"]),
+            ("ada@example.com", "hello@agentsee.work", "Your signed release for the AgentSee podcast"),
+        )
+        self.assertIn("Thank you for signing", m.get_body(preferencelist=("plain",)).get_content())
+        att = list(m.iter_attachments())
+        self.assertEqual(
+            [(a.get_filename(), a.get_content_type()) for a in att], [("agentsee-release-v1.pdf", "application/pdf")]
+        )
+        self.assertEqual(att[0].get_payload(decode=True), pdf)
+        job = c.execute("SELECT * FROM linear_job WHERE kind='signed'").fetchone()
+        self.assertEqual((job["guest"], json.loads(job["args"])["version"]), (gid, 1))
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
+        issue, text = fake.comments[-1]
+        self.assertEqual(issue, "AGE-73")
+        self.assertRegex(
+            text,
+            r"^Ada Lovelace signed the release, version 1, through see\.agentsee\.work on .+, from ada@example\.com\. "
+            rf"The signed copy: guests/{gid}/release-v1\.pdf in the archive\.$",
+        )
+        self.assertIn("release-signed", [fake.labels[x]["name"] for x in fake.issues["AGE-73"]["labelIds"]])
+
+        # ── afterwards: the signed page, the copy on demand on both hosts, a newer version ──
+        st, h, body = req("GET", "/release", host=SEE, cookies=ada)
+        self.assertEqual(st, 200)
+        for s in ("Signed on", "/release.pdf", "/release/signature/mine.png", "by James, Abrar and you"):
+            self.assertIn(s, body)
+        self.assertNotIn("<canvas", body)
+        st, h, body = req("GET", "/release.pdf", host=SEE, cookies=ada)
+        self.assertEqual((st, h["Content-Type"]), (200, "application/pdf"))
+        self.assertTrue(body.startswith("%PDF-"))
+        self.assertEqual(req("GET", "/release/signature/mine.png", host=SEE, cookies=ada)[0], 200)
+        self.assertIn("Your copy", req("GET", "/office", host=SEE, cookies=ada)[2])
+        st, h, body = req("GET", f"/guests/{gid}")
+        self.assertIn("signed version 1 on", body)
+        self.assertIn(f"/guests/{gid}/release.pdf", body)
+        self.assertEqual(req("GET", f"/guests/{gid}/release.pdf")[1]["Content-Type"], "application/pdf")
+        self.assertIn("Signed", req("GET", "/guests")[2])
+        v2 = release.add(c, RELEASE_TEXT.replace("video link", "studio link"), "jameshartt@example.com")
+        self.assertEqual((v2["n"], release.issued(c)), (2, 1), "a new version is not issued until both sign it")
+        st, h, body = req("GET", "/release", host=SEE, cookies=ada)
+        self.assertIn("Signed on", body)
+        self.assertIn("video link", body, "the guest's copy is the version they signed")
+        self.assertIn("waiting for James, Abrar", req("GET", "/you")[2])
+        entry = pathlib.Path(__file__).resolve().parent / "engine.py"
+        r = subprocess.run(
+            [sys.executable, str(entry), "--ledger", str(self.db), "release"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("v1  Appearing on the AgentSee podcast", r.stdout)
+        self.assertIn("[issued]", r.stdout)
+        self.assertIn("v2 ", r.stdout)
+        self.assertIn("[waiting for James, Abrar]", r.stdout)
+        srv.shutdown()
 
 
 if __name__ == "__main__":

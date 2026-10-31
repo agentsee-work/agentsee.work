@@ -1,14 +1,17 @@
-# The engine's image: Python, the 1Password CLI, nothing else. The code is
-# not in the image; the repo is mounted at run time (docker-compose.yml), so
-# a deploy is `git pull` and a restart, and this image is rebuilt only when
-# the interpreter or the op CLI should move.
+# The engine's image: Python, the 1Password CLI, one Python package and one
+# font. The code is not in the image; the repo is mounted at run time
+# (docker-compose.yml), so a deploy is `git pull` and a restart, and this
+# image is rebuilt only when the interpreter, the op CLI or that package
+# should move.
 #
-# The same Python as the workstations, on purpose: the engine is stdlib only
-# and tested on 3.14, and Debian's 3.11 is not what the tests ran on.
+# The same Python as the workstations, on purpose: the engine is tested on
+# 3.14, and Debian's 3.11 is not what the tests ran on.
 FROM python:3.14-slim
 
 # The op CLI from 1Password's own repository (there is no Debian package).
-# gnupg is needed only to dearmor the key and is removed again.
+# gnupg is needed only to dearmor the key and is removed again. DejaVu is
+# the TrueType font the release's PDF embeds (engine/release.py), so a
+# guest's name is set in whatever alphabet it is written in.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends ca-certificates curl gnupg; \
@@ -17,9 +20,14 @@ RUN set -eux; \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/$(dpkg --print-architecture) stable main" \
       > /etc/apt/sources.list.d/1password.list; \
     apt-get update; \
-    apt-get install -y --no-install-recommends 1password-cli; \
+    apt-get install -y --no-install-recommends 1password-cli fonts-dejavu-core; \
     apt-get purge -y --auto-remove gnupg curl; \
     rm -rf /var/lib/apt/lists/*
+
+# fpdf2 makes the release's signed copy (engine/release.py): the engine's one
+# dependency beyond the standard library, pinned here and in
+# .github/workflows/check.yml, where the suite renders a PDF with it.
+RUN pip install --no-cache-dir fpdf2==2.8.9
 
 # Not root. uid 2001 is also what owns /var/lib/agentsee-engine on the host
 # (README). 2000 is Stalwart's.

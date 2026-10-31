@@ -172,8 +172,9 @@ cd /opt/agentsee/repo && git pull
 cd /opt/agentsee/engine && docker compose restart engine
 ```
 
-The code is mounted read-only; the image changes only when the interpreter
-or the op CLI should (`docker compose build`). When the pull adds a line to
+The code is mounted read-only; the image changes only when the interpreter,
+the op CLI or the one Python package (fpdf2, for the release's PDF) should
+(`docker compose build`, then `up -d`). When the pull adds a line to
 `engine/engine.env`, a restart is not enough: `op run` reads the file at
 container start, so it is `docker compose up -d --force-recreate engine`,
 and the vault item the new line names must exist first, or `op run`

@@ -49,6 +49,7 @@ import archive
 import ledger
 import linear
 import mail
+import release
 from pages import button, esc, link, section, see_page, table, when
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -561,13 +562,19 @@ def code_page(h, cid, address, msg=None, status=200, headers=None):
 
 def office(c, h, g, s):
     first = g["name"].split()[0]
+    if g["signed_version"]:
+        step1 = f"Signed on {esc(when(g['signed_at']))}. {link('/release', 'Your copy')}"
+    elif release.issued(c):
+        step1 = link("/release", "Read and sign it")
+    else:
+        step1 = '<span class="muted">Soon.</span>'
     body = (
         f'<article class="lead"><p class="kicker">The office</p><h1>You\'re in, {esc(first)}.</h1>'
         '<p class="deck">What happens from here, in order. Each step opens as it is ready; nothing is published '
         "until you have approved it.</p></article>"
         '<ol class="steps">'
         "<li><b>The release.</b> One page in plain words, already signed by James and Abrar; you read it and sign it. "
-        '<span class="muted">Soon.</span></li>'
+        f"{step1}</li>"
         "<li><b>The idea.</b> A conversation that fleshes it out to about an hour's listening and writes the run-sheet. "
         '<span class="muted">Soon.</span></li>'
         "<li><b>The time.</b> You pick a time and two backups; both hosts accept; you get a link that opens the studio "
@@ -586,7 +593,7 @@ def not_found(h, status=404, msg="Not that"):
 
 
 def get(h, c, path, q):
-    if path == "/see.css" or path == "/engine.css":
+    if path in ("/see.css", "/engine.css", "/sign.js"):
         return h.static(STATIC, path[1:])
     for prefix, base in (("/assets/", PUBLIC / "assets"), ("/fonts/", PUBLIC / "fonts")):
         if path.startswith(prefix):
@@ -600,7 +607,26 @@ def get(h, c, path, q):
         return h.redirect("/office") if g else door(c, h, invite=m.group(1))
     if path == "/office":
         return office(c, h, g, s) if g else h.redirect("/")
-    if path in ("/enter", "/code", "/leave"):
+    if path == "/release":
+        if not g:
+            return h.redirect("/")
+        return page(h, *release.release_page(c, g))
+    if path == "/release.pdf":
+        if not g:
+            return h.redirect("/")
+        if not g["signed_version"]:
+            return h.redirect("/release")
+        try:
+            data = release.pdf_copy(c, g, g["signed_version"])
+        except release.ReleaseError as e:
+            return not_found(h, 503, f"Your copy could not be made just now: {e}")
+        name = f'attachment; filename="agentsee-release-v{g["signed_version"]}.pdf"'
+        return h.send(200, data, "application/pdf", "private, no-store", [("Content-Disposition", name)])
+    m = re.fullmatch(r"/release/signature/([A-Za-z]{1,40})\.png", path)
+    if m:
+        png = release.signature_png(c, g, m.group(1)) if g else None
+        return h.send(200, png, "image/png", "private, no-store") if png else not_found(h)
+    if path in ("/enter", "/code", "/leave", "/release/sign"):
         return h.redirect("/")
     return not_found(h)
 
@@ -658,6 +684,21 @@ def post(h, c, path, form):
             ledger.event(c, "guest:left", s["address"], detail={"session": s["id"][:6]}, guest=g["id"])
             mirror(c, g["id"])
         return h.redirect("/", headers=[set_cookie(SESSION_COOKIE, "", 0)])
+    if path == "/release/sign":
+        g, s = current(c, h)
+        if not g:
+            return h.redirect("/")
+        if form.get("strokes", "0") == "0" or not form.get("signature"):
+            return page(h, *release.release_page(c, g, "Draw your signature in the box, or choose a photo of it", 400))
+        try:
+            g, n, keys, sent = release.sign_as_guest(
+                c, g, form.get("name"), form.get("signature"), form.get("agree") == "yes", ip, ua
+            )
+        except release.ReleaseError as e:
+            return page(h, *release.release_page(c, g, str(e), 400))
+        tell(c, g, "signed", s["address"], version=n, copy=keys.get("pdf") or keys.get("html"))
+        mirror(c, g["id"])
+        return h.redirect("/release")
     return not_found(h)
 
 
@@ -679,6 +720,7 @@ def guests_page(c, csrf, msg=None):
                 if g["state"] != "revoked"
                 else '<span class="muted">withdrawn</span>',
                 esc(when(g["claimed_at"])),
+                esc(when(g["signed_at"])),
             ]
         )
     note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
@@ -699,7 +741,7 @@ def guests_page(c, csrf, msg=None):
         + section(
             "Guests",
             f"{len(rows)} invited",
-            table(["Guest", "Address", "Issue", "State", "Invitation", "Claimed"], rows)
+            table(["Guest", "Address", "Issue", "State", "Invitation", "Claimed", "Signed"], rows)
             if rows
             else "<p>No guests yet.</p>",
         )
@@ -789,6 +831,14 @@ def guest_page(c, gid, csrf, msg=None):
         ),
         ("Made", f"{esc(when(g['created_at']))} by {esc(g['created_by'])}"),
         ("Claimed", esc(when(g["claimed_at"])) or '<span class="muted">not yet</span>'),
+        (
+            "Release",
+            f"signed version {g['signed_version']} on {esc(when(g['signed_at']))}; "
+            f"{link(f'/guests/{gid}/release.pdf', 'the signed copy')} "
+            f'<span class="mono">guests/{esc(gid)}/release-v{g["signed_version"]}.pdf</span>'
+            if g["signed_version"]
+            else '<span class="muted">not signed yet</span>',
+        ),
     ]
     if g["revoked_at"]:
         facts.append(("Withdrawn", esc(when(g["revoked_at"]))))

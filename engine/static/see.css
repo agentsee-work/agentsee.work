@@ -13,3 +13,5 @@ main.see .lead .kicker { font-family: var(--mono); font-size: .75rem; letter-spa
 .steps { max-width: 44rem; padding-left: 1.4rem; line-height: 1.5; }
 .steps li { margin: .7rem 0; }
 .steps li .muted { font-family: var(--mono); font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; margin-left: .4rem; }
+main.see .release { font-size: 1.05rem; }
+main.see .sign { max-width: 44rem; }
