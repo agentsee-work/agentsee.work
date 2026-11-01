@@ -40,7 +40,7 @@ from vault import VaultError
 API = "https://api.linear.app/graphql"
 TOKEN_URL = "https://api.linear.app/oauth/token"
 NEEDS = "LINEAR_CLIENT_ID / LINEAR_CLIENT_SECRET / LINEAR_REFRESH_TOKEN"
-LABELS = ("guest-invited", "guest-claimed", "release-signed", "booked", "episode-approved")
+LABELS = ("guest-invited", "guest-claimed", "release-signed", "idea-drafted", "booked", "episode-approved")
 TRIES = 8  # attempts at one job before it waits for a person
 TIMEOUT = 30
 _token = {"access": None, "until": 0.0, "unsaved": None}
@@ -60,6 +60,10 @@ Q_LABELS = (
 )
 M_COMMENT = (
     "mutation Comment($issue: String!, $body: String!) { commentCreate(input: { issueId: $issue, body: $body }) "
+    "{ success comment { id url } } }"
+)
+M_COMMENT_UPDATE = (
+    "mutation CommentUpdate($id: String!, $body: String!) { commentUpdate(id: $id, input: { body: $body }) "
     "{ success comment { id url } } }"
 )
 M_LABEL = (
@@ -265,6 +269,11 @@ def comment(env, key, body):
     return query(env, "Comment", M_COMMENT, {"issue": i["id"], "body": body})["commentCreate"]["comment"]
 
 
+def update_comment(env, comment_id, body):
+    """A comment of the engine's own, rewritten: how the idea conversation stays one comment (idea.py)."""
+    return query(env, "CommentUpdate", M_COMMENT_UPDATE, {"id": comment_id, "body": body})["commentUpdate"]["comment"]
+
+
 def label(env, key, name):
     """The label on the issue, made if missing; nothing changes when it is there already."""
     i = issue(env, key)
@@ -336,7 +345,7 @@ def drain(c, env, log=print):
             held.add(job["guest"])
             continue
         try:
-            detail = JOBS[job["kind"]](env, json.loads(job["args"]))
+            detail = JOBS[job["kind"]](env, json.loads(job["args"]), c)
         except (LinearError, KeyError, ValueError, TypeError) as e:
             held.add(job["guest"])
             tries = job["tries"] + 1
@@ -367,7 +376,7 @@ def last_failure(c):
     return c.execute("SELECT at, detail FROM event WHERE what='linear:failed' ORDER BY at DESC LIMIT 1").fetchone()
 
 
-def _invited(env, a):
+def _invited(env, a, c=None):
     """The invitation on the guest's issue: who made it, when, for which address; and the label."""
     key = a["issue"]
     text = f"{a['who']} made an invitation for {a['name']} on the engine on {a['when']}"
@@ -382,25 +391,25 @@ def _invited(env, a):
     return {"issue": key, "comment": cm["url"], "label": "guest-invited"}
 
 
-def _sent(env, a):
+def _sent(env, a, c=None):
     cm = comment(env, a["issue"], f"{a['who']} emailed the invitation to {a['address']} on {a['when']}.")
     return {"issue": a["issue"], "comment": cm["url"]}
 
 
-def _revoked(env, a):
+def _revoked(env, a, c=None):
     text = f"{a['who']} withdrew the invitation on {a['when']}; the link and every session are dead."
     cm = comment(env, a["issue"], text)
     return {"issue": a["issue"], "comment": cm["url"]}
 
 
-def _reissued(env, a):
+def _reissued(env, a, c=None):
     text = f"{a['who']} issued {a['name']} a new link on {a['when']}; the old one and every session are dead"
     text += f", and {a['address']} stays bound." if a.get("address") else "."
     cm = comment(env, a["issue"], text)
     return {"issue": a["issue"], "comment": cm["url"]}
 
 
-def _claimed(env, a):
+def _claimed(env, a, c=None):
     """The claim on the guest's issue: who, when, from which address; and the label."""
     key = a["issue"]
     cm = comment(
@@ -410,7 +419,7 @@ def _claimed(env, a):
     return {"issue": key, "comment": cm["url"], "label": "guest-claimed"}
 
 
-def _signed(env, a):
+def _signed(env, a, c=None):
     """The guest's signature on the release: which version, when, from where; the copy's place; and the label."""
     key = a["issue"]
     text = (
@@ -432,3 +441,24 @@ JOBS = {
     "claimed": _claimed,
     "signed": _signed,
 }
+
+
+def _idea(env, a, c):  # the conversation so far, as one comment kept up to date (idea.py reads the ledger)
+    import idea
+
+    return idea.job_transcript(env, a, c)
+
+
+def _brief(env, a, c=None):
+    import idea
+
+    return idea.job_brief(env, a, c)
+
+
+def _about(env, a, c=None):
+    import idea
+
+    return idea.job_about(env, a, c)
+
+
+JOBS.update({"idea": _idea, "brief": _brief, "about": _about})

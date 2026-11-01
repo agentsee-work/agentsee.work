@@ -180,6 +180,13 @@ container start, so it is `docker compose up -d --force-recreate engine`,
 and the vault item the new line names must exist first, or `op run`
 refuses to start and the log says which reference it could not resolve.
 
+The office's assistant (the Claude API key, `engine/idea.py`) is proved the
+same way, with one streamed reply:
+
+```sh
+docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py idea
+```
+
 The office's mail credential is proved once, from the box, with a message
 to one of your own addresses:
 
