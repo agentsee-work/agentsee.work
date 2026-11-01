@@ -565,15 +565,12 @@ def health_page(c):
             "ready" if linear.ready(os.environ) else f'<span class="error">missing: {esc(linear.NEEDS)}</span>',
         ]
     )
-    creds.append(
-        [
-            "The office",
-            "idea",
-            f"ready, {esc(idea.settings()['model'])}"
-            if idea.ready(os.environ)
-            else f'<span class="error">missing: {esc(idea.NEEDS)}</span>',
-        ]
-    )
+    if idea.ready(os.environ):
+        eps, tx = idea.known(c)
+        office = f"ready, {esc(idea.settings()['model'])}; knows {eps} episodes, {tx} transcripts"
+    else:
+        office = f'<span class="error">missing: {esc(idea.NEEDS)}</span>'
+    creds.append(["The office", "idea", office])
     bounced = mail.last_failure(c)
     lf = linear.last_failure(c)
     facts = [

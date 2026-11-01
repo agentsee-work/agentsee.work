@@ -582,7 +582,8 @@ def office(c, h, g, s):
         '<ol class="steps">'
         "<li><b>The release.</b> One page in plain words, already signed by James and Abrar; you read it and sign it. "
         f"{step1}</li>"
-        "<li><b>The idea.</b> A conversation that fleshes it out to about an hour's listening and writes the run-sheet. "
+        "<li><b>The idea.</b> A short conversation with the office, about ten minutes, that fleshes it out and writes "
+        "the run-sheet. "
         f"{step2}</li>"
         "<li><b>The time.</b> You pick a time and two backups; both hosts accept; you get a link that opens the studio "
         'when it is time. <span class="muted">Soon.</span></li>'
@@ -640,7 +641,7 @@ def get(h, c, path, q):
     if path == "/idea/skill.md":
         if not g:
             return h.redirect("/")
-        text = idea.skill_text()
+        text = idea.skill_text(c)
         return h.send(
             200,
             text.encode("utf-8"),

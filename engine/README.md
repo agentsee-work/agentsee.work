@@ -343,12 +343,21 @@ signed, and asking a guest to sign a newer one is not built yet.
 ## The idea
 
 Once the release is signed, the guest sits down with the office (AGE-110):
-a conversation, one question at a time, that ends in a run-sheet draft the
-hosts can record from. The skill `.claude/skills/guest-episode/SKILL.md` is
-the one source: `idea.py` makes the system prompt from it (with the site's
-ten questions read from `public/index.html`), and `/idea/skill.md` serves
-it to a guest who would rather take the questions to their own assistant
-and paste the run-sheet back.
+a short conversation that starts open (what is the episode about, and why
+you?) and then asks only for what the run-sheet still needs, one thing at
+a time, about ten minutes, ending in a run-sheet draft the hosts can record
+from. The skill `.claude/skills/guest-episode/SKILL.md` is the one source:
+`idea.py` makes the system prompt from it, with the site's ten questions
+read from `public/index.html` and the episodes so far read from the ledger
+(each one's summary, chapters and the questions it touched), and
+`/idea/skill.md` serves the same to a guest who would rather take it to
+their own assistant and paste the run-sheet back. The engine's own prompt
+goes further: the latest episodes' transcripts, word for word, fetched from
+the archive (`episodes/<slug>/out/transcript.txt`) into the data dir once,
+so the office can tell a guest when their idea is an episode the show has
+already made, and steer them off it unless they can add to it. How many it
+reads in full is `transcripts` in the config; the health page says how
+many it knows.
 
 The Claude API over urllib, like every other platform here: the key is
 `ANTHROPIC_API_KEY` (the vault item "Anthropic podcast key", a service
@@ -357,8 +366,10 @@ step 4); the model and the caps are `idea` in `config.json`. The reply
 streams to the page as server-sent events (`static/chat.js`), and a browser
 without script posts the same form and gets the page back whole. The
 controls are what make hosting it safe: only a signed-in guest who has
-signed the release; forty turns and a token budget per guest; no tools; the
-system prompt cached; the model sees this guest's conversation and nothing
+signed the release; twenty turns and a token budget per guest (tokens paid
+for in full: the skill and the transcripts are one system block cached for
+an hour, and a cache read, at a twentieth of the price, is not charged to
+the budget); no tools; the model sees this guest's conversation and nothing
 else; one reply at a time per guest. The whole conversation is kept on the
 guest's issue as one comment the worker rewrites after each exchange, in
 the guest's words; the run-sheet draft, which the office writes in a fenced

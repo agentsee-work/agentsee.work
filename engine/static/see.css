@@ -21,7 +21,6 @@ main.see .sign { max-width: 44rem; }
 .chat .turn { margin: .8rem 0; padding: .7rem .9rem; border: var(--hairline); border-radius: 4px; line-height: 1.5; }
 .chat .turn.guest { background: var(--paper-2); margin-left: 2rem; }
 .chat .turn p { margin: .3rem 0; }
-.chat .turn .progress { font-family: var(--mono); font-size: .75rem; letter-spacing: .04em; color: var(--ink-3); }
 .chat .turn h2 { font-size: 1.1rem; margin: .6rem 0 .3rem; }
 .chat .turn h3 { font-size: 1rem; margin: .6rem 0 .2rem; }
 .chat .turn ul { padding-left: 1.3rem; margin: .3rem 0; }

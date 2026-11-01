@@ -1,16 +1,20 @@
 """
 The idea conversation (AGE-110): a guest who has signed the release sits
-down with the office and fleshes the episode out, one question at a time,
-into a run-sheet draft the hosts can record from. The skill
-.claude/skills/guest-episode/SKILL.md is the one source: the system prompt
-the engine runs, and the file a guest takes to their own assistant instead.
+down with the office and fleshes the episode out, in a short conversation
+that starts open and asks only for what is missing, into a run-sheet draft
+the hosts can record from. The skill .claude/skills/guest-episode/SKILL.md
+is the one source: the system prompt the engine runs, and the file a guest
+takes to their own assistant instead. The office knows the episodes so far
+from the ledger (the summary, the chapters, the questions touched) and
+reads the latest transcripts in full from the archive, so it can steer a
+guest off a repeat unless they can add to it.
 
 The Claude API over urllib, like every other platform here: the key from
 the vault (ANTHROPIC_API_KEY, the item "Anthropic podcast key"), the model
 and the caps from config.json ("idea"), the reply streamed to the page as
 server-sent events (static/chat.js) and shown whole to a browser without
 script. The controls are what make hosting this safe: only a signed-in
-guest who has signed the release; forty turns and a token budget per
+guest who has signed the release; twenty turns and a token budget per
 guest; no tools; the model sees this guest's conversation and nothing
 else; the whole conversation is kept on the guest's issue as one comment
 in the guest's words, and the run-sheet draft is its own comment the guest
@@ -60,9 +64,10 @@ def ready(env):
 def settings():
     s = {
         "model": "claude-opus-5-5",
-        "max_turns": 40,
+        "max_turns": 20,
         "max_tokens": 1500,
-        "token_budget": 400000,
+        "token_budget": 400000,  # tokens paid for in full; the cached episodes are read at a twentieth and not counted
+        "transcripts": 12,  # the latest episodes the office reads word for word; every episode's notes, always
         "effort": "medium",
         "fallbacks": True,
     }
@@ -88,27 +93,117 @@ def questions():
     return [" ".join(html.unescape(re.sub(r"<[^>]+>", "", it)).split()) for it in items]
 
 
-def skill_text():
-    """The skill without its frontmatter, with the ten questions in it."""
+def episodes(c):
+    """The episodes the ledger holds, oldest first, as the office is told them: number, title, date,
+    summary, chapters, the ten questions touched, the guests; and where the transcript may be."""
+    out = []
+    for row in c.execute("SELECT * FROM episode ORDER BY release, number").fetchall():
+        r = ledger.release(row)
+        e = r.get("episode") or {}
+        out.append(
+            {
+                "slug": row["slug"],
+                "number": str(e.get("number") or row["number"] or ""),
+                "title": e.get("title") or row["title"] or row["slug"],
+                "date": e.get("release") or row["release"] or "",
+                "summary": e.get("summary") or (r.get("notes") or {}).get("summary") or "",
+                "chapters": [ch["title"] for ch in r.get("chapters") or [] if ch.get("title")],
+                "questions": [int(q) for q in e.get("questions") or []],
+                "guests": [p["name"] for p in r.get("people") or [] if p.get("role") == "guest" and p.get("name")],
+                "source_dir": row["source_dir"],
+            }
+        )
+    return out
+
+
+def episodes_md(eps):
+    """The episodes so far, as the skill's section: what each said, for the overlap."""
+    if not eps:
+        return "(none yet: this would be the first)"
+    out = []
+    for e in eps:
+        lines = [f"### Episode {e['number']}: {e['title']}" + (f" ({e['date']})" if e["date"] else ""), ""]
+        if e["guests"]:
+            lines.append("With " + ", ".join(e["guests"]) + ".")
+        if e["summary"]:
+            lines.append(e["summary"])
+        if e["chapters"]:
+            lines.append("Chapters: " + "; ".join(e["chapters"]) + ".")
+        if e["questions"]:
+            qs = ", ".join(str(q) for q in e["questions"])
+            lines.append(f"Touches question{'s' if len(e['questions']) > 1 else ''} {qs} of the ten.")
+        out.append("\n".join(lines))
+    return "\n\n".join(out)
+
+
+def transcript_of(e, client=None):
+    """The episode's transcript as text: beside its release.json when that is on this machine, else
+    fetched from the archive into the data dir once; None when neither has it."""
+    here = [pathlib.Path(e["source_dir"]) / "transcript.txt"] if e["source_dir"] else []
+    here.append(archive.out_dir(e["slug"]) / "transcript.txt")
+    for p in here:
+        if p.is_file():
+            return p.read_text(encoding="utf-8")
+    try:
+        client = client or archive.Client()
+        p = client.get(f"episodes/{e['slug']}/out/transcript.txt", here[-1])
+    except archive.ArchiveError:
+        return None
+    return p.read_text(encoding="utf-8")
+
+
+def transcripts_md(eps, n, client=None):
+    """The latest `n` episodes word for word, oldest first, and how many of them were found."""
+    parts = []
+    for e in eps[-n:] if n > 0 else []:
+        text = transcript_of(e, client)
+        if text:
+            parts.append(f"### Episode {e['number']}: {e['title']}\n\n{text.strip()}")
+    return "\n\n".join(parts), len(parts)
+
+
+def known(c, client=None):
+    """How much of the show the office knows: (episodes, transcripts), for the health row and the proof."""
+    eps = episodes(c)
+    return len(eps), transcripts_md(eps, int(settings()["transcripts"]), client)[1]
+
+
+def skill_text(c=None, eps=None):
+    """The skill without its frontmatter, with the ten questions and the episodes so far in it."""
     text = SKILL.read_text(encoding="utf-8")
     if text.startswith("---\n"):
         end = text.find("\n---\n", 4)
         text = text[end + 5 :] if end >= 0 else text
     qs = "\n".join(f"{n}. {q}" for n, q in enumerate(questions(), 1)) or "(see https://agentsee.work)"
-    return text.replace("<!-- questions -->", qs).strip() + "\n"
+    if eps is None:
+        eps = episodes(c) if c is not None else []
+    return text.replace("<!-- questions -->", qs).replace("<!-- episodes -->", episodes_md(eps)).strip() + "\n"
 
 
-def system_prompt(g):
+def system_prompt(c, g, client=None):
+    """Two system blocks: the skill with the episodes and the transcripts, cached for an hour because it is
+    the same for every guest and most of the tokens; then this guest, small and uncached."""
+    eps = episodes(c)
+    body = skill_text(c, eps)
+    tx, n = transcripts_md(eps, int(settings()["transcripts"]), client)
+    if tx:
+        body += (
+            "\n## Transcripts\n\nThe latest episodes, word for word, so you know what was actually said; "
+            "the office adds them here.\n\n" + tx + "\n"
+        )
     today = dt.datetime.now(ledger.ZONE).strftime("%-d %B %Y")
-    return (
-        skill_text()
-        + "\n## This guest\n\n"
-        + f"You are inside the office at {office()} with {g['name']}, who has signed the release. Today is {today}. "
-        "The office has its own form for the name as shown, the line, the link, the headshot and the time zone, so "
-        "skip questions 21 and 22 unless they ask. When you write the run-sheet draft, put it in one fenced block "
+    guest = (
+        "## This guest\n\n"
+        f"You are inside the office at {office()} with {g['name']}, who has signed the release. Today is {today}. "
+        "The office has its own form for the name as shown, the line about them, the link, the headshot and the "
+        "time zone, so never ask for those. When you write the run-sheet draft, put it in one fenced block "
         'beginning "# Run-sheet draft:", exactly as above; the office saves it and sends it to James and Abrar, and '
         "says so to the guest. You have no tools and no memory beyond this conversation.\n"
     )
+    return [
+        {"type": "text", "text": body, "cache_control": {"type": "ephemeral", "ttl": "1h"}},
+        {"type": "text", "text": guest},
+    ]
 
 
 # ─── the wire ────────────────────────────────────────────────────────────────
@@ -139,7 +234,9 @@ def request(env, system, messages, on_delta=lambda s: None):
         "model": cfg["model"],
         "max_tokens": int(cfg["max_tokens"]),
         "stream": True,
-        "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+        "system": system
+        if isinstance(system, list)
+        else [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         "messages": messages,
         "output_config": {"effort": cfg["effort"]},
     }
@@ -157,7 +254,7 @@ def request(env, system, messages, on_delta=lambda s: None):
     if status != 200:
         with resp:
             raise IdeaError("the assistant would not answer: " + said(status, resp.read()))
-    text, usage, stop, model = [], {"input": 0, "output": 0}, None, cfg["model"]
+    text, usage, stop, model = [], {"input": 0, "cached": 0, "output": 0}, None, cfg["model"]
     with resp:
         for raw in resp:
             line = raw.decode("utf-8", "replace").rstrip("\r\n")
@@ -175,6 +272,7 @@ def request(env, system, messages, on_delta=lambda s: None):
                     int(u.get(k) or 0)
                     for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
                 )
+                usage["cached"] = int(u.get("cache_read_input_tokens") or 0)
             elif kind == "content_block_delta" and (d.get("delta") or {}).get("type") == "text_delta":
                 s = d["delta"].get("text", "")
                 text.append(s)
@@ -258,11 +356,11 @@ def reply(c, g, env, text=None, on_delta=lambda s: None, start=False):
             if len(text) > MAX_SAY:
                 raise IdeaError(f"That is over {MAX_SAY} characters; a shorter message, please.")
             add_turn(c, gid, "guest", text)
-        out, usage, stop, model = request(env, system_prompt(g), conversation(c, gid), on_delta)
+        out, usage, stop, model = request(env, system_prompt(c, g), conversation(c, gid), on_delta)
         add_turn(c, gid, "agent", out, usage, stop, model)
         c.execute(
             "UPDATE guest SET idea_tokens = COALESCE(idea_tokens, 0) + ?, updated_at=? WHERE id=?",
-            (usage["input"] + usage["output"], ledger.now(), gid),
+            (usage["input"] - usage["cached"] + usage["output"], ledger.now(), gid),
         )
         ledger.event(
             c,
@@ -271,6 +369,7 @@ def reply(c, g, env, text=None, on_delta=lambda s: None, start=False):
             detail={
                 "exchange": exchanges(c, gid),
                 "in": usage["input"],
+                "cached": usage["cached"],
                 "out": usage["output"],
                 "stop": stop,
                 "model": model,
@@ -475,9 +574,7 @@ def turn_html(role, text):
             if in_list:
                 out.append("</ul>")
                 in_list = False
-            s = " ".join(para)
-            cls = ' class="progress"' if re.match(r"^Question \d+ of", s) else ""
-            out.append(f"<p{cls}>{inline(s)}</p>")
+            out.append(f"<p>{inline(' '.join(para))}</p>")
             para.clear()
 
     lines = (text or "").strip().splitlines()
@@ -568,9 +665,9 @@ def idea_page(c, g, env, msg=None, status=200):
     )
     body = (
         '<article class="lead"><p class="kicker">The idea</p><h1>Flesh it out</h1>'
-        '<p class="deck">A conversation with the office, one question at a time, that ends in a run-sheet draft for '
-        f"James and Abrar. About twenty questions; {cfg['max_turns']} turns at most. Everything you say here is kept on "
-        "your episode's page for the hosts, in your words.</p></article>"
+        '<p class="deck">A short conversation with the office that ends in a run-sheet draft for James and Abrar: '
+        f"say what the episode is about, then only what is missing. About ten minutes; {cfg['max_turns']} turns at "
+        "most. Everything you say here is kept on your episode's page for the hosts, in your words.</p></article>"
         + note
         + section("Conversation", "With the office", f'<div class="chat" data-log>{log}</div>{talk}')
         + section("Run-sheet", "The draft", draft)

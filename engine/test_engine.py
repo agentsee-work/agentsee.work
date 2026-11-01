@@ -841,7 +841,7 @@ class FakeAnthropic:
         text = (
             self.replies.pop(0)
             if self.replies
-            else f"Question {n} of about 20 · The idea · ▰▱\nWhat is it about? (a) this (b) that"
+            else f"That is the spine ({n}). What have you actually done that earns it?"
         )
         events = [
             (
@@ -2713,14 +2713,40 @@ class EngineTest(unittest.TestCase):
         idea.open_stream = ai
         gid = c.execute("SELECT id FROM guest WHERE name='Ada Lovelace'").fetchone()[0]
 
-        # ── the skill: the one source, with the site's questions in it ──
-        text = idea.skill_text()
+        # ── the skill: the one source, with the site's questions and the episodes so far in it ──
+        text = idea.skill_text(c)
         self.assertNotIn("---\nname:", text)
-        self.assertIn("Question 4 of about 20", text)
+        self.assertIn("## The opening", text)
+        self.assertNotIn("Question 4 of about 20", text)
         self.assertIn("1. If writing the code is no longer the expensive part", text)
+        nine = f"### Episode 9: Nine ({DAY0})\n\nWhat happened in nine."
+        self.assertIn(nine, text)
+        self.assertNotIn("## Transcripts", text, "the file a guest takes away holds the notes, not the transcripts")
         self.assertIn("# Run-sheet draft:", text)
-        prompt = idea.system_prompt(guests.guest(c, gid))
-        self.assertIn("with Ada Lovelace, who has signed the release", prompt)
+        self.assertEqual(
+            idea.skill_text(),
+            text.replace(nine, "(none yet: this would be the first)"),
+        )
+
+        # ── the system prompt: the skill and the transcripts cached, then this guest ──
+        objs["episodes/ep9/out/transcript.txt"] = {
+            "body": b"Abrar Mahmood: Nine is about nine things.\nJames Hartt: Nine of them.\n",
+            "type": "text/plain",
+            "meta": {},
+        }
+        self.assertFalse((archive.out_dir("ep9") / "transcript.txt").exists())
+        prompt = idea.system_prompt(c, guests.guest(c, gid))
+        self.assertEqual([b.get("cache_control") for b in prompt], [{"type": "ephemeral", "ttl": "1h"}, None])
+        self.assertIn("## The episodes so far", prompt[0]["text"])
+        self.assertIn("## Transcripts\n", prompt[0]["text"])
+        self.assertIn("### Episode 9: Nine\n\nAbrar Mahmood: Nine is about nine things.", prompt[0]["text"])
+        self.assertIn("with Ada Lovelace, who has signed the release", prompt[1]["text"])
+        self.assertNotIn("Ada Lovelace", prompt[0]["text"], "the cached block is the same for every guest")
+        self.assertTrue((archive.out_dir("ep9") / "transcript.txt").exists(), "fetched from the archive once")
+        n = len(FakeR2.state["requests"])
+        idea.system_prompt(c, guests.guest(c, gid))
+        self.assertEqual(len(FakeR2.state["requests"]), n, "then read from the data dir")
+        self.assertEqual(idea.known(c), (1, 1))
 
         web.STATE["ledger"] = str(self.db)
         srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
@@ -2787,17 +2813,19 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(headers["anthropic-beta"], "server-side-fallback-2026-07-01")
         self.assertEqual((payload["model"], payload["max_tokens"], payload["stream"]), ("claude-opus-5-5", 1500, True))
         self.assertEqual((payload["fallbacks"], payload["output_config"]), ("default", {"effort": "medium"}))
-        self.assertEqual(payload["system"][0]["cache_control"], {"type": "ephemeral"})
+        self.assertEqual(payload["system"][0]["cache_control"], {"type": "ephemeral", "ttl": "1h"})
         self.assertIn("The idea, before we record", payload["system"][0]["text"])
+        self.assertIn("Nine is about nine things", payload["system"][0]["text"])
+        self.assertIn("with Ada Lovelace", payload["system"][1]["text"])
         self.assertEqual(payload["messages"], [{"role": "user", "content": idea.START}])
         self.assertNotIn("tools", payload)
         self.assertNotIn("thinking", payload)
         rows = idea.turns(c, gid)
         self.assertEqual([t["role"] for t in rows], ["start", "agent"])
         self.assertEqual((rows[1]["input_tokens"], rows[1]["output_tokens"], rows[1]["stop"]), (1500, 50, "end_turn"))
-        self.assertEqual(guests.guest(c, gid)["idea_tokens"], 1550)
+        self.assertEqual(guests.guest(c, gid)["idea_tokens"], 1050, "the cache read is not charged to the budget")
         st, h, body = req("GET", "/idea", host=SEE, cookies=ada)
-        self.assertIn('class="progress"', body)
+        self.assertIn('<div class="turn agent"><p>That is the spine (1).', body)
         self.assertIn("<textarea", body)
         self.assertNotIn(">Begin<", body)
         self.assertNotIn(idea.START, body, "the start is the engine's line, not the guest's")
@@ -2970,6 +2998,7 @@ class EngineTest(unittest.TestCase):
         self.assertIn("JPEG or a PNG", body)
         self.assertIn("shown as Ada Lovelace, Europe/Paris", req("GET", f"/guests/{gid}")[2])
         self.assertIn("The office", req("GET", "/health")[2])
+        self.assertIn("knows 1 episodes, 1 transcripts", req("GET", "/health")[2])
         srv.shutdown()
 
 

@@ -173,9 +173,11 @@ def cmd_idea(a):
         )
     except idea.IdeaError as e:
         sys.exit(f"\nerror: {e}")
+    eps, tx = idea.known(ledger.connect(a.ledger))
     print(
         f"\n[{model}: {usage['input']} tokens in, {usage['output']} out, stop {stop}; "
-        f"a guest gets {cfg['max_turns']} turns and {cfg['token_budget']} tokens]"
+        f"a guest gets {cfg['max_turns']} turns and {cfg['token_budget']} tokens; "
+        f"the office knows {eps} episodes and has {tx} transcripts]"
     )
 
 
