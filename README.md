@@ -68,6 +68,7 @@ docs/THEME-MUSIC.md           one score cut into eight cues, rendered and levell
 docs/PODCAST-PIPELINE.md      a recording in, the episode out, by script — and every trap on the way
 docs/POST-DRAFT-PODCAST.md    the long version of Issue No. 5, and notes for the next recording
 docs/POST-DRAFT-PUBLISHING.md the long version of Issue No. 6, and notes for the next platform
+docs/POST-DRAFT-TWENTY.md     the long version of Issue No. 7, and notes for episode 3
 infra/                        the mail server declared — OpenTofu, applied
 engine/                       the podcast's publisher and its screens — the ledger, the plan, YouTube
 stalwart/                     mail server config, snapshotted from the running server

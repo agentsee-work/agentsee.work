@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Twenty questions, and the one that counted was the twenty-first — AgentSee, Issue No. 7</title>
+<meta name="description" content="Think of the software you want, and whichever assistant you already use asks twenty questions and writes the brief. Why it is a skill and not a product, what each question decides, and why the ending had to change.">
+<link rel="canonical" href="https://agentsee.work/issues/07-twenty">
+
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://agentsee.work/issues/07-twenty">
+<meta property="og:title" content="Twenty questions, and the one that counted was the twenty-first.">
+<meta property="og:description" content="Think of the software you want, and whichever assistant you already use asks twenty questions and writes the brief. Why it is a skill and not a product, what each question decides, and why the ending had to change.">
+<meta property="og:image" content="https://agentsee.work/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/assets/og.png">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+
+<a class="skip" href="#opening">Skip to content</a>
+
+<!-- ═══════════════  MASTHEAD  ═══════════════ -->
+<header class="masthead">
+  <nav class="ear" aria-label="Listen to the podcast">
+    <a class="ear-label" href="/podcast/">Listen</a>
+    <a href="https://podcasts.apple.com/gb/podcast/agentsee-podcast/id6824580895">Apple Podcasts</a>
+    <a href="https://open.spotify.com/show/0YjxzDGgoCzjvEykcUAfPr">Spotify</a>
+    <a href="https://www.youtube.com/@agentseework">YouTube</a>
+    <a href="/podcast/feed.xml">RSS</a>
+  </nav>
+  <a class="nameplate home" href="/" aria-label="AgentSee, the front page">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+  </a>
+  <nav class="ear" aria-label="Follow AgentSee">
+    <span class="ear-label">Follow</span>
+    <a href="https://www.linkedin.com/company/agentseework">LinkedIn</a>
+    <a href="https://x.com/agentseework">X</a>
+    <a href="https://bsky.app/profile/agentsee.work">Bluesky</a>
+    <a href="https://mastodon.social/@agentseework">Mastodon</a>
+    <a href="https://www.instagram.com/agentsee.work/">Instagram</a>
+  </nav>
+</header>
+
+<!-- ═══════════════  DATELINE  ═══════════════ -->
+<div class="dateline">
+  <span class="edge">Hove &amp; London</span>
+  <span class="mid" id="dateline">Founded 18 August 2026</span>
+  <span class="edge">Issue No.&nbsp;7 &middot; Free, obviously</span>
+</div>
+
+<main>
+
+  <article class="lead">
+    <h1>Twenty questions,<br>and the one that counted was the twenty-first.</h1>
+    <p class="deck">
+      Think of the software you want. Whichever assistant you already use asks twenty
+      questions, one at a time, and writes the brief. It went from a Slack message to a
+      live page in three days, and four days after that it changed what this company
+      says it sells.
+    </p>
+  </article>
+
+  <section class="section" id="opening">
+    <p class="kicker">01 — The premise</p>
+    <h2>Getting a first version made is the easy part now, so the thing to make was not software.</h2>
+
+    <div class="cols">
+      <p class="drop">It started as a Slack message on a Monday afternoon, the 26th of October.
+      Abrar's company marks exam papers with a model, and the thing that keeps it honest is
+      that a teacher can review the whole lot at once, which a chat window cannot give
+      anyone. So why not a tool that lets a business vibe its own internal tooling out of
+      whatever it already does with a model: a workflow with a proper screen, rather than a
+      conversation. By the evening he had found a young specification that puts a small
+      interface inside the chat products and was most of the way to what he meant, and
+      asked whether we should build a more specific one.</p>
+
+      <p>James's answer, on the Thursday morning, kept the pattern and dropped the product.
+      A company of twenty hours a week cannot make something for mass consumption;
+      everything we do is enablement. What we need is to get a person's idea into an
+      iteration loop as soon as possible, with the initial conditions scoped first: the
+      non-negotiables, which are a repository, tests, review and a deploy on every change,
+      and then the dials that set the architecture and the bill. An internal tool for a
+      dozen people, or transactions, or a viral load. An hour down now and then, or never.
+      A few seconds from a cold start, or under ten milliseconds. Some kind of wizard would
+      walk a person through those, hand them the one-shot prompt that makes a first version
+      with everything they chose written down beside it, and then a project surface the two
+      of us and the client could work on. "I know that is quickly turning into a
+      product."</p>
+
+      <p>The model's reply named the weak link. The one-shot prompt is the commodity: several
+      tools make an app from a paragraph, and the client could too. The value sits either
+      side of it, in the scoping that produces the brief and in the loop after it that keeps
+      the thing alive. The project surface already exists, because it is this repository: a
+      tracker the client can read, tests and review on every change, a preview of each one,
+      sessions they can watch. So the artefact is a brief, not a prompt, and the first
+      version of the wizard is not software. It is a skill, one Markdown file that any
+      assistant can run, used first on our own projects; if the same steps repeat unchanged
+      three times, that is the moment a product exists. Building the wizard first is how a
+      twenty-hour-a-week consultancy becomes a product company by accident.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">02 — The shape</p>
+    <h2>One question at a time, a bar that moves, a guess at ten and a guess at twenty.</h2>
+
+    <div class="cols two">
+      <p>James's brief fitted in a paragraph: a twenty-questions-like approach, multiple
+      choice or a score out of ten, for the initial conditions of a software project that
+      succeeds; comprehensive, but no more than twenty; geared to a non-technical mind;
+      upfront that nearly anything is possible with software, though personal data and
+      regulation get in the way; run in a person's own chat, with the result sent back to
+      us. Health, money, scale and uptime were his four to start from.</p>
+
+      <p>Twenty is a ceiling, not a count. If an earlier answer settles a later question, the
+      assistant says so in a line, records the answer and skips it, and the bar still
+      moves; our guess is that most people answer fifteen to seventeen, and nobody has
+      counted yet. Cutting below twenty loses a base, and adding beyond it loses the
+      person. A score out of ten appears only where there is a real gradient, which was one
+      question, and that one has since gone: people pick a band more honestly than they
+      pick a number. Every question takes Other and Don't know yet, and don't know is a
+      fine answer; it goes in the brief under "Not yet known" rather than being guessed at.
+      Plain words, a term explained before it is used, never "impossible", and after each
+      answer one line on what it means for the build. Only one. For a non-technical reader
+      that line is where the twenty minutes earns itself.</p>
+
+      <p>The progress is one fixed line at the top of every question: the number, the group,
+      and a bar of twenty marks that fills whether a question was asked or skipped, with a
+      two-line recap in the person's own words after each group of four. It is the only
+      piece of interface a chat has, and James asked for it on the first morning to keep a
+      person in the chair. The whimsy came an hour later: the little plastic ball of the
+      early 2000s that guessed what you were thinking in twenty questions, and was right
+      unnervingly often. Its name is a trademark, so the copy describes it, and the frame
+      is the toy's. Think of the software you want; after question ten the assistant says
+      what it thinks the idea is and asks whether it is warm; after twenty it gives one
+      sentence beginning "My guess:" that names the shape of the build and of the running.
+      The rules forbid padding, so that is the whole of the whimsy, a frame and two guesses
+      rather than a character.</p>
+
+      <p>Then the brief, in a fixed shape so it can be copied whole: the guess, the idea in
+      the assistant's words, a care tier, the dials, what it talks to, the build, running
+      it, the things to insist on, and what is not yet known. The questions live in one
+      file in the repository, and a small tool stamps that file into the page, the copy
+      anyone can download and the links; a check fails if the page falls behind, so what
+      the page shows is exactly what the assistant reads.</p>
+
+      <p>The links were the morning's one surprise. Two of the chat products accept a whole
+      prompt in the address of a new chat, which none of them documents; James clicked both
+      with nine and a half thousand characters in the link and each opened on the first
+      question. The third answered that the request was too large, so its link carries a
+      short launcher that asks it to open the file from our site instead, and two more have
+      no working way in and get a copy button. The route back is an email with a fixed
+      subject to an address on a server we run, which was Issue No. 2: the site's content
+      policy forbids forms, a form would need a backend, and two people read a mailbox
+      perfectly well. From James's first message to the open pull request was forty-two
+      minutes, and the page was live inside the hour.</p>
+    </div>
+  </section>
+
+  <p class="pull">Most software does not die of a bug. It dies of nobody's name being next to it.</p>
+
+  <section class="section">
+    <p class="kicker">03 — The questions</p>
+    <h2>Each of the twenty decides something about the build, or it is not in the twenty.</h2>
+
+    <div class="cols two">
+      <p>The first four are the idea. What should it do, and for whom, reflected back so the
+      first guess has something to be wrong about. Who will use it and how they get in,
+      which decides how hard it must defend itself and the support load, and where holding
+      passwords can be avoided. What it has to live alongside: the spreadsheets, the
+      software already paid for and its data, and the rules the business already works
+      under, which decide what is inherited, what must keep working meanwhile, and who else
+      gets a say. And whether anyone has tried to build this before and what happened to
+      it, because whatever stopped the last one is usually still there, and can be designed
+      around once it is named.</p>
+
+      <p>The second four are care, and they changed shape twice on the day this was written.
+      They began as James's domains from the first message, health and money, with personal
+      information and where the people are, on the principle that these add care, not
+      impossibility. By mid-morning James had seen that health and money were one question
+      asked narrowly, and had the group recentred on it so that the set works for any
+      industry: does yours, or this idea, have a regulator, where you are or anywhere it
+      will be used? Only the general law; a code nobody inspects; a regulator who can ask
+      for records, inspect or fine; a licence before it can be used at all. The slot the
+      merge freed asks the thing the two domains were really measuring: if it got something
+      wrong, what is the worst that happens to someone, from an inconvenience, through their
+      money or a lot of their time, to their job, home, rights or health, to their safety.
+      Then the kinds of personal data, which decide the privacy work, a job that recurs
+      rather than a feature that ships, and the country, which decides which law applies
+      and where the data may live. The brief sums these as a care tier from nought to
+      three, defined by what each adds to the build: nothing beyond good practice; a
+      privacy notice, retention and deletion on time; an audit trail and a record of who
+      looked; a formal assessment and a regulator who can ask for it.</p>
+
+      <p>The third four are the conditions it runs in. The busiest day and whether it must
+      feel instant, because above a few thousand people, or instant, the machines are
+      always on and designed in from the start, and below that the simple build is the
+      right build; "it could go viral" makes the first month slower and the tests harder.
+      What breaks if it is down for a day, and who would notice first and who they would
+      ring, which decides the uptime tier and names who is on call today whether they know
+      it or not. Where people will use it, since an app in a store adds a review cycle to
+      every change and poor signal means working offline. And what it must talk to, because
+      each connection is a risk and a running cost: the other side changes without asking,
+      and somebody has to notice.</p>
+
+      <p>The fourth four are the shape. Whether a model does part of the work inside it, to
+      draft or to judge, and whether a person must check its output before it counts; that
+      is Abrar's point in disguise, because if a person must check the lot, the screen
+      where they do it is the product. The models change under you, and what was tested in
+      March is not what runs in June. How often it will change after launch, with the note
+      that set and forget still changes, because what it depends on moves. What must never
+      happen, the worst one, which is the first guard built and the first thing checked
+      again once it is live. And what they are comfortable paying each month, machines and
+      people together, because the machines are usually the cheap part; the attention is
+      what costs, and the question is whose.</p>
+
+      <p>The last four are owning it. Twelve months after launch, how will you know it was
+      worth it, which decides what is measured from day one and whether this is a thing
+      that gets finished or a thing that gets kept. What you can spend to get the first
+      version live, and when you need it, because the first version is the smallest thing
+      that starts to prove the twelve-month answer, and the money and the date say how
+      small. Who signs it off and whose name is next to it once it is live: not who built
+      it, but who says it is done, who gets the call when it stops, and who decides when it
+      changes. Nobody is the commonest answer, and the most expensive. And who in the
+      business could, today, restore a backup, read an error message, renew a certificate
+      or tell a supplier what has gone wrong, which decides what the running needs from
+      outside.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">04 — The ending</p>
+    <h2>The first version closed with "keep it or send it to us", and that was the wrong ending.</h2>
+
+    <div class="cols">
+      <p>The set that went live on the Thursday was built for a company that sells builds.
+      Its last group was called Reality, its nineteenth question was who looks after it once
+      live, with "nobody, it should look after itself" as an option, and its brief ended
+      with one line: the brief is yours to use with anyone who builds software, and if you
+      would like us to read it, send it. On the Monday James wrote the brief for the
+      rewrite. AgentSee's model is to build operational software with the client in the
+      room and then own and run it, on a monthly retainer, and a tool that ends "keep it or
+      send it to us" invites a person to take the brief and self-serve. That is fine if you
+      sell the build and wrong if what you sell is the year after it.</p>
+
+      <p>So five questions that only served a hand-over went, and the five on ownership in
+      the section above came in. Three months became twelve months and "worth it", which is
+      the difference between finished and kept; the hour on a Tuesday afternoon out of ten
+      became the day down; speed folded into scale, how people get in folded into who uses
+      it, the monthly cost now counts people as well as machines, and the last group is
+      Owning it.</p>
+
+      <p>The brief kept the build and gained a page called Running it: the attention this
+      particular system will ask for once it is live, the connections that break when the
+      other side changes, the model that drifts, the data that must be deleted on time, the
+      keys and certificates that expire, the backups nobody has tried restoring, and
+      roughly how many hours a month; then who they have, what they are missing, and what
+      happens, in order, if they build it themselves and hand it to no one. And the close
+      became a question, unnumbered: who is going to run this once it exists? The assistant
+      gives its honest reading, one of two, and is told to choose the one the answers
+      support, not the one that flatters the idea or the one that sells. Either it is
+      simple enough to run themselves, and it says so, with what to watch and how often,
+      and the brief is theirs to use with anyone. Or it will need running, and the people
+      who built a thing are the right people to keep it alive, which is the conversation we
+      want. A tool that only sells is useless to the person answering it; a tool that only
+      informs makes the sale someone else's. The honest reading is the only one worth their
+      twenty minutes, and the only one worth our name on it.</p>
+
+      <p>Then the front page caught up, because it had to. The tool now said "if you want
+      that conversation, send the brief", and two clicks away the front page still said
+      "not today, we are still in discovery", offered partners a share of the reward, and
+      promised clients soon. Same site, two answers to "can I hire you". The same morning
+      the status line became "taking the first conversations", Built alongside you became
+      Built alongside you, then run, the classified ad became the build-and-run ad, and the
+      price was promised before the pitch. The document in our tracker that says what
+      AgentSee is, written in September, still describes one fixed-price build and no
+      retainer; the merge was the decision made public, and the document is next. The tool
+      made the company say what it sells, which was not in the plan, and is the most useful
+      thing it has done so far.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">05 — Working with a model</p>
+    <h2>It drafted all twenty in two minutes. The review found six things, and all six changed something.</h2>
+
+    <div class="cols two">
+      <p>The division of labour was the one from the last two issues, turned around. James
+      gave four domains and three dials; the model drafted the twenty, the rules the
+      assistant runs them by and the brief's shape, in less time than it took to read them;
+      James added the toy; and Abrar read the set with an assistant of his own, which came
+      back with six findings. Nothing asks what they can spend on the build. Nothing asks
+      who signs it off. Two questions are too long. Two overlap. The care tiers are
+      debatable. The "Always on" list sells a bit.</p>
+
+      <p>All six were right about something. Spend went into the question about when the
+      first version is needed, since money and date are the two things that decide how
+      small it is, and "near nothing, mostly my own time" is the plainest sign that a
+      person should self-serve. Sign-off went into the question about whose name is next to
+      it, with a line that if that person is not the one answering, they should see the
+      brief; that is the case that most often goes wrong with a non-technical client. The
+      trim took the personal-data question from seven options to five, the integrations
+      from ten to seven, the "also" clauses to one line each, and every explanation to a
+      sentence. One overlap had already gone in the rewrite; the other was a sentence about
+      being in the loop with whoever builds it, which belonged to the ownership questions,
+      so it went.</p>
+
+      <p>The tiers had been by domain, and the review was right that a card checkout then sat
+      in the same tier as moving money between people, and "off sick today" in the same
+      tier as clinical records. Defining each tier by what it adds to the build fixed both,
+      and made the number a statement about the work rather than about the domain, which
+      is harder to argue with; when the domains themselves went later that morning, the
+      tiers stayed. And "Always on" had listed our own practice, automated
+      review and a preview of every change, as if it were a universal must. It is now
+      "Insist on these", the three things a non-technical owner can check for themselves
+      from the first day: a repository and a tracker they can see, tests that run on every
+      change, and a deploy that is a button and can be undone. The page's last section says
+      the same.</p>
+
+      <p>One number, honestly. The twenty questions came out about a fifth shorter, and the
+      two additions and the tier definition took most of that back, so the whole prompt is
+      a touch shorter than it was and still twelve thousand characters, twelve thousand
+      seven hundred inside a link. And one lesson that ran the other way. Two days after
+      the first version we stretched the same shape, a bar and lettered options and a
+      guess, over the podcast's guest office, where a guest sits down to turn an idea into
+      an episode, and James read it and said it would be onerous. A shape that fits a
+      client being scoped does not fit a guest being welcomed; that one became a
+      conversation that opens with a single question and asks only for what is missing.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">06 — What it is for</p>
+    <h2>Run it on the idea you have had for years. The brief is yours either way.</h2>
+
+    <div class="cols two">
+      <p>The page is live, the questions are in the open, and the set will change as we
+      learn; what the page shows is always what the assistant reads. A brief that arrives
+      is read by two people, who reply in plain words: what we would build first, what we
+      would leave out, and what it would cost each month, with us or without us. No
+      sequence, no drip, no CRM. Episode 3 of the podcast is the two of us walking through
+      the questions, one at a time, with an example from our own projects for each group
+      of four; by the time it is recorded the set may have moved again, and the page will
+      say so.</p>
+
+      <p>Of the ten questions on the front page that we said we could not answer, this
+      touches four. What the client is buying, if the code is no longer the expensive part:
+      the scoping before it and the running after it is this tool's answer, and it is a
+      working answer rather than a settled one. Whether the brief is what replaces the
+      estimate stays a question. A product manager when the specification is executable
+      looks, from here, like twenty questions a non-technical person can answer honestly.
+      And acceptance testing on something produced faster than a person can read it begins
+      with two of the twenty: who signs it off, and whether a person must check what the
+      model does before it counts.</p>
+
+      <p>Still open: the price, which the site promises before the pitch and has not yet
+      published; the links, which depend on behaviour none of the chat products documents
+      and could stop on any Tuesday, in which case the file is still there to copy; and the
+      document that says what AgentSee is. The next issue is the one the register has held
+      open since September, the first conversation with someone who disagrees.</p>
+    </div>
+
+    <p class="backlink-row">
+      <a class="backlink" href="/issues/06-publishing">&larr; Issue No.&nbsp;6</a>
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee &middot; Issue No.&nbsp;7</span>
+    <span id="colophon-date">Founded 18 August 2026</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+</body>
+</html>
