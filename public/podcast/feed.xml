@@ -30,6 +30,44 @@
     <podcast:person role="host" href="https://www.linkedin.com/in/james-hartt-78519132/" img="https://agentsee.work/assets/james-hartt.jpg">James Hartt</podcast:person>
     <podcast:person role="host" href="https://www.linkedin.com/in/abrar-m-339b61386/" img="https://agentsee.work/assets/abrar-mahmood.jpg">Abrar Mahmood</podcast:person>
     <item>
+      <title>Vibe coding, and the rise of the product engineer</title>
+      <itunes:title>Vibe coding, and the rise of the product engineer</itunes:title>
+      <link>https://agentsee.work/podcast/ep2/</link>
+      <guid isPermaLink="false">69f96c01-4a67-4e0d-8aa9-75354df3c3ec</guid>
+      <pubDate>Tue, 03 Nov 2026 06:00:00 +0000</pubDate>
+      <description><![CDATA[<p>Abrar builds GradeDrive, an AI marking tool for schools, with a non-technical co-founder, and helps a second startup where the product team ships its own ideas. He explains what makes that safe: a skill that gives every idea its own worktree, database and dev server, a read-only environment the agent can be trusted with, guidelines written after a feature that ran a whole class&#x27;s PDF in the browser, and a draft pull request that spins up an environment of its own. James asks about native apps, things going off the rails and what the job is now. The answers: web is easy and native is not, it is easier than ever to build sloppy stuff, taste still comes from people, and Abrar has not opened a code editor in six months.</p>
+<p>Chapters:</p><ul><li>00:00 GradeDrive, and another startup</li><li>01:36 How it used to work: idea, engineer, ticket, wait</li><li>04:10 Vibe coding: quick, motivating, throwaway</li><li>07:15 Prototypes that carry the intent</li><li>10:28 Enablement: a read-only environment, a worktree per idea</li><li>14:43 When a vibed feature went wrong</li><li>19:00 Agents that check their own work in a browser</li><li>21:42 Web is easy, native is not</li><li>26:25 One-shotting a feature, and the draft pull request</li><li>30:06 Easier than ever to build sloppy stuff</li><li>34:43 Engineering is enablement; then gravitate to product</li><li>37:40 Coding is an abstraction; taste is still ours</li><li>42:11 The role is exhausting: the thinking comes first</li><li>47:34 Where people hit the wall</li><li>52:10 Outro</li></ul>
+<p>Mentioned:</p><ul><li><a href="https://gradedrive.com">GradeDrive, AI marking for schools</a></li><li><a href="https://claude.com/product/claude-code">Claude Code, and the Claude desktop app the co-founder uses</a></li><li><a href="https://git-scm.com/docs/git-worktree">git worktree, one checkout per idea</a></li><li><a href="https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests#draft-pull-requests">Draft pull requests on GitHub</a></li><li><a href="https://ghuntley.com/ralph/">The Ralph Wiggum loop</a></li><li><a href="https://expo.dev">Expo, the native app toolchain mentioned</a></li></ul>
+<p>Of the questions on the site, this one touches:</p><ul><li>3. What is a product manager when the specification is executable?</li><li>5. How do you run acceptance testing on something produced faster than a person can read it?</li><li>7. What does taste mean when volume is free?</li><li>8. Do engineers still want the job? What is it now — author, reviewer, director, or something we don&#x27;t yet have a word for?</li></ul>
+<p>AgentSee is two people building a company in public, with agents doing the work.</p>
+<p><a href="https://agentsee.work">https://agentsee.work</a>  ·  hello@agentsee.work</p>
+<p>Subscribe: <a href="https://agentsee.work/podcast/feed.xml">https://agentsee.work/podcast/feed.xml</a></p>]]></description>
+      <content:encoded><![CDATA[<p>Abrar builds GradeDrive, an AI marking tool for schools, with a non-technical co-founder, and helps a second startup where the product team ships its own ideas. He explains what makes that safe: a skill that gives every idea its own worktree, database and dev server, a read-only environment the agent can be trusted with, guidelines written after a feature that ran a whole class&#x27;s PDF in the browser, and a draft pull request that spins up an environment of its own. James asks about native apps, things going off the rails and what the job is now. The answers: web is easy and native is not, it is easier than ever to build sloppy stuff, taste still comes from people, and Abrar has not opened a code editor in six months.</p>
+<p>Chapters:</p><ul><li>00:00 GradeDrive, and another startup</li><li>01:36 How it used to work: idea, engineer, ticket, wait</li><li>04:10 Vibe coding: quick, motivating, throwaway</li><li>07:15 Prototypes that carry the intent</li><li>10:28 Enablement: a read-only environment, a worktree per idea</li><li>14:43 When a vibed feature went wrong</li><li>19:00 Agents that check their own work in a browser</li><li>21:42 Web is easy, native is not</li><li>26:25 One-shotting a feature, and the draft pull request</li><li>30:06 Easier than ever to build sloppy stuff</li><li>34:43 Engineering is enablement; then gravitate to product</li><li>37:40 Coding is an abstraction; taste is still ours</li><li>42:11 The role is exhausting: the thinking comes first</li><li>47:34 Where people hit the wall</li><li>52:10 Outro</li></ul>
+<p>Mentioned:</p><ul><li><a href="https://gradedrive.com">GradeDrive, AI marking for schools</a></li><li><a href="https://claude.com/product/claude-code">Claude Code, and the Claude desktop app the co-founder uses</a></li><li><a href="https://git-scm.com/docs/git-worktree">git worktree, one checkout per idea</a></li><li><a href="https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests#draft-pull-requests">Draft pull requests on GitHub</a></li><li><a href="https://ghuntley.com/ralph/">The Ralph Wiggum loop</a></li><li><a href="https://expo.dev">Expo, the native app toolchain mentioned</a></li></ul>
+<p>Of the questions on the site, this one touches:</p><ul><li>3. What is a product manager when the specification is executable?</li><li>5. How do you run acceptance testing on something produced faster than a person can read it?</li><li>7. What does taste mean when volume is free?</li><li>8. Do engineers still want the job? What is it now — author, reviewer, director, or something we don&#x27;t yet have a word for?</li></ul>
+<p>AgentSee is two people building a company in public, with agents doing the work.</p>
+<p><a href="https://agentsee.work">https://agentsee.work</a>  ·  hello@agentsee.work</p>
+<p>Subscribe: <a href="https://agentsee.work/podcast/feed.xml">https://agentsee.work/podcast/feed.xml</a></p>]]></content:encoded>
+      <enclosure url="https://media.agentsee.work/podcast/ep2/episode.mp3" length="75672457" type="audio/mpeg"/>
+      <itunes:duration>3148</itunes:duration>
+      <itunes:episode>2</itunes:episode>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:image href="https://media.agentsee.work/podcast/ep2/episode-art.jpg"/>
+      <podcast:transcript url="https://media.agentsee.work/podcast/ep2/transcript.vtt" type="text/vtt" language="en"/>
+      <podcast:transcript url="https://media.agentsee.work/podcast/ep2/transcript.json" type="application/json" language="en"/>
+      <podcast:chapters url="https://media.agentsee.work/podcast/ep2/chapters.json" type="application/json+chapters"/>
+      <podcast:person role="host" href="https://www.linkedin.com/in/abrar-m-339b61386/" img="https://agentsee.work/assets/abrar-mahmood.jpg">Abrar Mahmood</podcast:person>
+      <podcast:person role="host" href="https://www.linkedin.com/in/james-hartt-78519132/" img="https://agentsee.work/assets/james-hartt.jpg">James Hartt</podcast:person>
+      <podcast:soundbite startTime="383.322" duration="52.5">Get it roughly working, then cast it aside</podcast:soundbite>
+      <podcast:soundbite startTime="817.934" duration="37.2">A worktree and a database for every idea</podcast:soundbite>
+      <podcast:soundbite startTime="1828.786" duration="30.7">It&#x27;s easier than ever to build sloppy stuff</podcast:soundbite>
+      <podcast:soundbite startTime="2037.728" duration="46.0">You need to see a lot more closed pull requests</podcast:soundbite>
+      <podcast:soundbite startTime="2177.364" duration="47.0">Ask an agent for taste and you get slop</podcast:soundbite>
+      <podcast:soundbite startTime="2921.808" duration="49.2">I haven&#x27;t opened a code editor in six months</podcast:soundbite>
+    </item>
+    <item>
       <title>Running our own mail server, on purpose</title>
       <itunes:title>Running our own mail server, on purpose</itunes:title>
       <link>https://agentsee.work/podcast/ep1/</link>
