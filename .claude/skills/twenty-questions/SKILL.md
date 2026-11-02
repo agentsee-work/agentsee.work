@@ -30,37 +30,37 @@ This is played like the little handheld toy of the early 2000s that guessed what
 **The idea**
 
 1. In a sentence or two, what should it do, and for whom? Reflect it back in your own words and ask if that is right.
-2. Who will use it? (a) just me (b) my team or company (c) our customers or members, by invitation (d) anyone on the internet. Also: how do they get in: a link, an invitation, the work login they already have, or a password they make up? Decides how hard it must defend itself and the support load. Holding passwords is avoided where it can be.
-3. What does it have to live alongside? All that apply: (a) nothing, it is new (b) spreadsheets, email or paper (c) a product we pay for (d) software we already own (e) data that has to come across (f) rules the business already works under, from a regulator, a contract or a policy. Decides what is inherited, what must keep working while this arrives, and who else gets a say.
-4. Has anyone tried to build this before, and what happened to it? (a) no, this is the first go (b) yes, and it is still running somewhere (c) yes, it was built and quietly died (d) yes, and it never got finished. Whatever stopped the last one is usually still there. Named, it can be designed around.
+2. Who will use it, and how do they get in? (a) just me (b) my team, with the work login we already have (c) customers or members, by invitation (d) anyone, with a password they make up. Decides how hard it must defend itself and the support load; holding passwords is avoided where it can be.
+3. What does it have to live alongside? All that apply: (a) nothing, it is new (b) spreadsheets, email or paper (c) software we pay for or already own, and its data (d) rules we already work under: a regulator, a contract, a policy. Decides what is inherited, what must keep working meanwhile, and who else gets a say.
+4. Has anyone tried to build this before, and what happened to it? (a) no, this is the first go (b) yes, and it is still running somewhere (c) yes, and it quietly died (d) yes, and it never got finished. Whatever stopped the last one is usually still there, and can be designed around once it is named.
 
 **Care needed**
 
-5. Does it touch anyone's health, including fitness, mood, or "off sick today"? (a) yes (b) no (c) maybe. The strictest rules apply: doable, but it changes storage, who can see what, and keeping a record of who looked.
+5. Does it touch anyone's health? (a) yes, properly: records, symptoms, treatment (b) in passing: fitness, mood, "off sick today" (c) no. Doable, but it changes storage, who can see what, and whether a record is kept of who looked.
 6. Does it handle money? (a) no (b) takes payments through a provider such as Stripe (c) holds balances or moves money between people (d) makes or advises financial decisions. The last two can be regulated activities and need a full audit trail.
-7. What personal information will it hold? All that apply: (a) names and emails (b) addresses or dates of birth (c) ID documents (d) children's data (e) location (f) photos or voice (g) none. Decides the privacy work: a notice, retention, deletion, and for the heavier kinds a formal assessment. Deleting on time is a job that recurs, not a feature that ships.
+7. What personal information will it hold? All that apply: (a) names and emails (b) addresses, dates of birth or location (c) photos or voice (d) ID documents or children's data (e) none. Decides the privacy work: a notice, retention, and deletion on time, which is a job that recurs rather than a feature that ships.
 8. Where are the people whose data it holds? (a) UK (b) EU (c) US (d) worldwide. Decides which law applies and where the data may live.
 
 **Running conditions**
 
-9. On the busiest day you can imagine, how many people use it? (a) under 10 (b) under 100 (c) a few thousand (d) tens of thousands (e) it could go viral. Also: must it feel instant, like a game, or is a few seconds fine, like a report? Above a few thousand, or instant, the machines are always on and designed in from the start. Below that the simple build is the right build: it starts from cold and costs almost nothing while idle.
-10. If it went down for a day, what breaks in your business? (a) nothing anyone would notice (b) a lost day and some annoyed people (c) money stops coming in or going out (d) someone is unsafe, or a duty to a customer or a regulator is missed. Also: who would notice first, and who would they ring? Decides the uptime tier, from one machine that restarts itself to someone on call. It also says who is on call today, whether or not they know it.
-11. Where will people use it? All that apply: (a) a desk browser (b) a phone browser (c) an app from the store (d) out in the field with poor signal (e) inside another tool such as Slack or Teams. Also: must people with disabilities be able to use it, more than one language, old devices? A store app adds a review cycle to every change; poor signal means working offline.
-12. What must it talk to? All that apply: (a) email (b) calendar (c) accounting (d) a CRM (e) payments (f) a spreadsheet (g) a database you already have (h) AI models (i) public data (j) nothing. Each is a risk and a running cost: the other side changes without asking, and somebody has to notice.
+9. On the busiest day you can imagine, how many people use it, and must it feel instant? (a) under a hundred (b) a few thousand (c) tens of thousands, or it could go viral; and instant, like a game, or a few seconds, like a report? Above a few thousand, or instant, the machines are always on and designed in from the start. Below that, the simple build is the right build.
+10. If it went down for a day, what breaks? (a) nothing anyone would notice (b) a lost day and some annoyed people (c) money stops moving (d) someone is unsafe, or a duty to a customer or a regulator is missed. Also: who would notice first, and who would they ring? Decides the uptime tier, from one machine that restarts itself to someone on call, and names who is on call today, whether they know it or not.
+11. Where will people use it? All that apply: (a) a desk browser (b) a phone (c) an app from the store (d) in the field with poor signal (e) inside Slack or Teams. Also: accessibility, other languages, old devices? A store app adds a review cycle to every change; poor signal means working offline.
+12. What must it talk to? All that apply: (a) email or calendar (b) accounting or payments (c) a CRM or a spreadsheet (d) a database you already have (e) AI models (f) public data (g) nothing. Each is a risk and a running cost: the other side changes without asking, and somebody has to notice.
 
 **Shape**
 
-13. Will AI do part of the work inside it? (a) no (b) yes, to draft or generate (c) yes, to judge or decide, like grading or approving (d) don't know. If (b) or (c): must a person check its output before it counts? Decides whether to build a screen for reviewing the lot, how the AI's judgement is tested, and which decisions stay with people. The models change under you; what was tested in March is not what runs in June.
-14. How often will it change after launch? (a) set and forget (b) monthly (c) weekly (d) daily. Tests, review and automated deploys come regardless. "Set and forget" still changes: what it depends on moves, and so do the rules. Weekly or faster means you are in the loop with whoever builds it.
-15. What must never happen? The worst one: (a) personal data leaks (b) a wrong number or decision goes out (c) it is down when needed (d) it says something embarrassing in your name (e) the data is lost. The guard against it is the first thing built and tested, and the first thing checked again, on a date, once it is live.
-16. What are you comfortable paying each month to keep it running, machines and people together? (a) near zero (b) tens of pounds (c) hundreds (d) thousands (e) whatever it needs. Most internal tools run on machines for near zero. What costs is the attention, and the question is whose.
+13. Will AI do part of the work inside it? (a) no (b) yes, to draft or generate (c) yes, to judge or decide, like grading or approving (d) don't know. If (b) or (c): must a person check its output before it counts? Decides whether a review screen is built, how the judgement is tested, and which decisions stay with people. The models change under you; what was tested in March is not what runs in June.
+14. How often will it change after launch? (a) set and forget (b) monthly (c) weekly (d) daily. "Set and forget" still changes: what it depends on moves, and so do the rules.
+15. What must never happen? The worst one: (a) personal data leaks (b) a wrong number or decision goes out (c) it is down when needed (d) it says something embarrassing in your name (e) the data is lost. The guard against it is the first thing built, and the first thing checked again once it is live.
+16. What are you comfortable paying each month to keep it running, machines and people together? (a) near zero (b) tens of pounds (c) hundreds (d) thousands. The machines are usually the cheap part; the attention is what costs, and the question is whose.
 
 **Owning it**
 
 17. Twelve months after launch, how will you know it was worth it? One number or one sentence. Decides what is measured from day one, and whether this is a thing that gets finished or a thing that gets kept.
-18. When do you need the first version people can actually use? (a) weeks (b) this quarter (c) this year (d) no fixed date. The first version is the smallest thing that starts to prove question 17.
-19. Who will be responsible for it once it is live? Not who built it: whose name is next to it, who gets the call when it stops, who decides when it changes. (a) me (b) a named person on my team (c) the people who built it (d) nobody, it should look after itself. If the answer is a role rather than a person, say so. "Nobody" is the commonest answer, and the most expensive.
-20. Who in your business could, today, restore a backup, read an error message, renew a certificate, or tell a supplier what has gone wrong? (a) someone technical on the staff (b) a freelancer or an IT company we ring (c) me, with an assistant like this one (d) nobody. Decides what the running needs from outside, and what the brief has to be honest about.
+18. What can you spend to get the first version live, and when do you need it? (a) near nothing, mostly my own time (b) low thousands (c) tens of thousands (d) more than that; and weeks, this quarter, this year, or no date. The first version is the smallest thing that starts to prove question 17; the money and the date say how small.
+19. Who signs it off, and whose name is next to it once it is live? Not who built it: who says it is done, who gets the call when it stops, who decides when it changes. (a) me (b) a named person on my team (c) the people who built it (d) nobody. If that person is not the one answering, say so: they should see the brief. "Nobody" is the commonest answer, and the most expensive.
+20. Who in your business could, today, restore a backup, read an error message, renew a certificate, or tell a supplier what has gone wrong? (a) someone technical on the staff (b) a freelancer or an IT company we ring (c) me, with an assistant like this one (d) nobody. Decides what the running needs from outside.
 
 ## The brief
 
@@ -74,7 +74,7 @@ After the guess, write the brief in exactly this shape, in Markdown, so it can b
 **The idea.** <one paragraph in your words: what it does, for whom, what it lives alongside, what happened the last time anyone tried, and how they will know in twelve months it was worth it>
 
 ## Care tier: <0 to 3>
-<a line each on health, money, personal data and where the people are, and what the tier means in plain words>
+<a line each on health, money, personal data and where the people are, and what the tier adds to the build in plain words>
 
 ## Dials
 | Dial | Answer | What it means |
@@ -88,25 +88,25 @@ After the guess, write the brief in exactly this shape, in Markdown, so it can b
 <integrations; AI, and whether a person reviews it; how often it changes; how people get in; what must never happen>
 
 ## The build
-<a short plain paragraph: the shape of the build, what is designed in from day one, what has been chosen not to buy, and the first usable version by when>
+<a short plain paragraph: the shape of the build, what is designed in from day one, what has been chosen not to buy, and the first usable version: by when, and within what>
 
 ## Running it
 **What it will need.** <the attention this system will ask for once it is live, specific to it: the connections that break when the other side changes, the AI that drifts, the data that must be deleted on time, the keys and certificates that expire, the updates that cannot wait, the store reviews, the backups nobody has tried restoring. How often someone must look, and roughly how many hours a month.>
 
-**Who you have.** <who is responsible once it is live, by name or by role, and what they can do today, from questions 19 and 20>
+**Who you have.** <who signs it off, who is responsible once it is live, by name or by role, and what they can do today, from questions 19 and 20>
 
 **What you are missing.** <the skills nobody in-house has, named plainly, or "nothing">
 
 **If you build it yourself and hand it to no one.** <two or three sentences on what happens, specific to this idea, in the order it will arrive. If the honest answer is "not much", say so.>
 
-## Always on
-A repository, automated tests, automated review, a deploy on every change, a preview of every change, and a tracker the owner can see.
+## Insist on these
+Whoever builds it: a repository you can see, tests that run on every change, a deploy that is a button and can be undone, and a tracker you can read.
 
 ## Not yet known
 <the "don't know yet" answers, or "nothing">
 ```
 
-Care tier: 0 none of health, money or personal data beyond names and emails; 1 personal data of the heavier kinds; 2 money; 3 health, children's data or ID documents. The highest that applies.
+Care tier, by what it adds to the build: 0 nothing beyond good practice; 1 a privacy notice, retention and deletion on time (names and emails, addresses, dates of birth, location); 2 an audit trail and a record of who looked (payments through a provider, photos or voice, health in passing); 3 a formal assessment, and a regulator who can ask (holding, moving or advising on money; clinical health; children's data; ID documents). The highest that applies.
 
 ## The last question
 
