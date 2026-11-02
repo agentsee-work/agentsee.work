@@ -24,7 +24,7 @@ questions are the first thing we made for someone else, and the first thing
 on the site that asks a stranger to do something. They went from a Slack
 message on Monday 26 October to a live page on Thursday 29 October, were
 rewritten on Monday 2 November for the model the company is settling on,
-and reviewed the same morning.
+reviewed the same morning, and recentred on the regulator before lunch.
 
 The version to avoid writing is "we built an AI intake form". The questions
 are the least of it. What took thought was deciding not to build a product,
@@ -342,6 +342,29 @@ the two additions and the tier definition took most of it back. Prompt
 12,072 characters before the review, 11,996 after; 12,756 in a link before,
 12,694 after.
 
+At 10:18 the same morning, with Issue No. 7 drafted and waiting, James sent
+one more: adjust the Care section a little, centre it on whether the
+industry or the idea has a regulator, in your area or anywhere the app will
+be deployed; the questions in the section can therefore be merged; keep the
+same number; make it domain-agnostic. Health and money were the regulator
+question asked for one domain each, so they merged into Q5: does your
+industry, or this idea, have a regulator, where you are or anywhere it will
+be used? Only the general law; a code or standard nobody inspects; a
+regulator who can ask for records, inspect or fine; a licence or approval
+before it can be used at all; don't know yet. The freed slot became Q6, the
+thing the two domains were measuring: if it got something wrong, what is
+the worst that happens to someone? An inconvenience; money or a lot of
+time; job, home, rights or health; safety. Q7 and Q8 unchanged. The tier
+rule is restated from those answers (0 general law, contact details, an
+inconvenience; 1 addresses, dates of birth, location; 2 a code you follow,
+photos or voice, money or a lot of time; 3 a regulator who can inspect or a
+licence, ID documents or children's data, job, home, rights, health or
+safety), with what each tier adds to the build as before. Q3's option (d)
+lost "a regulator" so it is asked once. The review's split of Q5 into
+clinical and in passing lived about six hours. PR #76; prompt 12,515
+characters, 13,215 in a link. The front page's call-out and ad never
+named a domain, so they did not change.
+
 ## 6. The lesson that ran the other way
 
 Two days after the first version, the same shape (a bar, lettered options,
@@ -383,7 +406,8 @@ have put it in the open instead).
   close is the unnumbered question; section 05 is "Insist on these".
 - One example per group of four, from our own projects: the tennis league
   fixtures (replaced a spreadsheet, one number that mattered); GradeDrive
-  (children's data in schools, what tier 3 changed); tutti.rocks (sub-ten
+  (schools: a regulator who can inspect, children's data, a child's grade
+  as the worst that happens to someone, so tier 3, and what that changed); tutti.rocks (sub-ten
   milliseconds was the whole point) against the podcast engine (a day down
   costs nothing); the AI question as Abrar's review-at-scale point; "what
   must never happen", each of us for a current project.
@@ -407,4 +431,5 @@ have put it in the open instead).
 - The Grok launcher depends on Grok fetching the public skill file through
   Cloudflare; untested from a real Grok session since the rewrite.
 - Whether the brief should carry a version or date, so a brief that arrives
-  can be read against the set that produced it. It does not yet.
+  can be read against the set that produced it. It does not yet, and the
+  set changed three times on 2 November alone.
