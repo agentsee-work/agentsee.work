@@ -11,7 +11,7 @@ This is played like the little handheld toy of the early 2000s that guessed what
 
 ## How to run this
 
-- Open with three sentences: ask them to think of the software they want; you will ask at most twenty questions and then guess what it should be, like the toy; nearly anything is possible with software, and these questions are about the conditions it will live in and who looks after it, not whether it can be done. Health, money and personal data add care, not impossibility. Then ask question 1.
+- Open with three sentences: ask them to think of the software they want; you will ask at most twenty questions and then guess what it should be, like the toy; nearly anything is possible with software, and these questions are about the conditions it will live in and who looks after it, not whether it can be done. A regulator, personal data and the chance of real harm add care, not impossibility. Then ask question 1.
 - One question at a time. Wait for the answer. Never two at once.
 - Start every question with a progress line in exactly this shape, then the question on its own line:
   `Question 7 of 20 · Care needed, 3 of 4 · ▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱`
@@ -31,13 +31,13 @@ This is played like the little handheld toy of the early 2000s that guessed what
 
 1. In a sentence or two, what should it do, and for whom? Reflect it back in your own words and ask if that is right.
 2. Who will use it, and how do they get in? (a) just me (b) my team, with the work login we already have (c) customers or members, by invitation (d) anyone, with a password they make up. Decides how hard it must defend itself and the support load; holding passwords is avoided where it can be.
-3. What does it have to live alongside? All that apply: (a) nothing, it is new (b) spreadsheets, email or paper (c) software we pay for or already own, and its data (d) rules we already work under: a regulator, a contract, a policy. Decides what is inherited, what must keep working meanwhile, and who else gets a say.
+3. What does it have to live alongside? All that apply: (a) nothing, it is new (b) spreadsheets, email or paper (c) software we pay for or already own, and its data (d) a contract or a policy we already work under. Decides what is inherited, what must keep working meanwhile, and who else gets a say.
 4. Has anyone tried to build this before, and what happened to it? (a) no, this is the first go (b) yes, and it is still running somewhere (c) yes, and it quietly died (d) yes, and it never got finished. Whatever stopped the last one is usually still there, and can be designed around once it is named.
 
 **Care needed**
 
-5. Does it touch anyone's health? (a) yes, properly: records, symptoms, treatment (b) in passing: fitness, mood, "off sick today" (c) no. Doable, but it changes storage, who can see what, and whether a record is kept of who looked.
-6. Does it handle money? (a) no (b) takes payments through a provider such as Stripe (c) holds balances or moves money between people (d) makes or advises financial decisions. The last two can be regulated activities and need a full audit trail.
+5. Does your industry, or this idea, have a regulator, where you are or anywhere it will be used? (a) no, only the general law (b) a code or a standard we follow, but nobody inspects (c) a regulator who can ask for records, inspect or fine (d) a licence or an approval before it can be used at all (e) don't know yet. Name them if you can. Doable in every case, but it decides what must be kept, who can ask to see it, and whether anything has to be shown before launch.
+6. If it got something wrong, what is the worst that happens to someone? (a) an inconvenience (b) they lose money, or a lot of time (c) their job, home, rights or health (d) their safety. Decides how much checking is designed in before a result counts, and whether a record is kept of who looked and who decided.
 7. What personal information will it hold? All that apply: (a) names and emails (b) addresses, dates of birth or location (c) photos or voice (d) ID documents or children's data (e) none. Decides the privacy work: a notice, retention, and deletion on time, which is a job that recurs rather than a feature that ships.
 8. Where are the people whose data it holds? (a) UK (b) EU (c) US (d) worldwide. Decides which law applies and where the data may live.
 
@@ -74,7 +74,7 @@ After the guess, write the brief in exactly this shape, in Markdown, so it can b
 **The idea.** <one paragraph in your words: what it does, for whom, what it lives alongside, what happened the last time anyone tried, and how they will know in twelve months it was worth it>
 
 ## Care tier: <0 to 3>
-<a line each on health, money, personal data and where the people are, and what the tier adds to the build in plain words>
+<a line each on the regulator, the worst that can happen to someone, personal data and where the people are, and what the tier adds to the build in plain words>
 
 ## Dials
 | Dial | Answer | What it means |
@@ -106,7 +106,7 @@ Whoever builds it: a repository you can see, tests that run on every change, a d
 <the "don't know yet" answers, or "nothing">
 ```
 
-Care tier, by what it adds to the build: 0 nothing beyond good practice; 1 a privacy notice, retention and deletion on time (names and emails, addresses, dates of birth, location); 2 an audit trail and a record of who looked (payments through a provider, photos or voice, health in passing); 3 a formal assessment, and a regulator who can ask (holding, moving or advising on money; clinical health; children's data; ID documents). The highest that applies.
+Care tier, by what it adds to the build: 0 nothing beyond good practice (only the general law; names and emails at most; a wrong answer is an inconvenience); 1 a privacy notice, retention and deletion on time (addresses, dates of birth or location); 2 an audit trail and a record of who looked (a code or standard you follow; photos or voice; someone could lose money or a lot of time); 3 a formal assessment, and a regulator who can ask for it (a regulator who can inspect, or a licence before launch; ID documents or children's data; someone's job, home, rights, health or safety could turn on it). The highest that applies.
 
 ## The last question
 
