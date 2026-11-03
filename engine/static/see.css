@@ -47,10 +47,12 @@ button[aria-busy] { opacity: .55; cursor: progress; }
 .times { max-width: 32rem; }
 .times select, .times input[type=datetime-local] { width: 100%; box-sizing: border-box; }
 .times .legend { font-size: .85rem; }
-.chosen { list-style: none; padding: 0; margin: .4rem 0; }
-.chosen li { display: grid; grid-template-columns: auto 1fr auto; gap: .6rem; align-items: center; margin: .3rem 0; }
-.chosen .rank { font-family: var(--mono); font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
-.chosen .remove { padding: .05rem .5rem; font-size: .9rem; }
+/* The chosen times, under the grid. Named picks, not chosen: a chosen day's button carries that class, and a rule for
+   the list once pushed the button down by its own margin. */
+.picks { list-style: none; padding: 0; margin: .4rem 0; }
+.picks li { display: grid; grid-template-columns: auto 1fr auto; gap: .6rem; align-items: center; margin: .3rem 0; }
+.picks .rank { font-family: var(--mono); font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+.picks .remove { padding: .05rem .5rem; font-size: .9rem; }
 /* The sheet a tap on a day opens (static/time.js): the day's half-hours in the guest's zone. */
 .sheet-back { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 9; }
 .sheet { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: min(100%, 28rem); box-sizing: border-box;
