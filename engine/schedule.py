@@ -797,7 +797,7 @@ def time_body(c, g, msg=None):
         + calendar_html(c, s)
         + '<p class="muted legend">Plain days work '
         "for us; hatched, ask us; dashed, with notice; struck through, taken; faded, too soon.</p>"
-        '<ol class="chosen" data-chosen></ol><p class="muted" data-hint>Tap a day to begin.</p>'
+        '<ol class="picks" data-chosen></ol><p class="muted" data-hint>Tap a day to begin.</p>'
         f"<noscript>{plain}</noscript>"
         '<input type="hidden" name="when0"><input type="hidden" name="when1"><input type="hidden" name="when2">'
         '<p><button type="submit" class="signal">Ask for these times</button></p></form>'
