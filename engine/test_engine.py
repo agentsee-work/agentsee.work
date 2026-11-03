@@ -2683,6 +2683,106 @@ class EngineTest(unittest.TestCase):
         self.assertIn("[waiting for James, Abrar]", r.stdout)
         srv.shutdown()
 
+    def test_21a_signature_ink(self):
+        """A signature is kept as one ink on transparent whatever it came in: white
+        strokes drawn on the dark theme, black on a photo of paper, white on black,
+        trimmed and fitted alike; a second pass changes nothing; a flat image is
+        kept. `release normalise` brings the images already in the ledger to the
+        same, once. A host signs by command, with the record saying so."""
+        from PIL import Image, ImageChops, ImageDraw
+
+        import release
+
+        def strokes(fill, paper):
+            im = Image.new("RGBA", (300, 140), paper)
+            ImageDraw.Draw(im).line([(40, 100), (90, 30), (140, 100), (200, 40), (250, 90)], fill=fill, width=5)
+            out = io.BytesIO()
+            im.save(out, "PNG")
+            return out.getvalue()
+
+        white_on_clear = strokes((239, 233, 224, 255), (0, 0, 0, 0))
+        black_on_paper = strokes((0, 0, 0, 255), (247, 243, 234, 255))
+        white_on_black = strokes((255, 255, 255, 255), (12, 12, 12, 255))
+        outs = [release.normalise_png(x) for x in (white_on_clear, black_on_paper, white_on_black)]
+        ims = [Image.open(io.BytesIO(o)) for o in outs]
+        self.assertEqual([(i.mode, i.size) for i in ims], [("RGBA", release.CANVAS)] * 3)
+        alpha = ims[0].getchannel("A")
+        box = alpha.getbbox()
+        self.assertTrue(box, "the strokes are there")
+        self.assertTrue(box[0] >= release.PAD and box[2] <= release.CANVAS[0] - release.PAD, "fitted with room")
+        self.assertTrue(box[2] - box[0] > release.CANVAS[0] // 2, "and scaled up to the canvas")
+        for i in ims[1:]:
+            self.assertEqual(i.getchannel("A").tobytes(), alpha.tobytes(), "the same strokes, any colour")
+        ink = Image.new("RGB", release.CANVAS, release.INK)
+        self.assertIsNone(ImageChops.difference(ims[0].convert("RGB"), ink).getbbox(), "one ink")
+        self.assertEqual(release.normalise_png(outs[0]), outs[0], "a second pass changes nothing")
+        flat = test_png()
+        self.assertEqual(release.normalise_png(flat), flat, "no paper to tell the ink from: kept")
+        self.assertLess(len(outs[1]), release.MAX_PNG)
+
+        # ── the images already in the ledger: white strokes on file and on version 1, from the dark theme ──
+        os.environ.update(self.menv)
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in (*self.menv, "ENGINE_USER")])
+        client = archive.Client(self.r2env)
+        patch = unittest.mock.patch.object(archive, "Client", lambda env=None: client)
+        patch.start()
+        self.addCleanup(patch.stop)
+        c = self.c()
+        objs = FakeR2.state["objects"]
+        c.execute("UPDATE host_signature SET png=? WHERE host='James'", (white_on_clear,))
+        c.execute("UPDATE release_signature SET png=? WHERE host='James' AND version=1", (white_on_clear,))
+        changed = release.normalise_all(c, "jameshartt@example.com")
+        self.assertEqual([(k, n) for k, n, *_ in changed], [("file", "James"), ("v1", "James")], "the flat ones kept")
+        self.assertEqual(c.execute("SELECT png FROM host_signature WHERE host='James'").fetchone()[0], outs[0])
+        self.assertEqual(release.signed_by(c, 1)["James"]["png"], outs[0])
+        self.assertEqual(objs["release/hosts/james.png"]["body"], outs[0], "mirrored again")
+        ev = c.execute("SELECT who, detail FROM event WHERE what='release:normalised'").fetchone()
+        self.assertEqual(
+            (ev["who"], json.loads(ev["detail"])), ("jameshartt@example.com", {"images": ["file James", "v1 James"]})
+        )
+        self.assertEqual(release.normalise_all(c, "x"), [], "once")
+
+        # ── a host signs by command: the image from a file, then the version; the record says who ran it ──
+        sig = pathlib.Path(self.tmp.name) / "james-on-paper.png"
+        sig.write_bytes(black_on_paper)
+        entry = pathlib.Path(__file__).resolve().parent / "engine.py"
+
+        def run(*args):
+            r = subprocess.run(
+                [sys.executable, str(entry), "--ledger", str(self.db), "release", *args],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env={**os.environ, "ENGINE_USER": "jameshartt@example.com"},
+            )
+            return r.returncode, (r.stdout + r.stderr).strip()
+
+        self.assertEqual(run("sign")[0], 1)
+        rc, out = run("sign", "Nobody")
+        self.assertEqual((rc, "signs as James and Abrar" in out), (1, True), out)
+        rc, out = run("sign", "James", "--version", "9")
+        self.assertEqual((rc, "no such version" in out), (1, True), out)
+        rc, out = run("sign", "James", "--png", str(sig), "--version", "2")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("James: signature image on file", out)
+        self.assertIn("v2 signed by James [waiting for Abrar]", out)
+        row = release.signed_by(c, 2)["James"]
+        self.assertEqual(
+            (row["png"], row["ip"], row["address"]), (outs[1], None, "jameshartt@example.com, by command for James")
+        )
+        self.assertEqual(row["ua"], "by command: engine.py release sign, run by jameshartt@example.com")
+        rc, out = run("sign", "James", "--version", "2")
+        self.assertEqual((rc, "already" in out), (1, True), out)
+        rc, out = run("sign", "Abrar", "--version", "2")
+        self.assertEqual((rc, "v2 signed by Abrar [issued: a guest sees it now]" in out), (0, True), out)
+        self.assertEqual(release.issued(c), 2)
+        rc, out = run("normalise")
+        self.assertEqual((rc, out), (0, "nothing to change: every signature is ink on transparent"))
+        rc, out = run()
+        self.assertIn("James: image on file since", out)
+        self.assertIn("v2 ", out)
+        self.assertIn("[issued]", out)
+
     def test_22_idea(self):
         """The idea conversation: the skill as the system prompt and as a file;
         the start, a reply streamed and a reply waited for; what the API is
