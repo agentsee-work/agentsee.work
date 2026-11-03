@@ -929,8 +929,8 @@ A conversation with you, on video and audio, over a video link.
 
 The recording, edited, in full and in parts, with captions and your name.
 
-- On agentsee.work and on YouTube.
-- On podcast apps and social networks.
+- On [agentsee.work](<https://agentsee.work>) and on **YouTube**.
+- On podcast apps and social networks; the [privacy notice](<https://agentsee.work/privacy/>) covers the rest.
 
 ## Signing
 
@@ -2573,8 +2573,18 @@ class EngineTest(unittest.TestCase):
             "/release/signature/Abrar.png",
             'value="Ada Lovelace"',
             "Recorded with your signature",
+            '<li>On <a href="https://agentsee.work" target="_blank" rel="noopener">agentsee.work</a> and on <b>YouTube</b>.</li>',
+            '<a href="https://agentsee.work/privacy/" target="_blank" rel="noopener">privacy notice</a> covers',
         ):
             self.assertIn(s, body)
+        self.assertNotIn("](", body, "Linear's link syntax never reaches a page")
+        self.assertEqual(
+            release.plain_inline(
+                "On [agentsee.work](<https://agentsee.work>) and the [notice](<https://agentsee.work/privacy/>), **always**."
+            ),
+            "On agentsee.work and the notice (https://agentsee.work/privacy/), always.",
+            "nor the PDF",
+        )
         st, h, body = req("GET", "/release/signature/James.png", host=SEE, cookies=ada)
         self.assertEqual((st, h["Content-Type"]), (200, "image/png"))
         self.assertEqual(req("GET", "/release/signature/James.png", host=SEE)[0], 404, "nothing without a session")
@@ -2618,6 +2628,8 @@ class EngineTest(unittest.TestCase):
         self.assertIn("What we may publish", rec["text"])
         page = objs[f"guests/{gid}/release-v1.html"]["body"].decode()
         self.assertIn("data:image/png;base64,", page)
+        self.assertIn('<a href="https://agentsee.work" target="_blank" rel="noopener">agentsee.work</a>', page)
+        self.assertNotIn("](", page)
         self.assertIn("Ada Lovelace", page)
         self.assertIn("verified by a code", page)
         pdf = objs[f"guests/{gid}/release-v1.pdf"]["body"]
