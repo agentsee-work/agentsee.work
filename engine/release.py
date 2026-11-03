@@ -21,6 +21,15 @@ device, the version's hash). The record is what makes it worth something,
 so nothing signs without all of it. A new version never voids an old
 signature: the guest's copy is the version they signed, and the engine can
 ask them to sign a newer one later (not yet).
+
+Every signature image is kept as its strokes alone, one ink on transparent,
+trimmed and fitted to one canvas (normalise_png): the pad draws in whatever
+colour the theme gives it, and a photo of a signature comes on paper, so
+without this a signature drawn on the dark theme is white strokes, invisible
+on the PDF's white page and on the light theme, while a black one vanishes
+on the dark theme. `engine.py release normalise` brings the images already
+in the ledger to the same, once; `release sign <host>` puts a host's
+signature on by command when /you is out of their reach.
 """
 
 import base64
@@ -33,6 +42,8 @@ import re
 import struct
 import tempfile
 
+from PIL import Image, ImageChops  # with fpdf2 (engine/home/Dockerfile, check.yml)
+
 import archive
 import ledger
 import mail
@@ -40,6 +51,10 @@ from pages import button, esc, link, section, table, when
 
 MAX_PNG = 400_000
 PNG = b"\x89PNG\r\n\x1a\n"
+INK = (26, 23, 18)  # the site's ink in the light theme (--ink in public/assets/styles.css)
+CANVAS = (640, 240)  # every signature is kept at this size, 8:3, the shape it is shown at
+PAD = 24  # clear canvas around the strokes
+FAINT, FULL = 28, 100  # in an opaque image, the distance from the paper that is its grain, and that is ink
 FONTS = (  # a TrueType font with the characters a guest's name may have; the image installs the first
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/dejavu/DejaVuSans.ttf",
@@ -194,6 +209,73 @@ def check_png(image):
     return data
 
 
+def paper_of(rgb):
+    """The paper's colour in an opaque image: the median of its border, channel by channel."""
+    w, h = rgb.size
+    t = max(1, min(w, h) // 50)
+    raw = b"".join(rgb.crop(box).tobytes() for box in ((0, 0, w, t), (0, h - t, w, h), (0, 0, t, h), (w - t, 0, w, h)))
+    return tuple(sorted(raw[i::3])[len(raw) // 6] for i in range(3))
+
+
+def normalise_png(data):
+    """A signature as its strokes alone: one ink on transparent, trimmed and fitted to
+    CANVAS, whatever it came in. The mask is the presence of pixels (the alpha channel)
+    where the image has transparency, as the pad's drawing does in whichever colour the
+    theme gave it; and each pixel's distance from the paper, the border's colour, where
+    the image is opaque, a photo of a signature on paper or white strokes on black. A
+    flat image, with no paper to tell the ink from, is kept as it is; so is one already
+    in this form."""
+    im = Image.open(io.BytesIO(data))
+    im.load()
+    im = im.convert("RGBA")
+    if im.size == CANVAS and ImageChops.difference(im.convert("RGB"), Image.new("RGB", CANVAS, INK)).getbbox() is None:
+        return data
+    alpha = im.getchannel("A")
+    if alpha.getextrema()[0] < 255:
+        mask = alpha
+    else:
+        rgb = im.convert("RGB")
+        r, g, b = ImageChops.difference(rgb, Image.new("RGB", rgb.size, paper_of(rgb))).split()
+        dist = ImageChops.lighter(ImageChops.lighter(r, g), b)
+        mask = dist.point(lambda v: 0 if v <= FAINT else 255 if v >= FULL else (v - FAINT) * 255 // (FULL - FAINT))
+    box = mask.getbbox()
+    if not box:
+        return data
+    mask = mask.crop(box)
+    scale = min((CANVAS[0] - 2 * PAD) / mask.width, (CANVAS[1] - 2 * PAD) / mask.height)
+    size = (max(1, round(mask.width * scale)), max(1, round(mask.height * scale)))
+    layer = Image.new("RGBA", size, (*INK, 255))
+    layer.putalpha(mask.resize(size, Image.Resampling.LANCZOS))
+    out = Image.new("RGBA", CANVAS, (*INK, 0))
+    out.paste(layer, ((CANVAS[0] - size[0]) // 2, (CANVAS[1] - size[1]) // 2))
+    buf = io.BytesIO()
+    out.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+def normalise_all(c, who, client=None):
+    """Every signature image in the ledger through normalise_png, once: the hosts' on
+    file (mirrored again), the ones on versions, the guests'. A guest's copies in the
+    archive and in their mail stay as they were sent; the copy on demand is rendered
+    from the ledger, so it reads right. Returns (where, whose, bytes before, bytes
+    after) for each image changed."""
+    changed = []
+    for r in c.execute("SELECT host, png FROM host_signature ORDER BY host").fetchall():
+        new = normalise_png(r["png"])
+        if new != r["png"]:
+            c.execute("UPDATE host_signature SET png=? WHERE host=?", (new, r["host"]))
+            _put(c, client, f"release/hosts/{r['host'].lower()}.png", new, "image/png")
+            changed.append(("file", r["host"], len(r["png"]), len(new)))
+    for r in c.execute("SELECT id, version, host, name, png FROM release_signature ORDER BY id").fetchall():
+        new = normalise_png(r["png"])
+        if new != r["png"]:
+            c.execute("UPDATE release_signature SET png=? WHERE id=?", (new, r["id"]))
+            changed.append((f"v{r['version']}", r["host"] or r["name"], len(r["png"]), len(new)))
+    if changed:
+        ledger.event(c, "release:normalised", who, detail={"images": [f"{k} {n}" for k, n, *_ in changed]})
+    return changed
+
+
 def host_image(c, host):
     return c.execute("SELECT * FROM host_signature WHERE host=?", (host,)).fetchone()
 
@@ -202,7 +284,7 @@ def save_host_image(c, host, who, image, client=None):
     """A host's drawn or uploaded signature, kept for every version they sign from now."""
     if host not in hosts():
         raise ReleaseError(f"This engine signs as {' and '.join(hosts())}; you are {who}")
-    png = check_png(image)
+    png = normalise_png(check_png(image))
     c.execute(
         "INSERT INTO host_signature (host, address, png, updated_at) VALUES (?,?,?,?) "
         "ON CONFLICT(host) DO UPDATE SET address=excluded.address, png=excluded.png, updated_at=excluded.updated_at",
@@ -262,7 +344,7 @@ def sign_as_guest(c, g, name, image, agreed, ip, ua, client=None):
         raise ReleaseError("Type your full name")
     if not agreed:
         raise ReleaseError("Tick the box to say you have read it and agree")
-    png = check_png(image)
+    png = normalise_png(check_png(image))
     v, at = version(c, n), ledger.now()
     c.execute(
         "INSERT INTO release_signature (version, role, host, guest, name, address, png, ip, ua, at, sha256) "

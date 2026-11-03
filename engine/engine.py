@@ -220,6 +220,37 @@ def cmd_release(a):
                 sys.exit("error: no such version")
             print(v["text"], end="")
             return
+        if a.action == "sign":  # a host's signature by command: what the two buttons on /you do
+            if not a.what:
+                sys.exit("error: sign takes the host's name: release sign Abrar [--png file] [--version N]")
+            by = f"{who()}, by command for {a.what}"
+            try:
+                if a.png:
+                    release.save_host_image(c, a.what, by, pathlib.Path(a.png).read_bytes())
+                    print(f"{a.what}: signature image on file, from {a.png}")
+                v = release.version(c, a.version) if a.version else release.latest(c)
+                if not v:
+                    sys.exit("error: no such version" if a.version else "error: no versions yet")
+                done = release.sign_as_host(
+                    c, a.what, by, v["n"], None, f"by command: engine.py release sign, run by {who()}"
+                )
+            except release.ReleaseError as e:
+                sys.exit(f"error: {e}")
+            state = (
+                "issued: a guest sees it now" if done else "waiting for " + ", ".join(release.waiting_for(c, v["n"]))
+            )
+            print(f"v{v['n']} signed by {a.what} [{state}]")
+            return
+        if a.action == "normalise":
+            changed = release.normalise_all(c, who())
+            for where, whose, before, after in changed:
+                print(f"{where}  {whose}: {before} -> {after} bytes")
+            print(
+                f"{len(changed)} images changed"
+                if changed
+                else "nothing to change: every signature is ink on transparent"
+            )
+            return
         rows = release.versions(c)
         if not rows:
             print("no versions yet: engine.py release add <file>, or add --issue AGE-55")
@@ -232,6 +263,16 @@ def cmd_release(a):
             by = ", ".join(f"{h} {r['at'][:10]}" for h, r in signed.items()) or "nobody"
             print(
                 f"v{v['n']}  {v['title']}  {v['sha256'][:12]}  {v['created_at'][:10]} by {v['created_by']}  signed: {by}  [{state}]"
+            )
+        for h in release.hosts():
+            img = release.host_image(c, h)
+            print(
+                f"{h}: "
+                + (
+                    f"image on file since {img['updated_at'][:10]}, {len(img['png'])} bytes"
+                    if img
+                    else "no image on file"
+                )
             )
     finally:
         c.close()
@@ -328,11 +369,18 @@ def main():
         "--drain", action="store_true", help="send what the outbox holds, now (the worker does it each minute)"
     )
     p.set_defaults(fn=cmd_linear)
-    p = sub.add_parser("release", help="the release's versions: list them, add one, show one")
-    p.add_argument("action", nargs="?", choices=["list", "add", "show"], default="list")
-    p.add_argument("what", nargs="?", help="add: the file holding the text; show: the version (default the latest)")
+    p = sub.add_parser(
+        "release",
+        help="the release's versions: list, add, show; a host's signature by command; the images normalised",
+    )
+    p.add_argument("action", nargs="?", choices=["list", "add", "show", "sign", "normalise"], default="list")
+    p.add_argument(
+        "what", nargs="?", help="add: the file holding the text; show: the version (default the latest); sign: the host"
+    )
     p.add_argument("--issue", help="add: the issue whose Linear document holds the text (AGE-55)")
     p.add_argument("--title", help="add --issue: which document, when the issue has more than one")
+    p.add_argument("--png", help="sign: a signature image to put on file first (PNG, under 400 KB)")
+    p.add_argument("--version", type=int, help="sign: the version to sign; default the latest")
     p.set_defaults(fn=cmd_release)
     p = sub.add_parser("snapshot", help="a copy of the ledger to the archive bucket, now (the worker does it nightly)")
     p.set_defaults(fn=cmd_snapshot)

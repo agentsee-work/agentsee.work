@@ -151,6 +151,24 @@ docker compose exec engine op run --env-file=engine/engine.env -- python3 engine
 docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py plan ep2
 ```
 
+## The release
+
+The hosts sign a version of the release on `/you`, and a signature image is
+kept as its strokes alone, one ink on transparent, whatever colour it was
+drawn or photographed in (`engine/release.py`). Images kept before that rule
+are brought to it once, and a host who cannot reach `/you` is signed by
+command; both are recorded in the ledger as done by whoever runs them:
+
+```sh
+docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py release          # the versions, and the images on file
+docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py release normalise
+docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py release sign Abrar   # the image on file onto the latest version
+```
+
+`release sign <host> --png /var/lib/agentsee-engine/<file>.png` puts an image
+on file first, from a file copied into the data directory, which the
+container sees at the same path.
+
 ## Rebuilding
 
 Destroy the instance and apply (`infra/README.md`), redo "On the box",
