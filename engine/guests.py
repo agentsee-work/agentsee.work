@@ -603,7 +603,7 @@ def not_found(h, status=404, msg="Not that"):
 
 
 def get(h, c, path, q):
-    if path in ("/see.css", "/engine.css", "/sign.js", "/office.js"):
+    if path in ("/see.css", "/engine.css", "/sign.js", "/office.js", "/time.js"):
         return h.static(STATIC, path[1:])
     for prefix, base in (("/assets/", PUBLIC / "assets"), ("/fonts/", PUBLIC / "fonts")):
         if path.startswith(prefix):

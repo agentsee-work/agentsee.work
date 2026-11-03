@@ -30,6 +30,7 @@ label "booked". A host can cancel a booking; the guest can withdraw a request
 the hosts have not answered.
 """
 
+import calendar
 import datetime as dt
 import json
 import os
@@ -207,6 +208,129 @@ def window(b, s=None):
     return start - dt.timedelta(minutes=s["join_before_minutes"]), start + dt.timedelta(hours=s["join_after_hours"])
 
 
+# ─── the calendar ────────────────────────────────────────────────────────────
+MONTHS = 3  # the calendar's reach: this month and the two after it
+TITLES = {  # a day's word on the calendar, as its title
+    "gone": "past",
+    "soon": "too soon: we ask for a week's notice",
+    "taken": "taken: a recording that day",
+    "week": "ask us: we have one that week already",
+    "ask": "ask us: hard for Abrar",
+    "notice": "works, with reasonable notice",
+    "works": "works for us",
+}
+
+
+def london_date(t):
+    t = t if isinstance(t, dt.datetime) else dt.datetime.fromisoformat(t)
+    return t.astimezone(ledger.ZONE).date()
+
+
+def taken_days(c, but=None):
+    """The London dates with an accepted recording, each with its booking: one recording a day. `but` leaves
+    one booking out of the count."""
+    out = {}
+    for b in c.execute("SELECT * FROM booking WHERE state='booked' ORDER BY start_at").fetchall():
+        if b["id"] != but:
+            out[london_date(b["start_at"])] = b
+    return out
+
+
+def busy_weeks(c, but=None):
+    """The ISO weeks with a recording already: the rules prefer one a week, so the rest of such a week says ask us."""
+    return {d.isocalendar()[:2] for d in taken_days(c, but)}
+
+
+def day_state(d, today, soonest, taken, weeks, s=None):
+    """A day on the calendar: gone, soon (inside the notice), taken, week (one that week already), or the
+    rules' word for the weekday: works, ask, notice."""
+    s = s or settings()
+    if d < today:
+        return "gone"
+    if d < soonest:
+        return "soon"
+    if d in taken:
+        return "taken"
+    if d.isocalendar()[:2] in weeks:
+        return "week"
+    return (s.get("days") or {}).get(DAYS[d.weekday()], "works")
+
+
+def months_ahead(today, n=MONTHS):
+    firsts, y, m = [], today.year, today.month
+    for _ in range(n):
+        firsts.append(dt.date(y, m, 1))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return firsts
+
+
+def month_grid(first, cell):
+    """One month as a table, Monday first; `cell(d)` renders a day's inside; the padding days are empty."""
+    weeks = calendar.Calendar(firstweekday=0).monthdatescalendar(first.year, first.month)
+    rows = "".join(
+        "<tr>" + "".join(f"<td>{cell(d) if d.month == first.month else ''}</td>" for d in week) + "</tr>"
+        for week in weeks
+    )
+    head = "".join(f"<th>{w}</th>" for w in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+    return (
+        f'<table class="cal"><caption>{first.strftime("%B %Y")}</caption><thead><tr>{head}</tr></thead>'
+        f"<tbody>{rows}</tbody></table>"
+    )
+
+
+def calendar_html(c, s=None):
+    """The guest's calendar: every day with its word, and the days that can be asked for as buttons the script
+    opens a sheet on, each carrying its date and London's offset from UTC that day, in minutes."""
+    s = s or settings()
+    today = dt.datetime.now(ledger.ZONE).date()
+    soonest = london_date(dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=s["notice_days"]))
+    taken, weeks = taken_days(c), busy_weeks(c)
+
+    def cell(d):
+        st = day_state(d, today, soonest, taken, weeks, s)
+        if st in ("gone", "soon", "taken"):
+            return f'<span class="day {st}" title="{esc(TITLES[st])}">{d.day}</span>'
+        off = int(dt.datetime(d.year, d.month, d.day, 12, tzinfo=ledger.ZONE).utcoffset().total_seconds() // 60)
+        return (
+            f'<button type="button" class="day {st}" data-day="{d.isoformat()}" data-offset="{off}" '
+            f'title="{esc(TITLES[st])}">{d.day}</button>'
+        )
+
+    return "".join(month_grid(first, cell) for first in months_ahead(today))
+
+
+def calendar_page(c):
+    """The hosts' calendar on the engine: every accepted recording on its day, and every open request on the
+    day it is waiting for, each to the guest's page."""
+    today = dt.datetime.now(ledger.ZONE).date()
+    booked, asked = {}, {}
+    rows = c.execute(
+        "SELECT b.*, g.name FROM booking b JOIN guest g ON g.id = b.guest WHERE b.state IN ('booked', 'asked') "
+        "ORDER BY b.created_at"
+    ).fetchall()
+    for b in rows:
+        if b["state"] == "booked":
+            booked.setdefault(london_date(b["start_at"]), []).append(b)
+        else:
+            asked.setdefault(london_date(choices_of(b)[b["offered"]]), []).append(b)
+
+    def cell(d):
+        parts = [f'<span class="num">{d.day}</span>']
+        parts += [f'<a class="booked" href="/guests/{esc(b["guest"])}">{esc(b["name"])}</a>' for b in booked.get(d, [])]
+        parts += [f'<a class="asked" href="/guests/{esc(b["guest"])}">{esc(b["name"])}?</a>' for b in asked.get(d, [])]
+        return "".join(parts)
+
+    grids = "".join(month_grid(first, cell) for first in months_ahead(today))
+    n = sum(len(v) for v in booked.values())
+    body = (
+        '<article class="lead"><h1>Calendar</h1><p class="deck">Every accepted recording on its day, and every '
+        "request on the day it is waiting for, with a question mark. One recording a day; the rules prefer one a "
+        "week, and a second in a week is yours to accept or not.</p></article>"
+        + section("Ahead", f"{n} booked", f'<div class="cal-hosts">{grids}</div>')
+    )
+    return "Calendar", body
+
+
 # ─── the ledger ──────────────────────────────────────────────────────────────
 def booking(c, bid):
     return c.execute("SELECT * FROM booking WHERE id=?", (bid,)).fetchone()
@@ -296,7 +420,7 @@ def ask(c, g, tz, values, who):
     tz = (tz or "").strip()
     if tz not in zoneinfo.available_timezones():
         raise ScheduleError("That is not a time zone the office knows")
-    s, now, chosen = settings(), dt.datetime.now(dt.timezone.utc), []
+    s, now, chosen, taken = settings(), dt.datetime.now(dt.timezone.utc), [], taken_days(c)
     for n, v in enumerate(values[:3]):
         if not (v or "").strip():
             if n == 0:
@@ -306,6 +430,8 @@ def ask(c, g, tz, values, who):
         why = refused(t, now, s)
         if why:
             raise ScheduleError(f"{SLOTS[n]}: {why}")
+        if london_date(t) in taken:
+            raise ScheduleError(f"{SLOTS[n]}: that day is taken by a recording already; another day, please")
         if any(abs((t - o).total_seconds()) < 3600 * s["length_hours"] for o in chosen):
             raise ScheduleError(f"{SLOTS[n]} overlaps another of your times; a backup is a different time")
         chosen.append(t)
@@ -363,6 +489,10 @@ def answer(c, b, host, yes, who, note=None):
         raise ScheduleError(f"You answered this time already ({'yes' if answers[host]['yes'] else 'no'})")
     g, choices, i = _guest(c, b["guest"]), choices_of(b), b["offered"]
     note = " ".join((note or "").split())[:200]
+    if yes and london_date(choices[i]) in taken_days(c):
+        raise ScheduleError(
+            f"{describe(choices[i], b['tz'])} is taken by another recording since; decline it, and the next time is offered"
+        )
     answers[host] = {"yes": bool(yes), "at": ledger.now(), "note": note}
     b = _update(c, b["id"], answers=json.dumps(answers))
     ledger.event(
@@ -378,25 +508,40 @@ def answer(c, b, host, yes, who, note=None):
             return f"Accepted; waiting for {', '.join(left)}"
         book(c, b, g, who)
         return f"Booked: {describe(choices[i], b['tz'])}; {g['name'].split()[0]} has the confirmation"
-    first = g["name"].split()[0]
-    said = f" ({note})" if note else ""
+    return _move_on(c, b, g, host, who, note)
+
+
+def _move_on(c, b, g, host, who, note=None):
+    """The time on offer is declined, by a host or by the office when another booking took its day: the next
+    choice goes to both hosts, or the request is declined when none is left; the guest is told either way."""
+    choices, i, first = choices_of(b), b["offered"], g["name"].split()[0]
+    note = " ".join((note or "").split())[:200]
+    said, time = f" ({note})" if note else "", describe(choices[i], b["tz"])
     if i + 1 < len(choices):
         b = _update(c, b["id"], offered=i + 1, answers="{}", note=note or None)
-        ledger.event(c, "booking:moved", who, detail={"booking": b["id"], "to": i + 1}, guest=g["id"])
+        ledger.event(c, "booking:moved", who, detail={"booking": b["id"], "to": i + 1, "by": host}, guest=g["id"])
         nxt = describe(choices[i + 1], b["tz"])
-        _tell(c, g, "moved", host=host, time=describe(choices[i], b["tz"]), note=note, next=nxt, page=_page(g))
-        text = MOVED_MAIL.format(
-            name=first, host=host, time=describe(choices[i], b["tz"]), note=said, next=nxt, host_name=HOST
-        )
+        _tell(c, g, "moved", host=host, time=time, note=note, next=nxt, page=_page(g))
+        text = MOVED_MAIL.format(name=first, host=host, time=time, note=said, next=nxt, host_name=HOST)
         _mail(c, who, g["address"], "Your recording: the next time", text, g["id"])
         _ask_hosts(c, g, b, who)
         return f"Declined; the next time, {nxt}, is offered to you both"
     b = _update(c, b["id"], state="declined", note=note or None)
-    ledger.event(c, "booking:declined", who, detail={"booking": b["id"]}, guest=g["id"])
-    _tell(c, g, "moved", host=host, time=describe(choices[i], b["tz"]), note=note, next=None, page=_page(g))
-    text = DECLINED_MAIL.format(name=first, host=host, time=describe(choices[i], b["tz"]), note=said, host_name=HOST)
+    ledger.event(c, "booking:declined", who, detail={"booking": b["id"], "by": host}, guest=g["id"])
+    _tell(c, g, "moved", host=host, time=time, note=note, next=None, page=_page(g))
+    text = DECLINED_MAIL.format(name=first, host=host, time=time, note=said, host_name=HOST)
     _mail(c, who, g["address"], "Your recording: another time, please", text, g["id"])
     return f"Declined; no backup left, so {first} is asked to pick again"
+
+
+def _clear_clashes(c, b, who):
+    """Other requests whose time on offer falls on the day just booked are moved on, as if the office had
+    declined them, so no two guests wait on one day: one recording a day."""
+    day = london_date(b["start_at"])
+    rows = c.execute("SELECT * FROM booking WHERE state='asked' AND id!=? ORDER BY created_at", (b["id"],)).fetchall()
+    for o in rows:
+        if london_date(choices_of(o)[o["offered"]]) == day:
+            _move_on(c, o, _guest(c, o["guest"]), "The office", who, "that day was booked by another guest")
 
 
 def book(c, b, g, who):
@@ -423,6 +568,7 @@ def book(c, b, g, who):
         hosts=[h for h in HOSTS if (answers_of(b).get(h) or {}).get("yes")],
         join=join_url(b),
     )
+    _clear_clashes(c, b, who)
     return b
 
 
@@ -563,11 +709,18 @@ def rules_html(s=None):
     )
 
 
-def choices_table(b, host=None):
+def choices_table(c, b):
     """The request's times as a table: London, the guest's, the rules' word, and where each stands."""
     choices, answers, i, s = choices_of(b), answers_of(b), b["offered"], settings()
+    taken, weeks = taken_days(c, but=b["id"]), busy_weeks(c, but=b["id"])
     rows = []
     for n, t in enumerate(choices):
+        if london_date(t) in taken:
+            word = "taken by another recording"
+        else:
+            word = WORDS.get(day_word(t, s), "")
+            if london_date(t).isocalendar()[:2] in weeks:
+                word += "; one that week already"
         if b["state"] == "booked" and n == i:
             state = "<b>booked</b>"
         elif b["state"] in ("declined", "cancelled", "withdrawn") and n == i:
@@ -584,7 +737,7 @@ def choices_table(b, host=None):
                 esc(("Preferred", "Backup", "Backup")[n]),
                 esc(t.astimezone(ledger.ZONE).strftime("%a %d %b %Y, %H:%M")),
                 esc(t.astimezone(zoneinfo.ZoneInfo(b["tz"])).strftime("%a %d %b, %H:%M") + " " + city(b["tz"])),
-                esc(WORDS.get(day_word(t, s), "")),
+                esc(word),
                 state,
             ]
         )
@@ -615,7 +768,7 @@ def time_body(c, g, msg=None):
         body += section(
             "Asked",
             "With James and Abrar now",
-            choices_table(b) + "<p>You will hear on this page and by email as soon as both have answered.</p>"
+            choices_table(c, b) + "<p>You will hear on this page and by email as soon as both have answered.</p>"
             '<form method="post" action="/time/withdraw" class="inline" data-live>'
             '<button type="submit">Withdraw and pick again</button></form> ' + go("/office", "Back to the office"),
         )
@@ -630,21 +783,26 @@ def time_body(c, g, msg=None):
     options = "".join(
         f'<option value="{esc(z)}"{" selected" if z == tz else ""}>{esc(z)}</option>' for z in idea.zones()
     )
-    soonest = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=s["notice_days"])).strftime("%Y-%m-%dT%H:%M")
-    fields = "".join(
+    soonest = london_date(dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=s["notice_days"])).isoformat()
+    plain = "".join(  # without script: three plain fields, a day at the earliest and no grid of minutes
         f'<label for="when{n}">{esc(label)}</label>'
-        f'<input type="datetime-local" id="when{n}" name="when{n}" min="{soonest}" step="900"{" required" if n == 0 else ""}>'
+        f'<input type="datetime-local" id="when{n}" name="when{n}" min="{soonest}T00:00"{" required" if n == 0 else ""}>'
         for n, label in enumerate(SLOTS)
     )
     form = (
-        '<form method="post" action="/time/ask" class="block times" data-live>'
+        '<form method="post" action="/time/ask" class="block times" data-live data-calendar '
+        f'data-from="{esc(s["earliest_start"])}" data-to="{esc(s["latest_start"])}">'
         '<label for="tz">Your time zone</label>'
-        f'<select id="tz" name="tz">{options}</select>{fields}'
+        f'<select id="tz" name="tz">{options}</select>'
+        + calendar_html(c, s)
+        + '<p class="muted legend">Plain days work '
+        "for us; hatched, ask us; dashed, with notice; struck through, taken; faded, too soon.</p>"
+        '<ol class="chosen" data-chosen></ol><p class="muted" data-hint>Tap a day to begin.</p>'
+        f"<noscript>{plain}</noscript>"
+        '<input type="hidden" name="when0"><input type="hidden" name="when1"><input type="hidden" name="when2">'
         '<p><button type="submit" class="signal">Ask for these times</button></p></form>'
     )
-    body += section("How we book", "The rules", rules_html(s)) + section(
-        "Pick", "Your preferred time and two backups", form
-    )
+    body += section("How we book", "The rules", rules_html(s)) + section("Pick", "Tap a day, then a time", form)
     body += f"<p>{go('/office', 'Back to the office')}</p>"
     return f'<div id="time">{body}</div>'
 
@@ -742,7 +900,7 @@ def host_section(c, g, csrf, host):
         "booked": "Booked for " + describe(b["start_at"], b["tz"]) if b["start_at"] else "Booked",
     }.get(b["state"], b["state"].capitalize())
     inner = f'<p class="muted">{esc(STATES.get(b["state"], ""))}. Asked {esc(when(b["created_at"]))}, in {esc(b["tz"])}.</p>'
-    inner += choices_table(b, host)
+    inner += choices_table(c, b)
     if b["state"] == "booked":
         inner += f'<p>Join link <span class="mono">{esc(join_url(b))}</span>: the studio from an hour before to three hours after.</p>'
     if b["note"]:

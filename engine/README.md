@@ -51,6 +51,8 @@ static/see.css   the door and the office, on top of engine.css
 static/sign.js   the signature pad: a canvas, a finger or a mouse, or a photo
 static/office.js the office's one script: a save puts its section back in place, the
                  conversation's reply streamed to the page as it is written
+static/time.js   the time's calendar: a tap on a day, a sheet with its half-hours in the
+                 guest's zone, the choices as chips
 accounts.json    which accounts get which assets, at what hour, by which adapter
 config.json      the engine's settings, none secret
 engine.env       op:// references for `op run`; no values
