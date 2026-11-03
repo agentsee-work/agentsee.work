@@ -62,7 +62,8 @@ input[type=date], input[type=time], input[type=datetime-local], select { width: 
 .cal .day.notice { border-style: dashed; }
 .cal .day.taken { text-decoration: line-through; color: var(--ink-3); }
 .cal .day.gone, .cal .day.soon { color: var(--ink-3); opacity: .45; border-color: transparent; }
-.cal .day.chosen { outline: 2px solid var(--signal); outline-offset: 1px; }
+.cal button.day.chosen { flex-direction: column; gap: .05rem; font-size: .7rem; line-height: 1; outline: 2px solid var(--signal); outline-offset: 1px; }
+.cal .day .medal { font-size: 1.05rem; line-height: 1; }  /* gold, silver, bronze: the rank a chosen day holds (time.js) */
 .cal-hosts .cal { max-width: 64rem; }
 .cal-hosts td { min-height: 4rem; border: var(--hairline); border-radius: 4px; padding: .25rem .35rem; font-size: .85rem; }
 .cal-hosts .num { display: block; font-family: var(--mono); font-size: .75rem; color: var(--ink-3); }

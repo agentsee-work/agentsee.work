@@ -48,8 +48,8 @@ button[aria-busy] { opacity: .55; cursor: progress; }
 .times select, .times input[type=datetime-local] { width: 100%; box-sizing: border-box; }
 .times .legend { font-size: .85rem; }
 .chosen { list-style: none; padding: 0; margin: .4rem 0; }
-.chosen li { display: flex; gap: .5rem; align-items: baseline; margin: .3rem 0; }
-.chosen li b { font-family: var(--mono); font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+.chosen li { display: grid; grid-template-columns: auto 1fr auto; gap: .6rem; align-items: center; margin: .3rem 0; }
+.chosen .rank { font-family: var(--mono); font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
 .chosen .remove { padding: .05rem .5rem; font-size: .9rem; }
 /* The sheet a tap on a day opens (static/time.js): the day's half-hours in the guest's zone. */
 .sheet-back { position: fixed; inset: 0; background: rgba(0, 0, 0, .35); z-index: 9; }
@@ -59,3 +59,9 @@ button[aria-busy] { opacity: .55; cursor: progress; }
 .sheet h3 { margin: .1rem 0 .3rem; font-size: 1.15rem; }
 .sheet select { width: 100%; box-sizing: border-box; margin: .5rem 0 .9rem; }
 .sheet .row { gap: .5rem; }
+.sheet .ranks { display: flex; gap: .4rem; margin: .5rem 0 .3rem; }
+.sheet .rank { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: .15rem; padding: .45rem .3rem; font-family: inherit; font-size: .9rem; letter-spacing: 0; text-transform: none; }
+.sheet .rank small { font-family: var(--mono); font-size: .68rem; color: var(--ink-3); }
+.sheet .rank[aria-pressed=true] { border-color: var(--ink); background: var(--paper-2); }
+.sheet .rank[disabled] { opacity: .4; cursor: default; }
+.sheet .swap { min-height: 1.2rem; margin: .2rem 0 .3rem; }
