@@ -593,24 +593,12 @@ def choices_table(b, host=None):
     )
 
 
-def time_page(c, g, msg=None, status=200):
-    """The guest's page: the rules, where their request or booking stands, and the form."""
-    note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
-    if not g["signed_version"]:
-        body = (
-            '<article class="lead"><p class="kicker">The time</p><h1>After the release</h1>'
-            f'<p class="deck">Sign the release first; then pick a time here.</p></article>{note}'
-            f"<p>{go('/release', 'The release', 'signal')} {go('/office', 'Back to the office')}</p>"
-        )
-        return "The time", body, status
+def time_body(c, g, msg=None):
+    """Where the request or booking stands, and the form: the part of the page that changes, as one block the
+    script puts back in place after a save."""
     s, b, last = settings(), current(c, g["id"]), latest(c, g["id"])
     tz = (b["tz"] if b else None) or g["tz"] or ledger.CONFIG.get("timezone") or "Europe/London"
-    body = (
-        '<article class="lead"><p class="kicker">The time</p><h1>A time to record</h1>'
-        f'<p class="deck">{s["length_hours"]} hours over a video link, with James and Abrar. Pick the time you would '
-        "prefer and up to two backups, in your own time zone; London&#8217;s is shown beside each. Both hosts accept, "
-        "one click each, and you get a link that opens the studio when it is time.</p></article>" + note
-    )
+    body = f'<p class="said honesty" data-said><b>{esc(msg)}</b></p>' if msg else ""
     if b and b["state"] == "booked":
         start = dt.datetime.fromisoformat(b["start_at"])
         body += section(
@@ -622,16 +610,16 @@ def time_page(c, g, msg=None, status=200):
             f"<p>{go('/time/recording.ics', 'Add it to your calendar', 'signal')} {go('/office', 'Back to the office')}</p>"
             '<p class="muted">If the time needs to move, reply to the confirmation, or write to hello@agentsee.work.</p>',
         )
-        return "The time", body, status
+        return f'<div id="time">{body}</div>'
     if b:  # asked
         body += section(
             "Asked",
             "With James and Abrar now",
             choices_table(b) + "<p>You will hear on this page and by email as soon as both have answered.</p>"
-            '<form method="post" action="/time/withdraw" class="inline"><button type="submit">Withdraw and pick again</button></form> '
-            + go("/office", "Back to the office"),
+            '<form method="post" action="/time/withdraw" class="inline" data-live>'
+            '<button type="submit">Withdraw and pick again</button></form> ' + go("/office", "Back to the office"),
         )
-        return "The time", body, status
+        return f'<div id="time">{body}</div>'
     if last and last["state"] in ("declined", "cancelled"):
         why = "None of those times worked" if last["state"] == "declined" else "That recording was cancelled"
         body += (
@@ -649,7 +637,7 @@ def time_page(c, g, msg=None, status=200):
         for n, label in enumerate(SLOTS)
     )
     form = (
-        '<form method="post" action="/time/ask" class="block times">'
+        '<form method="post" action="/time/ask" class="block times" data-live>'
         '<label for="tz">Your time zone</label>'
         f'<select id="tz" name="tz">{options}</select>{fields}'
         '<p><button type="submit" class="signal">Ask for these times</button></p></form>'
@@ -658,7 +646,27 @@ def time_page(c, g, msg=None, status=200):
         "Pick", "Your preferred time and two backups", form
     )
     body += f"<p>{go('/office', 'Back to the office')}</p>"
-    return "The time", body, status
+    return f'<div id="time">{body}</div>'
+
+
+def time_page(c, g, msg=None, status=200):
+    """The guest's page: the rules, where their request or booking stands, and the form."""
+    if not g["signed_version"]:
+        note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
+        body = (
+            '<article class="lead"><p class="kicker">The time</p><h1>After the release</h1>'
+            f'<p class="deck">Sign the release first; then pick a time here.</p></article>{note}'
+            f"<p>{go('/release', 'The release', 'signal')} {go('/office', 'Back to the office')}</p>"
+        )
+        return "The time", body, status
+    s = settings()
+    body = (
+        '<article class="lead"><p class="kicker">The time</p><h1>A time to record</h1>'
+        f'<p class="deck">{s["length_hours"]} hours over a video link, with James and Abrar. Pick the time you would '
+        "prefer and up to two backups, in your own time zone; London&#8217;s is shown beside each. Both hosts accept, "
+        "one click each, and you get a link that opens the studio when it is time.</p></article>"
+    )
+    return "The time", body + time_body(c, g, msg), status
 
 
 def join_page(c, b, state):

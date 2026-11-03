@@ -1380,7 +1380,7 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(st, 200)
         self.assertIn("Nine", body)
         self.assertIn("default-src 'none'", h["Content-Security-Policy"])
-        self.assertIn("connect-src 'self'", h["Content-Security-Policy"], "chat.js fetches /idea/say")
+        self.assertIn("connect-src 'self'", h["Content-Security-Policy"], "office.js fetches /idea/say")
         self.assertIn('class="masthead"', body)
         st, h, body = get("/episodes/ep9")
         self.assertEqual(st, 200)
@@ -2063,7 +2063,7 @@ class EngineTest(unittest.TestCase):
         self.assertIn('href="https://agentsee.work/podcast/"', body)
         self.assertIn('href="https://agentsee.work/privacy/"', body)
         self.assertIn("default-src 'none'", h["Content-Security-Policy"])
-        self.assertIn("connect-src 'self'", h["Content-Security-Policy"], "chat.js fetches /idea/say")
+        self.assertIn("connect-src 'self'", h["Content-Security-Policy"], "office.js fetches /idea/say")
         self.assertEqual(req("GET", "/episodes", host=SEE)[0], 404, "the engine's screens are not here")
         self.assertEqual(req("GET", "/guests", host=SEE)[0], 404)
         self.assertEqual(req("GET", f"/i/{g['invite']}")[0], 404, "nor the door on the engine host")
@@ -2632,9 +2632,9 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(req("GET", "/release", host=SEE)[0], 303)
         self.assertEqual(req("GET", "/release.pdf", host=SEE, cookies=ada)[1]["Location"], "/release")
 
-        def sign(**kw):
+        def sign(live=False, **kw):
             data = {"name": "Ada Lovelace", "signature": data_url, "strokes": "1", "agree": "yes", **kw}
-            return req("POST", "/release/sign", data, SEE, ada)
+            return req("POST", "/release/sign", data, SEE, ada, {"X-Office": "live"} if live else None)
 
         for kw, said in (
             ({"strokes": "0"}, "Draw your signature in the box"),
@@ -2645,6 +2645,9 @@ class EngineTest(unittest.TestCase):
             st, h, body = sign(**kw)
             self.assertEqual(st, 400, kw)
             self.assertIn(said, body)
+            st, h, body = sign(live=True, **kw)  # from the script: the word alone, the drawing kept on the pad
+            self.assertEqual(st, 400, kw)
+            self.assertIn(said, json.loads(body)["error"])
         self.assertIsNone(guests.guest(c, gid)["signed_at"])
         sent = len(FakeSMTP.sent)
         st, h, body = sign(name="  Ada   Lovelace ")
@@ -2958,15 +2961,22 @@ class EngineTest(unittest.TestCase):
         self.assertIn("Sit down with the office", req("GET", "/office", host=SEE, cookies=ada)[2])
         st, h, body = req("GET", "/idea", host=SEE, cookies=ada)
         self.assertEqual(st, 200)
-        for s in ("Begin", "/chat.js", "The questions, as a file", "Europe/London", "The run-sheet draft"):
+        for s in ("Begin", "/office.js", "The questions, as a file", "Europe/London", "The run-sheet draft"):
             self.assertIn(s, body)
         st, h, body = req("GET", "/idea/skill.md", host=SEE, cookies=ada)
         self.assertEqual((st, h["Content-Type"]), (200, "text/markdown; charset=utf-8"))
         self.assertIn("1. If writing the code", body)
+        self.assertEqual((req("GET", "/office.js", host=SEE)[0], req("GET", "/chat.js", host=SEE)[0]), (200, 404))
 
         # ── the start, waited for; what the API is sent ──
-        st, h, body = req("POST", "/idea/say", {"start": "1"}, SEE, ada)
-        self.assertEqual((st, h["Location"]), (303, "/idea#conversation"))
+        st, h, body = req("POST", "/idea/say", {"start": "1"}, SEE, ada, {"Accept": "text/event-stream"})
+        self.assertEqual((st, h["Content-Type"]), (200, "text/event-stream; charset=utf-8"))
+        done = json.loads(body.strip().split("\n\n")[-1].split("\n", 1)[1][len("data: ") :])
+        self.assertEqual([s["id"] for s in done["sections"]], ["conversation"], "the Begin button becomes the box")
+        self.assertTrue(
+            done["sections"][0]["html"].startswith('<section class="section engine-section" id="conversation">')
+        )
+        self.assertIn('class="composer"', done["sections"][0]["html"])
         payload, headers = ai.payloads[-1]
         self.assertEqual(headers["x-api-key"], "sk-test")
         self.assertEqual(headers["anthropic-beta"], "server-side-fallback-2026-07-01")
@@ -3003,7 +3013,7 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(kinds[-1], "event: done")
         done = json.loads(events[-1][1][len("data: ") :])
         self.assertIn('class="turn agent"', done["html"])
-        self.assertEqual((done["reload"], done["to"]), (False, "conversation"))
+        self.assertEqual(done["sections"], [], "a plain reply changes no section")
         streamed = "".join(json.loads(e[1][len("data: ") :])["t"] for e in events if e[0] == "event: delta")
         self.assertEqual(streamed, idea.turns(c, gid)[-1]["text"])
         self.assertEqual(ai.payloads[-1][0]["messages"][-1], {"role": "user", "content": "It is about compilers."})
@@ -3052,14 +3062,27 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(guests.guest(c, gid)["brief"], "# Run-sheet draft: Better\n\nRevised by hand.")
         st, h, body = req("GET", "/idea?saved=draft", host=SEE, cookies=ada)
         self.assertLess(body.index('id="draft"'), body.index("<b>Saved.</b>"), "the word in its section")
-        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
+        st, h, body = req(
+            "POST", "/idea/brief", {"brief": "# Run-sheet draft: Live\n\nIn place."}, SEE, ada, {"X-Office": "live"}
+        )
+        self.assertEqual((st, h["Content-Type"]), (200, "application/json; charset=utf-8"), "the script's save")
+        j = json.loads(body)
+        self.assertEqual((j["ok"], [s["id"] for s in j["sections"]]), (True, ["draft"]))
+        html = j["sections"][0]["html"]
+        self.assertTrue(html.startswith('<section class="section engine-section" id="draft">'), "the section, whole")
+        self.assertIn("data-said><b>Saved.</b>", html)
+        self.assertIn("Run-sheet draft: Live", html)
+        self.assertEqual(guests.guest(c, gid)["brief"], "# Run-sheet draft: Live\n\nIn place.")
+        st, h, body = req("POST", "/idea/brief", {"brief": "x"}, SEE, ada, {"X-Office": "live"})
+        self.assertEqual((st, json.loads(body)), (400, {"ok": False, "error": "That is not a run-sheet."}))
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 2)
         self.assertIn("as they revised it", fake.comments[-1][1])
         st, h, body = req("POST", "/idea/brief", {"brief": "x"}, SEE, ada)
         self.assertEqual((st, h["Location"]), (303, "/idea?err=That+is+not+a+run-sheet.&at=draft#draft"))
         st, h, body = req("GET", "/idea?err=That+is+not+a+run-sheet.&at=draft", host=SEE, cookies=ada)
         self.assertLess(body.index('id="draft"'), body.index("not a run-sheet"))
         self.assertLess(body.index("not a run-sheet"), body.index('id="about"'))
-        self.assertIn("Run-sheet draft: Better", req("GET", f"/guests/{gid}")[2])
+        self.assertIn("Run-sheet draft: Live", req("GET", f"/guests/{gid}")[2])
 
         # ── a failure said in a sentence, waited for and streamed; the caps ──
         ai.fail = 529
@@ -3152,10 +3175,19 @@ class EngineTest(unittest.TestCase):
         st, h, body = req("GET", "/idea/headshot", host=SEE, cookies=ada)
         self.assertEqual((st, h["Content-Type"]), (200, "image/png"))
         self.assertIn('value="Europe/Paris" selected', req("GET", "/idea", host=SEE, cookies=ada)[2])
-        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
+        st, h, body = req(
+            "POST", "/idea/about", host=SEE, cookies=ada, headers={"X-Office": "live"}, raw=multipart(about, {})
+        )
+        self.assertEqual(st, 200, body)
+        j = json.loads(body)
+        self.assertEqual([s["id"] for s in j["sections"]], ["about"])
+        self.assertTrue(j["sections"][0]["html"].startswith('<section class="section engine-section" id="about">'))
+        self.assertIn("data-said><b>Saved.</b>", j["sections"][0]["html"])
+        self.assertIn('value="Europe/Paris" selected', j["sections"][0]["html"])
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 2)
         self.assertIn("About Ada Lovelace", fake.comments[-1][1])
         self.assertIn("> Time zone: Europe/Paris", fake.comments[-1][1])
-        self.assertIn(f"guests/{gid}/headshot.png", fake.comments[-1][1])
+        self.assertIn(f"guests/{gid}/headshot.png", fake.comments[-2][1], "the save with the headshot, told")
         st, h, body = req(
             "POST",
             "/idea/about",
@@ -3193,6 +3225,9 @@ class EngineTest(unittest.TestCase):
             if e.startswith("event: delta")
         )
         self.assertEqual(streamed, head + tail, "the page saw all of it, the seam included")
+        done = json.loads(body.strip().split("\n\n")[-1].split("\n", 1)[1][len("data: ") :])
+        self.assertEqual([s["id"] for s in done["sections"]], ["draft"], "the draft section comes back rendered")
+        self.assertIn("Whole again", done["sections"][0]["html"])
         g = guests.guest(c, gid)
         self.assertTrue(g["brief"].startswith("# Run-sheet draft: Whole again"))
         self.assertIn("- What the podcast is", g["brief"])
@@ -3306,9 +3341,27 @@ class EngineTest(unittest.TestCase):
             st, h, body = ask(**kw)
             self.assertEqual(st, 400, kw)
             self.assertIn(said, body)
+        live = {"X-Office": "live"}
+        st, h, body = req(
+            "POST", "/time/ask", {"tz": "Australia/Sydney", "when0": sydney(day.replace(hour=17))}, SEE, ada, live
+        )
+        self.assertEqual(st, 400)
+        self.assertIn("between 08:00 and 16:00 London", json.loads(body)["error"])
         sent = len(FakeSMTP.sent)
-        st, h, body = ask(when1=sydney(backup))
-        self.assertEqual((st, h["Location"]), (303, "/time"), body)
+        st, h, body = req(
+            "POST",
+            "/time/ask",
+            {"tz": "Australia/Sydney", "when0": sydney(day), "when1": sydney(backup)},
+            SEE,
+            ada,
+            live,
+        )
+        self.assertEqual((st, h["Content-Type"]), (200, "application/json; charset=utf-8"), body)
+        j = json.loads(body)
+        self.assertEqual([s["id"] for s in j["sections"]], ["time"], "the block that changed, in place")
+        self.assertTrue(j["sections"][0]["html"].startswith('<div id="time">'))
+        for s in ("Asked", "Withdraw and pick again", "data-live"):
+            self.assertIn(s, j["sections"][0]["html"])
         b = schedule.current(c, gid)
         self.assertEqual((b["state"], b["tz"], b["offered"], b["answers"]), ("asked", "Australia/Sydney", 0, "{}"))
         choices = [dt.datetime.fromisoformat(x) for x in json.loads(b["choices"])]

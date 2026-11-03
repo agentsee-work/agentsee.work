@@ -125,7 +125,7 @@ def see_page(title, body, lifted=None):
 
 <script src="/assets/eye.js" defer></script>
 <script src="/sign.js" defer></script>
-<script src="/chat.js" defer></script>
+<script src="/office.js" defer></script>
 </body>
 </html>
 """
