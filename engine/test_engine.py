@@ -2967,6 +2967,12 @@ class EngineTest(unittest.TestCase):
         self.assertEqual((st, h["Content-Type"]), (200, "text/markdown; charset=utf-8"))
         self.assertIn("1. If writing the code", body)
         self.assertEqual((req("GET", "/office.js", host=SEE)[0], req("GET", "/chat.js", host=SEE)[0]), (200, 404))
+        import pages
+
+        self.assertRegex(pages.asset("/engine.css"), r"^/engine\.css\?v=[0-9a-f]{10}$", "a deploy changes the URL")
+        self.assertEqual(pages.asset("/nothing.css"), "/nothing.css")
+        self.assertIn('href="' + pages.asset("/see.css") + '"', req("GET", "/idea", host=SEE, cookies=ada)[2])
+        self.assertEqual(req("GET", pages.asset("/office.js"), host=SEE)[0], 200, "the query is ignored")
 
         # ── the start, waited for; what the API is sent ──
         st, h, body = req("POST", "/idea/say", {"start": "1"}, SEE, ada, {"Accept": "text/event-stream"})
