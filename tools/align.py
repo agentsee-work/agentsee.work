@@ -242,38 +242,90 @@ def main():
     model = Wav2Vec2ForCTC.from_pretrained(MODEL).to(device).eval()
     print(f"aligner {MODEL} on {device}")
 
+    def envelope(audio):
+        """The track's level in 10 ms hops, in dB."""
+        hop = SR // 100
+        nn = len(audio) // hop * hop
+        return 20 * np.log10(np.sqrt((audio[:nn].reshape(-1, hop) ** 2).mean(1)) + 1e-9)
+
+    def level(env, s0, s1):
+        """The loudest hop under a span, with 50 ms of grace either side."""
+        a_, b_ = max(0, int(s0 * 100) - 5), min(len(env), int(s1 * 100) + 5)
+        return float(env[a_:b_].max()) if b_ > a_ else -99.0
+
+    # Pass one places each track's words and takes its envelope and its
+    # speaker's line. Pass two judges the ghosts, and one kind of ghost is
+    # only visible against the other tracks, so every track's envelope is
+    # read first; a track left out by --only is not aligned again, its line
+    # comes from its last alignment, or from Whisper's times if it has none.
+    tracks = []
     for p in m["participants"]:
-        if a.only and p["short"] != a.only:
-            continue
         src = d / "erm" / f"{p['short']}.words.json"
         if not src.exists():
             die(f"{src.relative_to(ROOT)} missing — run fillers.py first")
         words = [w for w in load_json(src)["words"] if w["w"].strip()]
         audio = decode(d / p["audio"]["file"])
-        logp = full_logp(model, proc, audio, device)
-        spans = align_words(logp, proc, words, band=a.band)
-        # the level under each word, for the words that are not there:
-        # Whisper writes "Thank you." into silence, and the aligner, made to
-        # put it somewhere, crams it into a few frames of nothing
-        hop = SR // 100
-        nn = len(audio) // hop * hop
-        env = 20 * np.log10(np.sqrt((audio[:nn].reshape(-1, hop) ** 2).mean(1)) + 1e-9)
-        def level(s0, s1, env=env):  # this track's env, bound now
-            a_, b_ = max(0, int(s0 * 100) - 5), min(len(env), int(s1 * 100) + 5)
-            return float(env[a_:b_].max()) if b_ > a_ else -99.0
-
+        env = envelope(audio)
+        selected = not a.only or p["short"] == a.only
+        if selected:
+            logp = full_logp(model, proc, audio, device)
+            spans = align_words(logp, proc, words, band=a.band)
+        else:
+            done = d / "erm" / f"{p['short']}.aligned.json"
+            placed = load_json(done)["words"] if done.exists() else words
+            spans = [(w["t0"], w["t1"]) if w.get("aligned", True) else (None, None) for w in placed]
         # the speaker's line: the quiet end of their words, each judged by
         # its loudest moment, so a word stretched over silence cannot
         # drag the line down with it
-        peaks = [level(*sp) for sp in spans if sp[0] is not None]
+        peaks = [level(env, *sp) for sp in spans if sp[0] is not None]
         talk = float(np.percentile(peaks, 30)) - 8.0 if peaks else -40.0
+        tracks.append({"p": p, "words": words, "spans": spans, "env": env, "talk": talk,
+                       "selected": selected})
+
+    for t in tracks:
+        if not t["selected"]:
+            continue
+        p, words, spans, env, talk = t["p"], t["words"], t["spans"], t["env"], t["talk"]
+        others = [o for o in tracks if o is not t]
+
+        def talked_over(s0, s1, others=others):
+            """Whether another speaker's sound over this span rises above their line."""
+            return any(level(o["env"], s0, s1) > o["talk"] for o in others)
+
+        # The words that are not there come in two kinds. Whisper writes
+        # "Thank you." into silence, and the aligner, made to put it
+        # somewhere, crams it into a few frames of nothing: the level rule
+        # below sees that. It also writes "Thank you." into the other
+        # person's turn, where a breath or a laugh gives it something to sit
+        # on, and the level rule cannot see that. Whisper's own doubt can.
+        # It scores every segment with the probability that it is not
+        # speech at all, and erm keeps the score on each word as `nsp`:
+        # 0.7 to 0.9 on these, 0.04 on a sentence. The score alone decides
+        # nothing, since a quiet "Yeah." can score high too, so a segment
+        # goes only when it scored above 0.6, every word of it sits within
+        # 5 dB of the speaker's line, and the other speaker was talking
+        # over it. Whole segments, so no half of one is left behind.
+        segs, key = [], object()
+        for i, w in enumerate(words):
+            if w.get("nsp") != key:
+                key = w.get("nsp")
+                segs.append([])
+            segs[-1].append(i)
+        doubted = set()
+        for seg in segs:
+            if (words[seg[0]].get("nsp") or 0.0) <= 0.6:
+                continue
+            placed = [(i, spans[i]) for i in seg if spans[i][0] is not None]
+            if placed and all(level(env, *sp) < talk + 5 for _, sp in placed) \
+                    and any(talked_over(*sp) for _, sp in placed):
+                doubted.update(i for i, _ in placed)
 
         out, moved, ghosts = [], [], []
-        for w, sp in zip(words, spans):
+        for i, (w, sp) in enumerate(zip(words, spans)):
             if sp[0] is None:
                 out.append({**w, "aligned": False})
                 continue
-            lv = level(*sp)
+            lv = level(env, *sp)
             chars = len(clean(w["w"]))
             dur = max(sp[1] - sp[0], 1e-3)
             # a word with nothing under it is crammed into a few frames or
@@ -285,10 +337,14 @@ def main():
             if w.get("filled"):
                 rec["filled"] = True
             # a real quiet word sits a few dB under the line; a made-up one
-            # sits twelve or more under it, or well under and misshapen
+            # sits twelve or more under it, or well under and misshapen, or
+            # Whisper doubted it and the other speaker was talking over it
             if lv < talk - 12 or (lv < talk - 4 and (crammed or stretched)):
                 rec["ghost"] = True
-                ghosts.append((w["w"], sp[0], lv))
+                ghosts.append((w["w"], sp[0], lv, "no sound under it"))
+            elif i in doubted:
+                rec["ghost"] = True
+                ghosts.append((w["w"], sp[0], lv, f"no-speech score {w['nsp']:.2f}, talked over"))
             else:
                 moved.append(abs(sp[0] - w["t0"]))
             out.append(rec)
@@ -296,9 +352,10 @@ def main():
         moved = np.array(moved) if moved else np.zeros(1)
         print(f"  {p['short']:<8} {len(words)} words; start moved by median {np.median(moved):.3f}s, "
               f"p90 {np.percentile(moved, 90):.3f}s, max {moved.max():.2f}s; "
-              f"{len(ghosts)} ghosts (words with no sound under them, speech line {talk:.0f} dB)")
-        for g in ghosts[:16]:
-            print(f"     ghost {g[0]!r} at {g[1]:.2f}s, {g[2]:.0f} dB")
+              f"{len(ghosts)} ghosts (no sound under them, or doubted by Whisper and talked over; "
+              f"speech line {talk:.0f} dB)")
+        for g in ghosts[:24]:
+            print(f"     ghost {g[0]!r} at {g[1]:.2f}s, {g[2]:.0f} dB, {g[3]}")
     return 0
 
 

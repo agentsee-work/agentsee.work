@@ -228,7 +228,19 @@ are handled in the same pass. Whisper writes "Thank you." into a gated
 speaker's silence, and the aligner, made to put it somewhere, crams it
 into a few frames of nothing: a word with no sound under it is marked a
 *ghost* and dropped by `--from-aligned`, which stops it opening the gate
-and shielding an um. And Whisper drops the odd short utterance altogether —
+and shielding an um. The same "Thank you." written into the other person's
+turn lands on a breath or a laugh instead, and the level rule cannot see
+it: episode 2 carried one into its captions and episode 3 nine. Whisper's
+own doubt can see it. It scores every segment with the probability that it
+is not speech at all, erm keeps the score on each word (`nsp`), and it is
+0.7 to 0.9 on these against 0.04 on a sentence; but a quiet "Yeah." under
+the other voice scores high too, so the score alone decides nothing. A
+segment is a ghost when it scored above 0.6, every word of it sits within
+5 dB of the speaker's line, and the other speaker was talking over it, and
+it goes whole, so no half of one is left behind. On episodes 2 and 3 that
+rule took every "Thank you." and a handful of quiet backchannels said
+under the other voice, which the captions do not miss. And Whisper drops
+the odd short utterance altogether —
 a reply of a second and a half in the middle of the other person's story —
 so `verbatim_words.py` transcribes again, on its own with a little
 context, every run of speech-level sound the transcript has no word for,

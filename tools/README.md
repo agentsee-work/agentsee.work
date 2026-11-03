@@ -24,7 +24,7 @@ The podcast pipeline, one tool per stage, driven by `episode.py`:
 | `transcribe.py` | faster-whisper per track, on the GPU: every word timed, speaker known. |
 | `fillers.py` | erm per track: a verbatim transcript with every um as a timed token, and its acoustic cut list. Feeds `cut.py`. |
 | `verbatim_words.py` | Run by `fillers.py` inside venv-erm: the verbatim transcript, then a second look at any speech-level sound it has no word for. |
-| `align.py` | Forced alignment of the verbatim words to the whole track: boundaries to a frame, which Whisper's are not; words with no sound under them marked as ghosts. |
+| `align.py` | Forced alignment of the verbatim words to the whole track: boundaries to a frame, which Whisper's are not; words with no sound under them marked as ghosts, and segments Whisper itself doubted while the other speaker was talking marked the same. |
 | `cut.py` | The edit as data: fillers, stammers, pauses, chapter cards, review notes. Writes `edl.json`. |
 | `cards.py` | Title and end cards animated through `eyeanim.py`'s chains; chapter cards. |
 | `assemble.py` | Gate, match and mix the voices, lay the cues, cut and compose the video. Every deliverable. |
