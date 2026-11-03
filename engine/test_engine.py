@@ -3519,7 +3519,12 @@ class EngineTest(unittest.TestCase):
         soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)).isoformat()
         c.execute("UPDATE booking SET start_at=? WHERE id=?", (soon, b["id"]))
         self.assertEqual(req("GET", f"/join/{b['id']}", host=SEE)[0], 503, "no studio link on this engine")
+        self.assertIn("Studio link", req("GET", "/health")[2])
+        self.assertIn("not set: the join link tells the guest so", req("GET", "/health")[2])
         os.environ["RIVERSIDE_GUEST_LINK"] = "https://riverside.fm/studio/agentsee?t=guest"
+        body = req("GET", "/health")[2]
+        self.assertIn("set: a booking's join link opens the studio", body)
+        self.assertNotIn("riverside.fm", body, "the value itself is never shown")
         st, h, body = req("GET", f"/join/{b['id']}", host=SEE)
         self.assertEqual((st, h["Location"]), (303, "https://riverside.fm/studio/agentsee?t=guest"))
         ev = c.execute("SELECT detail FROM event WHERE what='booking:join' ORDER BY id DESC").fetchone()
