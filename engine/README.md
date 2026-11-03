@@ -49,7 +49,8 @@ pages.py         the page shell in the site's typographic system, and the
 static/engine.css  tables, forms, a status word; the rest is the site's CSS
 static/see.css   the door and the office, on top of engine.css
 static/sign.js   the signature pad: a canvas, a finger or a mouse, or a photo
-static/chat.js   the conversation: the reply streamed to the page as it is written
+static/office.js the office's one script: a save puts its section back in place, the
+                 conversation's reply streamed to the page as it is written
 accounts.json    which accounts get which assets, at what hour, by which adapter
 config.json      the engine's settings, none secret
 engine.env       op:// references for `op run`; no values
@@ -369,7 +370,7 @@ The Claude API over urllib, like every other platform here: the key is
 `ANTHROPIC_API_KEY` (the vault item "Anthropic podcast key", a service
 account key in a Console workspace of its own under a monthly cap, AGE-115
 step 4); the model and the caps are `idea` in `config.json`. The reply
-streams to the page as server-sent events (`static/chat.js`), and a browser
+streams to the page as server-sent events (`static/office.js`), and a browser
 without script posts the same form and gets the page back whole. The
 controls are what make hosting it safe: only a signed-in guest who has
 signed the release; twenty turns and a token budget per guest (tokens paid

@@ -603,7 +603,7 @@ def not_found(h, status=404, msg="Not that"):
 
 
 def get(h, c, path, q):
-    if path in ("/see.css", "/engine.css", "/sign.js", "/chat.js"):
+    if path in ("/see.css", "/engine.css", "/sign.js", "/office.js"):
         return h.static(STATIC, path[1:])
     for prefix, base in (("/assets/", PUBLIC / "assets"), ("/fonts/", PUBLIC / "fonts")):
         if path.startswith(prefix):
@@ -695,10 +695,20 @@ def get(h, c, path, q):
     return not_found(h)
 
 
+def live(h):
+    """A form sent by the office's script (static/office.js), which wants the section back, not a page."""
+    return h.headers.get("X-Office") == "live"
+
+
+def answer(h, status, **data):
+    h.send(status, json.dumps(data), "application/json; charset=utf-8", "no-store")
+
+
 def say(h, c, g, form):
-    """The guest's message to the office. With `Accept: text/event-stream` (static/chat.js) the reply
-    streams as it is written: `delta` events, then `done` with the turn's HTML, or `fail` with a sentence.
-    Without, the reply is waited for and the page comes back whole."""
+    """The guest's message to the office. With `Accept: text/event-stream` (static/office.js) the reply
+    streams as it is written: `delta` events, then `done` with the turn's HTML and the sections the reply
+    changed (the conversation's at the start and when the caps close it, the draft's when one is written),
+    or `fail` with a sentence. Without, the reply is waited for and the page comes back whole."""
     streaming = "text/event-stream" in h.headers.get("Accept", "")
     start = form.get("start") == "1"
     if not streaming:
@@ -722,8 +732,13 @@ def say(h, c, g, form):
     except idea.IdeaError as e:
         emit("fail", {"m": str(e)})
         return None
-    to = "draft" if drafted else "conversation"  # where the page lands when the script loads it again
-    emit("done", {"html": idea.turn_html("agent", out), "reload": bool(drafted or start), "to": to})
+    g = guest(c, g["id"])
+    sections = []
+    if start or idea.allowed(c, g, os.environ):
+        sections.append({"id": "conversation", "html": idea.fragment(c, g, os.environ, "conversation")})
+    if drafted:
+        sections.append({"id": "draft", "html": idea.fragment(c, g, os.environ, "draft")})
+    emit("done", {"html": idea.turn_html("agent", out), "sections": sections})
     return None
 
 
@@ -740,14 +755,19 @@ def post(h, c, path, form, files=None):
         at = {"/idea/brief": "draft", "/idea/about": "about"}.get(path)
         if not at:
             return not_found(h)
-        try:  # back to the section the form is in, not the top of the page, with its word there
+        try:  # the section comes back in place with its word; without script, the page does, at that section
             if at == "draft":
                 idea.save_brief(c, g, form.get("brief"), "guest")
             else:
                 idea.save_about(c, g, form, files or {})
         except idea.IdeaError as e:
+            if live(h):
+                return answer(h, 400, ok=False, error=str(e))
             return h.redirect("/idea?" + urllib.parse.urlencode({"err": str(e), "at": at}) + f"#{at}")
         mirror(c, g["id"])
+        if live(h):
+            html = idea.fragment(c, guest(c, g["id"]), os.environ, at, idea.word("Saved."))
+            return answer(h, 200, ok=True, sections=[{"id": at, "html": html}])
         return h.redirect(f"/idea?saved={at}#{at}")
     if path == "/enter":
         invite = " ".join((form.get("invite") or "").split()) or None
@@ -812,23 +832,34 @@ def post(h, c, path, form, files=None):
                     raise schedule.ScheduleError("Nothing to withdraw")
                 schedule.withdraw(c, b, g, s["address"])
         except schedule.ScheduleError as e:
+            if live(h):
+                return answer(h, 400, ok=False, error=str(e))
             return page(h, *schedule.time_page(c, g, str(e), 400))
         mirror(c, g["id"])
+        if live(h):
+            return answer(h, 200, ok=True, sections=[{"id": "time", "html": schedule.time_body(c, guest(c, g["id"]))}])
         return h.redirect("/time")
     if path == "/release/sign":
         g, s = current(c, h)
         if not g:
             return h.redirect("/")
         if form.get("strokes", "0") == "0" or not form.get("signature"):
-            return page(h, *release.release_page(c, g, "Draw your signature in the box, or choose a photo of it", 400))
+            why = "Draw your signature in the box, or choose a photo of it"
+            if live(h):
+                return answer(h, 400, ok=False, error=why)
+            return page(h, *release.release_page(c, g, why, 400))
         try:
             g, n, keys, sent = release.sign_as_guest(
                 c, g, form.get("name"), form.get("signature"), form.get("agree") == "yes", ip, ua
             )
         except release.ReleaseError as e:
+            if live(h):  # the drawing stays on the pad; only the word changes
+                return answer(h, 400, ok=False, error=str(e))
             return page(h, *release.release_page(c, g, str(e), 400))
         tell(c, g, "signed", s["address"], version=n, copy=keys.get("pdf") or keys.get("html"))
         mirror(c, g["id"])
+        if live(h):
+            return answer(h, 200, ok=True, go="/release")
         return h.redirect("/release")
     return not_found(h)
 

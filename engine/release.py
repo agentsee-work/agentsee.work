@@ -632,7 +632,7 @@ def pad(action, button_text, csrf=None, name_field=""):
     signature placed on it (static/sign.js); the PNG travels in a hidden field."""
     token = f'<input type="hidden" name="_t" value="{esc(csrf)}">' if csrf else ""
     return (
-        f'<form method="post" action="{action}" class="block sign" data-sign>{token}{name_field}'
+        f'<form method="post" action="{action}" class="block sign" data-sign data-live>{token}{name_field}'
         '<label for="pad">Your signature</label>'
         '<canvas id="pad" class="sig" width="640" height="240" aria-label="Draw your signature here"></canvas>'
         '<div class="row pad-row"><button type="button" data-clear>Clear</button>'

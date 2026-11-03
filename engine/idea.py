@@ -640,28 +640,17 @@ def turn_html(role, text):
     return '<div class="turn agent">' + "".join(out) + "</div>"
 
 
-def idea_page(c, g, env, msg=None, status=200, q=None):
-    """The page. `q` carries a save's outcome back to its own section (?saved=draft, or ?err=…&at=about),
-    so the browser lands there, by the anchor, with the word beside the form rather than at the top."""
-    note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
-    q = q or {}
-    notes = {"draft": "", "about": ""}
-    said = q.get("err") or ("Saved." if q.get("saved") else "")
-    where = q.get("at") if q.get("err") else q.get("saved")
-    if said and where in notes:
-        notes[where] = f'<p class="honesty"><b>{esc(said)}</b></p>'
-    if not g["signed_version"]:
-        body = (
-            '<article class="lead"><p class="kicker">The idea</p><h1>The release comes first</h1>'
-            f'<p class="deck">Read and sign it, then come back here. {link("/release", "The release")}</p></article>{note}'
-        )
-        return "The idea", body, status
+def word(text, bad=False):
+    """The word beside a form: "Saved.", which the script lets go after a moment, or a refusal, which stays."""
+    return f'<p class="said{" honesty" if bad else ""}" data-said><b>{esc(text)}</b></p>'
+
+
+def conversation_section(c, g, env):
+    """The conversation as it stands: the turns, then the Begin button, the box, or the sentence that closes it."""
     rows = [t for t in turns(c, g["id"]) if t["role"] != "start"]
     why = allowed(c, g, env)
     log = "".join(turn_html(t["role"], t["text"]) for t in rows)
-    if why and not rows:
-        talk = f'<p class="honesty">{esc(why)}</p>'
-    elif why:
+    if why:
         talk = f'<p class="honesty">{esc(why)}</p>'
     elif not rows:
         talk = (
@@ -677,19 +666,56 @@ def idea_page(c, g, env, msg=None, status=200, q=None):
             'placeholder="Your answer. Enter sends; Shift+Enter for a new line."></textarea>'
             '<button type="submit" class="signal">Send</button></div></form>'
         )
-    cfg = settings()
-    about = notes["about"] + about_form(c, g)
+    inner = f'<div class="chat" data-log>{log}</div>{talk}'
+    return section("Or borrow ours", "A conversation with the office", inner, "conversation")
+
+
+def draft_section(c, g, note=""):
     brief = g["brief"] or ""
-    draft = notes["draft"] + (
+    inner = note + (
         f"<p>Saved {esc(when(g['brief_at']))} and sent to James and Abrar. Change anything; a change goes to them too.</p>"
         if brief
         else '<p class="muted">Written by the office at the end of its conversation, or pasted here from your own assistant.</p>'
     )
-    draft += (
-        '<form method="post" action="/idea/brief" class="block"><label for="brief">The run-sheet draft</label>'
+    inner += (
+        '<form method="post" action="/idea/brief" class="block" data-live><label for="brief">The run-sheet draft</label>'
         f'<textarea id="brief" name="brief" rows="14" maxlength="{MAX_BRIEF}">{esc(brief)}</textarea>'
         '<p><button type="submit" class="signal">Save the draft</button></p></form>'
     )
+    return section("Run-sheet", "The draft", inner, "draft")
+
+
+def about_section(c, g, note=""):
+    return section("About you", "For the page and the schedule", note + about_form(c, g), "about")
+
+
+def fragment(c, g, env, name, note=""):
+    """One section of the page, as the script puts it back in place after a save or a turn."""
+    if name == "conversation":
+        return conversation_section(c, g, env)
+    if name == "draft":
+        return draft_section(c, g, note)
+    if name == "about":
+        return about_section(c, g, note)
+    raise KeyError(name)
+
+
+def idea_page(c, g, env, msg=None, status=200, q=None):
+    """The page. `q` carries a save's outcome back to its own section (?saved=draft, or ?err=…&at=about)
+    for a browser without script, which lands there by the anchor, the word beside the form."""
+    note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
+    q = q or {}
+    notes = {"draft": "", "about": ""}
+    where = q.get("at") if q.get("err") else q.get("saved")
+    if where in notes:
+        notes[where] = word(q["err"], True) if q.get("err") else word("Saved.")
+    if not g["signed_version"]:
+        body = (
+            '<article class="lead"><p class="kicker">The idea</p><h1>The release comes first</h1>'
+            f'<p class="deck">Read and sign it, then come back here. {link("/release", "The release")}</p></article>{note}'
+        )
+        return "The idea", body, status
+    cfg = settings()
     elsewhere = (
         f"<p>{go('/idea/skill.md', 'The questions, as a file', 'signal')}</p>"
         "<p>For Claude, ChatGPT or whichever assistant you keep: open a chat, attach or paste the file, and it asks "
@@ -705,14 +731,9 @@ def idea_page(c, g, env, msg=None, status=200, q=None):
         "is about, then only what is missing. Have it with the assistant you already use, or with the office.</p></article>"
         + note
         + section("Your own assistant", "The questions, as a file", elsewhere)
-        + section(
-            "Or borrow ours",
-            "A conversation with the office",
-            f'<div class="chat" data-log>{log}</div>{talk}',
-            "conversation",
-        )
-        + section("Run-sheet", "The draft", draft, "draft")
-        + section("About you", "For the page and the schedule", about, "about")
+        + conversation_section(c, g, env)
+        + draft_section(c, g, notes["draft"])
+        + about_section(c, g, notes["about"])
         + f"<p>{go('/office', 'Back to the office', 'signal')}</p>"
     )
     return "The idea", body, status
@@ -730,7 +751,7 @@ def about_form(c, g):
         for z in zones()
     )
     return (
-        '<form method="post" action="/idea/about" enctype="multipart/form-data" class="block about">'
+        '<form method="post" action="/idea/about" enctype="multipart/form-data" class="block about" data-live>'
         '<label for="shown_name">Your name, as it should be shown</label>'
         f'<input type="text" id="shown_name" name="shown_name" maxlength="80" value="{esc(g["shown_name"] or g["name"])}">'
         '<label for="bio">One line about you</label>'
