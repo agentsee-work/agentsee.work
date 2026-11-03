@@ -3,8 +3,9 @@
 # port; the tunnel is the door, and Access is the lock on it
 # (infra/podcast/engine.tf). The README in this directory is the runbook.
 #
-# Deploying a change to the engine is `git pull` in /opt/agentsee/repo and
-# `docker compose restart engine` here: the code is mounted, not baked in.
+# Deploying a change to the engine is a fast-forward of /opt/agentsee/repo
+# and a restart here: the code is mounted, not baked in. deploy.sh does it,
+# run by GitHub's green tick on main or by hand (README.md).
 
 # The project name compose would otherwise take from the directory, which is
 # a symlink and makes it warn. Pinned to what it chose on the first `up`.
@@ -34,6 +35,18 @@ services:
       # ledger is copied to the archive bucket nightly by the engine itself
       # (engine/archive.py); the fetched files are a cache.
       - /var/lib/agentsee-engine:/var/lib/agentsee-engine
+    # Whether the engine answers, asked from inside the container (no curl in
+    # the image; Python is there). `docker compose ps` shows it, and deploy.sh
+    # waits for "healthy" after a restart and rolls back when it does not
+    # come. start_interval asks every two seconds while the container is new,
+    # so a deploy is confirmed in seconds rather than at the first half-minute.
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8877/health', timeout=5)"]
+      interval: 30s
+      timeout: 6s
+      retries: 3
+      start_period: 30s
+      start_interval: 2s
     networks:
       - engine
     logging:

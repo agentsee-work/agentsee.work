@@ -28,6 +28,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import archive
 import collect
+import deploy
 import guests
 import idea
 import ledger
@@ -575,6 +576,8 @@ def health_page(c):
     bounced = mail.last_failure(c)
     lf = linear.last_failure(c)
     facts = [
+        ("Running", deploy.running_html()),
+        ("Last deploy", deploy.record_html()),
         ("Ledger", f'<span class="mono">{esc(STATE["ledger"] or ledger.data_dir() / "ledger.sqlite")}</span>'),
         ("Worker last ran", when(STATE["last_run"]) or "not in this process"),
         (

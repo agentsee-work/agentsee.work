@@ -1,0 +1,5 @@
+# The box's SSH host key, pinned so the deploy job (.github/workflows/check.yml)
+# talks to mail.agentsee.work and to nothing pretending to be it. Public, as
+# every host key is. It changes only when the box is rebuilt (README.md,
+# "Rebuilding"): `ssh-keyscan -t ed25519 mail.agentsee.work` then, in a PR.
+mail.agentsee.work ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFWTEm8lDIWAm3be80HKYMYcfalc78NRjnVMLezzWuwA

@@ -25,7 +25,9 @@ archive.py       the archive bucket: files fetched on demand, release records fo
 collect.py       the collector: the edge's log into listens and clicks, each
                  platform's counts into dated snapshots; what the screens ask
 useragents.json  OPAWG's patterns for podcast apps, bots, libraries, browsers (MIT)
-home/            the box: Dockerfile, compose, the runbook
+home/            the box: Dockerfile, compose, the runbook; deploy.sh, which a green
+                 tick on main runs there over SSH through deploy-gate.sh
+deploy.py        the commit this process runs and the last deploy's outcome, for Health
 web.py           the screens and the worker: a threaded HTTP server on loopback,
                  routing the guest host to guests.py by Host
 guests.py        the guest's office (see.agentsee.work): the door, a code by
@@ -400,7 +402,9 @@ archive bucket, where `stage` put them, and an adapter that needs a file
 gets it from the archive on demand, checked against the hash the ledger
 holds (`archive.py`). The ledger is copied to the archive nightly
 (`snapshot_at` in `config.json`; Health shows the last) and `restore`
-brings it back on a rebuilt box. A workstation can still run `serve
+brings it back on a rebuilt box. A merge to `main` deploys itself once the
+checks are green (`.github/workflows/check.yml`, `home/deploy.sh`); Health
+shows the commit running and the last deploy's outcome. A workstation can still run `serve
 --no-worker` to look, but not publish: two engines on one vault retire each
 other's X tokens.
 

@@ -5,8 +5,11 @@ name: Check
 # against stubs (about fifteen seconds) and Ruff is one binary. A red tick
 # here is a failure in the code, not a platform wobble.
 #
-# Deploying is deploy.yml and does not wait for this: the site is public/,
-# which neither job looks at (README).
+# On main, a green tick deploys the engine (the deploy job below): the box
+# fast-forwards to the commit and restarts, and the job is red if the engine
+# did not come up on it (engine/home/README.md, "Deploying on green"). The
+# site is deploy.yml and does not wait for this: public/ is not what these
+# jobs look at (README).
 
 on:
   pull_request:
@@ -14,10 +17,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# A newer push to the same branch supersedes the run for the older one.
+# A newer push to the same branch supersedes the run for the older one,
+# except on main, where a run may be deploying: there the newer one queues.
 concurrency:
   group: check-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -62,3 +66,43 @@ jobs:
 
       - name: Formatting
         run: ruff format --check
+
+  deploy:
+    name: Deploy the engine
+    needs: [engine, ruff]
+    # Main only, green only, never a pull request: the box runs what main is.
+    # A fork has no key, so no job for it.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && github.repository == 'agentsee-work/agentsee.work'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Deploys queue. One is never cancelled under another, which would leave
+    # the box half way; the box itself takes them one at a time too.
+    concurrency:
+      group: deploy-engine
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ask the box to deploy this commit
+        # One SSH connection as the deploy user, whose key can only run
+        # engine/home/deploy-gate.sh (restrict,command=… in its
+        # authorized_keys), which checks the three words and runs deploy.sh
+        # as root. What the script prints is this step's log, and its exit
+        # status is this job's: red means the engine did not come up and
+        # was put back on the commit before.
+        env:
+          KEY: ${{ secrets.ENGINE_DEPLOY_KEY }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::ENGINE_DEPLOY_KEY is not in the repository's Actions secrets (engine/home/README.md, Deploying on green)."
+            exit 1
+          fi
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy
+          chmod 0600 ~/.ssh/deploy
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes \
+              -o UserKnownHostsFile=engine/home/known_hosts -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=20 -o ServerAliveInterval=15 \
+              deploy@mail.agentsee.work "$GITHUB_SHA $GITHUB_ACTOR $RUN_URL"
+          echo "::notice::The engine is on ${GITHUB_SHA::7}."
