@@ -65,7 +65,8 @@ def settings():
     s = {
         "model": "claude-opus-5-5",
         "max_turns": 20,
-        "max_tokens": 1500,
+        "max_tokens": 4000,  # room for the run-sheet in one reply; a turn that still runs out is carried on
+        "continuations": 2,  # how many times a reply that ran out of room is carried on
         "token_budget": 400000,  # tokens paid for in full; the cached episodes are read at a twentieth and not counted
         "transcripts": 12,  # the latest episodes the office reads word for word; every episode's notes, always
         "effort": "medium",
@@ -356,7 +357,15 @@ def reply(c, g, env, text=None, on_delta=lambda s: None, start=False):
             if len(text) > MAX_SAY:
                 raise IdeaError(f"That is over {MAX_SAY} characters; a shorter message, please.")
             add_turn(c, gid, "guest", text)
-        out, usage, stop, model = request(env, system_prompt(c, g), conversation(c, gid), on_delta)
+        system, history = system_prompt(c, g), conversation(c, gid)
+        out, usage, stop, model = request(env, system, history, on_delta)
+        for _ in range(int(settings().get("continuations", 2))):
+            if stop != "max_tokens" or not out.strip():
+                break
+            more, u2, stop, model = carry_on(env, system, history, out, on_delta)
+            out = out.rstrip() + more
+            for k in usage:
+                usage[k] += u2[k]
         add_turn(c, gid, "agent", out, usage, stop, model)
         c.execute(
             "UPDATE guest SET idea_tokens = COALESCE(idea_tokens, 0) + ?, updated_at=? WHERE id=?",
@@ -384,6 +393,20 @@ def reply(c, g, env, text=None, on_delta=lambda s: None, start=False):
         return out, stop, bool(brief)
     finally:
         lock.release()
+
+
+def carry_on(env, system, history, partial, on_delta=lambda s: None):
+    """The rest of a reply that ran out of room (stop_reason max_tokens): the text so far is given
+    back as the assistant's own words to continue from, so the run-sheet comes out whole and the
+    page never shows a draft cut mid-sentence. Should the API refuse the continuation, a nudge."""
+    partial = partial.rstrip()  # the API refuses an assistant turn that ends in whitespace
+    try:
+        return request(env, system, [*history, {"role": "assistant", "content": partial}], on_delta)
+    except IdeaError:
+        nudge = "(You ran out of room. Carry on from exactly where you stopped, without repeating anything.)"
+        more = [{"role": "assistant", "content": partial}, {"role": "user", "content": nudge}]
+        text, usage, stop, model = request(env, system, [*history, *more], on_delta)
+        return "\n" + text, usage, stop, model
 
 
 # ─── the draft ───────────────────────────────────────────────────────────────
@@ -640,9 +663,11 @@ def idea_page(c, g, env, msg=None, status=200):
     else:
         talk = (
             '<form method="post" action="/idea/say" class="block say" data-say>'
-            '<label for="text">Your answer</label>'
-            f'<textarea id="text" name="text" rows="3" maxlength="{MAX_SAY}" required></textarea>'
-            '<p><button type="submit" class="signal">Send</button></p></form>'
+            '<label for="text" class="visually-hidden">Your answer</label>'
+            '<div class="composer">'
+            f'<textarea id="text" name="text" rows="1" maxlength="{MAX_SAY}" required '
+            'placeholder="Your answer. Enter sends; Shift+Enter for a new line."></textarea>'
+            '<button type="submit" class="signal">Send</button></div></form>'
         )
     cfg = settings()
     about = about_form(c, g)
@@ -650,7 +675,7 @@ def idea_page(c, g, env, msg=None, status=200):
     draft = (
         f"<p>Saved {esc(when(g['brief_at']))} and sent to James and Abrar. Change anything; a change goes to them too.</p>"
         if brief
-        else '<p class="muted">The office writes it at the end of the conversation. Or paste one here, from your own assistant.</p>'
+        else '<p class="muted">Written by the office at the end of its conversation, or pasted here from your own assistant.</p>'
     )
     draft += (
         '<form method="post" action="/idea/brief" class="block"><label for="brief">The run-sheet draft</label>'
@@ -658,20 +683,23 @@ def idea_page(c, g, env, msg=None, status=200):
         '<p><button type="submit" class="signal">Save the draft</button></p></form>'
     )
     elsewhere = (
-        f"<p>{link('/idea/skill.md', 'The questions, as a file')} for Claude, ChatGPT or whichever assistant you keep: open "
-        "a chat, attach or paste the file, and it asks you the same questions. Paste the run-sheet it writes into the box "
-        "above.</p>"
+        f"<p>{go('/idea/skill.md', 'The questions, as a file', 'signal')}</p>"
+        "<p>For Claude, ChatGPT or whichever assistant you keep: open a chat, attach or paste the file, and it asks "
+        "you the same questions the office would, knowing the episodes so far. Paste the run-sheet it writes into the "
+        "draft box below.</p>"
+        "<p>Or borrow our inference: the office runs the same questions on our account, just below, at no cost to "
+        f"you. About ten minutes; {cfg['max_turns']} turns at most. Everything you say to it is kept on your "
+        "episode's page for the hosts, in your words.</p>"
     )
     body = (
         '<article class="lead"><p class="kicker">The idea</p><h1>Flesh it out</h1>'
-        '<p class="deck">A short conversation with the office that ends in a run-sheet draft for James and Abrar: '
-        f"say what the episode is about, then only what is missing. About ten minutes; {cfg['max_turns']} turns at "
-        "most. Everything you say here is kept on your episode's page for the hosts, in your words.</p></article>"
+        '<p class="deck">A short conversation that ends in a run-sheet draft for James and Abrar: what the episode '
+        "is about, then only what is missing. Have it with the assistant you already use, or with the office.</p></article>"
         + note
-        + section("Conversation", "With the office", f'<div class="chat" data-log>{log}</div>{talk}')
+        + section("Your own assistant", "The questions, as a file", elsewhere)
+        + section("Or borrow ours", "A conversation with the office", f'<div class="chat" data-log>{log}</div>{talk}')
         + section("Run-sheet", "The draft", draft)
         + section("About you", "For the page and the schedule", about)
-        + section("Elsewhere", "Your own assistant instead", elsewhere)
         + f"<p>{go('/office', 'Back to the office', 'signal')}</p>"
     )
     return "The idea", body, status
