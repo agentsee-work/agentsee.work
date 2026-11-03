@@ -68,10 +68,13 @@
       list.appendChild(li);
     });
     f.querySelectorAll(".cal button.day").forEach(function (b) {
-      var i = rankOf(b.dataset.day), num = b.dataset.day.slice(-2).replace(/^0/, "");
+      // The medal is a badge on the cell beside the button, never inside it, so the button and its
+      // number keep their exact size and place whether chosen or not; only the outline says so.
+      var i = rankOf(b.dataset.day), cell = b.parentNode, medal = cell.querySelector(".medal");
       b.classList.toggle("chosen", i >= 0);
-      var want = i >= 0 ? num + '<span class="medal">' + MEDALS[i] + "</span>" : num;
-      if (b.innerHTML !== want) b.innerHTML = want;
+      if (i < 0) { if (medal) medal.remove(); return; }
+      if (!medal) { medal = document.createElement("span"); medal.className = "medal"; cell.insertBefore(medal, b); }
+      if (medal.textContent !== MEDALS[i]) medal.textContent = MEDALS[i];
     });
     var hint = f.querySelector("[data-hint]");
     var said = !n ? "Tap a day to begin."
