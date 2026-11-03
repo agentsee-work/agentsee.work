@@ -3315,8 +3315,25 @@ class EngineTest(unittest.TestCase):
             'name="tz"',
             'name="when0"',
             'option value="Europe/Paris" selected',
+            "data-calendar",
+            'data-from="08:00"',
+            'data-to="16:00"',
+            'class="cal"',
+            "<noscript>",
+            "data-chosen",
+            'name="when0"',
         ):
             self.assertIn(s, body)
+        self.assertNotIn('step="900"', body, "no grid of minutes counted from the moment the page loaded")
+        soon = (dt.datetime.now(ledger.ZONE) + dt.timedelta(days=3)).date()
+        self.assertIn(
+            f'<span class="day soon" title="too soon: we ask for a week&#x27;s notice">{soon.day}</span>', body
+        )
+        ten = dt.datetime.now(ledger.ZONE) + dt.timedelta(days=10)
+        self.assertIn(
+            f'data-day="{ten.date().isoformat()}" data-offset="{int(ten.utcoffset().total_seconds() // 60)}"', body
+        )
+        self.assertEqual(req("GET", "/time.js", host=SEE)[0], 200)
 
         # ── the request: refused for notice, the hour, an overlap, a zone, no time; then asked ──
         day = (dt.datetime.now(ledger.ZONE) + dt.timedelta(days=10)).replace(hour=10, minute=0, second=0, microsecond=0)
@@ -3407,17 +3424,41 @@ class EngineTest(unittest.TestCase):
         self.assertIn("Accepted%3B+waiting+for+Abrar", h["Location"])
         st, h, body = req("POST", f"/guests/{gid}/accept", {"_t": web.CSRF})
         self.assertIn("answered+this+time+already", h["Location"])
+        grace = c.execute("SELECT id FROM guest WHERE name='Grace Hopper'").fetchone()[0]
+        c.execute("UPDATE guest SET address='grace@example.com', signed_version=1 WHERE id=?", (grace,))
+        clash = backup.replace(hour=14)  # Grace waits on the same day, later in it; the booking moves her on
+        c.execute(
+            "INSERT INTO booking (id, guest, tz, choices, offered, answers, state, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (
+                "graceclash01",
+                grace,
+                "Europe/London",
+                json.dumps([clash.isoformat(), (clash + dt.timedelta(days=7)).isoformat()]),
+                0,
+                "{}",
+                "asked",
+                ledger.now(),
+                ledger.now(),
+            ),
+        )
         os.environ["ENGINE_USER"] = "abrar@example.com"
         sent = len(FakeSMTP.sent)
         st, h, body = req("POST", f"/guests/{gid}/accept", {"_t": web.CSRF})
         self.assertIn("Booked%3A", h["Location"])
         b = schedule.current(c, gid)
         self.assertEqual((b["state"], dt.datetime.fromisoformat(b["start_at"])), ("booked", backup))
-        m = FakeSMTP.sent[-1]
+        m = FakeSMTP.sent[sent]
         self.assertEqual(
             (len(FakeSMTP.sent), m["To"], m["Cc"], m["Subject"]),
-            (sent + 1, "ada@example.com", "hello@agentsee.work", "Booked: your recording with AgentSee"),
+            (sent + 3, "ada@example.com", "hello@agentsee.work", "Booked: your recording with AgentSee"),
+            "the confirmation; then Grace moved on, and the hosts asked about her next time",
         )
+        moved = FakeSMTP.sent[sent + 1]
+        self.assertEqual((moved["To"], moved["Subject"]), ("grace@example.com", "Your recording: the next time"))
+        self.assertIn("The office cannot make", moved.get_content())
+        self.assertIn("(that day was booked by another guest)", moved.get_content())
+        self.assertEqual(FakeSMTP.sent[sent + 2]["To"], "hello@agentsee.work")
         self.assertIn(f"https://{SEE}/join/{b['id']}", m.get_body(preferencelist=("plain",)).get_content())
         att = list(m.iter_attachments())
         self.assertEqual(
@@ -3426,9 +3467,32 @@ class EngineTest(unittest.TestCase):
         ics = att[0].get_payload(decode=True).decode()
         self.assertIn("DTSTART:" + backup.astimezone(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ"), ics)
         self.assertIn(f"UID:{b['id']}@agentsee.work", ics)
-        self.assertIn("Booked:", drained()[1])
+        self.assertGreaterEqual(linear.drain(c, env, log=lambda s: None), 2)
+        self.assertIn("Booked:", fake.comments[-2][1])
+        self.assertIn("The office declined", fake.comments[-1][1])
         self.assertEqual(fake.issues["AGE-73"]["dueDate"], backup.strftime("%Y-%m-%d"))
         self.assertIn("booked", [fake.labels[x]["name"] for x in fake.issues["AGE-73"]["labelIds"]])
+
+        # ── one recording a day: the calendar says taken, a request for it is refused, an accept on it too ──
+        gb = schedule.booking(c, "graceclash01")
+        self.assertEqual((gb["state"], gb["offered"]), ("asked", 1), "moved on to her backup")
+        self.assertIn(backup.date(), schedule.taken_days(c))
+        cal = schedule.calendar_html(c)
+        self.assertIn(f'<span class="day taken" title="taken: a recording that day">{backup.day}</span>', cal)
+        self.assertIn('class="day week"', cal, "the rest of that week says ask us")
+        with self.assertRaises(schedule.ScheduleError) as cm:
+            schedule.ask(c, guests.guest(c, grace), "Europe/London", [clash.strftime("%Y-%m-%dT%H:%M")], "grace")
+        self.assertIn("taken by a recording already", str(cm.exception))
+        c.execute("UPDATE booking SET offered=0, answers='{}' WHERE id=?", (gb["id"],))  # back on the taken day
+        with self.assertRaises(schedule.ScheduleError) as cm:
+            schedule.answer(c, schedule.booking(c, gb["id"]), "James", True, "jameshartt@example.com")
+        self.assertIn("taken by another recording since", str(cm.exception))
+        said = schedule.answer(c, schedule.booking(c, gb["id"]), "James", False, "jameshartt@example.com")
+        self.assertTrue(said.startswith("Declined; the next time"), said)
+        st, h, body = req("GET", "/calendar")
+        self.assertEqual(st, 200)
+        self.assertIn(f'<a class="booked" href="/guests/{gid}">Ada Lovelace</a>', body)
+        self.assertIn(f'<a class="asked" href="/guests/{grace}">Grace Hopper?</a>', body)
         st, h, body = req("GET", "/time", host=SEE, cookies=ada)
         for s in ("Booked", f"/join/{b['id']}", "Add it to your calendar"):
             self.assertIn(s, body)
@@ -3467,6 +3531,7 @@ class EngineTest(unittest.TestCase):
         self.assertIn("Cancelled%3B", h["Location"])
         self.assertEqual(schedule.booking(c, b["id"])["state"], "cancelled")
         self.assertIsNone(schedule.current(c, gid))
+        self.assertNotIn(backup.date(), schedule.taken_days(c), "the day is free again")
         m = FakeSMTP.sent[-1]
         self.assertEqual(
             (len(FakeSMTP.sent), m["To"], m["Subject"]),

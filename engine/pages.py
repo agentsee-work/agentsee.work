@@ -25,6 +25,7 @@ NAV = [
     ("/posts", "Posts"),
     ("/due", "By hand"),
     ("/guests", "Guests"),
+    ("/calendar", "Calendar"),
     ("/you", "You"),
     ("/reach", "Reach"),
     ("/audience", "Audience"),
@@ -126,6 +127,7 @@ def see_page(title, body, lifted=None):
 <script src="/assets/eye.js" defer></script>
 <script src="/sign.js" defer></script>
 <script src="/office.js" defer></script>
+<script src="/time.js" defer></script>
 </body>
 </html>
 """

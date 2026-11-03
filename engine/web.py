@@ -35,6 +35,7 @@ import linear
 import mail
 import publish
 import release
+import schedule
 from pages import button, composer, esc, link, page, section, status, table, when
 from plan import ACCOUNTS, short
 
@@ -759,6 +760,8 @@ class App(BaseHTTPRequestHandler):
                 return self.html(*health_page(c))
             if path == "/guests":
                 return self.html(*guests.guests_page(c, CSRF, q.get("msg")))
+            if path == "/calendar":
+                return self.html(*schedule.calendar_page(c))
             m = re.fullmatch(r"/guests/([0-9a-f]{8})", path)
             if m:
                 r = guests.guest_page(c, m.group(1), CSRF, q.get("msg"), self.who())

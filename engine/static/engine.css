@@ -47,6 +47,27 @@ textarea, input[type=text], input[type=email], input[type=url], input[type=date]
 textarea { min-height: 11rem; line-height: 1.45; }
 input[type=date], input[type=time], input[type=datetime-local], select { width: auto; }
 .actions input.why { width: auto; max-width: 18rem; margin-right: .4rem; }  /* a word with a decline or a cancel (schedule.py) */
+
+/* The calendar (schedule.py): the guest's on their time page, tappable; the hosts' on /calendar, with names. */
+.cal { width: 100%; max-width: 30rem; table-layout: fixed; border-collapse: separate; border-spacing: .25rem; margin: .6rem 0 1rem; }
+.cal caption { text-align: left; font-family: var(--mono); font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); padding: .3rem 0; }
+.cal th { font-family: var(--mono); font-size: .7rem; font-weight: normal; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); padding: .2rem 0; }
+.cal td { padding: 0; vertical-align: top; }
+.cal .day { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1; padding: 0; font: inherit; font-size: .95rem;
+  border: var(--hairline); border-radius: 4px; background: var(--paper); color: var(--ink); box-sizing: border-box; }
+.cal button.day { cursor: pointer; }
+.cal button.day:hover { border-color: var(--signal); color: var(--signal); }
+.cal .day.works { background: var(--paper-2); }
+.cal .day.ask, .cal .day.week { background: repeating-linear-gradient(135deg, var(--paper-2) 0 3px, var(--paper) 3px 7px); }
+.cal .day.notice { border-style: dashed; }
+.cal .day.taken { text-decoration: line-through; color: var(--ink-3); }
+.cal .day.gone, .cal .day.soon { color: var(--ink-3); opacity: .45; border-color: transparent; }
+.cal .day.chosen { outline: 2px solid var(--signal); outline-offset: 1px; }
+.cal-hosts .cal { max-width: 64rem; }
+.cal-hosts td { min-height: 4rem; border: var(--hairline); border-radius: 4px; padding: .25rem .35rem; font-size: .85rem; }
+.cal-hosts .num { display: block; font-family: var(--mono); font-size: .75rem; color: var(--ink-3); }
+.cal-hosts a.booked { display: block; font-weight: bold; }
+.cal-hosts a.asked { display: block; color: var(--ink-3); }
 button, a.button { font: inherit; font-family: var(--mono); font-size: .8rem; letter-spacing: .05em; text-transform: uppercase;
   color: var(--ink); background: var(--paper-2); border: 1px solid var(--ink-2); border-radius: 2px; padding: .45rem .9rem; cursor: pointer; }
 button:hover, a.button:hover { color: var(--signal); border-color: var(--signal); }
