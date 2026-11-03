@@ -47,7 +47,7 @@ from PIL import Image, ImageChops  # with fpdf2 (engine/home/Dockerfile, check.y
 import archive
 import ledger
 import mail
-from pages import button, esc, link, section, table, when
+from pages import button, esc, go, link, section, table, when
 
 MAX_PNG = 400_000
 PNG = b"\x89PNG\r\n\x1a\n"
@@ -448,6 +448,38 @@ def blocks(text):
     return out
 
 
+LINK = re.compile(r"\[([^\]\n]+)\]\(<?(https?://[^()<>\s]+)>?\)")  # Linear writes a link as [words](<url>)
+BOLD = re.compile(r"\*\*([^*\n]+)\*\*")
+
+
+def plain_inline(t):
+    """A line as the PDF and a plain reader see it: a link as its words, with the address after
+    them unless the words are the address; bold as the words."""
+
+    def link_(m):
+        words, url = m.group(1).strip(), m.group(2)
+        bare = re.sub(r"^https?://", "", url).rstrip("/")
+        return words if words.rstrip("/") in (bare, url) else f"{words} ({url})"
+
+    return BOLD.sub(r"\1", LINK.sub(link_, t))
+
+
+def html_inline(t):
+    """A line as HTML: a link as a link in a new tab (the page may hold a drawn signature), bold as
+    bold, everything else escaped."""
+
+    def bold(s):
+        return BOLD.sub(r"<b>\1</b>", esc(s))
+
+    out, pos = [], 0
+    for m in LINK.finditer(t):
+        out.append(bold(t[pos : m.start()]))
+        out.append(f'<a href="{esc(m.group(2))}" target="_blank" rel="noopener">{bold(m.group(1).strip())}</a>')
+        pos = m.end()
+    out.append(bold(t[pos:]))
+    return "".join(out)
+
+
 def render_html(text):
     out, in_list = [], False
     for kind, t in blocks(text):
@@ -457,7 +489,7 @@ def render_html(text):
         elif kind != "li" and in_list:
             out.append("</ul>")
             in_list = False
-        out.append(f"<{kind}>{esc(t)}</{kind}>")
+        out.append(f"<{kind}>{html_inline(t)}</{kind}>")
     if in_list:
         out.append("</ul>")
     return "\n".join(out)
@@ -530,7 +562,7 @@ def pdf_copy(c, g, n):
         pdf.set_subject(fix(f"Signed by {mine['name'] if mine else g['name']}"))
         pdf.set_creation_date(dt.datetime.fromisoformat(mine["at"] if mine else v["created_at"]))
         pdf.add_page()
-        for kind, t in blocks(v["text"]):
+        for kind, t in ((k, plain_inline(s)) for k, s in blocks(v["text"])):
             if kind == "h1":
                 put(t, 8, "B", 17)
                 pdf.ln(3)
@@ -695,7 +727,7 @@ def release_page(c, g, msg=None, status=200):
         body = (
             '<article class="lead"><p class="kicker">The release</p><h1>Not quite ready</h1>'
             '<p class="deck">James and Abrar are signing this version. Come back in a day or two and it is here, '
-            f"with their signatures on it.</p></article>{note}<p>{link('/office', 'Back to the office')}</p>"
+            f"with their signatures on it.</p></article>{note}<p>{go('/office', 'Back to the office', 'signal')}</p>"
         )
         return "The release", body, status
     v = version(c, n)
@@ -709,7 +741,7 @@ def release_page(c, g, msg=None, status=200):
         after = (
             f"<p>Signed on {esc(when(mine['at']))} from {esc(mine['address'])}. A copy with all three signatures and "
             f"the record went to that address. {link('/release.pdf', 'Your copy, as a PDF')}</p>"
-            f"<p>{link('/office', 'Back to the office')}</p>"
+            f"<p>{go('/office', 'Back to the office', 'signal')}</p>"
         )
         body = (
             f'<article class="lead"><p class="kicker">The release</p><h1>Signed</h1><p class="deck">Version {n}, '

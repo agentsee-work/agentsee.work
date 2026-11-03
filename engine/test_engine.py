@@ -929,8 +929,8 @@ A conversation with you, on video and audio, over a video link.
 
 The recording, edited, in full and in parts, with captions and your name.
 
-- On agentsee.work and on YouTube.
-- On podcast apps and social networks.
+- On [agentsee.work](<https://agentsee.work>) and on **YouTube**.
+- On podcast apps and social networks; the [privacy notice](<https://agentsee.work/privacy/>) covers the rest.
 
 ## Signing
 
@@ -1375,6 +1375,7 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(st, 200)
         self.assertIn("Nine", body)
         self.assertIn("default-src 'none'", h["Content-Security-Policy"])
+        self.assertIn("connect-src 'self'", h["Content-Security-Policy"], "chat.js fetches /idea/say")
         self.assertIn('class="masthead"', body)
         st, h, body = get("/episodes/ep9")
         self.assertEqual(st, 200)
@@ -2057,6 +2058,7 @@ class EngineTest(unittest.TestCase):
         self.assertIn('href="https://agentsee.work/podcast/"', body)
         self.assertIn('href="https://agentsee.work/privacy/"', body)
         self.assertIn("default-src 'none'", h["Content-Security-Policy"])
+        self.assertIn("connect-src 'self'", h["Content-Security-Policy"], "chat.js fetches /idea/say")
         self.assertEqual(req("GET", "/episodes", host=SEE)[0], 404, "the engine's screens are not here")
         self.assertEqual(req("GET", "/guests", host=SEE)[0], 404)
         self.assertEqual(req("GET", f"/i/{g['invite']}")[0], 404, "nor the door on the engine host")
@@ -2573,8 +2575,18 @@ class EngineTest(unittest.TestCase):
             "/release/signature/Abrar.png",
             'value="Ada Lovelace"',
             "Recorded with your signature",
+            '<li>On <a href="https://agentsee.work" target="_blank" rel="noopener">agentsee.work</a> and on <b>YouTube</b>.</li>',
+            '<a href="https://agentsee.work/privacy/" target="_blank" rel="noopener">privacy notice</a> covers',
         ):
             self.assertIn(s, body)
+        self.assertNotIn("](", body, "Linear's link syntax never reaches a page")
+        self.assertEqual(
+            release.plain_inline(
+                "On [agentsee.work](<https://agentsee.work>) and the [notice](<https://agentsee.work/privacy/>), **always**."
+            ),
+            "On agentsee.work and the notice (https://agentsee.work/privacy/), always.",
+            "nor the PDF",
+        )
         st, h, body = req("GET", "/release/signature/James.png", host=SEE, cookies=ada)
         self.assertEqual((st, h["Content-Type"]), (200, "image/png"))
         self.assertEqual(req("GET", "/release/signature/James.png", host=SEE)[0], 404, "nothing without a session")
@@ -2618,6 +2630,8 @@ class EngineTest(unittest.TestCase):
         self.assertIn("What we may publish", rec["text"])
         page = objs[f"guests/{gid}/release-v1.html"]["body"].decode()
         self.assertIn("data:image/png;base64,", page)
+        self.assertIn('<a href="https://agentsee.work" target="_blank" rel="noopener">agentsee.work</a>', page)
+        self.assertNotIn("](", page)
         self.assertIn("Ada Lovelace", page)
         self.assertIn("verified by a code", page)
         pdf = objs[f"guests/{gid}/release-v1.pdf"]["body"]
@@ -2650,7 +2664,13 @@ class EngineTest(unittest.TestCase):
         # ── afterwards: the signed page, the copy on demand on both hosts, a newer version ──
         st, h, body = req("GET", "/release", host=SEE, cookies=ada)
         self.assertEqual(st, 200)
-        for s in ("Signed on", "/release.pdf", "/release/signature/mine.png", "by James, Abrar and you"):
+        for s in (
+            "Signed on",
+            "/release.pdf",
+            "/release/signature/mine.png",
+            "by James, Abrar and you",
+            '<a class="button signal" href="/office">Back to the office</a>',
+        ):
             self.assertIn(s, body)
         self.assertNotIn("<canvas", body)
         st, h, body = req("GET", "/release.pdf", host=SEE, cookies=ada)

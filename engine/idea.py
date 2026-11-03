@@ -35,7 +35,7 @@ import zoneinfo
 import archive
 import ledger
 import linear
-from pages import esc, link, section, when
+from pages import esc, go, link, section, when
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SKILL = ROOT / ".claude" / "skills" / "guest-episode" / "SKILL.md"
@@ -673,7 +673,7 @@ def idea_page(c, g, env, msg=None, status=200):
         + section("Run-sheet", "The draft", draft)
         + section("About you", "For the page and the schedule", about)
         + section("Elsewhere", "Your own assistant instead", elsewhere)
-        + f"<p>{link('/office', 'Back to the office')}</p>"
+        + f"<p>{go('/office', 'Back to the office', 'signal')}</p>"
     )
     return "The idea", body, status
 
