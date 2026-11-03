@@ -36,6 +36,7 @@
     if (!fresh) return;
     old.replaceWith(fresh);
     settle(fresh);
+    document.dispatchEvent(new CustomEvent("office:swap", { detail: { id: id } }));  // for time.js's calendar
   }
 
   function word(form, text, bad) {  // the sentence beside the button, in place of any earlier one

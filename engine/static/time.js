@@ -54,10 +54,9 @@
       b.classList.toggle("chosen", state.chosen.some(function (c) { return c.day === b.dataset.day; }));
     });
     var hint = f.querySelector("[data-hint]");
-    if (hint) {
-      hint.textContent = !state.chosen.length ? "Tap a day to begin."
-        : state.chosen.length < 3 ? "Tap another day for a backup, or ask for these." : "Three is the most; ask for these.";
-    }
+    var said = !state.chosen.length ? "Tap a day to begin."
+      : state.chosen.length < 3 ? "Tap another day for a backup, or ask for these." : "Three is the most; ask for these.";
+    if (hint && hint.textContent !== said) hint.textContent = said;
     var button = f.querySelector("button[type=submit]");
     if (button) button.disabled = !state.chosen.length;
   }
@@ -120,6 +119,6 @@
     if (e.target.matches("form[data-calendar] select[name=tz]")) render();
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-  new MutationObserver(function () { if (sync()) render(); }).observe(document.body, { childList: true, subtree: true });
+  document.addEventListener("office:swap", function () { if (sync()) render(); });  // the time block put back (office.js)
   render();
 })();
