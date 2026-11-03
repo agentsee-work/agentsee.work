@@ -528,8 +528,7 @@ def job_booked(env, a, c=None):
         "from an hour before the start to three hours after it, and shows the booking outside that."
     )
     cm = linear.comment(env, key, text)
-    linear.label(env, key, "booked")
-    return {"issue": key, "comment": cm["url"], "due": a["date"], "label": "booked"}
+    return {"issue": key, "comment": cm["url"], "due": a["date"], "label": linear.label_softly(env, key, "booked")}
 
 
 def job_unbooked(env, a, c=None):

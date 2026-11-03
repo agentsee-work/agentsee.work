@@ -70,6 +70,7 @@ op run --env-file=engine/engine.env -- ./engine/engine.py publish --due      # f
 op run --env-file=engine/engine.env -- ./engine/engine.py serve              # http://127.0.0.1:8877/
 op run --env-file=engine/engine.env -- ./engine/engine.py mail you@example.com  # proves the mail credential
 op run --env-file=engine/engine.env -- ./engine/engine.py linear AGE-106       # a comment as AgentSee Engine
+op run --env-file=engine/engine.env -- ./engine/engine.py linear --retry       # outbox jobs that gave up, back in the queue and drained
 op run --env-file=engine/engine.env -- ./engine/engine.py release sign Abrar --png sig.png  # a host's signature by command
 op run --env-file=engine/engine.env -- ./engine/engine.py release normalise    # every kept signature as one ink on transparent, once
 

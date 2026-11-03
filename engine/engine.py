@@ -283,12 +283,14 @@ def cmd_linear(a):
 
     c = ledger.connect(a.ledger)
     try:
-        if a.drain:
+        if a.retry:
+            print(f"{linear.retry(c, who())} put back in the queue")
+        if a.drain or a.retry:
             n = linear.drain(c, os.environ)
             print(f"{n} sent; {linear.waiting(c)} waiting, {linear.stuck(c)} given up")
             return
         if not a.issue:
-            sys.exit("error: name an issue (AGE-73), or --drain")
+            sys.exit("error: name an issue (AGE-73), or --drain, or --retry")
         text = a.text or (
             f"A test from the engine, {ledger.now()}. If this comment shows AgentSee Engine as its author, "
             "the bridge is live."
@@ -368,6 +370,7 @@ def main():
     p.add_argument(
         "--drain", action="store_true", help="send what the outbox holds, now (the worker does it each minute)"
     )
+    p.add_argument("--retry", action="store_true", help="every job that gave up, back in the queue; then drain")
     p.set_defaults(fn=cmd_linear)
     p = sub.add_parser(
         "release",

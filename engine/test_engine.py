@@ -722,6 +722,7 @@ class FakeLinear:
         }
         self.labels, self.comments, self.calls = {}, [], []
         self.fail = None  # a status to answer the next GraphQL call with, once
+        self.refuse = None  # an operation to answer with Linear's "not allowed to take action", every time
 
     def __call__(self, url, data, headers, timeout=30):
         if url.endswith("/oauth/token"):
@@ -752,6 +753,8 @@ class FakeLinear:
         q = json.loads(data)
         op, v = q["operationName"], q["variables"]
         self.calls.append(op)
+        if self.refuse == op:
+            return 200, b'{"errors":[{"message":"not allowed to take action"}]}'
         return 200, json.dumps({"data": self.answer(op, v)}).encode()
 
     def by_id(self, uuid):
@@ -2419,6 +2422,40 @@ class EngineTest(unittest.TestCase):
         name, body = guests.guest_page(c, gid, "t")
         self.assertIn("linear:done", body)
         self.assertIn("#comment-2", body)
+
+        # ── a label refused is not a failed job, and the error names the call; a job that gave up, put back ──
+        fake.refuse = "Update"  # the label exists from Ada's story; putting it on the issue is what is refused
+        args = {"issue": "AGE-102", "name": "Grace Hopper", "address": "grace@example.com", "when": "now"}
+        linear.enqueue(c, "claimed", args, guest=grace)
+        before = len(fake.comments)
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1, "the comment went; the label did not fail it")
+        self.assertEqual(len(fake.comments), before + 1)
+        ev = c.execute(
+            "SELECT detail FROM event WHERE what='linear:done' AND guest=? ORDER BY id DESC", (grace,)
+        ).fetchone()
+        self.assertEqual(json.loads(ev["detail"])["label"], "not set: Update: 200: not allowed to take action")
+        fake.refuse = None
+        linear.enqueue(
+            c, "sent", {"issue": "AGE-102", "who": "Local", "address": "grace@example.com", "when": "now"}, grace
+        )
+        c.execute("UPDATE linear_job SET tries=? WHERE done_at IS NULL", (linear.TRIES,))
+        self.assertEqual((linear.waiting(c), linear.stuck(c)), (0, 1))
+        self.assertEqual(linear.drain(c, env), 0, "given up: not tried again by itself")
+        self.assertEqual(linear.retry(c, "local"), 1)
+        self.assertEqual((linear.waiting(c), linear.stuck(c)), (1, 0))
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
+        ev = c.execute("SELECT who, detail FROM event WHERE what='linear:retry'").fetchone()
+        self.assertEqual((ev["who"], json.loads(ev["detail"])), ("local", {"jobs": 1}))
+        entry = pathlib.Path(__file__).resolve().parent / "engine.py"
+        r = subprocess.run(
+            [sys.executable, str(entry), "--ledger", str(self.db), "linear", "--retry"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(
+            (r.returncode, r.stdout.strip()), (0, "0 put back in the queue\n0 sent; 0 waiting, 0 given up"), r.stderr
+        )
 
     def test_20_entry(self):
         """engine.py as the box runs it, in a fresh interpreter, reaching a
