@@ -3121,6 +3121,256 @@ class EngineTest(unittest.TestCase):
         self.assertIn("knows 1 episodes, 1 transcripts", req("GET", "/health")[2])
         srv.shutdown()
 
+    def test_23_booking(self):
+        """The time (AGE-109): the rules on the guest's page; a request refused for
+        notice, for the hour, for an overlap; one asked in the guest's zone with
+        London beside it, told to the hosts by mail and to the issue; a host declines
+        and the next time is offered; both accept and it is booked, with the
+        confirmation, the calendar file, the due date and the label; the join link
+        before, inside and after its window; a cancel; a withdrawal; a decline with
+        no backup left."""
+        from zoneinfo import ZoneInfo
+
+        import schedule
+
+        SEE = guests.HOST
+        os.environ.update(self.menv, ENGINE_SESSION_KEY="a-key-for-the-tests")
+        self.addCleanup(
+            lambda: [
+                os.environ.pop(k, None)
+                for k in (*self.menv, "ENGINE_SESSION_KEY", "ENGINE_USER", "RIVERSIDE_GUEST_LINK")
+            ]
+        )
+        client = archive.Client(self.r2env)
+        patch = unittest.mock.patch.object(archive, "Client", lambda env=None: client)
+        patch.start()
+        self.addCleanup(patch.stop)
+        c = self.c()
+        fake = FakeLinear()
+        fake.issues.update(self.linear_made)
+        linear.post = fake
+        linear.vault = FakeVault("lr1", item="Linear podcast token")
+        linear._token.update(access=None, until=0.0, unsaved=None)
+        env = {"LINEAR_CLIENT_ID": "lcid", "LINEAR_CLIENT_SECRET": "lcs", "LINEAR_REFRESH_TOKEN": "lr1"}
+        gid = c.execute("SELECT id FROM guest WHERE name='Ada Lovelace'").fetchone()[0]
+        web.STATE["ledger"] = str(self.db)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+        def req(method, path, data=None, host=None, cookies=None, headers=None):
+            hdr = dict(headers or {})
+            if host:
+                hdr["Host"] = host
+            if cookies:
+                hdr["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+            body = urllib.parse.urlencode(data).encode() if data is not None else None
+            r = urllib.request.Request(base + path, data=body, method=method, headers=hdr)
+            opener = urllib.request.build_opener(NoRedirect)
+            try:
+                with opener.open(r, timeout=10) as resp:
+                    return resp.status, resp.headers, resp.read().decode(errors="replace")
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code, e.headers, e.read().decode(errors="replace")
+
+        def jar(h):
+            return {sc.partition("=")[0]: sc.partition("=")[2].split(";")[0] for sc in h.get_all("Set-Cookie") or []}
+
+        def drained():
+            n = linear.drain(c, env, log=lambda s: None)
+            self.assertGreaterEqual(n, 1)
+            return fake.comments[-1]
+
+        # ── Ada comes in on a fresh device; the page, signed in only ──
+        c.execute("DELETE FROM code WHERE address='ada@example.com'")
+        st, h, body = req("POST", "/enter", {"address": "ada@example.com"}, SEE)
+        cid, bind = re.search(r'name="id" value="([^"]+)"', body).group(1), jar(h)["see_code"]
+        code = re.search(r"\n    (\d{6})\n", FakeSMTP.sent[-1].get_content()).group(1)
+        st, h, body = req("POST", "/code", {"id": cid, "code": code}, SEE, {"see_code": bind})
+        ada = {"see_session": jar(h)["see_session"]}
+        self.assertIn("Pick a time", req("GET", "/office", host=SEE, cookies=ada)[2])
+        self.assertEqual(req("GET", "/time", host=SEE)[0], 303, "signed in only")
+        st, h, body = req("GET", "/time", host=SEE, cookies=ada)
+        self.assertEqual(st, 200)
+        for s in (
+            "Monday 10:00 London is perfect",
+            "latest start is 16:00 London",
+            "At least 7 days",
+            'name="tz"',
+            'name="when0"',
+            'option value="Europe/Paris" selected',
+        ):
+            self.assertIn(s, body)
+
+        # ── the request: refused for notice, the hour, an overlap, a zone, no time; then asked ──
+        day = (dt.datetime.now(ledger.ZONE) + dt.timedelta(days=10)).replace(hour=10, minute=0, second=0, microsecond=0)
+        while day.weekday() >= 5:
+            day += dt.timedelta(days=1)
+        backup = day + dt.timedelta(days=7)
+
+        def sydney(t):
+            return t.astimezone(ZoneInfo("Australia/Sydney")).strftime("%Y-%m-%dT%H:%M")
+
+        def ask(**kw):
+            return req("POST", "/time/ask", {"tz": "Australia/Sydney", "when0": sydney(day), **kw}, SEE, ada)
+
+        for kw, said in (
+            ({"when0": sydney(day - dt.timedelta(days=8))}, "at least 7 days from today"),
+            ({"when0": sydney(day.replace(hour=17))}, "between 08:00 and 16:00 London, so nothing runs past 18:00"),
+            ({"when1": sydney(day + dt.timedelta(hours=1))}, "overlaps another of your times"),
+            ({"tz": "Mars/Olympus"}, "not a time zone"),
+            ({"when0": ""}, "the slot you would prefer"),
+            ({"when0": "soon"}, "A day and a time"),
+        ):
+            st, h, body = ask(**kw)
+            self.assertEqual(st, 400, kw)
+            self.assertIn(said, body)
+        sent = len(FakeSMTP.sent)
+        st, h, body = ask(when1=sydney(backup))
+        self.assertEqual((st, h["Location"]), (303, "/time"), body)
+        b = schedule.current(c, gid)
+        self.assertEqual((b["state"], b["tz"], b["offered"], b["answers"]), ("asked", "Australia/Sydney", 0, "{}"))
+        choices = [dt.datetime.fromisoformat(x) for x in json.loads(b["choices"])]
+        self.assertEqual(choices, [day, backup], "the guest's wall time is the London instant")
+        self.assertEqual(guests.guest(c, gid)["tz"], "Australia/Sydney", "the zone they booked in is theirs")
+        st, h, body = req("GET", "/time", host=SEE, cookies=ada)
+        for s in (day.strftime("%a %d %b %Y, %H:%M"), "Sydney", "waiting for James, Abrar", "Withdraw and pick again"):
+            self.assertIn(s, body)
+        self.assertIn("Asked for", req("GET", "/office", host=SEE, cookies=ada)[2])
+        m = FakeSMTP.sent[-1]
+        self.assertEqual(
+            (len(FakeSMTP.sent), m["To"], m["Subject"]),
+            (sent + 1, "hello@agentsee.work", "A time to accept: Ada Lovelace"),
+        )
+        self.assertIn(f"/guests/{gid}", m.get_content())
+        issue, text = drained()
+        self.assertEqual(issue, "AGE-73")
+        self.assertIn(f"Ada Lovelace asked, through {linear.office()}, to record on", text)
+        self.assertIn("backups", text)
+
+        # ── the hosts: a stranger refused; James declines with a word; both accept the backup ──
+        os.environ["ENGINE_USER"] = "nobody@example.com"
+        st, h, body = req("POST", f"/guests/{gid}/accept", {"_t": web.CSRF})
+        self.assertIn("hosts+are+James+and+Abrar", h["Location"])
+        os.environ["ENGINE_USER"] = "jameshartt@example.com"
+        st, h, body = req("GET", f"/guests/{gid}")
+        self.assertIn("Accept this time", body)
+        self.assertIn("Decline, offer the next", body)
+        self.assertIn("asked; waiting for James, Abrar", req("GET", "/guests")[2])
+        sent = len(FakeSMTP.sent)
+        st, h, body = req("POST", f"/guests/{gid}/decline", {"_t": web.CSRF, "note": "a clash"})
+        self.assertIn("Declined%3B+the+next+time", h["Location"])
+        b = schedule.current(c, gid)
+        self.assertEqual((b["state"], b["offered"], b["answers"]), ("asked", 1, "{}"))
+        self.assertEqual(len(FakeSMTP.sent), sent + 2, "the guest, then the hosts again")
+        moved = FakeSMTP.sent[-2]
+        self.assertEqual((moved["To"], moved["Subject"]), ("ada@example.com", "Your recording: the next time"))
+        self.assertIn("James cannot make", moved.get_content())
+        self.assertIn("(a clash)", moved.get_content())
+        self.assertEqual(FakeSMTP.sent[-1]["To"], "hello@agentsee.work")
+        self.assertIn("James declined", drained()[1])
+        st, h, body = req("POST", f"/guests/{gid}/accept", {"_t": web.CSRF})
+        self.assertIn("Accepted%3B+waiting+for+Abrar", h["Location"])
+        st, h, body = req("POST", f"/guests/{gid}/accept", {"_t": web.CSRF})
+        self.assertIn("answered+this+time+already", h["Location"])
+        os.environ["ENGINE_USER"] = "abrar@example.com"
+        sent = len(FakeSMTP.sent)
+        st, h, body = req("POST", f"/guests/{gid}/accept", {"_t": web.CSRF})
+        self.assertIn("Booked%3A", h["Location"])
+        b = schedule.current(c, gid)
+        self.assertEqual((b["state"], dt.datetime.fromisoformat(b["start_at"])), ("booked", backup))
+        m = FakeSMTP.sent[-1]
+        self.assertEqual(
+            (len(FakeSMTP.sent), m["To"], m["Cc"], m["Subject"]),
+            (sent + 1, "ada@example.com", "hello@agentsee.work", "Booked: your recording with AgentSee"),
+        )
+        self.assertIn(f"https://{SEE}/join/{b['id']}", m.get_body(preferencelist=("plain",)).get_content())
+        att = list(m.iter_attachments())
+        self.assertEqual(
+            [(a.get_filename(), a.get_content_type()) for a in att], [("agentsee-recording.ics", "text/calendar")]
+        )
+        ics = att[0].get_payload(decode=True).decode()
+        self.assertIn("DTSTART:" + backup.astimezone(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ"), ics)
+        self.assertIn(f"UID:{b['id']}@agentsee.work", ics)
+        self.assertIn("Booked:", drained()[1])
+        self.assertEqual(fake.issues["AGE-73"]["dueDate"], backup.strftime("%Y-%m-%d"))
+        self.assertIn("booked", [fake.labels[x]["name"] for x in fake.issues["AGE-73"]["labelIds"]])
+        st, h, body = req("GET", "/time", host=SEE, cookies=ada)
+        for s in ("Booked", f"/join/{b['id']}", "Add it to your calendar"):
+            self.assertIn(s, body)
+        self.assertIn("Booked for", req("GET", "/office", host=SEE, cookies=ada)[2])
+        st, h, body = req("GET", "/time/recording.ics", host=SEE, cookies=ada)
+        self.assertEqual((st, h["Content-Type"]), (200, "text/calendar; charset=utf-8"))
+        self.assertIn(backup.strftime("%a %d %b, %H:%M"), req("GET", "/guests")[2])
+        st, h, body = ask()
+        self.assertEqual(st, 400)
+        self.assertIn("You have a booking", body)
+
+        # ── the join link: a page before the window, the studio inside it, a page after; nothing for a stranger id ──
+        st, h, body = req("GET", f"/join/{b['id']}", host=SEE)
+        self.assertEqual(st, 200)
+        self.assertIn("Not yet", body)
+        self.assertIn("opens the studio from an hour before", body)
+        self.assertEqual(req("GET", "/join/not-a-booking-id", host=SEE)[0], 404)
+        soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)).isoformat()
+        c.execute("UPDATE booking SET start_at=? WHERE id=?", (soon, b["id"]))
+        self.assertEqual(req("GET", f"/join/{b['id']}", host=SEE)[0], 503, "no studio link on this engine")
+        os.environ["RIVERSIDE_GUEST_LINK"] = "https://riverside.fm/studio/agentsee?t=guest"
+        st, h, body = req("GET", f"/join/{b['id']}", host=SEE)
+        self.assertEqual((st, h["Location"]), (303, "https://riverside.fm/studio/agentsee?t=guest"))
+        ev = c.execute("SELECT detail FROM event WHERE what='booking:join' ORDER BY id DESC").fetchone()
+        self.assertEqual(json.loads(ev["detail"])["state"], "studio")
+        gone = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=4)).isoformat()
+        c.execute("UPDATE booking SET start_at=? WHERE id=?", (gone, b["id"]))
+        st, h, body = req("GET", f"/join/{b['id']}", host=SEE)
+        self.assertEqual(st, 200)
+        self.assertIn("has been", body)
+        c.execute("UPDATE booking SET start_at=? WHERE id=?", (backup.isoformat(), b["id"]))
+
+        # ── a host cancels: the guest told, the due date cleared, the form back; the link shows nothing ──
+        sent = len(FakeSMTP.sent)
+        st, h, body = req("POST", f"/guests/{gid}/cancel", {"_t": web.CSRF, "note": "Abrar is away"})
+        self.assertIn("Cancelled%3B", h["Location"])
+        self.assertEqual(schedule.booking(c, b["id"])["state"], "cancelled")
+        self.assertIsNone(schedule.current(c, gid))
+        m = FakeSMTP.sent[-1]
+        self.assertEqual(
+            (len(FakeSMTP.sent), m["To"], m["Subject"]),
+            (sent + 1, "ada@example.com", "Your recording: cancelled, another time please"),
+        )
+        self.assertIn("cancelled the booking", drained()[1])
+        self.assertIsNone(fake.issues["AGE-73"]["dueDate"])
+        st, h, body = req("GET", "/time", host=SEE, cookies=ada)
+        for s in ("That recording was cancelled", "Abrar is away", 'name="when0"'):
+            self.assertIn(s, body)
+        self.assertIn("No booking here", req("GET", f"/join/{b['id']}", host=SEE)[2])
+
+        # ── asked again and withdrawn by the guest; asked with no backup and declined by one no ──
+        self.assertEqual(ask()[0], 303)
+        b2 = schedule.current(c, gid)
+        st, h, body = req("POST", "/time/withdraw", {}, SEE, ada)
+        self.assertEqual((st, h["Location"]), (303, "/time"))
+        self.assertEqual(schedule.booking(c, b2["id"])["state"], "withdrawn")
+        self.assertIn("withdrew", drained()[1])
+        self.assertEqual(ask()[0], 303)
+        b3 = schedule.current(c, gid)
+        os.environ["ENGINE_USER"] = "jameshartt@example.com"
+        st, h, body = req("POST", f"/guests/{gid}/decline", {"_t": web.CSRF})
+        self.assertIn("no+backup+left", h["Location"])
+        self.assertEqual(schedule.booking(c, b3["id"])["state"], "declined")
+        self.assertEqual(FakeSMTP.sent[-1]["Subject"], "Your recording: another time, please")
+        self.assertIn("None of those times worked", req("GET", "/time", host=SEE, cookies=ada)[2])
+        self.assertIn("pick again", drained()[1])
+        self.assertEqual(
+            [x["state"] for x in json.loads(FakeR2.state["objects"][f"guests/{gid}/guest.json"]["body"])["bookings"]],
+            ["cancelled", "withdrawn", "declined"],
+            "the archive copy carries the bookings",
+        )
+        srv.shutdown()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

@@ -462,3 +462,15 @@ def _about(env, a, c=None):
 
 
 JOBS.update({"idea": _idea, "brief": _brief, "about": _about})
+
+
+def _schedule(name):  # the booking's turns (schedule.py): asked, moved, booked, unbooked, withdrawn
+    def job(env, a, c=None):
+        import schedule
+
+        return getattr(schedule, f"job_{name}")(env, a, c)
+
+    return job
+
+
+JOBS.update({k: _schedule(k) for k in ("asked", "moved", "booked", "unbooked", "withdrawn")})

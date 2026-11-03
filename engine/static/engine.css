@@ -42,10 +42,11 @@ main.engine .deck { color: var(--ink-2); max-width: 44rem; margin: 0 0 1.4rem; }
 form.block { max-width: 60rem; margin: .4rem 0 1rem; }
 form.inline { display: inline-block; margin: 0 .4rem .4rem 0; }
 .actions { display: flex; flex-wrap: wrap; gap: .2rem; align-items: center; }
-textarea, input[type=text], input[type=email], input[type=url], input[type=date], input[type=time], select {
+textarea, input[type=text], input[type=email], input[type=url], input[type=date], input[type=time], input[type=datetime-local], select {
   font: inherit; color: var(--ink); background: var(--paper-2); border: var(--hairline); border-radius: 2px; padding: .45rem .6rem; width: 100%; }
 textarea { min-height: 11rem; line-height: 1.45; }
-input[type=date], input[type=time], select { width: auto; }
+input[type=date], input[type=time], input[type=datetime-local], select { width: auto; }
+.actions input.why { width: auto; max-width: 18rem; margin-right: .4rem; }  /* a word with a decline or a cancel (schedule.py) */
 button, a.button { font: inherit; font-family: var(--mono); font-size: .8rem; letter-spacing: .05em; text-transform: uppercase;
   color: var(--ink); background: var(--paper-2); border: 1px solid var(--ink-2); border-radius: 2px; padding: .45rem .9rem; cursor: pointer; }
 button:hover, a.button:hover { color: var(--signal); border-color: var(--signal); }
