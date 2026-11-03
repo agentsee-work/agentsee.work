@@ -833,10 +833,12 @@ class FakeAnthropic:
 
     def __init__(self):
         self.replies, self.payloads, self.fail = [], [], None
+        self.stops = []  # a stop reason per scripted reply; end_turn when none is given
 
     def __call__(self, url, data, headers, timeout=None):
         payload = json.loads(data)
         self.payloads.append((payload, headers))
+        stop = self.stops.pop(0) if self.stops else "end_turn"
         if self.fail:
             status, self.fail = self.fail, None
             return FakeStream(status, b'{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}')
@@ -883,7 +885,7 @@ class FakeAnthropic:
             ("content_block_stop", {"type": "content_block_stop", "index": 1}),
             (
                 "message_delta",
-                {"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 50}},
+                {"type": "message_delta", "delta": {"stop_reason": stop}, "usage": {"output_tokens": 50}},
             ),
             ("message_stop", {"type": "message_stop"}),
         ]
@@ -2964,11 +2966,11 @@ class EngineTest(unittest.TestCase):
 
         # ── the start, waited for; what the API is sent ──
         st, h, body = req("POST", "/idea/say", {"start": "1"}, SEE, ada)
-        self.assertEqual((st, h["Location"]), (303, "/idea"))
+        self.assertEqual((st, h["Location"]), (303, "/idea#conversation"))
         payload, headers = ai.payloads[-1]
         self.assertEqual(headers["x-api-key"], "sk-test")
         self.assertEqual(headers["anthropic-beta"], "server-side-fallback-2026-07-01")
-        self.assertEqual((payload["model"], payload["max_tokens"], payload["stream"]), ("claude-opus-5-5", 1500, True))
+        self.assertEqual((payload["model"], payload["max_tokens"], payload["stream"]), ("claude-opus-5-5", 4000, True))
         self.assertEqual((payload["fallbacks"], payload["output_config"]), ("default", {"effort": "medium"}))
         self.assertEqual(payload["system"][0]["cache_control"], {"type": "ephemeral", "ttl": "1h"})
         self.assertIn("The idea, before we record", payload["system"][0]["text"])
@@ -2986,6 +2988,9 @@ class EngineTest(unittest.TestCase):
         self.assertIn("<textarea", body)
         self.assertNotIn(">Begin<", body)
         self.assertNotIn(idea.START, body, "the start is the engine's line, not the guest's")
+        self.assertLess(body.index("Your own assistant"), body.index("Or borrow ours"), "their own assistant leads")
+        self.assertIn('class="composer"', body)
+        self.assertIn('placeholder="Your answer. Enter sends; Shift+Enter for a new line."', body)
 
         # ── a reply streamed ──
         st, h, body = req(
@@ -2998,7 +3003,7 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(kinds[-1], "event: done")
         done = json.loads(events[-1][1][len("data: ") :])
         self.assertIn('class="turn agent"', done["html"])
-        self.assertFalse(done["reload"])
+        self.assertEqual((done["reload"], done["to"]), (False, "conversation"))
         streamed = "".join(json.loads(e[1][len("data: ") :])["t"] for e in events if e[0] == "event: delta")
         self.assertEqual(streamed, idea.turns(c, gid)[-1]["text"])
         self.assertEqual(ai.payloads[-1][0]["messages"][-1], {"role": "user", "content": "It is about compilers."})
@@ -3043,13 +3048,17 @@ class EngineTest(unittest.TestCase):
         self.assertIn("> # Run-sheet draft: Compilers for everyone", drafted[0])
         self.assertIn("idea-drafted", [fake.labels[x]["name"] for x in fake.issues["AGE-73"]["labelIds"]])
         st, h, body = req("POST", "/idea/brief", {"brief": "# Run-sheet draft: Better\n\nRevised by hand."}, SEE, ada)
-        self.assertEqual((st, h["Location"]), (303, "/idea"))
+        self.assertEqual((st, h["Location"]), (303, "/idea?saved=draft#draft"), "back to the draft, not the top")
         self.assertEqual(guests.guest(c, gid)["brief"], "# Run-sheet draft: Better\n\nRevised by hand.")
+        st, h, body = req("GET", "/idea?saved=draft", host=SEE, cookies=ada)
+        self.assertLess(body.index('id="draft"'), body.index("<b>Saved.</b>"), "the word in its section")
         self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
         self.assertIn("as they revised it", fake.comments[-1][1])
         st, h, body = req("POST", "/idea/brief", {"brief": "x"}, SEE, ada)
-        self.assertEqual(st, 400)
-        self.assertIn("not a run-sheet", body)
+        self.assertEqual((st, h["Location"]), (303, "/idea?err=That+is+not+a+run-sheet.&at=draft#draft"))
+        st, h, body = req("GET", "/idea?err=That+is+not+a+run-sheet.&at=draft", host=SEE, cookies=ada)
+        self.assertLess(body.index('id="draft"'), body.index("not a run-sheet"))
+        self.assertLess(body.index("not a run-sheet"), body.index('id="about"'))
         self.assertIn("Run-sheet draft: Better", req("GET", f"/guests/{gid}")[2])
 
         # ── a failure said in a sentence, waited for and streamed; the caps ──
@@ -3119,8 +3128,11 @@ class EngineTest(unittest.TestCase):
             "tz": "Europe/Paris",
         }
         st, h, body = req("POST", "/idea/about", host=SEE, cookies=ada, raw=multipart({**about, "link": "ftp://x"}, {}))
-        self.assertEqual(st, 400)
-        self.assertIn("should start with https://", body)
+        self.assertEqual(
+            (st, h["Location"]), (303, "/idea?err=The+link+should+start+with+https%3A%2F%2F&at=about#about")
+        )
+        body = req("GET", "/idea?err=The+link+should+start+with+https%3A%2F%2F&at=about", host=SEE, cookies=ada)[2]
+        self.assertLess(body.index('id="about"'), body.index("should start with https://"))
         st, h, body = req(
             "POST",
             "/idea/about",
@@ -3128,7 +3140,7 @@ class EngineTest(unittest.TestCase):
             cookies=ada,
             raw=multipart(about, {"headshot": ("me.png", png, "image/png")}),
         )
-        self.assertEqual((st, h["Location"]), (303, "/idea"))
+        self.assertEqual((st, h["Location"]), (303, "/idea?saved=about#about"))
         g = guests.guest(c, gid)
         self.assertEqual(
             (g["shown_name"], g["bio"], g["link"], g["tz"]),
@@ -3151,11 +3163,40 @@ class EngineTest(unittest.TestCase):
             cookies=ada,
             raw=multipart(about, {"headshot": ("x.gif", b"GIF89a....", "image/gif")}),
         )
-        self.assertEqual(st, 400)
-        self.assertIn("JPEG or a PNG", body)
+        self.assertEqual(st, 303)
+        self.assertIn("err=The+headshot+should+be+a+JPEG+or+a+PNG&at=about#about", h["Location"])
         self.assertIn("shown as Ada Lovelace, Europe/Paris", req("GET", f"/guests/{gid}")[2])
         self.assertIn("The office", req("GET", "/health")[2])
         self.assertIn("knows 1 episodes, 1 transcripts", req("GET", "/health")[2])
+
+        # ── a reply that runs out of room is carried on from its last word, so the draft comes out whole ──
+        head = (
+            "Here it is.\n\n```markdown\n# Run-sheet draft: Whole again\n\nAda on compilers, in full.\n\n"
+            "## Areas\n\n**1. Intro**\n\n- What the"
+        )
+        tail = " podcast is\n- Why Ada\n```\n\nThe office saves this and sends it to James and Abrar."
+        ai.replies += [head, tail]
+        ai.stops += ["max_tokens", "end_turn"]
+        n = len(ai.payloads)
+        st, h, body = req("POST", "/idea/say", {"text": "Write it whole."}, SEE, ada, {"Accept": "text/event-stream"})
+        self.assertEqual(st, 200)
+        self.assertEqual(len(ai.payloads), n + 2, "one more call, to carry on")
+        more = ai.payloads[-1][0]["messages"]
+        self.assertEqual(more[-2], {"role": "user", "content": "Write it whole."})
+        self.assertEqual(more[-1], {"role": "assistant", "content": head}, "the text so far, as the assistant's own")
+        last = idea.turns(c, gid)[-1]
+        self.assertEqual((last["role"], last["text"], last["stop"]), ("agent", head + tail, "end_turn"))
+        self.assertEqual((last["input_tokens"], last["output_tokens"]), (3000, 100), "both calls' usage")
+        streamed = "".join(
+            json.loads(e.split("\n", 1)[1][len("data: ") :])["t"]
+            for e in body.strip().split("\n\n")
+            if e.startswith("event: delta")
+        )
+        self.assertEqual(streamed, head + tail, "the page saw all of it, the seam included")
+        g = guests.guest(c, gid)
+        self.assertTrue(g["brief"].startswith("# Run-sheet draft: Whole again"))
+        self.assertIn("- What the podcast is", g["brief"])
+        self.assertNotIn("```", g["brief"])
         srv.shutdown()
 
     def test_23_booking(self):

@@ -2,6 +2,10 @@
 // with fetch and the office's reply arrives as server-sent events, shown as
 // it is written; without script, or if the stream fails, the same form posts
 // and the page comes back whole. Nothing leaves the page but the form.
+//
+// The box behaves as a chat's does: Enter sends, Shift+Enter breaks a line,
+// the box grows with what is typed, and three dots show while the office is
+// writing and the first words have not arrived.
 (function () {
   "use strict";
   var form = document.querySelector("form[data-say]");
@@ -19,18 +23,36 @@
     return d;
   }
 
+  function grow() {
+    if (!area) return;
+    area.style.height = "auto";
+    area.style.height = Math.min(area.scrollHeight, 240) + "px";
+  }
+
+  if (area) {
+    area.addEventListener("input", grow);
+    area.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" || e.shiftKey || e.isComposing || button.disabled) return;
+      e.preventDefault();
+      if (typeof form.requestSubmit === "function") form.requestSubmit();
+      else form.dispatchEvent(new Event("submit", { cancelable: true }));
+    });
+    grow();
+    area.focus();
+  }
+
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     var data = new URLSearchParams(new FormData(form)).toString();
     var mine = area ? area.value.trim() : "";
     if (area && !mine) return;
     if (mine) add("guest", "<p></p>").querySelector("p").textContent = mine;
-    var agent = add("agent", "<p></p>");
+    var agent = add("agent", '<p class="writing"><span></span><span></span><span></span></p>');
     var p = agent.querySelector("p");
     var text = "";
-    var reload = false;
+    var reload = false, to = "conversation";
     button.disabled = true;
-    if (area) { area.value = ""; area.disabled = true; }
+    if (area) { area.value = ""; grow(); area.disabled = true; }
 
     function handle(chunk) {
       var ev = "message", d = "";
@@ -41,8 +63,8 @@
       if (!d) return;
       var j;
       try { j = JSON.parse(d); } catch (err) { return; }
-      if (ev === "delta") { text += j.t; p.textContent = text; }
-      else if (ev === "done") { agent.innerHTML = j.html; reload = !!j.reload; }
+      if (ev === "delta") { text += j.t; p.className = ""; p.textContent = text; }
+      else if (ev === "done") { agent.innerHTML = j.html; reload = !!j.reload; to = j.to || to; }
       else if (ev === "fail") { agent.innerHTML = '<p class="honesty"><b></b></p>'; agent.querySelector("b").textContent = j.m; }
     }
 
@@ -66,7 +88,9 @@
       }
       return pump();
     }).then(function () {
-      if (reload) { window.location.reload(); return; }
+      // A fresh load lands on the section that changed, not the top: the draft once it is written, the
+      // conversation once it has begun. A new query keeps the browser from treating it as the same page.
+      if (reload) { window.location.href = "/idea?r=" + Date.now() + "#" + to; return; }
       button.disabled = false;
       if (area) { area.disabled = false; area.focus(); }
       agent.scrollIntoView({ block: "end", behavior: "smooth" });
