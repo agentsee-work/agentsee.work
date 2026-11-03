@@ -7,6 +7,7 @@ does not: tables, forms, a status word. No script but the eye.
 """
 
 import datetime as dt
+import hashlib
 import html as _html
 import importlib.util
 import pathlib
@@ -42,6 +43,23 @@ def when(iso, fmt="%a %d %b %Y, %H:%M"):
     return t.strftime(fmt) if t else ""
 
 
+_versions = {}
+
+
+def asset(path):
+    """A stylesheet's or script's URL with its content's hash as a version, so a deploy changes the URL
+    and neither the edge nor a browser serves the old one under max-age; the handlers ignore the query.
+    A path that is not a file comes back as it is."""
+    if path not in _versions:
+        base = ROOT / "engine" / "static" if "/" not in path[1:] else ROOT / "public"
+        file = base / path.lstrip("/")
+        try:
+            _versions[path] = hashlib.sha256(file.read_bytes()).hexdigest()[:10]
+        except OSError:
+            _versions[path] = None
+    return f"{path}?v={_versions[path]}" if _versions[path] else path
+
+
 def page(title, body, who="", path="/", lifted=None):
     parts = lifted or _site.lifted()
     today = dt.datetime.now(ledger.ZONE).strftime("%-d %B %Y")
@@ -60,9 +78,9 @@ def page(title, body, who="", path="/", lifted=None):
 <title>{esc(title)} — AgentSee Engine</title>
 <meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
-<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/assets/styles.css">
-<link rel="stylesheet" href="/engine.css">
+<link rel="preload" href="{asset("/fonts/newsreader-latin.woff2")}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{asset("/assets/styles.css")}">
+<link rel="stylesheet" href="{asset("/engine.css")}">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -73,8 +91,8 @@ def page(title, body, who="", path="/", lifted=None):
 </main>
 {footer}
 
-<script src="/assets/eye.js" defer></script>
-<script src="/sign.js" defer></script>
+<script src="{asset("/assets/eye.js")}" defer></script>
+<script src="{asset("/sign.js")}" defer></script>
 </body>
 </html>
 """
@@ -111,10 +129,10 @@ def see_page(title, body, lifted=None):
 <title>{esc(title)} — AgentSee</title>
 <meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
-<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/assets/styles.css">
-<link rel="stylesheet" href="/engine.css">
-<link rel="stylesheet" href="/see.css">
+<link rel="preload" href="{asset("/fonts/newsreader-latin.woff2")}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{asset("/assets/styles.css")}">
+<link rel="stylesheet" href="{asset("/engine.css")}">
+<link rel="stylesheet" href="{asset("/see.css")}">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -124,10 +142,10 @@ def see_page(title, body, lifted=None):
 </main>
 {footer}
 
-<script src="/assets/eye.js" defer></script>
-<script src="/sign.js" defer></script>
-<script src="/office.js" defer></script>
-<script src="/time.js" defer></script>
+<script src="{asset("/assets/eye.js")}" defer></script>
+<script src="{asset("/sign.js")}" defer></script>
+<script src="{asset("/office.js")}" defer></script>
+<script src="{asset("/time.js")}" defer></script>
 </body>
 </html>
 """
