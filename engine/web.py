@@ -761,7 +761,7 @@ class App(BaseHTTPRequestHandler):
                 return self.html(*guests.guests_page(c, CSRF, q.get("msg")))
             m = re.fullmatch(r"/guests/([0-9a-f]{8})", path)
             if m:
-                r = guests.guest_page(c, m.group(1), CSRF, q.get("msg"))
+                r = guests.guest_page(c, m.group(1), CSRF, q.get("msg"), self.who())
                 return self.html(*r) if r else self.fail(404, "No such guest")
             return self.fail(404, "No such page")
         finally:
@@ -844,13 +844,13 @@ class App(BaseHTTPRequestHandler):
                 except ValueError as e:
                     return self.redirect("/guests?" + urllib.parse.urlencode({"msg": str(e)}))
                 return self.redirect(f"/guests/{g['id']}?" + urllib.parse.urlencode({"msg": "Invitation made"}))
-            m = re.fullmatch(r"/guests/([0-9a-f]{8})/(send|revoke|reissue)", path)
+            m = re.fullmatch(r"/guests/([0-9a-f]{8})/(send|revoke|reissue|accept|decline|cancel)", path)
             if m:
                 g = guests.guest(c, m.group(1))
                 if not g:
                     return self.fail(404, "No such guest")
                 try:
-                    msg = guests.act(c, g, m.group(2), who)
+                    msg = guests.act(c, g, m.group(2), who, form)
                 except ValueError as e:
                     msg = str(e)
                 return self.redirect(f"/guests/{g['id']}?" + urllib.parse.urlencode({"msg": msg}))

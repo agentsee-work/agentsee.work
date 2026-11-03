@@ -98,6 +98,11 @@ CREATE INDEX IF NOT EXISTS idea_turn_guest ON idea_turn(guest, id);
 CREATE TABLE IF NOT EXISTS guest_file (
   id INTEGER PRIMARY KEY, guest TEXT NOT NULL REFERENCES guest(id) ON DELETE CASCADE, kind TEXT NOT NULL,
   name TEXT, type TEXT, data BLOB NOT NULL, at TEXT NOT NULL, UNIQUE(guest, kind));
+CREATE TABLE IF NOT EXISTS booking (
+  id TEXT PRIMARY KEY, guest TEXT NOT NULL REFERENCES guest(id) ON DELETE CASCADE, tz TEXT NOT NULL,
+  choices TEXT NOT NULL, offered INTEGER NOT NULL DEFAULT 0, answers TEXT NOT NULL DEFAULT '{}',
+  state TEXT NOT NULL DEFAULT 'asked', start_at TEXT, note TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS booking_guest ON booking(guest, created_at);
 """
 
 MIGRATIONS = [

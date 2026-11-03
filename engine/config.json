@@ -38,6 +38,16 @@
     "effort": "medium",
     "fallbacks": true
   },
+  "schedule": {
+    "notice_days": 7,
+    "length_hours": 2,
+    "earliest_start": "08:00",
+    "latest_start": "16:00",
+    "perfect": {"day": "mon", "time": "10:00"},
+    "days": {"mon": "works", "tue": "works", "wed": "ask", "thu": "ask", "fri": "ask", "sat": "notice", "sun": "notice"},
+    "join_before_minutes": 60,
+    "join_after_hours": 3
+  },
   "youtube": {
     "playlist": "AgentSee Podcast",
     "language": "en-GB",

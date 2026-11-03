@@ -41,6 +41,9 @@ release.py       the release: versions with their hash, both hosts' signatures
 idea.py          the idea conversation: the guest-episode skill run with the
                  Claude API, streamed, capped; the run-sheet draft; what the
                  pipeline wants of the guest; the issue told
+schedule.py      the time: the guest's choices in their zone against the rules,
+                 both hosts' answers, the booking with its mail and calendar
+                 file, the join link in its window; the issue told
 pages.py         the page shell in the site's typographic system, and the
                  guest host's
 static/engine.css  tables, forms, a status word; the rest is the site's CSS

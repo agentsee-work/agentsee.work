@@ -51,6 +51,7 @@ import ledger
 import linear
 import mail
 import release
+import schedule
 from pages import button, esc, link, section, see_page, table, when
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -316,6 +317,7 @@ def record(c, gid):
         }
         for s in c.execute("SELECT * FROM session WHERE guest=? ORDER BY created_at", (gid,))
     ]
+    doc["bookings"] = [dict(b) for b in schedule.bookings(c, gid)]
     doc["events"] = [
         {"at": e["at"], "who": e["who"], "what": e["what"], "detail": e["detail"]}
         for e in c.execute("SELECT at, who, what, detail FROM event WHERE guest=? ORDER BY id", (gid,))
@@ -586,7 +588,7 @@ def office(c, h, g, s):
         "the run-sheet. "
         f"{step2}</li>"
         "<li><b>The time.</b> You pick a time and two backups; both hosts accept; you get a link that opens the studio "
-        'when it is time. <span class="muted">Soon.</span></li>'
+        f"when it is time. {schedule.step_line(c, g)}</li>"
         "<li><b>The review.</b> The episode and the clips, to watch, note and approve before anything goes out. "
         '<span class="muted">After the recording.</span></li></ol>'
         f'<p class="muted">Signed in as {esc(s["address"])} on this device since {esc(when(s["created_at"]))}. '
@@ -652,7 +654,43 @@ def get(h, c, path, q):
     if path == "/idea/headshot":
         shot = idea.headshot(c, g["id"]) if g else None
         return h.send(200, shot["data"], shot["type"], "private, no-store") if shot else not_found(h)
-    if path in ("/enter", "/code", "/leave", "/release/sign", "/idea/say", "/idea/brief", "/idea/about"):
+    if path == "/time":
+        if not g:
+            return h.redirect("/")
+        return page(h, *schedule.time_page(c, g))
+    if path == "/time/recording.ics":
+        b = schedule.current(c, g["id"]) if g else None
+        if not b or b["state"] != "booked":
+            return h.redirect("/time" if g else "/")
+        return h.send(
+            200,
+            schedule.ics(b, g).encode("utf-8"),
+            "text/calendar; charset=utf-8",
+            "private, no-store",
+            [("Content-Disposition", 'attachment; filename="agentsee-recording.ics"')],
+        )
+    m = re.fullmatch(r"/join/([A-Za-z0-9_-]{12,24})", path)
+    if m:  # no sign-in: the id is the secret, the window is the lock, and the host admits the guest in the studio
+        b = schedule.booking(c, m.group(1))
+        if not b:
+            return not_found(h)
+        state, url = schedule.join(c, b, client_ip(h), h.headers.get("User-Agent", ""))
+        if url:
+            return h.redirect(url)
+        if state == "studio":
+            return not_found(h, 503, "The studio link is not set on this engine; write to hello@agentsee.work")
+        return page(h, *schedule.join_page(c, b, state))
+    if path in (
+        "/enter",
+        "/code",
+        "/leave",
+        "/release/sign",
+        "/idea/say",
+        "/idea/brief",
+        "/idea/about",
+        "/time/ask",
+        "/time/withdraw",
+    ):
         return h.redirect("/")
     return not_found(h)
 
@@ -758,6 +796,23 @@ def post(h, c, path, form, files=None):
             ledger.event(c, "guest:left", s["address"], detail={"session": s["id"][:6]}, guest=g["id"])
             mirror(c, g["id"])
         return h.redirect("/", headers=[set_cookie(SESSION_COOKIE, "", 0)])
+    if path in ("/time/ask", "/time/withdraw"):
+        g, s = current(c, h)
+        if not g:
+            return h.redirect("/")
+        try:
+            if path == "/time/ask":
+                times = [form.get("when0"), form.get("when1"), form.get("when2")]
+                schedule.ask(c, g, form.get("tz"), times, s["address"])
+            else:
+                b = schedule.current(c, g["id"])
+                if not b:
+                    raise schedule.ScheduleError("Nothing to withdraw")
+                schedule.withdraw(c, b, g, s["address"])
+        except schedule.ScheduleError as e:
+            return page(h, *schedule.time_page(c, g, str(e), 400))
+        mirror(c, g["id"])
+        return h.redirect("/time")
     if path == "/release/sign":
         g, s = current(c, h)
         if not g:
@@ -795,6 +850,7 @@ def guests_page(c, csrf, msg=None):
                 else '<span class="muted">withdrawn</span>',
                 esc(when(g["claimed_at"])),
                 esc(when(g["signed_at"])),
+                schedule.summary(c, g["id"]),
             ]
         )
     note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
@@ -815,7 +871,7 @@ def guests_page(c, csrf, msg=None):
         + section(
             "Guests",
             f"{len(rows)} invited",
-            table(["Guest", "Address", "Issue", "State", "Invitation", "Claimed", "Signed"], rows)
+            table(["Guest", "Address", "Issue", "State", "Invitation", "Claimed", "Signed", "Booked"], rows)
             if rows
             else "<p>No guests yet.</p>",
         )
@@ -881,7 +937,7 @@ def find_page(c, env, csrf, name, address):
     return name, body
 
 
-def guest_page(c, gid, csrf, msg=None):
+def guest_page(c, gid, csrf, msg=None, who=None):
     g = guest(c, gid)
     if not g:
         return None
@@ -947,6 +1003,7 @@ def guest_page(c, gid, csrf, msg=None):
     events = c.execute("SELECT * FROM event WHERE guest=? ORDER BY at DESC LIMIT 50", (gid,)).fetchall()
     body = f'<article class="lead"><h1>{esc(g["name"])}</h1></article>{note}{dl}'
     body += section("Now", "Actions", '<div class="actions">' + "".join(acts) + "</div>")
+    body += schedule.host_section(c, g, csrf, host_name(who))
     if g["brief"]:
         body += section("Run-sheet", "The draft, as it stands", f'<pre class="brief">{esc(g["brief"])}</pre>')
     body += section(
@@ -973,9 +1030,23 @@ def guest_page(c, gid, csrf, msg=None):
     return g["name"], body
 
 
-def act(c, g, action, who):
+def act(c, g, action, who, form=None):
     """One action on one guest from the engine's screen. Returns the sentence the screen shows."""
     gid = g["id"]
+    if action in ("accept", "decline", "cancel"):  # the booking (schedule.py), by the host behind the identity
+        b = schedule.current(c, gid)
+        if not b:
+            raise ValueError("No request or booking to answer")
+        note = (form or {}).get("note")
+        try:
+            if action == "cancel":
+                msg = schedule.cancel(c, b, host_name(who), who, note)
+            else:
+                msg = schedule.answer(c, b, host_name(who), action == "accept", who, note)
+        except schedule.ScheduleError as e:
+            raise ValueError(str(e)) from None
+        mirror(c, gid)
+        return msg
     if action == "send":
         if g["state"] == "revoked":
             raise ValueError("Withdrawn; reissue first")
