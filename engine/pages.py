@@ -146,6 +146,11 @@ def link(href, text=None, external=False):
     return f'<a href="{esc(href)}"{extra}>{esc(text or href)}</a>'
 
 
+def go(href, text, cls=""):
+    """A link that looks like a button: the way on from a page, where a word in a sentence is too quiet."""
+    return f'<a class="button{" " + cls if cls else ""}" href="{esc(href)}">{esc(text)}</a>'
+
+
 def button(action, label, csrf, cls="", confirm=False):
     return (
         f'<form method="post" action="{esc(action)}" class="inline{" confirm" if confirm else ""}">'

@@ -43,7 +43,7 @@ PUBLIC = ROOT / "public"
 STATIC = ROOT / "engine" / "static"
 SAFE = re.compile(r"^[A-Za-z0-9._-]+$")
 CSP = (
-    "default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; "
+    "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; font-src 'self'; "
     "img-src 'self' https://media.agentsee.work data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 )
 CSRF = secrets.token_urlsafe(24)

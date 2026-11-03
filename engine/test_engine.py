@@ -1375,6 +1375,7 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(st, 200)
         self.assertIn("Nine", body)
         self.assertIn("default-src 'none'", h["Content-Security-Policy"])
+        self.assertIn("connect-src 'self'", h["Content-Security-Policy"], "chat.js fetches /idea/say")
         self.assertIn('class="masthead"', body)
         st, h, body = get("/episodes/ep9")
         self.assertEqual(st, 200)
@@ -2057,6 +2058,7 @@ class EngineTest(unittest.TestCase):
         self.assertIn('href="https://agentsee.work/podcast/"', body)
         self.assertIn('href="https://agentsee.work/privacy/"', body)
         self.assertIn("default-src 'none'", h["Content-Security-Policy"])
+        self.assertIn("connect-src 'self'", h["Content-Security-Policy"], "chat.js fetches /idea/say")
         self.assertEqual(req("GET", "/episodes", host=SEE)[0], 404, "the engine's screens are not here")
         self.assertEqual(req("GET", "/guests", host=SEE)[0], 404)
         self.assertEqual(req("GET", f"/i/{g['invite']}")[0], 404, "nor the door on the engine host")
@@ -2662,7 +2664,13 @@ class EngineTest(unittest.TestCase):
         # ── afterwards: the signed page, the copy on demand on both hosts, a newer version ──
         st, h, body = req("GET", "/release", host=SEE, cookies=ada)
         self.assertEqual(st, 200)
-        for s in ("Signed on", "/release.pdf", "/release/signature/mine.png", "by James, Abrar and you"):
+        for s in (
+            "Signed on",
+            "/release.pdf",
+            "/release/signature/mine.png",
+            "by James, Abrar and you",
+            '<a class="button signal" href="/office">Back to the office</a>',
+        ):
             self.assertIn(s, body)
         self.assertNotIn("<canvas", body)
         st, h, body = req("GET", "/release.pdf", host=SEE, cookies=ada)

@@ -46,11 +46,12 @@ textarea, input[type=text], input[type=email], input[type=url], input[type=date]
   font: inherit; color: var(--ink); background: var(--paper-2); border: var(--hairline); border-radius: 2px; padding: .45rem .6rem; width: 100%; }
 textarea { min-height: 11rem; line-height: 1.45; }
 input[type=date], input[type=time], select { width: auto; }
-button { font: inherit; font-family: var(--mono); font-size: .8rem; letter-spacing: .05em; text-transform: uppercase;
+button, a.button { font: inherit; font-family: var(--mono); font-size: .8rem; letter-spacing: .05em; text-transform: uppercase;
   color: var(--ink); background: var(--paper-2); border: 1px solid var(--ink-2); border-radius: 2px; padding: .45rem .9rem; cursor: pointer; }
-button:hover { color: var(--signal); border-color: var(--signal); }
-button.signal { color: var(--paper); background: var(--ink); border-color: var(--ink); }
-button.signal:hover { background: var(--signal); border-color: var(--signal); color: var(--paper); }
+button:hover, a.button:hover { color: var(--signal); border-color: var(--signal); }
+button.signal, a.button.signal { color: var(--paper); background: var(--ink); border-color: var(--ink); }
+button.signal:hover, a.button.signal:hover { background: var(--signal); border-color: var(--signal); color: var(--paper); }
+main.engine a.button { display: inline-block; text-decoration: none; line-height: 1.2; }  /* pages.go: the way on from a page */
 label { display: block; font-family: var(--mono); font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); margin: .6rem 0 .25rem; }
 .row { display: flex; gap: .8rem; flex-wrap: wrap; align-items: end; }
 .choices { margin: .4rem 0 .8rem; }

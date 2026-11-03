@@ -47,7 +47,7 @@ from PIL import Image, ImageChops  # with fpdf2 (engine/home/Dockerfile, check.y
 import archive
 import ledger
 import mail
-from pages import button, esc, link, section, table, when
+from pages import button, esc, go, link, section, table, when
 
 MAX_PNG = 400_000
 PNG = b"\x89PNG\r\n\x1a\n"
@@ -727,7 +727,7 @@ def release_page(c, g, msg=None, status=200):
         body = (
             '<article class="lead"><p class="kicker">The release</p><h1>Not quite ready</h1>'
             '<p class="deck">James and Abrar are signing this version. Come back in a day or two and it is here, '
-            f"with their signatures on it.</p></article>{note}<p>{link('/office', 'Back to the office')}</p>"
+            f"with their signatures on it.</p></article>{note}<p>{go('/office', 'Back to the office', 'signal')}</p>"
         )
         return "The release", body, status
     v = version(c, n)
@@ -741,7 +741,7 @@ def release_page(c, g, msg=None, status=200):
         after = (
             f"<p>Signed on {esc(when(mine['at']))} from {esc(mine['address'])}. A copy with all three signatures and "
             f"the record went to that address. {link('/release.pdf', 'Your copy, as a PDF')}</p>"
-            f"<p>{link('/office', 'Back to the office')}</p>"
+            f"<p>{go('/office', 'Back to the office', 'signal')}</p>"
         )
         body = (
             f'<article class="lead"><p class="kicker">The release</p><h1>Signed</h1><p class="deck">Version {n}, '
