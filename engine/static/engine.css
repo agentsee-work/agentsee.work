@@ -53,7 +53,7 @@ input[type=date], input[type=time], input[type=datetime-local], select { width: 
 .cal caption { text-align: left; font-family: var(--mono); font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); padding: .3rem 0; }
 .cal th { font-family: var(--mono); font-size: .7rem; font-weight: normal; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); padding: .2rem 0; }
 .cal td { padding: 0; vertical-align: top; }
-.cal .day { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1; padding: 0; font: inherit; font-size: .95rem;
+.cal .day { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 2.4rem; aspect-ratio: 1; padding: 0; font: inherit; font-size: .95rem;
   border: var(--hairline); border-radius: 4px; background: var(--paper); color: var(--ink); box-sizing: border-box; }
 .cal button.day { cursor: pointer; }
 .cal button.day:hover { border-color: var(--signal); color: var(--signal); }
