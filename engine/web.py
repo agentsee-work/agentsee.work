@@ -620,6 +620,13 @@ def health_page(c):
             ),
         ),
         (
+            "Studio link",  # the value is never shown; the join link reveals it inside a booking's window
+            "set: a booking's join link opens the studio inside its window (RIVERSIDE_GUEST_LINK)"
+            if os.environ.get("RIVERSIDE_GUEST_LINK")
+            else '<span class="error">not set: the join link tells the guest so. The vault item "Riverside podcast '
+            'guest link" (AGE-115, step 5), then a recreate of the engine</span>',
+        ),
+        (
             "Linear outbox",
             f"{linear.waiting(c)} waiting, {linear.stuck(c)} given up"
             + (
