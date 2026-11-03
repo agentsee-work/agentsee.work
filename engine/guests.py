@@ -639,7 +639,7 @@ def get(h, c, path, q):
     if path == "/idea":
         if not g:
             return h.redirect("/")
-        return page(h, *idea.idea_page(c, g, os.environ))
+        return page(h, *idea.idea_page(c, g, os.environ, q=q))
     if path == "/idea/skill.md":
         if not g:
             return h.redirect("/")
@@ -706,7 +706,7 @@ def say(h, c, g, form):
             idea.reply(c, g, os.environ, form.get("text"), start=start)
         except idea.IdeaError as e:
             return page(h, *idea.idea_page(c, g, os.environ, str(e), 400))
-        return h.redirect("/idea")
+        return h.redirect("/idea#conversation")
     h.send_response(200)
     h.send_header("Content-Type", "text/event-stream; charset=utf-8")
     h.send_header("Cache-Control", "no-store")
@@ -722,7 +722,8 @@ def say(h, c, g, form):
     except idea.IdeaError as e:
         emit("fail", {"m": str(e)})
         return None
-    emit("done", {"html": idea.turn_html("agent", out), "reload": bool(drafted or start)})
+    to = "draft" if drafted else "conversation"  # where the page lands when the script loads it again
+    emit("done", {"html": idea.turn_html("agent", out), "reload": bool(drafted or start), "to": to})
     return None
 
 
@@ -736,17 +737,18 @@ def post(h, c, path, form, files=None):
             return h.redirect("/")
         if path == "/idea/say":
             return say(h, c, g, form)
-        try:
-            if path == "/idea/brief":
+        at = {"/idea/brief": "draft", "/idea/about": "about"}.get(path)
+        if not at:
+            return not_found(h)
+        try:  # back to the section the form is in, not the top of the page, with its word there
+            if at == "draft":
                 idea.save_brief(c, g, form.get("brief"), "guest")
-            elif path == "/idea/about":
-                idea.save_about(c, g, form, files or {})
             else:
-                return not_found(h)
+                idea.save_about(c, g, form, files or {})
         except idea.IdeaError as e:
-            return page(h, *idea.idea_page(c, g, os.environ, str(e), 400))
+            return h.redirect("/idea?" + urllib.parse.urlencode({"err": str(e), "at": at}) + f"#{at}")
         mirror(c, g["id"])
-        return h.redirect("/idea")
+        return h.redirect(f"/idea?saved={at}#{at}")
     if path == "/enter":
         invite = " ".join((form.get("invite") or "").split()) or None
         if invite and not re.fullmatch(r"[A-Za-z0-9_-]{8,40}", invite):

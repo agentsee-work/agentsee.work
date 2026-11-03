@@ -640,8 +640,16 @@ def turn_html(role, text):
     return '<div class="turn agent">' + "".join(out) + "</div>"
 
 
-def idea_page(c, g, env, msg=None, status=200):
+def idea_page(c, g, env, msg=None, status=200, q=None):
+    """The page. `q` carries a save's outcome back to its own section (?saved=draft, or ?err=…&at=about),
+    so the browser lands there, by the anchor, with the word beside the form rather than at the top."""
     note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
+    q = q or {}
+    notes = {"draft": "", "about": ""}
+    said = q.get("err") or ("Saved." if q.get("saved") else "")
+    where = q.get("at") if q.get("err") else q.get("saved")
+    if said and where in notes:
+        notes[where] = f'<p class="honesty"><b>{esc(said)}</b></p>'
     if not g["signed_version"]:
         body = (
             '<article class="lead"><p class="kicker">The idea</p><h1>The release comes first</h1>'
@@ -670,9 +678,9 @@ def idea_page(c, g, env, msg=None, status=200):
             '<button type="submit" class="signal">Send</button></div></form>'
         )
     cfg = settings()
-    about = about_form(c, g)
+    about = notes["about"] + about_form(c, g)
     brief = g["brief"] or ""
-    draft = (
+    draft = notes["draft"] + (
         f"<p>Saved {esc(when(g['brief_at']))} and sent to James and Abrar. Change anything; a change goes to them too.</p>"
         if brief
         else '<p class="muted">Written by the office at the end of its conversation, or pasted here from your own assistant.</p>'
@@ -697,9 +705,14 @@ def idea_page(c, g, env, msg=None, status=200):
         "is about, then only what is missing. Have it with the assistant you already use, or with the office.</p></article>"
         + note
         + section("Your own assistant", "The questions, as a file", elsewhere)
-        + section("Or borrow ours", "A conversation with the office", f'<div class="chat" data-log>{log}</div>{talk}')
-        + section("Run-sheet", "The draft", draft)
-        + section("About you", "For the page and the schedule", about)
+        + section(
+            "Or borrow ours",
+            "A conversation with the office",
+            f'<div class="chat" data-log>{log}</div>{talk}',
+            "conversation",
+        )
+        + section("Run-sheet", "The draft", draft, "draft")
+        + section("About you", "For the page and the schedule", about, "about")
         + f"<p>{go('/office', 'Back to the office', 'signal')}</p>"
     )
     return "The idea", body, status

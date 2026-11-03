@@ -50,7 +50,7 @@
     var agent = add("agent", '<p class="writing"><span></span><span></span><span></span></p>');
     var p = agent.querySelector("p");
     var text = "";
-    var reload = false;
+    var reload = false, to = "conversation";
     button.disabled = true;
     if (area) { area.value = ""; grow(); area.disabled = true; }
 
@@ -64,7 +64,7 @@
       var j;
       try { j = JSON.parse(d); } catch (err) { return; }
       if (ev === "delta") { text += j.t; p.className = ""; p.textContent = text; }
-      else if (ev === "done") { agent.innerHTML = j.html; reload = !!j.reload; }
+      else if (ev === "done") { agent.innerHTML = j.html; reload = !!j.reload; to = j.to || to; }
       else if (ev === "fail") { agent.innerHTML = '<p class="honesty"><b></b></p>'; agent.querySelector("b").textContent = j.m; }
     }
 
@@ -88,7 +88,9 @@
       }
       return pump();
     }).then(function () {
-      if (reload) { window.location.reload(); return; }
+      // A fresh load lands on the section that changed, not the top: the draft once it is written, the
+      // conversation once it has begun. A new query keeps the browser from treating it as the same page.
+      if (reload) { window.location.href = "/idea?r=" + Date.now() + "#" + to; return; }
       button.disabled = false;
       if (area) { area.disabled = false; area.focus(); }
       agent.scrollIntoView({ block: "end", behavior: "smooth" });
