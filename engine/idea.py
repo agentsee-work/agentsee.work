@@ -533,8 +533,7 @@ def job_brief(env, a, c=None):
     by = "written by the office from what they said" if a["source"] == "office" else "as they revised it"
     head = f"**The run-sheet draft for {linear.plain(a['name'])}, {by}, {a['when']}:**\n\n"
     cm = linear.comment(env, a["issue"], head + quoted(a["text"]))
-    linear.label(env, a["issue"], "idea-drafted")
-    return {"issue": a["issue"], "comment": cm["url"], "label": "idea-drafted"}
+    return {"issue": a["issue"], "comment": cm["url"], "label": linear.label_softly(env, a["issue"], "idea-drafted")}
 
 
 def job_about(env, a, c=None):

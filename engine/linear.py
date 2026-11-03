@@ -196,7 +196,7 @@ def query(env, name, text, variables=None, again=True):
     except ValueError:
         j = {}
     if status != 200 or j.get("errors") or "data" not in j:
-        raise LinearError(said(status, body))
+        raise LinearError(f"{name}: {said(status, body)}")  # which call, since Linear's words rarely say
     return j["data"]
 
 
@@ -282,6 +282,17 @@ def label(env, key, name):
         return i
     inp = {"labelIds": [*i["labelIds"], lid]}
     return query(env, "Update", M_UPDATE, {"id": i["id"], "input": inp})["issueUpdate"]["issue"]
+
+
+def label_softly(env, key, name):
+    """The label's name once it is on the issue, or why it is not: the comment is the record and the
+    label a convenience, so a refusal (a workspace that lets only admins make labels, say) neither
+    fails the job nor, on the retry, repeats the comment."""
+    try:
+        label(env, key, name)
+    except LinearError as e:
+        return f"not set: {e}"
+    return name
 
 
 def due(env, key, date):
@@ -376,6 +387,15 @@ def last_failure(c):
     return c.execute("SELECT at, detail FROM event WHERE what='linear:failed' ORDER BY at DESC LIMIT 1").fetchone()
 
 
+def retry(c, who="engine"):
+    """Every job that gave up, back in the queue for the next drain, with its tries forgotten; how many."""
+    n = c.execute("UPDATE linear_job SET tries=0, next_at=NULL WHERE done_at IS NULL AND tries >= ?", (TRIES,)).rowcount
+    c.commit()
+    if n:
+        ledger.event(c, "linear:retry", who, detail={"jobs": n})
+    return n
+
+
 def _invited(env, a, c=None):
     """The invitation on the guest's issue: who made it, when, for which address; and the label."""
     key = a["issue"]
@@ -387,8 +407,7 @@ def _invited(env, a, c=None):
     if a.get("page"):
         text += f" Its page: {a['page']}"
     cm = comment(env, key, text)
-    label(env, key, "guest-invited")
-    return {"issue": key, "comment": cm["url"], "label": "guest-invited"}
+    return {"issue": key, "comment": cm["url"], "label": label_softly(env, key, "guest-invited")}
 
 
 def _sent(env, a, c=None):
@@ -415,8 +434,7 @@ def _claimed(env, a, c=None):
     cm = comment(
         env, key, f"{a['name']} claimed their invitation through {office()} on {a['when']}, from {a['address']}."
     )
-    label(env, key, "guest-claimed")
-    return {"issue": key, "comment": cm["url"], "label": "guest-claimed"}
+    return {"issue": key, "comment": cm["url"], "label": label_softly(env, key, "guest-claimed")}
 
 
 def _signed(env, a, c=None):
@@ -429,8 +447,7 @@ def _signed(env, a, c=None):
     if a.get("copy"):
         text += f" The signed copy: {a['copy']} in the archive."
     cm = comment(env, key, text)
-    label(env, key, "release-signed")
-    return {"issue": key, "comment": cm["url"], "label": "release-signed"}
+    return {"issue": key, "comment": cm["url"], "label": label_softly(env, key, "release-signed")}
 
 
 JOBS = {
