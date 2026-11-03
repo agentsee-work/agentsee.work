@@ -52,8 +52,8 @@ input[type=date], input[type=time], input[type=datetime-local], select { width: 
 .cal { width: 100%; max-width: 30rem; table-layout: fixed; border-collapse: separate; border-spacing: .25rem; margin: .6rem 0 1rem; }
 .cal caption { text-align: left; font-family: var(--mono); font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); padding: .3rem 0; }
 .cal th { font-family: var(--mono); font-size: .7rem; font-weight: normal; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); padding: .2rem 0; }
-.cal td { padding: 0; vertical-align: top; }
-.cal .day { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; min-height: 2.4rem; aspect-ratio: 1; padding: 0; font: inherit; font-size: .95rem;
+.cal td { position: relative; padding: 0; vertical-align: top; }
+.cal .day { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 2.4rem; aspect-ratio: 1; padding: 0; font: inherit; font-size: .95rem;
   border: var(--hairline); border-radius: 4px; background: var(--paper); color: var(--ink); box-sizing: border-box; }
 .cal button.day { cursor: pointer; }
 .cal button.day:hover { border-color: var(--signal); color: var(--signal); }
@@ -63,7 +63,7 @@ input[type=date], input[type=time], input[type=datetime-local], select { width: 
 .cal .day.taken { text-decoration: line-through; color: var(--ink-3); }
 .cal .day.gone, .cal .day.soon { color: var(--ink-3); opacity: .45; border-color: transparent; }
 .cal button.day.chosen { outline: 2px solid var(--signal); outline-offset: 1px; }
-.cal .day .medal { position: absolute; top: .1rem; left: .15rem; font-size: .75rem; line-height: 1; }  /* the rank a chosen day holds (time.js), a badge in the corner; the number stays put */
+.cal td .medal { position: absolute; top: .15rem; left: .2rem; font-size: .75rem; line-height: 1; pointer-events: none; z-index: 1; }  /* the rank a chosen day holds (time.js): a badge on the cell, outside the button, so the number never moves */
 .cal-hosts .cal { max-width: 64rem; }
 .cal-hosts td { min-height: 4rem; border: var(--hairline); border-radius: 4px; padding: .25rem .35rem; font-size: .85rem; }
 .cal-hosts .num { display: block; font-family: var(--mono); font-size: .75rem; color: var(--ink-3); }
