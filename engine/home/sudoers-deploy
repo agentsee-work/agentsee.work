@@ -1,0 +1,6 @@
+# /etc/sudoers.d/agentsee-deploy: the one command the deploy user may run
+# as root, the deploy script in the checkout, with arguments deploy-gate.sh
+# has checked. Installed by hand (README.md, "Deploying on green"):
+#
+#     install -m 0440 engine/home/sudoers-deploy /etc/sudoers.d/agentsee-deploy && visudo -c
+deploy ALL=(root) NOPASSWD: /opt/agentsee/repo/engine/home/deploy.sh

@@ -33,6 +33,7 @@ import zlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import archive  # noqa: E402
 import collect  # noqa: E402
+import deploy  # noqa: E402
 import guests  # noqa: E402
 import ingest  # noqa: E402
 import ledger  # noqa: E402
@@ -3577,6 +3578,131 @@ class EngineTest(unittest.TestCase):
             "the archive copy carries the bookings",
         )
         srv.shutdown()
+
+    def test_24_deploy(self):
+        """What Health says about the commit running and the last deploy (deploy.py),
+        and the gate GitHub's key opens on the box (home/deploy-gate.sh): three
+        checked words through to deploy.sh as root, anything else refused."""
+        home = ledger.ROOT / "engine" / "home"
+        root = pathlib.Path(self.tmp.name) / "deploy"
+        sha = "0123456789abcdef" * 2 + "01234567"
+
+        # ── head(): a branch, a packed ref, a worktree, a detached HEAD; None without a .git ──
+        plain = root / "plain"
+        (plain / ".git" / "refs" / "heads").mkdir(parents=True)
+        (plain / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+        (plain / ".git" / "refs" / "heads" / "main").write_text(sha + "\n")
+        self.assertEqual(deploy.head(plain), sha)
+        (plain / ".git" / "refs" / "heads" / "main").unlink()
+        (plain / ".git" / "packed-refs").write_text(
+            f"# pack-refs with: peeled fully-peeled sorted\n{sha[::-1]} refs/heads/other\n{sha} refs/heads/main\n"
+        )
+        self.assertEqual(deploy.head(plain), sha, "a packed ref")
+        wt = root / "wt"
+        wt.mkdir()
+        gitdir = plain / ".git" / "worktrees" / "wt"
+        gitdir.mkdir(parents=True)
+        (wt / ".git").write_text(f"gitdir: {gitdir}\n")
+        (gitdir / "commondir").write_text("../..\n")
+        (gitdir / "HEAD").write_text("ref: refs/heads/main\n")
+        self.assertEqual(deploy.head(wt), sha, "a worktree's refs are in the main .git")
+        (gitdir / "HEAD").write_text(sha[::-1] + "\n")
+        self.assertEqual(deploy.head(wt), sha[::-1], "detached")
+        self.assertIsNone(deploy.head(root / "nowhere"))
+        self.assertRegex(deploy.RUNNING or "", r"^[0-9a-f]{40}$", "this checkout's own commit, once, at import")
+        got = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, cwd=ledger.ROOT)
+        self.assertEqual(deploy.RUNNING, got.stdout.strip())
+
+        # ── Health: the commit running; the record deploy.sh writes, or its absence ──
+        web.STATE["ledger"] = str(self.db)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+        def health():
+            with urllib.request.urlopen(base + "/health", timeout=10) as r:
+                return r.read().decode()
+
+        rec = ledger.data_dir() / deploy.RECORD
+        self.addCleanup(lambda: rec.unlink(missing_ok=True))
+        body = health()
+        self.assertIn("Running", body)
+        self.assertIn(deploy.RUNNING[:7], body)
+        self.assertIn("Last deploy", body)
+        self.assertIn("no record", body)
+        run = "https://github.com/agentsee-work/agentsee.work/actions/runs/41"
+        record = {
+            "at": "2026-11-03T17:20:00+00:00",
+            "sha": sha,
+            "subject": "feat(engine): deploys itself",
+            "by": "jameshartt",
+            "run": run,
+            "action": "restart",
+            "outcome": "ok",
+            "detail": "up on 0123456 within 60s",
+        }
+        rec.write_text(json.dumps(record))
+        body = health()
+        self.assertIn("Tue 03 Nov 2026, 17:20", body)
+        self.assertIn('<span class="mono">0123456</span> feat(engine): deploys itself; restart, by jameshartt', body)
+        self.assertIn("ok: up on 0123456 within 60s", body)
+        self.assertIn(f'<a href="{run}" rel="noopener" target="_blank">the run</a>', body)
+        self.assertNotIn('class="error">ok', body)
+        record.update(outcome="rolled back", detail="the engine did not come up on 0123456; back on 76543210")
+        rec.write_text(json.dumps(record))
+        self.assertIn('<span class="error">rolled back: the engine did not come up on 0123456', health())
+        rec.write_text("{not json")
+        self.assertIn("no record", health(), "a half-written record is no record")
+        srv.shutdown()
+
+        # ── the gate: sshd runs it with the client's words in SSH_ORIGINAL_COMMAND ──
+        self.assertTrue(os.access(home / "deploy-gate.sh", os.X_OK) and os.access(home / "deploy.sh", os.X_OK))
+        for script in ("deploy.sh", "deploy-gate.sh"):
+            self.assertEqual(subprocess.run(["bash", "-n", str(home / script)]).returncode, 0, script)
+        fake = root / "bin"
+        fake.mkdir()
+        (fake / "sudo").write_text('#!/bin/sh\necho "sudo $*"\n')
+        (fake / "sudo").chmod(0o755)
+
+        def gate(command):
+            env = {**os.environ, "PATH": f"{fake}:{os.environ.get('PATH', '')}", "SSH_ORIGINAL_COMMAND": command}
+            return subprocess.run([str(home / "deploy-gate.sh")], env=env, capture_output=True, text=True)
+
+        r = gate(f"{sha} jameshartt {run}")
+        self.assertEqual(
+            (r.returncode, r.stdout.strip()),
+            (0, f"sudo -n /opt/agentsee/repo/engine/home/deploy.sh {sha} jameshartt {run}"),
+            r.stderr,
+        )
+        self.assertEqual(gate(f"{sha} github-actions[bot] {run}").returncode, 0, "a bot's login")
+        for bad in (
+            "",
+            sha,
+            f"{sha} jameshartt",
+            f"{sha[:7]} jameshartt {run}",
+            f"{sha.upper()} jameshartt {run}",
+            f"{sha} jameshartt https://github.com/someone-else/agentsee.work/actions/runs/41",
+            f"{sha} jameshartt {run} extra",
+            f"{sha} jameshartt {run};id",
+            f"{sha} jameshartt {run}/../41",
+            f"{sha} 'a b' {run}",
+        ):
+            r = gate(bad)
+            self.assertEqual((r.returncode, r.stdout), (2, ""), bad)
+            self.assertIn("refused", r.stderr, bad)
+
+        # ── the wiring the runbook relies on ──
+        self.assertIn("/opt/agentsee/repo/engine/home/deploy.sh", (home / "sudoers-deploy").read_text())
+        self.assertRegex((home / "known_hosts").read_text(), r"(?m)^mail\.agentsee\.work ssh-ed25519 ")
+        flow = (ledger.ROOT / ".github" / "workflows" / "check.yml").read_text()
+        self.assertIn("needs: [engine, ruff]", flow)
+        self.assertIn("UserKnownHostsFile=engine/home/known_hosts", flow)
+        self.assertIn("deploy@mail.agentsee.work", flow)
+        compose = (home / "docker-compose.yml").read_text()
+        self.assertIn("healthcheck:", compose)
+        self.assertIn("8877/health", compose)
 
 
 if __name__ == "__main__":

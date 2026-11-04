@@ -181,20 +181,92 @@ docker compose run --rm engine op run --env-file=engine/engine.env -- python3 en
 which fetches `engine/ledger-latest.sqlite` into place (a dated copy with
 `--key engine/ledger-YYYY-MM-DD.sqlite`; `--force` over a ledger that
 exists). The tunnel token and the service-account token come from the
-vault again. Nothing else is state.
+vault again, and so does the deploy key: redo the box half of "Setting it
+up, once" (the user, its authorized_keys line, the sudoers file). The new
+box has a new host key, and the deploy job pins the old one, so
+`ssh-keyscan -t ed25519 mail.agentsee.work` goes into `known_hosts` here,
+in a PR, before the next merge is expected to deploy. Nothing else is
+state.
 
-## Deploying a change
+## Deploying on green
+
+A merge to `main` deploys itself. The Check workflow's deploy job
+(`.github/workflows/check.yml`) runs once the suite and Ruff are green: one
+SSH connection to the box as the `deploy` user, whose key can run
+`deploy-gate.sh` and nothing else (`restrict,command=…` on its
+authorized_keys line; sshd ignores whatever the client asked for). The gate
+checks the three words the job sends (the commit, who merged, the run's
+URL) and runs `deploy.sh` as root, the one command `sudoers-deploy` allows
+it. That script fast-forwards `/opt/agentsee/repo` to the commit, which
+must be on `origin/main`, and does the least that makes it live: nothing
+when the engine reads none of what changed, a restart for code, a recreate
+when `engine/engine.env` or the compose file changed, a build and up when
+the Dockerfile did. Then it waits for the container's healthcheck
+(docker-compose.yml). If the engine is not healthy within a minute, the
+checkout goes back to the commit that was running, the container comes
+back on it, and the run goes red with the engine's last log lines. The
+outcome is written to `/var/lib/agentsee-engine/deploy.json`, and Health
+shows it under "Last deploy", beside "Running", the commit the engine
+started on. The box's own trail is `journalctl -t agentsee-deploy`.
+
+What still needs a hand: a vault item before a line is added to
+`engine/engine.env` (`op run` refuses to start without it, and the deploy
+rolls back), and a one-off command a change asks for, like
+`release normalise`. A PR says so when it does.
+
+Whoever can push to `main` can run anything as root on the box, through
+the deploy; that was already so, since the engine's code runs there.
+
+By hand, as root on the box, the same script:
 
 ```sh
-cd /opt/agentsee/repo && git pull
-cd /opt/agentsee/engine && docker compose restart engine
+cd /opt/agentsee/repo && git fetch -q origin && engine/home/deploy.sh "$(git rev-parse origin/main)"
 ```
+
+### Setting it up, once
+
+On a workstation, with the vault: a key pair that lives in 1Password, its
+private half in the repository's Actions secrets, never on a disk.
+
+```sh
+op item create --category "SSH Key" --title "Engine deploy key" --vault Engineering --ssh-generate-key ed25519
+op read "op://Engineering/Engine deploy key/private key?ssh-format=openssh" | gh secret set ENGINE_DEPLOY_KEY --repo agentsee-work/agentsee.work
+op read "op://Engineering/Engine deploy key/public key"      # for the box, below
+```
+
+On the box, as root, after a `git pull` that has this section:
+
+```sh
+useradd --system --create-home --home-dir /var/lib/agentsee-deploy --shell /bin/sh deploy
+install -d -m 0700 -o deploy -g deploy /var/lib/agentsee-deploy/.ssh
+$EDITOR /var/lib/agentsee-deploy/.ssh/authorized_keys
+```
+
+one line, the public key with the gate in front of it:
+
+```
+restrict,command="/opt/agentsee/repo/engine/home/deploy-gate.sh" ssh-ed25519 AAAA… Engine deploy key
+```
+
+then
+
+```sh
+chown deploy:deploy /var/lib/agentsee-deploy/.ssh/authorized_keys && chmod 0600 /var/lib/agentsee-deploy/.ssh/authorized_keys
+install -m 0440 /opt/agentsee/repo/engine/home/sudoers-deploy /etc/sudoers.d/agentsee-deploy && visudo -c
+cd /opt/agentsee/engine && docker compose up -d        # the compose file gained the healthcheck
+```
+
+The next merge to `main` is the proof: Actions, Check, "Deploy the
+engine", and Health's "Last deploy". `known_hosts` here pins the box's host
+key, so the job can only be talking to the box; a rebuilt box has a new
+one, and "Rebuilding" says what to do.
 
 The code is mounted read-only; the image changes only when the interpreter,
 the op CLI or the one Python package (fpdf2, for the release's PDF) should
-(`docker compose build`, then `up -d`). When the pull adds a line to
-`engine/engine.env`, a restart is not enough: `op run` reads the file at
-container start, so it is `docker compose up -d --force-recreate engine`,
+(`docker compose build`, then `up -d`), which `deploy.sh` does when the
+Dockerfile changed. When a change adds a line to `engine/engine.env`, a
+restart is not enough: `op run` reads the file at container start, so it is
+`docker compose up -d --force-recreate engine` (the script's "recreate"),
 and the vault item the new line names must exist first, or `op run`
 refuses to start and the log says which reference it could not resolve.
 
