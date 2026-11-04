@@ -116,8 +116,9 @@ def see_page(title, body, lifted=None):
         '<p class="footer-note">This host, unlike the rest of agentsee.work, sets two cookies of its own, both for '
         "the door: one that binds a code to this device for ten minutes, one that keeps you signed in for thirty days. "
         "No trackers, no analytics, no third-party requests of any kind. The office keeps your address, when you "
-        "signed in and from what; nothing else, and nothing is shared or sold. "
-        f'The site\'s <a href="{site}/privacy/">privacy notice</a> covers the rest.</p>'
+        "signed in and from what, and what you give it to make your episode: your words, your signatures, your "
+        "booking, your photograph. Nothing is shared or sold. "
+        f'The site\'s <a href="{site}/privacy/">privacy notice</a> says where each of those goes and for how long.</p>'
     )
     footer = re.sub(r'<p class="footer-note">.*?</p>', lambda m: note, footer, count=1, flags=re.S)
     return f"""<!doctype html>
