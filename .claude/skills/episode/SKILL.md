@@ -12,7 +12,10 @@ Output goes to `build/episodes/<slug>/` and is never committed.
 
 1. **Ingest.** The user downloads the Riverside package (Export all → Premiere
    Pro → Export → Timeline). Then:
-   `./tools/episode.py new <slug> <zip> --number N --title "..." --names <id>=<Full Name>,...`
+   `./tools/episode.py new <slug> <zip> --title "..." --names <id>=<Full Name>,... --guest <id>`
+   with `--guest` once per guest, their id from the engine's Guests screen
+   (the hosts' own episodes name none). No `--number`: an episode has no
+   number until it is approved, so the render a guest reviews carries none.
    Track ids are the file prefixes inside the zip; if the names are not known,
    run ingest without them, look at a frame from each video, and ask. Read
    ingest's warnings: if it says Riverside's kept stretches do not line up
@@ -72,11 +75,19 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    approves it. The release warns about anything a platform would reject
    (chapter spacing, lengths, a clip too long for a soundbite); fix the
    cause, not the warning.
-   When the user says the assets are approved, and not before:
-   `./tools/episode.py approve <slug> --release YYYY-MM-DD`, then
-   `./tools/episode.py stage <slug>` to put the masters in the archive and
-   the public files on the media host (it asks 1Password for the token).
-   `stage.py <slug> --dry-run` shows what would go without credentials.
+   A guest's episode goes to the guest first: `./tools/episode.py review
+   <slug>` puts the render in the archive, unnumbered and nowhere public,
+   for the office to show them; `./tools/episode.py notes <slug>` brings
+   their confirmed cuts back into `removals.json` (re-cut, review again)
+   and their name, line and link into `notes.guests`. When the guest has
+   approved on the office, and the user says the assets are approved, and
+   not before: `./tools/episode.py approve <slug> --release YYYY-MM-DD`,
+   which refuses without each guest's approval of the round reviewed, mints
+   the episode number (`--number N` when plans changed), redoes the render
+   with it and records the approval; then `./tools/episode.py stage <slug>`
+   to put the masters in the archive and the public files on the media host
+   (both ask 1Password for the token). `stage.py <slug> --dry-run` shows
+   what would go without credentials.
    Once staged, `./tools/site.py` puts the episode on the site (feed, show
    page, episode page) on or after its release date, and names it with its
    date before then. Commit what it writes only when the user says, because

@@ -2,15 +2,17 @@
 """
 One episode, start to finish.
 
-    ./tools/episode.py new ep0 ~/Downloads/timeline.zip --number 0 \\
-        --title "Introductions and the premise" \\
-        --names 6ac4c0cd="James Hartt",6ac4c0ce="Abrar Mahmood"
-    ./tools/episode.py run ep0                 # everything after ingest
-    ./tools/episode.py run ep0 --from cut      # re-run from a stage
-    ./tools/episode.py run ep0 --only assemble --fast
-    ./tools/episode.py status ep0
-    ./tools/episode.py approve ep0 --release 2026-10-20   # the user has approved the assets
-    ./tools/episode.py stage ep0                          # archive + public media, via op run
+    ./tools/episode.py new ep4 ~/Downloads/timeline.zip --guest k3v9x2 \\
+        --title "What a regulator wants to see" \\
+        --names 6ac4c0cd="James Hartt",6ac4c0ce="Abrar Mahmood",9b1f22aa="Ada Lovelace"
+    ./tools/episode.py run ep4                 # everything after ingest
+    ./tools/episode.py run ep4 --from cut      # re-run from a stage
+    ./tools/episode.py run ep4 --only assemble --fast
+    ./tools/episode.py status ep4
+    ./tools/episode.py review ep4                         # the render to the archive, for the guest to see
+    ./tools/episode.py notes ep4                          # the guest's confirmed cuts into removals.json
+    ./tools/episode.py approve ep4 --release 2026-11-24   # the guest and the user have approved: the number, the record
+    ./tools/episode.py stage ep4                          # archive + public media, via op run
 
 The stages, each its own tool and each re-runnable on its own:
 
@@ -25,18 +27,28 @@ The stages, each its own tool and each re-runnable on its own:
     release     notes, chapters, transcript, art: the manifest  (release.py)
                 a publisher needs, from what was made
 
-`approve` records who approved the episode and when in episode.json, with
-the hash of every deliverable, sets the release date the plan counts from,
-and refuses while the release carries a warning. `stage` then puts the
-approved episode in the right spot (stage.py: the archive bucket and the
-public media bucket), wrapping itself in `op run` with tools/stage.env so the
-R2 token comes from the vault and nowhere else.
+An episode has no number until it is approved (AGE-112): the render a guest
+reviews carries none on its title card or its art, so a guest who never
+approves leaves no hole in the numbering. `review` puts that render in the
+archive, and nowhere public, for the office to show the guest. `notes`
+brings the guest's confirmed cuts back as removals.json, and the name, line
+and link they gave into the notes. `approve` (office.py) reads each guest's
+approval from the archive and refuses without one, mints the next number
+(or takes `--number N` when plans changed), redoes the render with it,
+records who approved the episode and when in episode.json with the hash of
+every deliverable and of each guest's approval, and sets the release date
+the plan counts from. `stage` then puts the approved episode in the right
+spot (stage.py: the archive bucket and the public media bucket), checking
+the same records once more. `review`, `notes`, `approve` and `stage` wrap
+themselves in `op run` with tools/stage.env so the R2 token comes from the
+vault and nowhere else.
 
 `new` writes build/episodes/<slug>/episode.json — the episode's words: title,
-number, hosts, thumbnail text — and runs ingest. The later tools read that
-file so the title is typed once. Extra arguments for a stage go after `--`:
+hosts, thumbnail text, the guests' ids from the engine's Guests screen — and
+runs ingest. The later tools read that file so the title is typed once.
+Extra arguments for a stage go after `--`:
 
-    ./tools/episode.py run ep0 --only cut -- --slate-in rolling --max-pause 2
+    ./tools/episode.py run ep4 --only cut -- --slate-in rolling --max-pause 2
 """
 
 import argparse
@@ -94,6 +106,16 @@ def stage_cmd(stage, slug, cfg, extra):
     die(f"unknown stage {stage}")
 
 
+def with_vault(cmd):
+    """The command under `op run` with tools/stage.env, unless the R2 credentials are in the
+    environment already (a shell that did that itself)."""
+    if os.environ.get("AWS_SECRET_ACCESS_KEY"):
+        return cmd
+    if not shutil.which("op"):
+        die("the 1Password CLI (op) is not on PATH; tools/stage.env needs it")
+    return ["op", "run", "--env-file", TOOLS / "stage.env", "--", *cmd]
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -102,7 +124,9 @@ def main():
     n.add_argument("slug")
     n.add_argument("package")
     n.add_argument("--title", required=True)
-    n.add_argument("--number", required=True)
+    n.add_argument("--number", help="the episode number, when it is known already; approve mints one otherwise")
+    n.add_argument("--guest", action="append", default=[], metavar="ID",
+                   help="a guest's id from the engine's Guests screen; once per guest")
     n.add_argument("--names", required=True, help="id-prefix=name pairs")
     n.add_argument("--thumb", help="thumbnail words, three max; default is the title")
     n.add_argument("--hosts", help="credits line; default is the show's hosts")
@@ -115,12 +139,22 @@ def main():
     r.add_argument("extra", nargs="*", help="arguments for the stage, after --")
     s = sub.add_parser("status", help="what exists for an episode")
     s.add_argument("slug")
-    ok = sub.add_parser("approve", help="record the user's approval and the release date")
+    rv = sub.add_parser("review", help="the render as it stands to the archive, for the guest to review; nothing public")
+    rv.add_argument("slug")
+    rv.add_argument("--dry-run", action="store_true", help="list what would go; no credentials")
+    nt = sub.add_parser("notes", help="the guest's confirmed cuts into removals.json; their name, line and link into the notes")
+    nt.add_argument("slug")
+    ok = sub.add_parser("approve", help="the guests' approvals, the episode number, the numbered render, the record")
     ok.add_argument("slug")
     ok.add_argument("--release", help="YYYY-MM-DD the episode goes out; default today")
     ok.add_argument("--by", help="who approved it; default the git user")
+    ok.add_argument("--number", help="this number rather than the next free one, when plans changed")
+    ok.add_argument("--no-render", action="store_true",
+                    help="the render already carries the number; do not run cards, assemble, clips and release")
     ok.add_argument("--despite-warnings", action="store_true",
                     help="approve although the release has warnings")
+    ok.add_argument("--despite-guests", action="store_true",
+                    help="approve although a guest's record does not clear it; the record says so")
     st = sub.add_parser("stage", help="upload the approved episode: archive and public media")
     st.add_argument("slug")
     st.add_argument("--dry-run", action="store_true", help="list what would go; no credentials")
@@ -130,6 +164,7 @@ def main():
     if a.cmd == "new":
         d = EPISODES / a.slug
         cfg = {"slug": a.slug, "title": a.title, "number": a.number,
+               "guests": a.guest or None,
                "thumb": a.thumb or a.title, "hosts": a.hosts,
                "date": a.date or dt.date.today().isoformat(),
                "package": str(pathlib.Path(a.package).expanduser().resolve()),
@@ -149,41 +184,51 @@ def main():
                   ("edl.json", "cut"), ("cards/title.mp4", "cards"),
                   ("out/episode.mp3", "assemble (audio)"), ("out/episode.mp4", "assemble (video)"),
                   ("clips.json", "clip list"), ("out/clips", "clips"),
-                  ("out/release.json", "release")]
-        print(f"{a.slug}: {cfg.get('title', '?')} (episode {cfg.get('number', '?')})")
+                  ("out/release.json", "release"), ("out/review.json", "review"),
+                  ("out/staged.json", "staged")]
+        number = f"episode {cfg['number']}" if cfg.get("number") is not None else "no number until approved"
+        guests = ", ".join(cfg.get("guests") or []) or "none"
+        print(f"{a.slug}: {cfg.get('title', '?')} ({number}; guests: {guests})")
         for f, label in checks:
             print(f"  {'done' if (d / f).exists() else '    '}  {label:<18} {f}")
+        rv = d / "out" / "review.json"
+        if rv.exists():
+            r = load_json(rv)
+            print(f"  review round {r.get('round')} sent {str(r.get('at', ''))[:16]}")
         ok = cfg.get("approved")
         print(f"  approved by {ok['by']} on {ok['at'][:10]}, release {ok['release']}" if ok
               else "  not approved")
         return 0
 
+    if a.cmd == "review":
+        cmd = [TOOLS / "stage.py", a.slug, "--review"] + (["--dry-run"] if a.dry_run else [])
+        if not a.dry_run:
+            cmd = with_vault(cmd)
+        return subprocess.call([str(c) for c in cmd])
+
+    if a.cmd == "notes":
+        return subprocess.call([str(c) for c in with_vault([TOOLS / "office.py", "notes", a.slug])])
+
     if a.cmd == "approve":
-        rel = d / "out" / "release.json"
-        if not rel.exists():
+        if not (d / "out" / "release.json").exists():
             die("no out/release.json: run the pipeline first")
-        r = load_json(rel)
-        if r.get("warnings") and not a.despite_warnings:
-            for w in r["warnings"]:
-                print(f"  warning: {w}")
-            die("the release has warnings: fix the cause, or pass --despite-warnings")
-        by = a.by or subprocess.run(["git", "config", "user.name"], capture_output=True,
-                                    text=True).stdout.strip() or os.environ.get("USER", "?")
-        cfg["release"] = a.release or dt.date.today().isoformat()
-        cfg["approved"] = {"by": by, "at": dt.datetime.now().isoformat(timespec="seconds"),
-                           "release": cfg["release"],
-                           "files": {k: v["sha256"] for k, v in r["files"].items()}}
-        save_json(d / "episode.json", cfg)
-        print(f"approved by {by}, release {cfg['release']}, {len(r['files'])} files recorded", flush=True)
-        return subprocess.call([str(TOOLS / "release.py"), a.slug, "--no-art"])
+        cmd = [TOOLS / "office.py", "approve", a.slug]
+        if a.release:
+            cmd += ["--release", a.release]
+        if a.by:
+            cmd += ["--by", a.by]
+        if a.number:
+            cmd += ["--number", a.number]
+        for flag in ("no_render", "despite_warnings", "despite_guests"):
+            if getattr(a, flag):
+                cmd.append("--" + flag.replace("_", "-"))
+        return subprocess.call([str(c) for c in with_vault(cmd)])
 
     if a.cmd == "stage":
         cmd = [TOOLS / "stage.py", a.slug] + (["--dry-run"] if a.dry_run else []) \
             + (["--no-source"] if a.no_source else [])
-        if not a.dry_run and not os.environ.get("AWS_SECRET_ACCESS_KEY"):
-            if not shutil.which("op"):
-                die("the 1Password CLI (op) is not on PATH; tools/stage.env needs it")
-            cmd = ["op", "run", "--env-file", TOOLS / "stage.env", "--", *cmd]
+        if not a.dry_run:
+            cmd = with_vault(cmd)
         return subprocess.call([str(c) for c in cmd])
 
     stages = [a.only] if a.only else STAGES[1:]

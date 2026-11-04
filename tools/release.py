@@ -221,7 +221,9 @@ def clips_out(d, out, edl, words, din, clips, show, ep, names, prev, warn):
         dur = finfo.get("duration", local["duration"])
         n_cues = clip_vtt(mp4.with_suffix(".vtt"), ws)
         cast = " and ".join(n for n in names.values())
-        alt = f"{cast} on the {show['name']}, episode {ep['number']}: {text}"
+        # A review render has no number yet (it is minted at approval, AGE-112).
+        which = f", episode {ep['number']}" if ep.get("number") is not None else ""
+        alt = f"{cast} on the {show['name']}{which}: {text}"
         if len(alt) > 1000:
             alt = alt[:997].rsplit(" ", 1)[0] + "..."
         hook = c.get("hook") or c["title"]
@@ -232,7 +234,7 @@ def clips_out(d, out, edl, words, din, clips, show, ep, names, prev, warn):
                  "source": {"t0": t0, "t1": t1}, "at": at, "end": end,
                  "at_hms": mmss(at) if at is not None else None, "duration": round(dur, 3),
                  "text": text, "alt": alt, "hashtags": tags,
-                 "post": {"text": f"{hook}\n\nFrom {show['name']} episode {ep['number']}, "
+                 "post": {"text": f"{hook}\n\nFrom {show['name']}{' episode ' + str(ep['number']) if ep.get('number') is not None else ''}, "
                                   f"“{ep['title']}”.",
                           "link": ep["url"], "link_at": f"{ep['url']}#t={int(at)}" if at is not None else ep["url"],
                           "at_hms": mmss(at) if at is not None else None},
@@ -290,7 +292,8 @@ def build_notes(ep, show, chapters, links, q_pairs, people_, warn):
 
     # markdown, for reading
     md = [f"# {ep['title']}", "",
-          f"{show['name']}, episode {ep['number']} · {ep['date']} · {ep['duration_hms']}", "",
+          f"{show['name']}{', episode ' + str(ep['number']) if ep.get('number') is not None else ''} · "
+          f"{ep['date']} · {ep['duration_hms']}", "",
           summary, ""]
     if guest_line:
         md += [guest_line, ""]
@@ -334,7 +337,9 @@ def build_notes(ep, show, chapters, links, q_pairs, people_, warn):
     # youtube: the title line, a blank, then the description. Chapter lines
     # starting at 0:00, three or more, ten seconds apart, become the chapter
     # bar and timestamp links; the rules are checked below.
-    yt_title = show["youtube"]["title"].format(title=ep["title"], show=show["name"], number=ep["number"])
+    # Without a number (a review render) the title is the title and the show.
+    yt_title = (show["youtube"]["title"].format(title=ep["title"], show=show["name"], number=ep["number"])
+                if ep.get("number") is not None else f"{ep['title']} | {show['name']}")
     yt = [summary]
     if guest_line:
         yt.append(guest_line)
@@ -373,7 +378,8 @@ def episode_art(out, ep, theme, prev, force):
         return sig, False
     from banner import render
     from show import build
-    html_, w, h = build("episodeart", theme, ep["title"], None, number=ep["number"])
+    html_, w, h = build("episodeart", theme, ep["title"], None,
+                        number=ep["number"] if ep.get("number") is not None else "")
     render(html_, png, w, h)
     from PIL import Image
     Image.open(png).convert("RGB").resize((1400, 1400), Image.LANCZOS).save(jpg, quality=90)
@@ -415,7 +421,7 @@ def main():
     din = qc["timings"]["dialogue_in"]
     names = words.get("speakers", {})
     total = qc.get("episode_mp4_duration") or qc["timings"]["total"]
-    ep = {"number": cfg["number"], "season": cfg.get("season"), "type": cfg.get("type", "full"),
+    ep = {"number": cfg.get("number"), "season": cfg.get("season"), "type": cfg.get("type", "full"),
           "title": cfg["title"], "slug": a.slug, "guid": guid, "date": cfg["date"],
           "release": cfg.get("release") or cfg["date"], "explicit": bool(cfg.get("explicit", show.get("explicit", False))),
           "duration": round(total, 3), "duration_hms": mmss(total),
