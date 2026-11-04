@@ -19,7 +19,7 @@ The podcast pipeline, one tool per stage, driven by `episode.py`:
 
 | | |
 |---|---|
-| `episode.py` | One episode start to finish: `new` writes episode.json and ingests, `run` does the rest. |
+| `episode.py` | One episode start to finish: `new` writes episode.json and ingests, `run` does the rest; `review`, `notes`, `approve` and `stage` take it through the guest's office to the media host. |
 | `ingest.py` | A Riverside timeline package → `manifest.json`: who is on which track, offsets, layout, chapters. |
 | `transcribe.py` | faster-whisper per track, on the GPU: every word timed, speaker known. |
 | `fillers.py` | erm per track: a verbatim transcript with every um as a timed token, and its acoustic cut list. Feeds `cut.py`. |
@@ -29,7 +29,8 @@ The podcast pipeline, one tool per stage, driven by `episode.py`:
 | `cards.py` | Title and end cards animated through `eyeanim.py`'s chains; chapter cards. |
 | `assemble.py` | Gate, match and mix the voices, lay the cues, cut and compose the video. Every deliverable. |
 | `clips.py` | Vertical clips from `clips.json`, both hosts stacked, captions lit word by word. |
-| `stage.py` | An approved episode to R2: the package, the edit and every deliverable to the private archive, the public files to `media.agentsee.work`. Refuses what changed since approval; re-runs put only what changed. |
+| `office.py` | The guest office's records, read from the archive: `notes` seeds `removals.json` from the guest's confirmed cuts and the notes from what they gave; `approve` refuses without each guest's approval, mints the episode number, redoes the render with it and records the approval. |
+| `stage.py` | An episode to R2: `--review` puts the unnumbered render in the private archive for the guest to see, and nothing public; the final run puts the package, the edit and every deliverable in the archive and the public files on `media.agentsee.work`. Refuses what changed since approval and a guest's episode the guest has not approved; re-runs put only what changed. |
 | `site.py` | The podcast on the site: the feed, the show page and a page per staged episode, into `public/podcast/`. Lifts the masthead, the ads and the footer from the front page. Commit what it writes. |
 | `directories.py` | Where each released episode is, into its `episode.json` for the episode page, where the short links land: its video and each clip's Short on YouTube (the channel's own uploads, told apart by the short link in each description, public ones only), its link on Apple Podcasts (a public lookup on the guid) and on Spotify (its API, once an app exists). Credentials through `tools/directories.env`; without them Apple alone. Until a directory's link is found, the page links the show there. |
 | `youtube.py` | YouTube for the podcast. `auth` runs Google's consent once in a browser, for the brand channel, and prints the refresh token to file in the vault; upload and the analytics reads come with the publisher. |
@@ -123,10 +124,10 @@ candidate cycle, then cuts from the cleanest one.
 An episode, from the Riverside download to the deliverables:
 
 ```sh
-./tools/episode.py new ep1 ~/Downloads/timeline.zip --number 1 \
-    --title "Running our own mail server, on purpose" \
-    --names 6ac4c0cd="James Hartt",6ac4c0ce="Abrar Mahmood"
-./tools/episode.py run ep1                 # transcribe, cut, cards, assemble
+./tools/episode.py new ep4 ~/Downloads/timeline.zip --guest k3v9x2 \
+    --title "What a regulator wants to see" \
+    --names 6ac4c0cd="James Hartt",6ac4c0ce="Abrar Mahmood",9b1f22aa="Ada Lovelace"
+./tools/episode.py run ep4                 # transcribe, cut, cards, assemble; no number yet
 ./tools/episode.py run ep1 --from assemble # after changing the edit
 ./tools/episode.py status ep1
 ```
@@ -148,9 +149,12 @@ Each stage is its own tool with its own options; the ones worth knowing:
 ./tools/clips.py ep1 --propose 8                        # candidates, with text
 ./tools/clips.py ep1                                    # render clips.json
 ./tools/release.py ep1                                  # release.json, notes, chapters, transcripts, art
-./tools/episode.py approve ep1 --release 2026-10-20     # the user approved the assets; the plan counts from the date
-./tools/episode.py stage ep1                            # archive + public media, R2 token via op run (tools/stage.env)
-./tools/stage.py ep1 --dry-run                          # what would go, without credentials
+./tools/episode.py review ep4                           # the render to the archive for the guest; nothing public
+./tools/episode.py notes ep4                            # the guest's confirmed cuts into removals.json; re-cut, review again
+./tools/episode.py approve ep4 --release 2026-11-24     # the guest's approval checked, the number minted, the render redone, the record
+./tools/episode.py approve ep4 --number 7               # when plans changed; never a number another staged episode has
+./tools/episode.py stage ep4                            # archive + public media, R2 token via op run (tools/stage.env)
+./tools/stage.py ep4 --dry-run                          # what would go, without credentials; --review --dry-run likewise
 ```
 
 The pipeline needs numpy, scipy, soundfile, Pillow and fontTools in the

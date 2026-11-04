@@ -363,15 +363,53 @@ runs in seconds, and is safe to re-run.
 - **A day-by-day plan**: the episode on the release day, one clip a day
   after it, for a publisher to follow or override.
 
-**Approval.** `episode.py approve <slug> --release YYYY-MM-DD` records who
-approved the episode and when in `episode.json`, with the hash of every
-deliverable, sets the release date the plan counts from, and refuses while
-the release carries a warning. `episode.py stage <slug>` then puts the
-approved episode in the right spot (`stage.py`): the Riverside package, the
-edit as data and every deliverable to the private archive bucket, and the
-public files (mp3, clips, art, transcripts, chapters) to the media bucket
-behind `media.agentsee.work`, both declared in `infra/podcast/`, an OpenTofu
-root of its own with its own token and state. A Worker on a route in front of
+**Review, approval and the number.** An episode has no number until it is
+approved (AGE-112): the number is on the title card inside the video, on
+the art, in the YouTube title and on the site, and a guest who never
+approved would otherwise leave a hole or force a re-render of everything
+after. `episode.py review <slug>` puts the render as it stands in the
+archive, under `episodes/<slug>/review/`, with a `review.json` that says
+which round it is and which files changed since the last, and a copy of
+that record at `guests/<id>/review.json` for each guest `episode.json`
+names (`"guests"`: their ids on the engine's Guests screen), which is where
+the office finds it to show them (AGE-111). Nothing goes to the media host,
+whose paths are guessable by slug. The guest's notes come back the same
+way: `episode.py notes <slug>` reads `guests/<id>/notes.json`, puts each
+confirmed cut into `removals.json` as the phrase `cut.py` takes, and fills
+`notes.guests` with the name, line and link they gave the office; re-cut,
+and review again. `episode.py approve <slug> --release YYYY-MM-DD`
+(`office.py`) then reads each guest's `guests/<id>/approval.json` and
+refuses an episode whose guest has not approved, approved another round,
+or whose `edl.json` is not the one that round reviewed (`--despite-guests`
+waives that, and the record says so); drops a clip the guest vetoed; mints
+the number, one more than the highest on a staged episode in the archive
+or an approved one here (`--number N` picks another, never one on another
+staged episode); redoes the render with it (`run --from cards`: the title
+card, the mp3's tag, the art, the notes; `--no-render` when that was done);
+records who approved the episode and when in `episode.json` with the hash
+of every deliverable and of each guest's approval; sets the release date
+the plan counts from; and refuses while the release carries a warning.
+`episode.py stage <slug>` then puts the approved episode in the right spot
+(`stage.py`), checking the guests' records once more, so a guest's episode
+cannot reach the media host without their approval of the round that went
+for review: the Riverside package, the edit as data and every deliverable
+to the private archive bucket, and the public files (mp3, clips, art,
+transcripts, chapters) to the media bucket behind `media.agentsee.work`,
+both declared in `infra/podcast/`, an OpenTofu root of its own with its own
+token and state.
+
+What the office writes and the pipeline reads, under `guests/<id>/` in the
+archive: `guest.json`, the engine's record of the guest (`name`,
+`shown_name`, `bio`, `link`, `tz`); `notes.json`, their review notes,
+`{"rounds": [{"n", "at", "notes": [{"at", "text", "remove": {"phrase",
+"near"}, "confirmed"}]}]}`, a cut confirmed as the words to remove;
+`approval.json`, their approval, `{"at", "review": {"round"}, "episode":
+true, "clips": {"vetoed": [...]}, "signature": {...}}`, a vetoed clip named
+as the review's `release.json` names it (its file, slug, title or index).
+What the pipeline writes for the office: `review.json` as above, and the
+render itself under `episodes/<slug>/review/`, which the office streams to
+the guest through signed links. The hosts' own episodes name no guest and
+go straight from `approve` to `stage`. A Worker on a route in front of
 the media host serves the bucket and writes one row per request to Analytics
 Engine, the address hashed at the edge; `infra/podcast/workers/README.md` maps
 the columns the download counting is done from. It refuses an
@@ -569,9 +607,9 @@ build/venv-align/bin/pip install torch transformers
 python3 -m venv build/venv-transcribe     # only needed without erm
 build/venv-transcribe/bin/pip install faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12
 
-./tools/episode.py new ep1 ~/Downloads/timeline.zip --number 1 \
+./tools/episode.py new ep1 ~/Downloads/timeline.zip \
     --title "Running our own mail server, on purpose" \
-    --names 6ac4c0cd="James Hartt",6ac4c0ce="Abrar Mahmood"
+    --names 6ac4c0cd="James Hartt",6ac4c0ce="Abrar Mahmood"   # --guest <id> per guest; no number: approve mints it
 ./tools/episode.py run ep1
 ./tools/cut.py ep1 --show                  # read the edit before trusting it
 ./tools/clips.py ep1 --propose 8           # then write clips.json, and
