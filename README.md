@@ -154,13 +154,18 @@ site is `public/`, which neither check looks at.
 
 ## Deploying
 
-**Pushing to `main` publishes the site.** `.github/workflows/deploy.yml` runs
-`wrangler pages deploy public`, then polls the live URL until it serves 200, so
-a green tick means the page is actually up rather than that the upload
+**Pushing to `main` publishes the site, when the push touched it.** The site is
+`public/`, uploaded as it is, so `.github/workflows/deploy.yml` runs for a push
+that changes something under `public/` (or the workflow itself) and not for one
+that changes only the engine, the tools, infra or the docs. When it runs, it
+runs `wrangler pages deploy public`, then polls the live URL until it serves
+200, so a green tick means the page is actually up rather than that the upload
 returned. It also refuses to deploy if anything credential-shaped is in the
 tree, and warns when the Cloudflare token is within three weeks of expiry.
 
-Merging a pull request is therefore a publish. There is no separate step.
+Merging a pull request that touches `public/` is therefore a publish. There is
+no separate step. A run by hand (`workflow_dispatch`) has no filter and
+publishes whatever `main` is.
 
 **The working copy remains the path that cannot be blocked.** The workflow is a
 convenience, not the source of truth. If it is red, or GitHub is down, or you

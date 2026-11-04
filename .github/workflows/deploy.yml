@@ -1,6 +1,11 @@
 name: Deploy
 
-# Pushing to main publishes the site.
+# Pushing to main publishes the site, when the push touched it. The site is
+# public/, uploaded as it is, so a merge that changes only the engine, the
+# tools, infra or the docs has nothing to publish and runs no deploy: the
+# paths filter below keeps the workflow to pushes that change something under
+# public/ (or this file). A run by hand (workflow_dispatch) has no filter and
+# publishes whatever main is.
 #
 # This is a convenience, not the source of truth. Deploys can always be run
 # straight from a working copy with `wrangler pages deploy .` — see the README.
@@ -10,6 +15,9 @@ name: Deploy
 on:
   push:
     branches: [main]
+    paths:
+      - public/**
+      - .github/workflows/deploy.yml
   workflow_dispatch:
 
 # A newer push should win rather than queue behind an older one, but never

@@ -75,10 +75,13 @@ Three routes, in order of how much you should trust them:
 
 1. **Direct upload** — `npx wrangler pages deploy public --project-name=agentsee`.
    Does not touch GitHub. This is the one that always works.
-2. **Push to `main`** — `.github/workflows/deploy.yml` publishes and then polls
-   `agentsee.work` until it returns 200, so a green tick means the site really
-   served, not just that wrangler exited 0.
-3. **Manual** — `workflow_dispatch` on the same workflow.
+2. **Push to `main`** — when the push changes something under `public/` (the
+   workflow has a paths filter, so an engine-only merge runs no deploy),
+   `.github/workflows/deploy.yml` publishes and then polls `agentsee.work`
+   until it returns 200, so a green tick means the site really served, not
+   just that wrangler exited 0.
+3. **Manual** — `workflow_dispatch` on the same workflow. No filter: it
+   publishes whatever `main` is.
 
 If Actions is red and you need to publish, use route 1.
 
