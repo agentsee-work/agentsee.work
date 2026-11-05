@@ -294,7 +294,16 @@ host's content security policy names the archive for that. A note takes the
 moment in the player it is about (`static/review.js`) or one typed as
 `m:ss`; every note is sent as it is made, to `guests/<id>/notes.json`, to
 the hosts by mail and to the issue (the job `noted`); the page runs the
-episode, the notes under it, the clips, then the approval. The
+episode, the notes under it, the clips, then the approval. A note that
+asks for a removal is read by the model (`idea.py`'s settings and key)
+with the round's transcript, the window around the note's moment or the
+whole; the words it names are checked to occur in the transcript exactly
+once, compared the way `tools/cut.py` compares them, and shown to the
+guest to confirm or decline (the job `cut`), so `notes.json` carries the
+cut as `remove.phrase` with `confirmed` and `episode.py notes` takes it
+into `removals.json` verbatim; words the model named that are not there,
+or the model down, leave a plain note and an event. A later round lists
+the last round's notes with their cuts, as a record. The
 approval is a second signature made and kept like the release's: the name
 typed, the address, the time, the IP and device, and the hash of the
 round's record, with the clips vetoed named as the review's `release.json`

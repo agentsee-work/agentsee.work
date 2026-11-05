@@ -129,6 +129,8 @@ MIGRATIONS = [
     ("guest", "bio", "TEXT"),
     ("guest", "link", "TEXT"),
     ("guest", "tz", "TEXT"),
+    ("review_note", "remove", "TEXT"),
+    ("review_note", "confirmed", "INTEGER"),
 ]
 
 STATUSES = {
