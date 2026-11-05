@@ -750,7 +750,6 @@ def get(h, c, path, q):
         "/time/ask",
         "/time/withdraw",
         "/review/note",
-        "/review/send",
         "/review/approve",
     ):
         return h.redirect("/")
@@ -923,15 +922,12 @@ def post(h, c, path, form, files=None):
         if live(h):
             return answer(h, 200, ok=True, go="/release")
         return h.redirect("/release")
-    if path in ("/review/note", "/review/send"):
+    if path == "/review/note":
         g, s = current(c, h)
         if not g:
             return h.redirect("/")
-        try:
-            if path == "/review/note":
-                review.add_note(c, g, form.get("text"), form.get("at"))
-            else:
-                tell(c, g, "noted", s["address"], **review.send_notes(c, g, s["address"]))
+        try:  # a note is sent as it is made: to the archive, to the hosts by mail, to the issue
+            tell(c, g, "noted", s["address"], **review.add_note(c, g, form.get("text"), form.get("at")))
         except review.ReviewError as e:
             if live(h):
                 return answer(h, 400, ok=False, error=str(e))
@@ -939,8 +935,9 @@ def post(h, c, path, form, files=None):
         mirror(c, g["id"])
         if live(h):
             row = review.current(c, g["id"])
-            said = idea.word("Saved." if path == "/review/note" else "Sent.")
-            return answer(h, 200, ok=True, sections=[{"id": "notes", "html": review.notes_body(c, g, row, said)}])
+            return answer(
+                h, 200, ok=True, sections=[{"id": "notes", "html": review.notes_body(c, g, row, idea.word("Sent."))}]
+            )
         return h.redirect("/review#notes")
     if path == "/review/approve":
         g, s = current(c, h)
