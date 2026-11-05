@@ -36,6 +36,7 @@ import linear
 import mail
 import publish
 import release
+import review
 import schedule
 from pages import button, composer, esc, link, page, section, status, table, when
 from plan import ACCOUNTS, short
@@ -670,7 +671,7 @@ class App(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", cache)
-        self.send_header("Content-Security-Policy", guests.csp(CSP) if guests.is_guest_host(self) else CSP)
+        self.send_header("Content-Security-Policy", guests.csp(CSP))  # both hosts stream the review from the archive
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         # The guest host's door checks a POST's Origin, and under no-referrer a browser sends `Origin: null` with
@@ -722,7 +723,7 @@ class App(BaseHTTPRequestHandler):
                 c.close()
         if path == "/":
             return self.redirect("/episodes")
-        if path in ("/engine.css", "/sign.js"):
+        if path in ("/engine.css", "/sign.js", "/office.js", "/review.js"):
             return self.static(STATIC, path[1:])
         if path.startswith("/assets/"):
             return self.static(PUBLIC / "assets", path[8:])
@@ -776,6 +777,13 @@ class App(BaseHTTPRequestHandler):
             if m:
                 r = guests.guest_page(c, m.group(1), CSRF, q.get("msg"), self.who())
                 return self.html(*r) if r else self.fail(404, "No such guest")
+            m = re.fullmatch(r"/guests/([0-9a-f]{8})/review", path)
+            if m:
+                g = guests.guest(c, m.group(1))
+                if not g:
+                    return self.fail(404, "No such guest")
+                host = guests.host_name(self.who())
+                return self.html(*review.host_review_page(c, g, host, CSRF, q.get("msg")))
             return self.fail(404, "No such page")
         finally:
             c.close()
@@ -867,6 +875,36 @@ class App(BaseHTTPRequestHandler):
                 except ValueError as e:
                     msg = str(e)
                 return self.redirect(f"/guests/{g['id']}?" + urllib.parse.urlencode({"msg": msg}))
+            m = re.fullmatch(r"/guests/([0-9a-f]{8})/review/(note|cut|approve)", path)
+            if m:  # a host's note, their word on its cut, or their approval of the round (review.py)
+                g = guests.guest(c, m.group(1))
+                if not g:
+                    return self.fail(404, "No such guest")
+                host, what = guests.host_name(who), m.group(2)
+                ip, ua = guests.client_ip(self), self.headers.get("User-Agent", "")
+                try:
+                    if what == "note":
+                        told = review.add_note(c, g, form.get("text"), form.get("at"), by=host)
+                        guests.tell(c, g, "noted", who, **told)
+                    elif what == "cut":
+                        yes = form.get("answer") == "yes"
+                        guests.tell(c, g, "cut", who, **review.answer_cut(c, g, int(form.get("id") or 0), yes, by=host))
+                    else:
+                        guests.tell(c, g, "host_approved", who, **review.approve_as_host(c, g, host, who, ip, ua))
+                except review.ReviewError as e:
+                    if guests.live(self):
+                        return guests.answer(self, 400, ok=False, error=str(e))
+                    return self.redirect(f"/guests/{g['id']}/review?" + urllib.parse.urlencode({"msg": str(e)}))
+                guests.mirror(c, g["id"])
+                sec = "approve" if what == "approve" else "notes"
+                if guests.live(self):
+                    row = review.current(c, g["id"])
+                    if sec == "approve":
+                        html = review.hosts_body(c, g, row, host, CSRF)
+                    else:
+                        html = review.notes_body(c, g, row, review.said("Sent.") if what == "note" else "", host, CSRF)
+                    return guests.answer(self, 200, ok=True, sections=[{"id": sec, "html": html}])
+                return self.redirect(f"/guests/{g['id']}/review#{sec}")
             m = re.fullmatch(r"/posts/(\d+)/(text|schedule|publish|retry|skip|unskip|done)", path)
             if not m:
                 return self.fail(404, "No such action")

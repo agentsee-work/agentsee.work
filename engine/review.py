@@ -214,10 +214,11 @@ def notes(c, gid, slug=None, rnd=None):
     ).fetchall()
 
 
-def add_note(c, g, text, at_text, env=None, client=None):
+def add_note(c, g, text, at_text, env=None, client=None, by=None):
     """A note, sent as it is made: kept, read for a cut, mirrored to the
-    archive, mailed to the hosts; returns what the issue's job needs
-    (guests.tell)."""
+    archive, the hosts told by mail when it is the guest's. `by` is a host's
+    name when a host leaves it from the engine; the guest's notes carry none.
+    Returns what the issue's job needs (guests.tell)."""
     row = current(c, g["id"])
     if not row:
         raise ReviewError("Nothing to note yet")
@@ -227,18 +228,18 @@ def add_note(c, g, text, at_text, env=None, client=None):
     t = parse_t(at_text)
     at = ledger.now()
     c.execute(
-        "INSERT INTO review_note (guest, slug, round, t, text, at, sent_at) VALUES (?,?,?,?,?,?,?)",
-        (g["id"], row["slug"], row["round"], t, text, at, at),
+        "INSERT INTO review_note (guest, slug, round, t, text, at, sent_at, author) VALUES (?,?,?,?,?,?,?,?)",
+        (g["id"], row["slug"], row["round"], t, text, at, at, by),
     )
     nid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
     ledger.event(
         c,
-        "guest:noted",
-        g["address"],
+        "host:noted" if by else "guest:noted",
+        by or g["address"],
         detail={"slug": row["slug"], "round": row["round"], "t": t, "text": text[:200]},
         guest=g["id"],
     )
-    cut = find_cut(c, g, row, text, t, os.environ if env is None else env, client)
+    cut = find_cut(c, g, row, text, t, os.environ if env is None else env, client, who="host" if by else "guest")
     if cut and cut.get("phrase"):
         c.execute(
             "UPDATE review_note SET remove=? WHERE id=?",
@@ -246,15 +247,17 @@ def add_note(c, g, text, at_text, env=None, client=None):
         )
     mirror_notes(c, g, client)
     title = title_of(row)
-    line = f"- {'at ' + mmss(t) + ': ' if t is not None else ''}{text}"
-    if cut and cut.get("phrase"):
-        line += f'\n\nThey asked for a cut. The words found in the transcript, awaiting their confirmation: "{cut["phrase"]}"'
-    elif cut:
-        line += "\n\nThey asked for a cut, but the words could not be found in the transcript; read the note."
-    body = NOTES_MAIL.format(
-        name=g["name"], round=row["round"], title=title, host=office(), notes=line, gid=g["id"], slug=row["slug"]
-    )
-    mailed = _mail_hosts(c, g, f"{g['name']}'s note on round {row['round']} of {title}", body)
+    mailed = False
+    if not by:
+        line = f"- {'at ' + mmss(t) + ': ' if t is not None else ''}{text}"
+        if cut and cut.get("phrase"):
+            line += f'\n\nThey asked for a cut. The words found in the transcript, awaiting their confirmation: "{cut["phrase"]}"'
+        elif cut:
+            line += "\n\nThey asked for a cut, but the words could not be found in the transcript; read the note."
+        body = NOTES_MAIL.format(
+            name=g["name"], round=row["round"], title=title, host=office(), notes=line, gid=g["id"], slug=row["slug"]
+        )
+        mailed = _mail_hosts(c, g, f"{g['name']}'s note on round {row['round']} of {title}", body)
     return {
         "slug": row["slug"],
         "round": row["round"],
@@ -263,6 +266,7 @@ def add_note(c, g, text, at_text, env=None, client=None):
         "notes": [{"t": t, "text": text}],
         "cut": (cut or {}).get("phrase"),
         "missed": bool(cut and not cut.get("phrase")),
+        "by": by,
         "mailed": mailed,
     }
 
@@ -294,7 +298,7 @@ def occurrences(segs, phrase):
     return sum(1 for i in range(len(toks) - len(target) + 1) if toks[i : i + len(target)] == target)
 
 
-def find_cut(c, g, row, text, t, env, client=None):
+def find_cut(c, g, row, text, t, env, client=None, who="guest"):
     """What the note asks to remove, as the words of the transcript, found by
     the model and checked here: None when the note is not a cut or the model
     is not set up; {"phrase", "why"} when the words occur in the transcript
@@ -310,7 +314,7 @@ def find_cut(c, g, row, text, t, env, client=None):
         shown = [s for s in segs if t - CUT_WINDOW <= s[0] <= t + CUT_WINDOW] or segs
     lines = "\n".join(f"[{mmss(s)}] {spk}: {body}" for s, spk, body in shown)
     moment = f", about the moment {mmss(t)}" if t is not None else ""
-    user = f'The guest\'s note{moment}:\n"{text}"\n\nThe transcript{", around that moment" if t is not None else ""}:\n{lines}'
+    user = f'The {who}\'s note{moment}:\n"{text}"\n\nThe transcript{", around that moment" if t is not None else ""}:\n{lines}'
     try:
         answer, usage, stop, model = idea.request(env, CUT_SYSTEM, [{"role": "user", "content": user}])
         m = re.search(r"\{.*\}", answer, re.S)
@@ -328,19 +332,23 @@ def find_cut(c, g, row, text, t, env, client=None):
     return {"phrase": None}
 
 
-def answer_cut(c, g, nid, yes, client=None):
-    """The guest's word on the words found: confirmed, which the pipeline takes into removals.json, or not."""
+def answer_cut(c, g, nid, yes, client=None, by=None):
+    """The word on the words found, by whoever left the note (the guest on the
+    office, a host on the engine): confirmed, which the pipeline takes into
+    removals.json, or not."""
     n = c.execute("SELECT * FROM review_note WHERE id=? AND guest=?", (nid, g["id"])).fetchone()
     if not n or not n["remove"]:
         raise ReviewError("No cut to answer")
+    if bool(n["author"]) != bool(by):
+        raise ReviewError("That note is not yours to answer")
     if n["confirmed"] is not None:
         raise ReviewError("You answered that one already")
     c.execute("UPDATE review_note SET confirmed=? WHERE id=?", (1 if yes else 0, nid))
     phrase = json.loads(n["remove"])["phrase"]
     ledger.event(
         c,
-        "guest:cut:confirmed" if yes else "guest:cut:declined",
-        g["address"],
+        f"{'host' if by else 'guest'}:cut:{'confirmed' if yes else 'declined'}",
+        by or g["address"],
         detail={"slug": n["slug"], "round": n["round"], "phrase": phrase[:200]},
         guest=g["id"],
     )
@@ -348,18 +356,19 @@ def answer_cut(c, g, nid, yes, client=None):
     row = current(c, g["id"])
     title = title_of(row) if row else n["slug"]
     what = "confirmed the cut" if yes else "decided against the cut"
-    _mail_hosts(
-        c,
-        g,
-        f"{g['name']} {what} on round {n['round']} of {title}",
-        f'Hello,\n\n{g["name"]} {what} on round {n["round"]} of "{title}" through {office()}:\n\n"{phrase}"\n\n'
-        + (
-            f"guests/{g['id']}/notes.json carries it as confirmed; `episode.py notes {n['slug']}` takes it into "
-            "removals.json."
-            if yes
-            else "The words stay; the note itself stands."
-        ),
-    )
+    if not by:
+        _mail_hosts(
+            c,
+            g,
+            f"{g['name']} {what} on round {n['round']} of {title}",
+            f'Hello,\n\n{g["name"]} {what} on round {n["round"]} of "{title}" through {office()}:\n\n"{phrase}"\n\n'
+            + (
+                f"guests/{g['id']}/notes.json carries it as confirmed; `episode.py notes {n['slug']}` takes it into "
+                "removals.json."
+                if yes
+                else "The words stay; the note itself stands."
+            ),
+        )
     return {
         "slug": n["slug"],
         "round": n["round"],
@@ -367,7 +376,82 @@ def answer_cut(c, g, nid, yes, client=None):
         "text": n["text"],
         "phrase": phrase,
         "confirmed": yes,
+        "by": by,
     }
+
+
+# ─── the hosts' approvals ────────────────────────────────────────────────────
+def hosts():
+    return list(ledger.CONFIG.get("hosts") or [])
+
+
+def host_approvals(c, gid, row):
+    return c.execute(
+        "SELECT * FROM host_approval WHERE guest=? AND slug=? AND round=? ORDER BY id", (gid, row["slug"], row["round"])
+    ).fetchall()
+
+
+def approve_as_host(c, g, host, who, ip, ua, client=None):
+    """One host's approval of the round in hand, from the engine: recorded
+    like the release's host signatures (who, when, from where, the hash of
+    the round's record), mirrored for the pipeline. Returns what the issue's
+    job needs."""
+    row = current(c, g["id"])
+    if not row:
+        raise ReviewError("Nothing to approve yet")
+    if host not in hosts():
+        raise ReviewError(f"This engine's hosts are {' and '.join(hosts())}; you are {who}")
+    if any(r["host"] == host for r in host_approvals(c, g["id"], row)):
+        raise ReviewError(f"You approved round {row['round']} already")
+    at, sha = ledger.now(), hashlib.sha256(row["record"].encode("utf-8")).hexdigest()
+    c.execute(
+        "INSERT INTO host_approval (guest, slug, round, host, who, ip, ua, at, sha256) VALUES (?,?,?,?,?,?,?,?,?)",
+        (g["id"], row["slug"], row["round"], host, who, ip, (ua or "")[:300], at, sha),
+    )
+    ledger.event(
+        c,
+        "host:approved",
+        who,
+        detail={"host": host, "slug": row["slug"], "round": row["round"], "ip": ip},
+        guest=g["id"],
+    )
+    mirror_hosts(c, g, row, client)
+    done = [r["host"] for r in host_approvals(c, g["id"], row)]
+    return {
+        "host": host,
+        "slug": row["slug"],
+        "round": row["round"],
+        "title": title_of(row),
+        "approved": done,
+        "waiting": [h for h in hosts() if h not in done],
+        "guest_approved": bool(approval(c, g["id"], row)),
+    }
+
+
+def hosts_record(c, g, row):
+    """The hosts' approvals of the round, the way `episodes/<slug>/review/hosts.json` holds them for the pipeline."""
+    return {
+        "slug": row["slug"],
+        "round": row["round"],
+        "sha256": hashlib.sha256(row["record"].encode("utf-8")).hexdigest(),
+        "hosts": hosts(),
+        "approvals": [
+            {"host": r["host"], "who": r["who"], "at": r["at"], "ip": r["ip"], "ua": r["ua"], "sha256": r["sha256"]}
+            for r in host_approvals(c, g["id"], row)
+        ],
+    }
+
+
+def mirror_hosts(c, g, row, client=None):
+    key = f"episodes/{row['slug']}/review/hosts.json"
+    try:
+        (client or archive.Client()).put_bytes(
+            key, json.dumps(hosts_record(c, g, row), indent=1).encode("utf-8"), "application/json"
+        )
+    except archive.ArchiveError as e:
+        ledger.event(c, "review:mirror:failed", "engine", detail={"key": key, "error": str(e)[:300]}, guest=g["id"])
+        return None
+    return key
 
 
 def notes_record(c, gid):
@@ -378,6 +462,8 @@ def notes_record(c, gid):
             (n["slug"], n["round"]), {"n": n["round"], "slug": n["slug"], "at": n["at"], "notes": [], "sent": None}
         )
         entry = {"at": n["at"], "t": n["t"], "text": n["text"], "sent": n["sent_at"]}
+        if n["author"]:
+            entry["by"] = n["author"]
         if n["remove"]:
             entry["remove"] = {"phrase": json.loads(n["remove"])["phrase"]}
             entry["confirmed"] = bool(n["confirmed"])
@@ -602,15 +688,21 @@ def signature_png(c, gid):
 
 # ─── the issue ───────────────────────────────────────────────────────────────
 def job_noted(env, a, c=None):
-    """The note on the guest's issue, quoted as the guest's words, with the moment it is about."""
+    """The note on the guest's issue: quoted as the guest's words, with the moment it is about; a host's plain."""
     lines = "\n".join(
         f"{'At ' + mmss(n['t']) + ': ' if n.get('t') is not None else ''}{n['text']}" for n in a.get("notes") or []
     )
-    head = (
-        f'{a["name"]} left a note on review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on {a["when"]}. '
-        f"`episode.py notes {a['slug']}` brings the confirmed cuts in.\n\n"
-    )
-    body = head + linear.quote(a["name"], lines)
+    if a.get("by"):
+        body = (
+            f'{a["by"]} left a note on review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on the engine on '
+            f"{a['when']}: {lines}"
+        )
+    else:
+        head = (
+            f'{a["name"]} left a note on review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on {a["when"]}. '
+            f"`episode.py notes {a['slug']}` brings the confirmed cuts in.\n\n"
+        )
+        body = head + linear.quote(a["name"], lines)
     if a.get("cut"):
         body += f'\n\nThe words found in the transcript for the cut, awaiting their confirmation: "{a["cut"]}"'
     elif a.get("missed"):
@@ -620,19 +712,42 @@ def job_noted(env, a, c=None):
 
 
 def job_cut(env, a, c=None):
-    """The guest's word on a cut, on the issue."""
+    """The word on a cut, on the issue: the guest's, or a host's."""
+    name = a.get("by") or a["name"]
     if a["confirmed"]:
         text = (
-            f'{a["name"]} confirmed the cut on review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on '
+            f'{name} confirmed the cut on review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on '
             f'{a["when"]}: "{a["phrase"]}". `episode.py notes {a["slug"]}` takes it into removals.json.'
         )
     else:
         text = (
-            f'{a["name"]} decided against the cut on review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on '
+            f'{name} decided against the cut on review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on '
             f'{a["when"]}: "{a["phrase"]}" stays; the note itself stands.'
         )
     cm = linear.comment(env, a["issue"], text)
     return {"issue": a["issue"], "comment": cm["url"]}
+
+
+def job_host_approved(env, a, c=None):
+    """A host's approval on the guest's issue, and whether the pipeline now has what it needs."""
+    text = (
+        f'{a["host"]} approved review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on the engine on {a["when"]}'
+    )
+    if a.get("waiting"):
+        text += f"; waiting for {', '.join(a['waiting'])}."
+    else:
+        text += f", the last of the hosts ({', '.join(a['approved'])})."
+        if a.get("guest_approved"):
+            text += f" The guest has approved too: `episode.py approve {a['slug']}` has what it needs."
+        else:
+            text += " The guest has not approved yet."
+    cm = linear.comment(env, a["issue"], text)
+    return {"issue": a["issue"], "comment": cm["url"]}
+
+
+def said(text, bad=False):
+    """The word beside a form (idea.word), for the engine's routes."""
+    return idea.word(text, bad)
 
 
 def job_approved(env, a, c=None):
@@ -680,45 +795,65 @@ def host_line(c, gid):
         )
     else:
         line += "; not approved yet"
-    return line + f' <span class="mono">guests/{esc(gid)}/notes.json, approval.json</span>'
+    done = [r["host"] for r in host_approvals(c, gid, row)]
+    line += f"; hosts approved: {esc(', '.join(done))}" if done else "; no host has approved yet"
+    return (
+        line
+        + f". {link(f'/guests/{gid}/review', 'Watch, note, approve')} "
+        + f'<span class="mono">guests/{esc(gid)}/notes.json, approval.json; episodes/{esc(row["slug"])}/review/hosts.json</span>'
+    )
 
 
-def note_item(n, ask=True):
-    """One note as the list shows it: its moment, its words, and the cut found for it with the guest's answer."""
+def note_item(n, ask=True, action="/review/cut", csrf=None, label=None):
+    """One note as the list shows it: who, its moment, its words, and the cut found for it with the answer; `ask`
+    puts the question to the reader, with the forms at `action` (the engine's carry the form token)."""
     t = (
         f'<a class="t" href="#watch" data-t="{n["t"]:.1f}">{esc(mmss(n["t"]))}</a> '
         if n["t"] is not None
         else '<span class="t muted">general</span> '
     )
+    who = f"<b>{esc(label)}</b>: " if label else ""
+    token = f'<input type="hidden" name="_t" value="{esc(csrf)}">' if csrf else ""
     cut = ""
     if n["remove"]:
         phrase = esc(json.loads(n["remove"])["phrase"])
         if n["confirmed"] is None and ask:
             cut = (
                 f'<div class="cut-ask"><p>Cut these words? <q>{phrase}</q></p>'
-                f'<form method="post" action="/review/cut" class="inline" data-live>'
+                f'<form method="post" action="{action}" class="inline" data-live>{token}'
                 f'<input type="hidden" name="id" value="{n["id"]}"><input type="hidden" name="answer" value="yes">'
                 '<button type="submit" class="signal">Yes, cut them</button></form> '
-                f'<form method="post" action="/review/cut" class="inline" data-live>'
+                f'<form method="post" action="{action}" class="inline" data-live>{token}'
                 f'<input type="hidden" name="id" value="{n["id"]}"><input type="hidden" name="answer" value="no">'
                 '<button type="submit">No, leave them</button></form></div>'
             )
         elif n["confirmed"]:
             cut = f'<p class="cut-state">Cut confirmed: <q>{phrase}</q></p>'
         elif n["confirmed"] is not None:
-            cut = f'<p class="cut-state muted">Left in, as you said: <q>{phrase}</q></p>'
+            cut = f'<p class="cut-state muted">Left in: <q>{phrase}</q></p>'
         else:
             cut = f'<p class="cut-state muted">Words found, not answered: <q>{phrase}</q></p>'
-    return f"<li>{t}{esc(n['text'])}{cut}</li>"
+    return f"<li>{who}{t}{esc(n['text'])}{cut}</li>"
 
 
-def notes_body(c, g, row, word=""):
+def notes_body(c, g, row, word="", host=None, csrf=None):
     """The notes section: this round's notes with any cut found for each, the
-    last round's for the record, and the form for one more, which sends it."""
+    last round's for the record, and the form for one more, which sends it.
+    On the office (`host` None) the guest's notes are theirs to answer and
+    the hosts' are shown by name; on the engine (`host` set) the other way,
+    with the engine's routes and its form token."""
     ns = notes(c, g["id"], row["slug"], row["round"])
-    items = [note_item(n) for n in ns]
+    first = g["name"].split()[0]
+    base = f"/guests/{g['id']}/review" if host else "/review"
+
+    def item(n, ask=True):
+        mine = bool(n["author"]) == bool(host)
+        label = n["author"] if n["author"] else (first if host else None)
+        return note_item(n, ask=ask and mine, action=f"{base}/cut", csrf=csrf, label=label)
+
+    items = [item(n) for n in ns]
     shown = (
-        f'<p>Sent to James and Abrar:</p><ul class="notes-list">{"".join(items)}</ul>'
+        f'<p>{"On this round:" if host else "Sent to James and Abrar:"}</p><ul class="notes-list">{"".join(items)}</ul>'
         if items
         else "<p>No notes yet on this round.</p>"
     )
@@ -726,11 +861,22 @@ def notes_body(c, g, row, word=""):
         before = notes(c, g["id"], row["slug"], row["round"] - 1)
         if before:
             shown += (
-                f'<details class="before"><summary>What you asked on round {row["round"] - 1}</summary>'
-                f'<ul class="notes-list">{"".join(note_item(n, ask=False) for n in before)}</ul></details>'
+                f'<details class="before"><summary>What {"was" if host else "you"} asked on round {row["round"] - 1}</summary>'
+                f'<ul class="notes-list">{"".join(item(n, ask=False) for n in before)}</ul></details>'
             )
+    token = f'<input type="hidden" name="_t" value="{esc(csrf)}">' if csrf else ""
+    hint = (
+        f"Your notes go on {esc(first)}&#8217;s issue and {esc(first)} sees them here too. For a cut, say what should go: "
+        "the words are found in the transcript and shown to you to confirm, and `episode.py notes` takes them into "
+        "removals.json with the guest's."
+        if host
+        else 'Each note goes to James and Abrar as you send it. A moment makes it easy to act on; "at this moment" '
+        "takes it from the player. For a cut, say what should go: the words are found in the transcript and shown to "
+        "you to confirm, so what is cut is exactly what you meant. They re-cut from your notes, this page shows the "
+        "new round, and you approve when it is right."
+    )
     form = (
-        '<form method="post" action="/review/note" class="block note-form" data-note data-live>'
+        f'<form method="post" action="{base}/note" class="block note-form" data-note data-live>{token}'
         '<label for="note-text">A note</label>'
         f'<textarea id="note-text" name="text" rows="3" maxlength="{NOTE_MAX}" required '
         'placeholder="What should change, or what you liked"></textarea>'
@@ -738,13 +884,43 @@ def notes_body(c, g, row, word=""):
         '<input type="text" id="note-at" name="at" class="at" placeholder="m:ss, or blank" autocomplete="off">'
         '<button type="button" data-here hidden>At this moment</button>'
         '<button type="submit" class="signal">Send the note</button></div>'
-        '<p class="muted">Each note goes to James and Abrar as you send it. A moment makes it easy to act on; '
-        '"at this moment" takes it from the player. For a cut, say what should go: the words are found in the '
-        "transcript and shown to you to confirm, so what is cut is exactly what you meant. They re-cut from your "
-        "notes, this page shows the new round, and you approve when it is right.</p>"
+        f'<p class="muted">{hint}</p>'
         f"{word}</form>"
     )
     return section("Notes", f"Round {row['round']}", shown + form, anchor="notes")
+
+
+def hosts_body(c, g, row, host, csrf, word=""):
+    """The approval section on the engine: the guest's state, each host's, and the button for this host."""
+    a = approval(c, g["id"], row)
+    if a:
+        vetoed = json.loads(a["vetoed"])
+        guest_line = f"<p><b>{esc(g['name'])}</b> approved round {row['round']} on {esc(when(a['at']))}" + (
+            f", vetoing {esc(', '.join(vetoed))}." if vetoed else ", every clip kept."
+        )
+        guest_line += "</p>"
+    else:
+        guest_line = f"<p><b>{esc(g['name'])}</b> has not approved round {row['round']} yet.</p>"
+    done = {r["host"]: r for r in host_approvals(c, g["id"], row)}
+    lines = "".join(
+        f"<li><b>{esc(h)}</b>: "
+        + (f"approved on {esc(when(done[h]['at']))} from {esc(done[h]['ip'] or '')}" if h in done else "not yet")
+        + "</li>"
+        for h in hosts()
+    )
+    form = ""
+    if host not in done:
+        form = (
+            f'<form method="post" action="/guests/{g["id"]}/review/approve" class="block" data-live>'
+            f'<input type="hidden" name="_t" value="{esc(csrf)}">'
+            f'<p><button type="submit" class="signal">Approve round {row["round"]} as {esc(host)}</button></p>'
+            '<p class="muted">Recorded: you, the time, your address and device, and the hash of this round\'s record, '
+            f"to episodes/{esc(row['slug'])}/review/hosts.json. `episode.py approve` refuses a guest's episode until the "
+            f"guest and both hosts have approved the round.</p>{word}</form>"
+        )
+    return section(
+        "Approval", "The guest, and the hosts", guest_line + f'<ul class="hosts">{lines}</ul>' + form, anchor="approve"
+    )
 
 
 def approve_body(c, g, row, word=""):
@@ -817,22 +993,49 @@ def not_yet(c, g, note):
 
 
 def review_page(c, g, msg=None, status=200, client=None):
-    """The guest's page: the round to watch, the notes, the approval."""
+    """The guest's page: the round to watch, the notes, the clips, the approval."""
     note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
     row = fetch(c, g, client) if g["signed_version"] else None
     if not row:
         title, body = not_yet(c, g, note)
         return title, body, status
+    return "The review", round_body(c, g, row, note, client) + approve_body(c, g, row), status
+
+
+def host_review_page(c, g, host, csrf, msg=None, client=None):
+    """A host's page for the guest's round, on the engine: the same round, their notes, the hosts' approvals."""
+    note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
+    row = fetch(c, g, client)
+    if not row:
+        body = (
+            f'<article class="lead"><p class="kicker">The review</p><h1>{esc(g["name"])}: nothing for review yet</h1>'
+            '<p class="deck">`episode.py review &lt;slug&gt;` puts a round in the archive for this guest '
+            f"(episode.json names them: {esc(g['id'])}); this page shows it then, to them and to you.</p></article>"
+            f"{note}<p>{go(f'/guests/{g["id"]}', 'Back to the guest', 'signal')}</p>"
+        )
+        return f"{g['name']}: the review", body
+    body = round_body(c, g, row, note, client, host=host, csrf=csrf) + hosts_body(c, g, row, host, csrf)
+    return f"{g['name']}: the review", body
+
+
+def round_body(c, g, row, note="", client=None, host=None, csrf=None):
+    """The round as a page body, less the approval: the lead, the player, the notes, the clips."""
     doc = record(row)
     clips = clips_of(row)
     want = list(WANT) + [cl["file"] for cl in clips] + [cl["poster"] for cl in clips if cl["poster"]]
     urls = links(row, want, client)
     title = title_of(row)
     changed = doc.get("changed") or []
-    deck = (
-        f"Round {row['round']}, from {esc(when(doc.get('at')))}. Nobody outside AgentSee sees this before you. "
-        "Watch it, note what should change, and approve it when it is right."
-    )
+    if host:
+        deck = (
+            f"Round {row['round']}, from {esc(when(doc.get('at')))}, for {esc(g['name'])}. What they see; your notes "
+            "go to their issue, and your approval to the archive."
+        )
+    else:
+        deck = (
+            f"Round {row['round']}, from {esc(when(doc.get('at')))}. Nobody outside AgentSee sees this before you. "
+            "Watch it, note what should change, and approve it when it is right."
+        )
     if row["round"] > 1 and changed:
         deck += f" Since the last round these changed: {esc(', '.join(changed))}."
     lead = f'<article class="lead"><p class="kicker">The review</p><h1>{esc(title)}</h1><p class="deck">{deck}</p></article>'
@@ -852,7 +1055,8 @@ def review_page(c, g, msg=None, status=200, client=None):
     else:
         watch = '<p class="honesty"><b>The files could not be reached just now. Try again in a minute.</b></p>'
     # The episode, the notes under it, the clips, then the approval, which is the order a guest works in.
-    body = lead + note + section("Watch", "The episode", watch, anchor="watch") + notes_body(c, g, row)
+    body = lead + note + section("Watch", "The episode", watch, anchor="watch")
+    body += notes_body(c, g, row, host=host, csrf=csrf)
     if clips:
         figs = "".join(
             '<figure class="clip"><video controls playsinline preload="none"'
@@ -862,5 +1066,4 @@ def review_page(c, g, msg=None, status=200, client=None):
             for i, cl in enumerate(clips, 1)
         )
         body += section("Clips", f"{len(clips)} for the socials", f'<div class="clips">{figs}</div>', anchor="clips")
-    body += approve_body(c, g, row)
-    return "The review", body, status
+    return body

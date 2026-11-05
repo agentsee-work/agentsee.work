@@ -197,13 +197,34 @@ def review_record(d):
     return load_json(p) if p.exists() else None
 
 
-def unapproved(guests, d, cfg):
-    """Why the guests stand in the way, as lines; none when each has approved the round that went
-    for review, the edit is still that round's, and the approval is the one approve recorded."""
+def hosts_of(cfg, s3, bucket):
+    """The hosts' approvals of the round, as the engine mirrors them (episodes/<slug>/review/hosts.json)."""
+    doc, _ = get_json(s3, bucket, f"episodes/{cfg['slug']}/review/hosts.json")
+    return doc
+
+
+def host_names():
+    """The hosts, by first name, from the engine's config.json; none without it."""
+    p = ROOT / "engine" / "config.json"
+    return list((load_json(p).get("hosts") or []) if p.exists() else [])
+
+
+def unapproved(guests, d, cfg, hosts=None):
+    """Why the office's records stand in the way, as lines; none when each guest has approved the
+    round that went for review, each host has approved it on the engine, the edit is still that
+    round's, and the approval is the one approve recorded."""
     why = []
     if not guests:
         return why
     rev = review_record(d)
+    if rev is not None:
+        sha = hashlib.sha256(json.dumps(rev, sort_keys=True).encode("utf-8")).hexdigest()
+        ok = {a.get("host") for a in ((hosts or {}).get("approvals") or [])
+              if (hosts or {}).get("round") == rev.get("round") and a.get("sha256") == sha}
+        for h in host_names():
+            if h not in ok:
+                why.append(f"{h} has not approved round {rev.get('round')} on the engine "
+                           f"(episodes/{cfg['slug']}/review/hosts.json)")
     recorded = {g["id"]: g for g in ((cfg.get("approved") or {}).get("guests") or [])}
     for g in guests:
         a = g["approval"]
@@ -362,7 +383,7 @@ def main():
     s3, buckets = connect(boto3, a.slug)
     guests = guests_of(cfg, s3, buckets["archive"])
     if not a.review:
-        why = unapproved(guests, d, cfg)
+        why = unapproved(guests, d, cfg, hosts_of(cfg, s3, buckets["archive"]))
         if why:
             for w in why:
                 print(f"  guest: {w}")

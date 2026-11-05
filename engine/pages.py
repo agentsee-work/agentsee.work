@@ -93,6 +93,8 @@ def page(title, body, who="", path="/", lifted=None):
 
 <script src="{asset("/assets/eye.js")}" defer></script>
 <script src="{asset("/sign.js")}" defer></script>
+<script src="{asset("/office.js")}" defer></script>
+<script src="{asset("/review.js")}" defer></script>
 </body>
 </html>
 """

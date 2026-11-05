@@ -114,6 +114,10 @@ CREATE TABLE IF NOT EXISTS approval (
   id INTEGER PRIMARY KEY, guest TEXT NOT NULL REFERENCES guest(id) ON DELETE CASCADE, slug TEXT NOT NULL,
   round INTEGER NOT NULL, vetoed TEXT NOT NULL, name TEXT NOT NULL, address TEXT NOT NULL, png BLOB NOT NULL,
   ip TEXT, ua TEXT, at TEXT NOT NULL, sha256 TEXT NOT NULL, html TEXT, UNIQUE(guest, slug, round));
+CREATE TABLE IF NOT EXISTS host_approval (
+  id INTEGER PRIMARY KEY, guest TEXT NOT NULL REFERENCES guest(id) ON DELETE CASCADE, slug TEXT NOT NULL,
+  round INTEGER NOT NULL, host TEXT NOT NULL, who TEXT NOT NULL, ip TEXT, ua TEXT, at TEXT NOT NULL,
+  sha256 TEXT NOT NULL, UNIQUE(slug, round, host));
 """
 
 MIGRATIONS = [
@@ -131,6 +135,7 @@ MIGRATIONS = [
     ("guest", "tz", "TEXT"),
     ("review_note", "remove", "TEXT"),
     ("review_note", "confirmed", "INTEGER"),
+    ("review_note", "author", "TEXT"),
 ]
 
 STATUSES = {

@@ -411,6 +411,13 @@ words to remove); `approval.json`, their approval, `{"at", "review":
 "sha256"}}`, a vetoed clip named as the review's `release.json` names it
 (its file, slug, title or index), the hash that of the review record
 approved, and `approval.html` the signed copy beside it (`engine/review.py`).
+A note a host leaves from the engine carries `"by"` with the host's name
+and lands in the same `notes.json`. The hosts' own approvals of a round
+go beside the render, `episodes/<slug>/review/hosts.json`, `{"slug",
+"round", "sha256", "hosts", "approvals": [{"host", "who", "at", "ip", "ua",
+"sha256"}]}`, the hash that of the review record; `approve` and `stage`
+refuse a guest's episode until every host in `engine/config.json`'s
+`hosts` has approved the round there.
 What the pipeline writes for the office: `review.json` as above, and the
 render itself under `episodes/<slug>/review/`, which the office streams to
 the guest through signed links. The hosts' own episodes name no guest and

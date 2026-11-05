@@ -37,7 +37,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from eplib import EPISODES, die, ep_dir, load_json, save_json  # noqa: E402
-from stage import boto, connect, get_json, guests_of, review_record, unapproved  # noqa: E402
+from stage import boto, connect, get_json, guests_of, hosts_of, review_record, unapproved  # noqa: E402
 
 TOOLS = pathlib.Path(__file__).resolve().parent
 
@@ -183,7 +183,8 @@ def notes_cmd(a, d, cfg, guests):
 
 def approve_cmd(a, d, cfg, guests, s3, buckets):
     out = d / "out"
-    why = unapproved(guests, d, cfg)
+    hosts = hosts_of(cfg, s3, buckets["archive"]) if cfg.get("guests") else None
+    why = unapproved(guests, d, cfg, hosts)
     known = {g["name"] for g in guests} | {g["guest"].get("name") for g in guests}
     for g in (cfg.get("notes") or {}).get("guests") or []:
         if g.get("name") not in known:
@@ -201,6 +202,8 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
         if g["approval"]:
             print(f"  guest: {g['name']} approved round {(g['approval'].get('review') or {}).get('round')} "
                   f"at {str(g['approval'].get('at', ''))[:16]}")
+    for h in (hosts or {}).get("approvals") or []:
+        print(f"  host: {h.get('host')} approved round {(hosts or {}).get('round')} at {str(h.get('at', ''))[:16]}")
 
     taken = {**local_numbers(), **minted(s3, buckets["archive"])}
     n = choose_number(cfg, taken, a.number)
@@ -255,6 +258,9 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
                             "round": ((g["approval"] or {}).get("review") or {}).get("round")}
                            for g in guests],
                 "files": {k: v["sha256"] for k, v in rel["files"].items()}}
+    if hosts:
+        approved["hosts"] = [{"host": h.get("host"), "at": h.get("at"), "who": h.get("who")}
+                             for h in hosts.get("approvals") or []]
     if waived:
         approved["waived"] = waived
     cfg["approved"] = approved
