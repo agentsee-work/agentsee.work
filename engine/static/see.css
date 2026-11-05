@@ -75,12 +75,22 @@ button[aria-busy] { opacity: .55; cursor: progress; }
    from the seam once the eye has closed, and part along it onto the door, which is under the stage once the
    stage goes clear beneath them. */
 .arrival { text-align: center; margin: 0 0 1.6rem; }
-.arrival .mark { --mark-w: clamp(120px, 40vw, 220px); width: var(--mark-w); margin: 0 auto; cursor: default; }
+/* His glow after dark is not the masthead's. styles.css gives the mark a drop shadow in --glow, and WebKit
+   ends a drop shadow in a hard line a couple of blur radii out from the drawing, whatever the box around it,
+   which is the cut-off glow James saw on his phone. So the big mark has no filter at all, and the glow is a
+   radial gradient on a pseudo-element behind the drawing, which has no edge to clip: it fades to nothing at
+   the sides of a box the mark wears as padding, --pad, on every side (content-box, so the drawing keeps its
+   width; the margins give the padding back in flow, and the stage's translate takes it off the eye's
+   centre). By day --glow is transparent and there is no glow to draw. */
+.arrival .mark { --mark-w: clamp(120px, 40vw, 220px); --pad: 90px; position: relative; width: var(--mark-w);
+  padding: var(--pad); box-sizing: content-box; margin: calc(-1 * var(--pad)) auto; cursor: default; filter: none; }
+.arrival .mark::before { content: ""; position: absolute; inset: 0; z-index: -1;
+  background: radial-gradient(closest-side at 50% 52%, var(--glow), transparent); }
 .arrival .hello { font-size: 1.25rem; margin: .5rem 0 0; }
 .arrival .hint { display: none; }
 .arrival.playing { --w: min(72vw, 46vh); position: fixed; inset: 0; z-index: 20; margin: 0; background: var(--paper); cursor: pointer; }
 .arrival.playing .mark { --mark-w: var(--w); position: absolute; top: 50%; left: 50%; width: var(--w); margin: 0; z-index: 1;
-  transform: translate(-50%, calc(var(--w) * -.5917)); }
+  transform: translate(-50%, calc(-1 * var(--pad) - var(--w) * .5917)); }
 .arrival.playing .hello { position: absolute; left: 1rem; right: 1rem; top: calc(50% + var(--w) * .24); margin: 0; }
 .arrival.playing .hint { display: block; position: absolute; left: 1rem; right: 1rem; bottom: 1.4rem; margin: 0;
   font-family: var(--mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
@@ -94,20 +104,23 @@ button[aria-busy] { opacity: .55; cursor: progress; }
   60%      { transform: translate(24px, 4px); }
   85%      { transform: translate(0, -7px); }
 }
-/* the slow close: a transition, not a mood, so it stays shut; and the glow he has after dark (styles.css gives
-   the mark a drop shadow in --glow, transparent by day) goes out with the eye, so the lids find no halo to
-   slice through */
-.arrival.playing .mark { transition: filter .9s ease-in; }
-.arrival.playing .mark.closing { filter: drop-shadow(0 0 26px transparent); }
+/* the slow close: a transition, not a mood, so it stays shut; and the glow goes out with the eye, so the lids
+   find no halo to slice through */
+.arrival.playing .mark::before { transition: opacity .9s ease-in; }
+.arrival.playing .mark.closing::before { opacity: 0; }
 .arrival.playing .mark.closing .eye { animation: none; transform: scaleY(.045); transition: transform .9s ease-in; }
 /* the lids: black, whatever the theme, since that is what shut eyes see. After dark the page is that black too,
    so the lids' edges carry the glow instead: a crack of light that closes at the seam and parts along it. By
    day --glow is transparent and the edges are plain. */
 .arrival.playing::before, .arrival.playing::after { content: ""; position: absolute; left: 0; right: 0; z-index: 2;
-  background: #0a0a0b; box-shadow: 0 0 28px var(--glow); transform: scaleY(0); transition: transform .5s ease-in; }
+  background: #0a0a0b; box-shadow: 0 0 28px var(--glow); visibility: hidden; transform: scaleY(.001);
+  transition: transform .5s ease-in; }
+/* Hidden, at a scale of .001 rather than 0, until the eye has shut: WebKit cannot animate a transform from a
+   scale of nothing (the matrix has no inverse) and jumps to the end, so the lids snapped shut there instead
+   of growing; and at .001 a visible lid is a hairline across the eye, which is what the visibility is for. */
 .arrival.playing::before { top: 0; bottom: 50%; transform-origin: bottom; clip-path: inset(-40px 0 0 0); }
 .arrival.playing::after { top: 50%; bottom: 0; transform-origin: top; clip-path: inset(0 0 -40px 0); }
-.arrival.dark::before, .arrival.dark::after { transform: scaleY(1); }
+.arrival.dark::before, .arrival.dark::after { visibility: visible; transform: scaleY(1); }
 .arrival.opening { background: transparent; pointer-events: none; }
 .arrival.opening .mark, .arrival.opening .hello, .arrival.opening .hint { display: none; }
-.arrival.opening::before, .arrival.opening::after { transform: scaleY(0); transition: transform .9s cubic-bezier(.2, .7, .3, 1); }
+.arrival.opening::before, .arrival.opening::after { transform: scaleY(.001); transition: transform .9s cubic-bezier(.2, .7, .3, 1); }
