@@ -94,13 +94,19 @@ button[aria-busy] { opacity: .55; cursor: progress; }
   60%      { transform: translate(24px, 4px); }
   85%      { transform: translate(0, -7px); }
 }
-/* the slow close: a transition, not a mood, so it stays shut */
+/* the slow close: a transition, not a mood, so it stays shut; and the glow he has after dark (styles.css gives
+   the mark a drop shadow in --glow, transparent by day) goes out with the eye, so the lids find no halo to
+   slice through */
+.arrival.playing .mark { transition: filter .9s ease-in; }
+.arrival.playing .mark.closing { filter: drop-shadow(0 0 26px transparent); }
 .arrival.playing .mark.closing .eye { animation: none; transform: scaleY(.045); transition: transform .9s ease-in; }
-/* the lids: black, whatever the theme, since that is what shut eyes see */
+/* the lids: black, whatever the theme, since that is what shut eyes see. After dark the page is that black too,
+   so the lids' edges carry the glow instead: a crack of light that closes at the seam and parts along it. By
+   day --glow is transparent and the edges are plain. */
 .arrival.playing::before, .arrival.playing::after { content: ""; position: absolute; left: 0; right: 0; z-index: 2;
-  background: #0a0a0b; transform: scaleY(0); transition: transform .5s ease-in; }
-.arrival.playing::before { top: 0; bottom: 50%; transform-origin: bottom; }
-.arrival.playing::after { top: 50%; bottom: 0; transform-origin: top; }
+  background: #0a0a0b; box-shadow: 0 0 28px var(--glow); transform: scaleY(0); transition: transform .5s ease-in; }
+.arrival.playing::before { top: 0; bottom: 50%; transform-origin: bottom; clip-path: inset(-40px 0 0 0); }
+.arrival.playing::after { top: 50%; bottom: 0; transform-origin: top; clip-path: inset(0 0 -40px 0); }
 .arrival.dark::before, .arrival.dark::after { transform: scaleY(1); }
 .arrival.opening { background: transparent; pointer-events: none; }
 .arrival.opening .mark, .arrival.opening .hello, .arrival.opening .hint { display: none; }
