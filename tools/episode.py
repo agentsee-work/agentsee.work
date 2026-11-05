@@ -158,6 +158,8 @@ def main():
                     help="approve although the release has warnings")
     ok.add_argument("--despite-guests", action="store_true",
                     help="approve although a guest's record does not clear it; the record says so")
+    ok.add_argument("--dry-run", action="store_true",
+                    help="the gate, the number, the clips that would go; nothing written, nothing rendered")
     st = sub.add_parser("stage", help="upload the approved episode: archive and public media")
     st.add_argument("slug")
     st.add_argument("--dry-run", action="store_true", help="list what would go; no credentials")
