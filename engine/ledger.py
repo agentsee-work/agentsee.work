@@ -103,6 +103,17 @@ CREATE TABLE IF NOT EXISTS booking (
   choices TEXT NOT NULL, offered INTEGER NOT NULL DEFAULT 0, answers TEXT NOT NULL DEFAULT '{}',
   state TEXT NOT NULL DEFAULT 'asked', start_at TEXT, note TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS booking_guest ON booking(guest, created_at);
+CREATE TABLE IF NOT EXISTS review (
+  guest TEXT PRIMARY KEY REFERENCES guest(id) ON DELETE CASCADE, slug TEXT NOT NULL, round INTEGER NOT NULL,
+  record TEXT NOT NULL, release TEXT, seen_at TEXT NOT NULL, fetched_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS review_note (
+  id INTEGER PRIMARY KEY, guest TEXT NOT NULL REFERENCES guest(id) ON DELETE CASCADE, slug TEXT NOT NULL,
+  round INTEGER NOT NULL, t REAL, text TEXT NOT NULL, at TEXT NOT NULL, sent_at TEXT);
+CREATE INDEX IF NOT EXISTS review_note_guest ON review_note(guest, id);
+CREATE TABLE IF NOT EXISTS approval (
+  id INTEGER PRIMARY KEY, guest TEXT NOT NULL REFERENCES guest(id) ON DELETE CASCADE, slug TEXT NOT NULL,
+  round INTEGER NOT NULL, vetoed TEXT NOT NULL, name TEXT NOT NULL, address TEXT NOT NULL, png BLOB NOT NULL,
+  ip TEXT, ua TEXT, at TEXT NOT NULL, sha256 TEXT NOT NULL, html TEXT, UNIQUE(guest, slug, round));
 """
 
 MIGRATIONS = [

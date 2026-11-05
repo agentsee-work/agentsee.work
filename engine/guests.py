@@ -52,6 +52,7 @@ import linear
 import mail
 import pages
 import release
+import review
 import schedule
 from pages import button, esc, link, section, see_page, table, when
 
@@ -595,9 +596,19 @@ def code_page(h, cid, address, msg=None, status=200, headers=None):
     page(h, "Your code", body, status, headers)
 
 
+def csp(base):
+    """The guest host's content security policy: the engine's, plus the archive, where the review's signed links
+    point (review.py), for the player and the posters."""
+    origin = review.archive_origin()
+    if not origin:
+        return base
+    return base.replace("img-src 'self'", f"img-src 'self' {origin}") + f"; media-src {origin}"
+
+
 def office(c, h, g, s):
     first = g["name"].split()[0]
     if g["signed_version"]:
+        review.fetch(c, g, force=False)  # a new round, if the pipeline put one up since the last look
         step1 = f"Signed on {esc(when(g['signed_at']))}. {link('/release', 'Your copy')}"
     elif release.issued(c):
         step1 = link("/release", "Read and sign it")
@@ -622,7 +633,7 @@ def office(c, h, g, s):
         "<li><b>The time.</b> You pick a time and two backups; both hosts accept; you get a link that opens the studio "
         f"when it is time. {schedule.step_line(c, g)}</li>"
         "<li><b>The review.</b> The episode and the clips, to watch, note and approve before anything goes out. "
-        '<span class="muted">After the recording.</span></li></ol>'
+        f"{review.step_line(c, g)}</li></ol>"
         f'<p class="muted">Signed in as {esc(s["address"])} on this device since {esc(when(s["created_at"]))}. '
         "A new device asks for a code of its own.</p>"
         '<form method="post" action="/leave" class="inline"><button type="submit">Leave</button></form>'
@@ -635,7 +646,7 @@ def not_found(h, status=404, msg="Not that"):
 
 
 def get(h, c, path, q):
-    if path in ("/see.css", "/engine.css", "/sign.js", "/office.js", "/time.js", "/door.js"):
+    if path in ("/see.css", "/engine.css", "/sign.js", "/office.js", "/time.js", "/door.js", "/review.js"):
         return h.static(STATIC, path[1:])
     for prefix, base in (("/assets/", PUBLIC / "assets"), ("/fonts/", PUBLIC / "fonts")):
         if path.startswith(prefix):
@@ -668,6 +679,22 @@ def get(h, c, path, q):
     if m:
         png = release.signature_png(c, g, m.group(1)) if g else None
         return h.send(200, png, "image/png", "private, no-store") if png else not_found(h)
+    if path == "/review":
+        if not g:
+            return h.redirect("/")
+        return page(h, *review.review_page(c, g))
+    if path == "/review/approval.html":
+        a = review.approval(c, g["id"]) if g else None
+        if not a:
+            return h.redirect("/review" if g else "/")
+        name = f'attachment; filename="agentsee-approval-round-{a["round"]}.html"'
+        return h.send(
+            200,
+            a["html"].encode("utf-8"),
+            "text/html; charset=utf-8",
+            "private, no-store",
+            [("Content-Disposition", name)],
+        )
     if path == "/idea":
         if not g:
             return h.redirect("/")
@@ -722,6 +749,9 @@ def get(h, c, path, q):
         "/idea/about",
         "/time/ask",
         "/time/withdraw",
+        "/review/note",
+        "/review/send",
+        "/review/approve",
     ):
         return h.redirect("/")
     return not_found(h)
@@ -893,6 +923,57 @@ def post(h, c, path, form, files=None):
         if live(h):
             return answer(h, 200, ok=True, go="/release")
         return h.redirect("/release")
+    if path in ("/review/note", "/review/send"):
+        g, s = current(c, h)
+        if not g:
+            return h.redirect("/")
+        try:
+            if path == "/review/note":
+                review.add_note(c, g, form.get("text"), form.get("at"))
+            else:
+                tell(c, g, "noted", s["address"], **review.send_notes(c, g, s["address"]))
+        except review.ReviewError as e:
+            if live(h):
+                return answer(h, 400, ok=False, error=str(e))
+            return page(h, *review.review_page(c, g, str(e), 400))
+        mirror(c, g["id"])
+        if live(h):
+            row = review.current(c, g["id"])
+            said = idea.word("Saved." if path == "/review/note" else "Sent.")
+            return answer(h, 200, ok=True, sections=[{"id": "notes", "html": review.notes_body(c, g, row, said)}])
+        return h.redirect("/review#notes")
+    if path == "/review/approve":
+        g, s = current(c, h)
+        if not g:
+            return h.redirect("/")
+        if form.get("strokes", "0") == "0" or not form.get("signature"):
+            why = "Draw your signature in the box, or choose a photo of it"
+            if live(h):
+                return answer(h, 400, ok=False, error=why)
+            return page(h, *review.review_page(c, g, why, 400))
+        try:
+            a, keys, sent = review.approve(c, g, form, ip, ua)
+        except review.ReviewError as e:
+            if live(h):
+                return answer(h, 400, ok=False, error=str(e))
+            return page(h, *review.review_page(c, g, str(e), 400))
+        row = review.current(c, g["id"])
+        tell(
+            c,
+            g,
+            "approved",
+            s["address"],
+            gid=g["id"],
+            slug=a["slug"],
+            round=a["round"],
+            title=review.title_of(row),
+            vetoed=json.loads(a["vetoed"]),
+            copy=keys.get("json"),
+        )
+        mirror(c, g["id"])
+        if live(h):
+            return answer(h, 200, ok=True, go="/review#approve")
+        return h.redirect("/review#approve")
     return not_found(h)
 
 
@@ -1040,6 +1121,7 @@ def guest_page(c, gid, csrf, msg=None, who=None):
             + (f"; run-sheet drafted {esc(when(g['brief_at']))}" if g["brief"] else "; no draft yet")
             + (f"; shown as {esc(g['shown_name'])}, {esc(g['tz'] or 'no time zone')}" if g["shown_name"] else ""),
         ),
+        ("Review", review.host_line(c, gid)),
     ]
     if g["revoked_at"]:
         facts.append(("Withdrawn", esc(when(g["revoked_at"]))))

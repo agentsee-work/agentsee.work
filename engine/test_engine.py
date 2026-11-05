@@ -1563,6 +1563,25 @@ class EngineTest(unittest.TestCase):
             "Signature=cde30d8e9da6181aee80e9254e409b09b6d566487066c1d7079f31c0265a6260",
         )
         self.assertEqual(h["x-amz-date"], "20261015T180000Z")
+        # The presigned GET, fixed on 5 November 2026 against botocore 1.43.112's S3SigV4QueryAuth for the same
+        # inputs (the moment is the one botocore stamped on its own URL).
+        url = archive.presign(
+            "https://9468eccb7caed9f96283a9139c37a4df.r2.cloudflarestorage.com",
+            "9468eccb7caed9f96283a9139c37a4df.r2.cloudflarestorage.com",
+            "/agentsee-podcast-archive/episodes/ep3/review/clips/01-the-first-one.mp4",
+            "AKIAIOSFODNN7EXAMPLE",
+            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            3600,
+            "auto",
+            dt.datetime(2026, 11, 5, 9, 33, 31, tzinfo=dt.timezone.utc),
+        )
+        self.assertEqual(
+            url,
+            "https://9468eccb7caed9f96283a9139c37a4df.r2.cloudflarestorage.com/agentsee-podcast-archive/episodes/ep3/"
+            "review/clips/01-the-first-one.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE"
+            "%2F20261105%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20261105T093331Z&X-Amz-Expires=3600"
+            "&X-Amz-SignedHeaders=host&X-Amz-Signature=c00d8786c654122f331ff56d806487ee3ca2da4397a6ea1432830520d27da346",
+        )
 
     def test_13_archive_files(self):
         c = self.c()
@@ -3722,6 +3741,355 @@ class EngineTest(unittest.TestCase):
         compose = (home / "docker-compose.yml").read_text()
         self.assertIn("healthcheck:", compose)
         self.assertIn("8877/health", compose)
+
+    def test_25_review(self):
+        """The review: the round's record from the archive into the ledger and
+        the office's step; the page with the player and the clips through
+        signed links, the archive named in the policy; a note with its moment,
+        mirrored as the pipeline reads it; the notes sent, by mail and on the
+        issue; the approval with a clip vetoed, its signature and record, the
+        copies, the mail, the issue labelled; a second approval refused; a new
+        round asking again; the hosts' page."""
+        import review
+
+        SEE = guests.HOST
+        os.environ.update(self.menv, ENGINE_SESSION_KEY="a-key-for-the-tests")
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in (*self.menv, "ENGINE_SESSION_KEY", "ENGINE_USER")])
+        client = archive.Client(self.r2env)
+        patch = unittest.mock.patch.object(archive, "Client", lambda env=None: client)
+        patch.start()
+        self.addCleanup(patch.stop)
+        c = self.c()
+        objs = FakeR2.state["objects"]
+        fake = FakeLinear()
+        fake.issues.update(self.linear_made)
+        linear.post = fake
+        linear.vault = FakeVault("lr1", item="Linear podcast token")
+        linear._token.update(access=None, until=0.0, unsaved=None)
+        env = {"LINEAR_CLIENT_ID": "lcid", "LINEAR_CLIENT_SECRET": "lcs", "LINEAR_REFRESH_TOKEN": "lr1"}
+        gid = c.execute("SELECT id FROM guest WHERE name='Ada Lovelace'").fetchone()[0]
+        self.assertEqual(guests.guest(c, gid)["signed_version"], 1, "Ada signed the release in test 21")
+
+        web.STATE["ledger"] = str(self.db)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+        def req(method, path, data=None, host=None, cookies=None, headers=None):
+            hdr = dict(headers or {})
+            if host:
+                hdr["Host"] = host
+            if cookies:
+                hdr["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+            body = urllib.parse.urlencode(data).encode() if data is not None else None
+            r = urllib.request.Request(base + path, data=body, method=method, headers=hdr)
+            opener = urllib.request.build_opener(NoRedirect)
+            try:
+                with opener.open(r, timeout=10) as resp:
+                    return resp.status, resp.headers, resp.read().decode(errors="replace")
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code, e.headers, e.read().decode(errors="replace")
+
+        def jar(h):
+            return {sc.partition("=")[0]: sc.partition("=")[2].split(";")[0] for sc in h.get_all("Set-Cookie") or []}
+
+        c.execute("DELETE FROM code WHERE address='ada@example.com'")
+        st, h, body = req("POST", "/enter", {"address": "ada@example.com"}, SEE)
+        self.assertEqual(st, 200)
+        cid, bind = re.search(r'name="id" value="([^"]+)"', body).group(1), jar(h)["see_code"]
+        code = re.search(r"\n    (\d{6})\n", FakeSMTP.sent[-1].get_content()).group(1)
+        st, h, body = req("POST", "/code", {"id": cid, "code": code}, SEE, {"see_code": bind})
+        self.assertEqual(st, 303)
+        ada = {"see_session": jar(h)["see_session"]}
+
+        # ── nothing yet: the page says so, the office says so, the step waits ──
+        st, h, body = req("GET", "/review", host=SEE, cookies=ada)
+        self.assertEqual(st, 200)
+        self.assertIn("Nothing to watch yet", body)
+        self.assertIn("After the recording.", req("GET", "/office", host=SEE, cookies=ada)[2])
+        self.assertEqual(req("GET", "/review", host=SEE)[0], 303, "nothing without a session")
+        self.assertIsNone(review.current(c, gid))
+
+        # ── the pipeline's records in the archive: the round and its release ──
+        clips = [
+            {"index": 1, "slug": "the-first-one", "title": "The first one", "file": "clips/01-the-first-one.mp4"},
+            {"index": 2, "slug": "the-second", "title": "The second", "file": "clips/02-the-second.mp4"},
+        ]
+        files = {
+            k: hashlib.sha256(k.encode()).hexdigest()
+            for k in (
+                "episode.mp4",
+                "episode.mp3",
+                "thumbnail.png",
+                "release.json",
+                "clips/01-the-first-one.mp4",
+                "clips/01-the-first-one.png",
+                "clips/02-the-second.mp4",
+            )
+        }
+        rel = {"episode": {"title": "Ada, on engines", "number": None}, "clips": clips, "files": {}}
+        doc = {
+            "slug": "ada-engines",
+            "round": 1,
+            "at": "2026-11-05T10:00:00",
+            "number": None,
+            "title": "Ada, on engines",
+            "guests": [gid],
+            "edit": {"edl.json": "e" * 64},
+            "files": files,
+            "changed": [],
+        }
+
+        def put(key, body):
+            objs[key] = {"body": json.dumps(body).encode(), "type": "application/json", "meta": {}}
+
+        put(f"guests/{gid}/review.json", doc)
+        put("episodes/ada-engines/review/release.json", rel)
+        body = req("GET", "/office", host=SEE, cookies=ada)[2]
+        self.assertIn("Round 1 is ready: watch, note, approve", body)
+        row = review.current(c, gid)
+        self.assertEqual(
+            (row["slug"], row["round"], json.loads(row["release"])["clips"][1]["title"]),
+            ("ada-engines", 1, "The second"),
+        )
+        ev = c.execute(
+            "SELECT detail FROM event WHERE what='review:round' AND guest=? ORDER BY id DESC", (gid,)
+        ).fetchone()
+        self.assertEqual(json.loads(ev["detail"])["round"], 1)
+
+        # ── the page: the player and the clips through signed links, the archive in the policy ──
+        st, h, body = req("GET", "/review", host=SEE, cookies=ada)
+        self.assertEqual(st, 200)
+        endpoint = self.r2env["R2_ENDPOINT"].rstrip("/")
+        signed = f"{endpoint}/archive-test/episodes/ada-engines/review/"
+        for s in (
+            "Ada, on engines",
+            "Round 1, from",
+            '<video class="episode" data-episode controls playsinline',
+            f'src="{signed}episode.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Credential=AKID%2F',
+            f'poster="{signed}thumbnail.png?X-Amz-Algorithm',
+            "X-Amz-Expires=3600&amp;X-Amz-SignedHeaders=host&amp;X-Amz-Signature=",
+            f'<a href="{signed}episode.mp3?X-Amz-Algorithm',
+            "Download the video",
+            "2 for the socials",
+            "1. The first one",
+            f'poster="{signed}clips/01-the-first-one.png?',
+            f'src="{signed}clips/02-the-second.mp4?',
+            'name="use-1" value="yes" checked',
+            'name="use-2" value="yes" checked',
+            "No notes yet on this round",
+            'name="at" class="at"',
+            '<input type="hidden" name="round" value="1">',
+            "<canvas",
+            "/review.js",
+            "/sign.js",
+        ):
+            self.assertIn(s, body, s)
+        self.assertNotIn('poster="" ', body)
+        self.assertIn(f"media-src {endpoint}", h["Content-Security-Policy"])
+        self.assertIn(f"img-src 'self' {endpoint} https://media.agentsee.work", h["Content-Security-Policy"])
+        self.assertNotIn(
+            "media-src", req("GET", "/health")[1]["Content-Security-Policy"], "the engine host's policy stands"
+        )
+        self.assertEqual(req("GET", "/review.js", host=SEE)[0], 200)
+
+        # ── a note with its moment; a bad moment refused; the mirror the pipeline reads ──
+        st, h, body = req("POST", "/review/note", {"text": "Cut the bit about the loom", "at": "12:34"}, SEE, ada)
+        self.assertEqual((st, h["Location"]), (303, "/review#notes"))
+        st, h, body = req("POST", "/review/note", {"text": "Nice", "at": "noon"}, SEE, ada)
+        self.assertEqual(st, 400)
+        self.assertIn("A moment is m:ss", body)
+        st, h, body = req("POST", "/review/note", {"text": " ", "at": ""}, SEE, ada, {"X-Office": "live"})
+        self.assertEqual(st, 400)
+        self.assertIn("Write the note first", json.loads(body)["error"])
+        st, h, body = req(
+            "POST",
+            "/review/note",
+            {"text": "The ending is lovely.\n\nKeep it.", "at": ""},
+            SEE,
+            ada,
+            {"X-Office": "live"},
+        )
+        self.assertEqual(st, 200)
+        j = json.loads(body)
+        self.assertEqual((j["ok"], j["sections"][0]["id"]), (True, "notes"))
+        self.assertIn("Saved.", j["sections"][0]["html"])
+        self.assertIn('data-t="754.0">12:34</a> Cut the bit about the loom', j["sections"][0]["html"])
+        self.assertIn('<span class="t muted">general</span> The ending is lovely.', j["sections"][0]["html"])
+        self.assertIn("Send 2 notes to James and Abrar", j["sections"][0]["html"])
+        mirrored = json.loads(objs[f"guests/{gid}/notes.json"]["body"])
+        self.assertEqual(len(mirrored["rounds"]), 1)
+        r1 = mirrored["rounds"][0]
+        self.assertEqual((r1["n"], r1["slug"], r1["sent"]), (1, "ada-engines", None))
+        self.assertEqual(
+            [(n["t"], n["text"], n["sent"]) for n in r1["notes"]],
+            [(754.0, "Cut the bit about the loom", None), (None, "The ending is lovely.\n\nKeep it.", None)],
+        )
+
+        # ── sent: to the hosts by mail, to the issue as the guest's words; nothing twice ──
+        sent = len(FakeSMTP.sent)
+        st, h, body = req("POST", "/review/send", {}, SEE, ada)
+        self.assertEqual((st, h["Location"]), (303, "/review#notes"))
+        self.assertEqual(len(FakeSMTP.sent), sent + 1)
+        m = FakeSMTP.sent[-1]
+        self.assertEqual(
+            (m["To"], m["Subject"]), ("hello@agentsee.work", "Ada Lovelace's notes on round 1 of Ada, on engines")
+        )
+        self.assertIn("- at 12:34: Cut the bit about the loom", m.get_content())
+        self.assertIn("episode.py notes ada-engines", m.get_content())
+        self.assertEqual(
+            json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"][0]["notes"][0]["sent"][:4], "2026"
+        )
+        self.assertTrue(json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"][0]["sent"])
+        job = c.execute("SELECT * FROM linear_job WHERE kind='noted'").fetchone()
+        self.assertEqual((job["guest"], json.loads(job["args"])["count"]), (gid, 2))
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
+        issue, text = fake.comments[-1]
+        self.assertEqual(issue, "AGE-73")
+        self.assertIn('Ada Lovelace sent 2 notes on review round 1 of "Ada, on engines" (ada-engines)', text)
+        self.assertIn("**Ada Lovelace wrote, through [see.agentsee.work](https://see.agentsee.work):**", text)
+        self.assertIn("> At 12:34: Cut the bit about the loom", text)
+        st, h, body = req("POST", "/review/send", {}, SEE, ada, {"X-Office": "live"})
+        self.assertEqual(st, 400)
+        self.assertIn("Nothing new to send", json.loads(body)["error"])
+        self.assertIn("(sent)", req("GET", "/review", host=SEE, cookies=ada)[2])
+
+        # ── the approval: the refusals, then the signing with a clip vetoed ──
+        png = test_png()
+        data_url = "data:image/png;base64," + base64.b64encode(png).decode()
+
+        def approve(live=False, **kw):
+            data = {
+                "round": "1",
+                "name": "Ada Lovelace",
+                "signature": data_url,
+                "strokes": "1",
+                "agree": "yes",
+                "use-1": "yes",
+            }
+            data.update(kw)
+            for k in [k for k, v in data.items() if v is None]:
+                del data[k]
+            return req("POST", "/review/approve", data, SEE, ada, {"X-Office": "live"} if live else None)
+
+        for kw, said in (
+            ({"strokes": "0"}, "Draw your signature in the box"),
+            ({"round": "2"}, "Round 1 is the one here now"),
+            ({"name": " "}, "Type your full name"),
+            ({"agree": ""}, "Tick the box"),
+            ({"signature": "data:image/png;base64,AAAA"}, "Not a PNG image"),
+        ):
+            st, h, body = approve(**kw)
+            self.assertEqual(st, 400, kw)
+            self.assertIn(said, body)
+            st, h, body = approve(live=True, **kw)
+            self.assertEqual(st, 400, kw)
+            self.assertIn(said, json.loads(body)["error"])
+        self.assertIsNone(review.approval(c, gid))
+        sent = len(FakeSMTP.sent)
+        st, h, body = approve(live=True, name=" Ada  Lovelace ")  # use-2 absent: the second clip is vetoed
+        self.assertEqual((st, json.loads(body)["go"]), (200, "/review#approve"))
+        a = review.approval(c, gid)
+        self.assertEqual(
+            (a["slug"], a["round"], json.loads(a["vetoed"]), a["name"], a["address"], a["png"] == png, a["ip"]),
+            ("ada-engines", 1, ["clips/02-the-second.mp4"], "Ada Lovelace", "ada@example.com", True, "127.0.0.1"),
+        )
+        self.assertEqual(a["sha256"], hashlib.sha256(review.current(c, gid)["record"].encode()).hexdigest())
+        rec = json.loads(objs[f"guests/{gid}/approval.json"]["body"])
+        self.assertEqual(
+            (rec["review"]["slug"], rec["review"]["round"], rec["review"]["sha256"], rec["episode"]),
+            ("ada-engines", 1, a["sha256"], True),
+        )
+        self.assertEqual(rec["clips"], {"vetoed": ["clips/02-the-second.mp4"], "kept": ["clips/01-the-first-one.mp4"]})
+        self.assertEqual(
+            (rec["signature"]["name"], rec["signature"]["address"], rec["signature"]["ip"], rec["review"]["files"]),
+            ("Ada Lovelace", "ada@example.com", "127.0.0.1", files),
+        )
+        page = objs[f"guests/{gid}/approval.html"]["body"].decode()
+        for s in (
+            "data:image/png;base64,",
+            "Clips not to use</h2><ul><li>The second</li>",
+            "verified by a code",
+            "review round 1",
+        ):
+            self.assertIn(s, page)
+        self.assertEqual(len(FakeSMTP.sent), sent + 1)
+        m = FakeSMTP.sent[-1]
+        self.assertEqual(
+            (m["To"], m["Cc"], m["Subject"]),
+            ("ada@example.com", "hello@agentsee.work", "Your approval of Ada, on engines"),
+        )
+        self.assertIn(
+            "1 clip may be used; 1 (The second) will not be.", m.get_body(preferencelist=("plain",)).get_content()
+        )
+        att = list(m.iter_attachments())
+        self.assertEqual(
+            [(x.get_filename(), x.get_content_type()) for x in att], [("agentsee-approval-round-1.html", "text/html")]
+        )
+        self.assertEqual(att[0].get_payload(decode=True).decode(), page)
+        job = c.execute("SELECT * FROM linear_job WHERE kind='approved'").fetchone()
+        self.assertEqual((job["guest"], json.loads(job["args"])["vetoed"]), (gid, ["clips/02-the-second.mp4"]))
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
+        issue, text = fake.comments[-1]
+        self.assertRegex(
+            text,
+            r'^Ada Lovelace approved review round 1 of "Ada, on engines" \(ada-engines\) through see\.agentsee\.work on .+, '
+            rf"from ada@example\.com\. Clips vetoed: clips/02-the-second\.mp4\. The record: guests/{gid}/approval\.json ",
+        )
+        self.assertIn("episode-approved", [fake.labels[x]["name"] for x in fake.issues["AGE-73"]["labelIds"]])
+        self.assertEqual(
+            json.loads(objs[f"guests/{gid}/guest.json"]["body"])["id"], gid, "the guest's record mirrored too"
+        )
+
+        # ── afterwards: the page, the copy, no second approval; the office; the hosts' page ──
+        st, h, body = req("GET", "/review", host=SEE, cookies=ada)
+        self.assertEqual(st, 200)
+        for s in ("You approved round 1 on", "with 1 clip to use and 1 not to (The second)", "/review/approval.html"):
+            self.assertIn(s, body)
+        self.assertNotIn("<canvas", body)
+        st, h, body = req("GET", "/review/approval.html", host=SEE, cookies=ada)
+        self.assertEqual(
+            (st, h["Content-Type"], h["Content-Disposition"]),
+            (200, "text/html; charset=utf-8", 'attachment; filename="agentsee-approval-round-1.html"'),
+        )
+        self.assertEqual(body, page)
+        self.assertEqual(req("GET", "/review/approval.html", host=SEE)[0], 303)
+        st, h, body = approve()
+        self.assertEqual(st, 400)
+        self.assertIn("You approved round 1 already", body)
+        self.assertIn("Round 1 approved on", req("GET", "/office", host=SEE, cookies=ada)[2])
+        os.environ["ENGINE_USER"] = "jameshartt@example.com"
+        body = req("GET", f"/guests/{gid}")[2]
+        self.assertIn("ada-engines round 1, seen", body)
+        self.assertIn("2 notes, 2 sent; approved on", body)
+        self.assertIn("vetoed clips/02-the-second.mp4", body)
+
+        # ── a new round: the office sees it, the page says what changed and asks again ──
+        put(
+            f"guests/{gid}/review.json",
+            {**doc, "round": 2, "at": "2026-11-06T09:00:00", "changed": ["episode.mp4", "episode.mp3"]},
+        )
+        st, h, body = req("GET", "/review", host=SEE, cookies=ada)
+        self.assertEqual(st, 200)
+        for s in (
+            "Round 2, from",
+            "Since the last round these changed: episode.mp4, episode.mp3",
+            "You approved round 1 on",
+            "this is round 2, so it asks for your approval again",
+            '<input type="hidden" name="round" value="2">',
+            "<canvas",
+            "No notes yet on this round",
+        ):
+            self.assertIn(s, body, s)
+        self.assertEqual(review.current(c, gid)["round"], 2)
+        self.assertIn("Round 2 is ready", req("GET", "/office", host=SEE, cookies=ada)[2])
+        st, h, body = req("POST", "/review/note", {"text": "Round two is right.", "at": ""}, SEE, ada)
+        self.assertEqual(st, 303)
+        self.assertEqual([r["n"] for r in json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"]], [1, 2])
+        self.assertIn("Nothing to watch yet", review.not_yet(c, guests.guest(c, gid), "")[1])
 
 
 if __name__ == "__main__":

@@ -670,7 +670,7 @@ class App(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", cache)
-        self.send_header("Content-Security-Policy", CSP)
+        self.send_header("Content-Security-Policy", guests.csp(CSP) if guests.is_guest_host(self) else CSP)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         # The guest host's door checks a POST's Origin, and under no-referrer a browser sends `Origin: null` with

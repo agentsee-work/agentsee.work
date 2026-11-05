@@ -108,6 +108,19 @@ def refused(e, buckets, what):
     return f"{what}: {code}. {why}"
 
 
+def source_in_archive(s3, buckets, slug, relp, p):
+    """The key of the same file under another episode's out/ in the archive, when it is there at the same
+    size (--from-archive): the bytes are copied inside the bucket rather than sent again."""
+    src = f"episodes/{slug}/out/{relp}"
+    try:
+        head = s3.head_object(Bucket=buckets["archive"], Key=src)
+    except s3.exceptions.ClientError as e:
+        if e.response.get("ResponseMetadata", {}).get("HTTPStatusCode") != 404:
+            die(refused(e, buckets, f"cannot check {buckets['archive']}/{src}"))
+        return None
+    return src if head.get("ContentLength") == p.stat().st_size else None
+
+
 def connect(boto3, slug="<slug>"):
     """The S3 client for R2 and the two bucket names, from the environment `op run` filled. Refuses
     early, and says why, when a credential is missing, misfiled or not allowed to read."""
@@ -290,7 +303,12 @@ def main():
                     help="the render as it stands, to the archive for the guest's review: no approval, nothing public")
     ap.add_argument("--dry-run", action="store_true", help="list what would go; no credentials needed")
     ap.add_argument("--no-source", action="store_true", help="stage without the Riverside package")
+    ap.add_argument("--from-archive", metavar="SLUG",
+                    help="with --review: a file the archive already holds at episodes/SLUG/out/ with the same size "
+                         "is copied there, not uploaded (a rehearsal from a staged episode, over a slow line)")
     a = ap.parse_args()
+    if a.from_archive and not a.review:
+        die("--from-archive goes with --review: the final run puts the episode's own files")
     # Under `op run` stdout is a pipe, so progress would otherwise arrive at exit.
     sys.stdout.reconfigure(line_buffering=True)
     # Before anything is printed: a re-exec into the venv starts main over.
@@ -334,6 +352,8 @@ def main():
     if a.dry_run:
         for b, key, p, ctype in items:
             print(f"  {b:<7} {key:<60} {p.stat().st_size / 1e6:9.1f} MB  {ctype}")
+        if a.from_archive:
+            print(f"  a file the archive holds at episodes/{a.from_archive}/out/ at the same size is copied, not put")
         return 0
 
     s3, buckets = connect(boto3, a.slug)
@@ -358,9 +378,19 @@ def main():
             if e.response.get("ResponseMetadata", {}).get("HTTPStatusCode") != 404:
                 die(refused(e, buckets, f"cannot check {buckets[b]}/{key}"))
             there = None  # absent is the one answer that means "upload"
+        src = source_in_archive(s3, buckets, a.from_archive, relp, p) if a.from_archive and b == "archive" and relp else None
         if there == digest:
             skipped += 1
             record = "unchanged"
+        elif src:
+            try:
+                s3.copy_object(Bucket=buckets[b], Key=key, CopySource={"Bucket": buckets[b], "Key": src},
+                               MetadataDirective="REPLACE", ContentType=ctype, Metadata={"sha256": digest})
+            except s3.exceptions.ClientError as e:
+                die(refused(e, buckets, f"the copy of {src} to {key} failed"))
+            put += 1
+            record = "copied"
+            print(f"  {b:<7} {key}  copied from {src}  ({n}/{len(items)})", flush=True)
         else:
             extra = {"ContentType": ctype, "Metadata": {"sha256": digest}}
             if b == "media":

@@ -29,8 +29,8 @@ The podcast pipeline, one tool per stage, driven by `episode.py`:
 | `cards.py` | Title and end cards animated through `eyeanim.py`'s chains; chapter cards. |
 | `assemble.py` | Gate, match and mix the voices, lay the cues, cut and compose the video. Every deliverable. |
 | `clips.py` | Vertical clips from `clips.json`, both hosts stacked, captions lit word by word. |
-| `office.py` | The guest office's records, read from the archive: `notes` seeds `removals.json` from the guest's confirmed cuts and the notes from what they gave; `approve` refuses without each guest's approval, mints the episode number, redoes the render with it and records the approval. |
-| `stage.py` | An episode to R2: `--review` puts the unnumbered render in the private archive for the guest to see, and nothing public; the final run puts the package, the edit and every deliverable in the archive and the public files on `media.agentsee.work`. Refuses what changed since approval and a guest's episode the guest has not approved; re-runs put only what changed. |
+| `office.py` | The guest office's records, read from the archive: `notes` seeds `removals.json` from the guest's confirmed cuts and the notes from what they gave; `approve` refuses without each guest's approval, mints the episode number, redoes the render with it and records the approval; `approve --dry-run` says what it would do and writes nothing. |
+| `stage.py` | An episode to R2: `--review` puts the unnumbered render in the private archive for the guest to see, and nothing public (`--from-archive SLUG` copies inside the bucket what another episode's `out/` already holds, for a rehearsal over a slow line); the final run puts the package, the edit and every deliverable in the archive and the public files on `media.agentsee.work`. Refuses what changed since approval and a guest's episode the guest has not approved; re-runs put only what changed. |
 | `site.py` | The podcast on the site: the feed, the show page and a page per staged episode, into `public/podcast/`. Lifts the masthead, the ads and the footer from the front page. Commit what it writes. |
 | `directories.py` | Where each released episode is, into its `episode.json` for the episode page, where the short links land: its video and each clip's Short on YouTube (the channel's own uploads, told apart by the short link in each description, public ones only), its link on Apple Podcasts (a public lookup on the guid) and on Spotify (its API, once an app exists). Credentials through `tools/directories.env`; without them Apple alone. Until a directory's link is found, the page links the show there. |
 | `youtube.py` | YouTube for the podcast. `auth` runs Google's consent once in a browser, for the brand channel, and prints the refresh token to file in the vault; upload and the analytics reads come with the publisher. |
@@ -153,6 +153,8 @@ Each stage is its own tool with its own options; the ones worth knowing:
 ./tools/episode.py notes ep4                            # the guest's confirmed cuts into removals.json; re-cut, review again
 ./tools/episode.py approve ep4 --release 2026-11-24     # the guest's approval checked, the number minted, the render redone, the record
 ./tools/episode.py approve ep4 --number 7               # when plans changed; never a number another staged episode has
+./tools/episode.py approve ep4 --dry-run                # the gate, the number, the clips that would go; nothing written
+./tools/episode.py review rehearsal --from-archive ep3  # a rehearsal: the files ep3 staged are copied inside the bucket
 ./tools/episode.py stage ep4                            # archive + public media, R2 token via op run (tools/stage.env)
 ./tools/stage.py ep4 --dry-run                          # what would go, without credentials; --review --dry-run likewise
 ```
