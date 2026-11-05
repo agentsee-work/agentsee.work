@@ -750,6 +750,7 @@ def get(h, c, path, q):
         "/time/ask",
         "/time/withdraw",
         "/review/note",
+        "/review/cut",
         "/review/approve",
     ):
         return h.redirect("/")
@@ -938,6 +939,22 @@ def post(h, c, path, form, files=None):
             return answer(
                 h, 200, ok=True, sections=[{"id": "notes", "html": review.notes_body(c, g, row, idea.word("Sent."))}]
             )
+        return h.redirect("/review#notes")
+    if path == "/review/cut":
+        g, s = current(c, h)
+        if not g:
+            return h.redirect("/")
+        try:
+            nid = int(form.get("id") or 0)
+            tell(c, g, "cut", s["address"], **review.answer_cut(c, g, nid, form.get("answer") == "yes"))
+        except review.ReviewError as e:
+            if live(h):
+                return answer(h, 400, ok=False, error=str(e))
+            return page(h, *review.review_page(c, g, str(e), 400))
+        mirror(c, g["id"])
+        if live(h):
+            row = review.current(c, g["id"])
+            return answer(h, 200, ok=True, sections=[{"id": "notes", "html": review.notes_body(c, g, row)}])
         return h.redirect("/review#notes")
     if path == "/review/approve":
         g, s = current(c, h)

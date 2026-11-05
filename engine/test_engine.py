@@ -3750,11 +3750,18 @@ class EngineTest(unittest.TestCase):
         issue; the approval with a clip vetoed, its signature and record, the
         copies, the mail, the issue labelled; a second approval refused; a new
         round asking again; the hosts' page."""
+        import idea
         import review
 
         SEE = guests.HOST
-        os.environ.update(self.menv, ENGINE_SESSION_KEY="a-key-for-the-tests")
-        self.addCleanup(lambda: [os.environ.pop(k, None) for k in (*self.menv, "ENGINE_SESSION_KEY", "ENGINE_USER")])
+        os.environ.update(self.menv, ENGINE_SESSION_KEY="a-key-for-the-tests", ANTHROPIC_API_KEY="sk-test")
+        self.addCleanup(
+            lambda: [
+                os.environ.pop(k, None) for k in (*self.menv, "ENGINE_SESSION_KEY", "ENGINE_USER", "ANTHROPIC_API_KEY")
+            ]
+        )
+        ai = FakeAnthropic()
+        idea.open_stream = ai
         client = archive.Client(self.r2env)
         patch = unittest.mock.patch.object(archive, "Client", lambda env=None: client)
         patch.start()
@@ -3848,6 +3855,32 @@ class EngineTest(unittest.TestCase):
 
         put(f"guests/{gid}/review.json", doc)
         put("episodes/ada-engines/review/release.json", rel)
+        put(
+            "episodes/ada-engines/review/transcript.json",
+            {
+                "version": 1,
+                "segments": [
+                    {
+                        "speaker": "James Hartt",
+                        "startTime": 740.0,
+                        "endTime": 748.0,
+                        "body": "So tell us about the loom.",
+                    },
+                    {
+                        "speaker": "Ada Lovelace",
+                        "startTime": 748.5,
+                        "endTime": 760.0,
+                        "body": "It was my grandmother's loom, and it still works. The cards are the thing.",
+                    },
+                    {
+                        "speaker": "James Hartt",
+                        "startTime": 2000.0,
+                        "endTime": 2004.0,
+                        "body": "And that is the ending.",
+                    },
+                ],
+            },
+        )
         body = req("GET", "/office", host=SEE, cookies=ada)[2]
         self.assertIn("Round 1 is ready: watch, note, approve", body)
         row = review.current(c, gid)
@@ -3900,6 +3933,10 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(req("GET", "/review.js", host=SEE)[0], 200)
 
         # ── a note with its moment, sent as it is made: mirrored, mailed, on the issue; a bad one refused ──
+        ai.replies = [
+            '{"cut": true, "phrase": "It was my grandmother\'s loom, and it still works.", "why": "the loom"}',
+            '{"cut": false}',
+        ]
         sent = len(FakeSMTP.sent)
         st, h, body = req("POST", "/review/note", {"text": "Cut the bit about the loom", "at": "12:34"}, SEE, ada)
         self.assertEqual((st, h["Location"]), (303, "/review#notes"))
@@ -3910,6 +3947,14 @@ class EngineTest(unittest.TestCase):
         )
         self.assertIn("- at 12:34: Cut the bit about the loom", m.get_content())
         self.assertIn("episode.py notes ada-engines", m.get_content())
+        self.assertIn(
+            'awaiting their confirmation: "It was my grandmother\'s loom, and it still works."', m.get_content()
+        )
+        asked = ai.payloads[-1][0]
+        self.assertIn("JSON only", asked["system"][0]["text"])
+        self.assertIn("about the moment 12:34", asked["messages"][0]["content"])
+        self.assertIn("[12:28] Ada Lovelace: It was my grandmother's loom", asked["messages"][0]["content"])
+        self.assertNotIn("And that is the ending", asked["messages"][0]["content"], "a window around the moment")
         st, h, body = req("POST", "/review/note", {"text": "Nice", "at": "noon"}, SEE, ada)
         self.assertEqual(st, 400)
         self.assertIn("A moment is m:ss", body)
@@ -3933,6 +3978,10 @@ class EngineTest(unittest.TestCase):
         self.assertIn('<span class="t muted">general</span> The ending is lovely.', j["sections"][0]["html"])
         self.assertIn("Send the note", j["sections"][0]["html"])
         self.assertNotIn("/review/send", j["sections"][0]["html"], "no second step")
+        self.assertIn(
+            "Cut these words? <q>It was my grandmother&#x27;s loom, and it still works.</q>", j["sections"][0]["html"]
+        )
+        self.assertIn("Yes, cut them", j["sections"][0]["html"])
         mirrored = json.loads(objs[f"guests/{gid}/notes.json"]["body"])
         self.assertEqual(len(mirrored["rounds"]), 1)
         r1 = mirrored["rounds"][0]
@@ -3941,6 +3990,12 @@ class EngineTest(unittest.TestCase):
             [(n["t"], n["text"], n["sent"][:4]) for n in r1["notes"]],
             [(754.0, "Cut the bit about the loom", "2026"), (None, "The ending is lovely.\n\nKeep it.", "2026")],
         )
+        self.assertEqual(
+            (r1["notes"][0]["remove"], r1["notes"][0]["confirmed"]),
+            ({"phrase": "It was my grandmother's loom, and it still works."}, False),
+            "found, not answered yet",
+        )
+        self.assertNotIn("remove", r1["notes"][1])
         jobs = c.execute("SELECT * FROM linear_job WHERE kind='noted' ORDER BY id").fetchall()
         self.assertEqual(
             [(x["guest"], json.loads(x["args"])["notes"][0]["t"]) for x in jobs], [(gid, 754.0), (gid, None)]
@@ -3951,8 +4006,69 @@ class EngineTest(unittest.TestCase):
         self.assertIn('Ada Lovelace left a note on review round 1 of "Ada, on engines" (ada-engines)', text)
         self.assertIn("**Ada Lovelace wrote, through [see.agentsee.work](https://see.agentsee.work):**", text)
         self.assertIn("> At 12:34: Cut the bit about the loom", text)
+        self.assertIn('awaiting their confirmation: "It was my grandmother\'s loom, and it still works."', text)
         self.assertIn("> The ending is lovely.", fake.comments[-1][1])
+        self.assertNotIn("confirmation", fake.comments[-1][1])
         self.assertEqual(req("GET", "/review/send", host=SEE, cookies=ada)[0], 404, "no send step any more")
+
+        # ── the cut: the guest's word on the words found; words the model named that are not there; the model down ──
+        nid = c.execute("SELECT id FROM review_note WHERE guest=? AND remove IS NOT NULL", (gid,)).fetchone()[0]
+        self.assertEqual(req("POST", "/review/cut", {"id": "999", "answer": "yes"}, SEE, ada)[0], 400)
+        sent = len(FakeSMTP.sent)
+        st, h, body = req("POST", "/review/cut", {"id": str(nid), "answer": "yes"}, SEE, ada, {"X-Office": "live"})
+        self.assertEqual(st, 200)
+        self.assertIn("Cut confirmed: <q>It was my grandmother", json.loads(body)["sections"][0]["html"])
+        n0 = json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"][0]["notes"][0]
+        self.assertEqual(
+            (n0["remove"]["phrase"], n0["confirmed"]), ("It was my grandmother's loom, and it still works.", True)
+        )
+        self.assertEqual(len(FakeSMTP.sent), sent + 1)
+        self.assertEqual(FakeSMTP.sent[-1]["Subject"], "Ada Lovelace confirmed the cut on round 1 of Ada, on engines")
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
+        self.assertIn('confirmed the cut on review round 1 of "Ada, on engines" (ada-engines)', fake.comments[-1][1])
+        self.assertIn("takes it into removals.json", fake.comments[-1][1])
+        st, h, body = req("POST", "/review/cut", {"id": str(nid), "answer": "no"}, SEE, ada)
+        self.assertEqual(st, 400)
+        self.assertIn("answered that one already", body)
+        ai.replies = ['{"cut": true, "phrase": "my joke about bananas", "why": "bananas"}']
+        st, h, body = req("POST", "/review/note", {"text": "Remove my joke about bananas", "at": ""}, SEE, ada)
+        self.assertEqual(st, 303)
+        self.assertIn("could not be found in the transcript", FakeSMTP.sent[-1].get_content())
+        last = c.execute("SELECT remove FROM review_note WHERE guest=? ORDER BY id DESC LIMIT 1", (gid,)).fetchone()
+        self.assertIsNone(last["remove"], "words that are not in the transcript are not recorded")
+        self.assertEqual(
+            c.execute("SELECT COUNT(*) FROM event WHERE what='review:cut:missed' AND guest=?", (gid,)).fetchone()[0], 1
+        )
+        whole = ai.payloads[-1][0]["messages"][0]["content"]
+        self.assertNotIn("about the moment", whole, "no moment: the whole transcript")
+        self.assertIn("[33:20] James Hartt: And that is the ending.", whole)
+        ai.fail = 500
+        st, h, body = req(
+            "POST", "/review/note", {"text": "Lose the bit where I cough", "at": "0:05"}, SEE, ada, {"X-Office": "live"}
+        )
+        self.assertEqual(st, 200, "the model down does not stop a note")
+        self.assertEqual(
+            c.execute("SELECT COUNT(*) FROM event WHERE what='review:cut:failed' AND guest=?", (gid,)).fetchone()[0], 1
+        )
+        ai.replies = ['{"cut": true, "phrase": "The cards are the thing.", "why": "the cards"}']
+        st, h, body = req(
+            "POST",
+            "/review/note",
+            {"text": "Drop the line about the cards", "at": "12:40"},
+            SEE,
+            ada,
+            {"X-Office": "live"},
+        )
+        self.assertIn("Cut these words? <q>The cards are the thing.</q>", json.loads(body)["sections"][0]["html"])
+        nid = c.execute("SELECT id FROM review_note WHERE guest=? ORDER BY id DESC LIMIT 1", (gid,)).fetchone()[0]
+        st, h, body = req("POST", "/review/cut", {"id": str(nid), "answer": "no"}, SEE, ada, {"X-Office": "live"})
+        self.assertIn("Left in, as you said: <q>The cards are the thing.</q>", json.loads(body)["sections"][0]["html"])
+        self.assertEqual(
+            [n.get("confirmed") for n in json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"][0]["notes"]],
+            [True, None, None, None, False],
+        )
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 4, "three notes and an answer")
+        self.assertIn("decided against the cut", fake.comments[-1][1])
 
         # ── the approval: the refusals, then the signing with a clip vetoed ──
         png = test_png()
@@ -4061,7 +4177,7 @@ class EngineTest(unittest.TestCase):
         os.environ["ENGINE_USER"] = "jameshartt@example.com"
         body = req("GET", f"/guests/{gid}")[2]
         self.assertIn("ada-engines round 1, seen", body)
-        self.assertIn("2 notes; approved on", body)
+        self.assertIn("5 notes; approved on", body)
         self.assertIn("vetoed clips/02-the-second.mp4", body)
 
         # ── a new round: the office sees it, the page says what changed and asks again ──
@@ -4079,8 +4195,11 @@ class EngineTest(unittest.TestCase):
             '<input type="hidden" name="round" value="2">',
             "<canvas",
             "No notes yet on this round",
+            "What you asked on round 1",
+            "Cut confirmed: <q>It was my grandmother",
         ):
             self.assertIn(s, body, s)
+        self.assertNotIn("Yes, cut them", body, "the last round's cuts are a record, not a question")
         self.assertEqual(review.current(c, gid)["round"], 2)
         self.assertIn("Round 2 is ready", req("GET", "/office", host=SEE, cookies=ada)[2])
         st, h, body = req("POST", "/review/note", {"text": "Round two is right.", "at": ""}, SEE, ada)

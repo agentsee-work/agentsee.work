@@ -33,6 +33,7 @@ import os
 import re
 
 import archive
+import idea
 import ledger
 import linear
 import mail
@@ -43,6 +44,16 @@ LINK_TTL = 3600  # a signed link's life
 REFRESH = 60  # seconds before the office looks in the archive again for a new round
 NOTE_MAX = 2000
 WANT = ("episode.mp4", "episode.mp3", "thumbnail.png", "episode-art.png")
+CUT_WINDOW = 240  # seconds of transcript either side of a note's moment that the model reads
+
+CUT_SYSTEM = """You help edit an episode of a podcast. You are given a guest's review note and the episode's transcript, with
+speakers and times. Decide whether the note asks for words to be removed from the episode. If it does, find the
+passage of the transcript the note means and answer with JSON only:
+{"cut": true, "phrase": "<the passage, copied from the transcript word for word with its punctuation, as one
+contiguous run; whole sentences where you can; long enough to occur only once>", "why": "<a few words on what it is>"}
+If the note does not ask for a removal, or the passage cannot be found, answer {"cut": false}.
+Never invent, shorten or paraphrase the words: the phrase must appear in the transcript exactly as you give it.
+No prose around the JSON, no code fences."""
 
 NOTES_MAIL = """Hello,
 
@@ -203,9 +214,10 @@ def notes(c, gid, slug=None, rnd=None):
     ).fetchall()
 
 
-def add_note(c, g, text, at_text, client=None):
-    """A note, sent as it is made: kept, mirrored to the archive, mailed to the
-    hosts; returns what the issue's job needs (guests.tell)."""
+def add_note(c, g, text, at_text, env=None, client=None):
+    """A note, sent as it is made: kept, read for a cut, mirrored to the
+    archive, mailed to the hosts; returns what the issue's job needs
+    (guests.tell)."""
     row = current(c, g["id"])
     if not row:
         raise ReviewError("Nothing to note yet")
@@ -218,6 +230,7 @@ def add_note(c, g, text, at_text, client=None):
         "INSERT INTO review_note (guest, slug, round, t, text, at, sent_at) VALUES (?,?,?,?,?,?,?)",
         (g["id"], row["slug"], row["round"], t, text, at, at),
     )
+    nid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
     ledger.event(
         c,
         "guest:noted",
@@ -225,9 +238,19 @@ def add_note(c, g, text, at_text, client=None):
         detail={"slug": row["slug"], "round": row["round"], "t": t, "text": text[:200]},
         guest=g["id"],
     )
+    cut = find_cut(c, g, row, text, t, os.environ if env is None else env, client)
+    if cut and cut.get("phrase"):
+        c.execute(
+            "UPDATE review_note SET remove=? WHERE id=?",
+            (json.dumps({"phrase": cut["phrase"], "why": cut.get("why")}), nid),
+        )
     mirror_notes(c, g, client)
     title = title_of(row)
     line = f"- {'at ' + mmss(t) + ': ' if t is not None else ''}{text}"
+    if cut and cut.get("phrase"):
+        line += f'\n\nThey asked for a cut. The words found in the transcript, awaiting their confirmation: "{cut["phrase"]}"'
+    elif cut:
+        line += "\n\nThey asked for a cut, but the words could not be found in the transcript; read the note."
     body = NOTES_MAIL.format(
         name=g["name"], round=row["round"], title=title, host=office(), notes=line, gid=g["id"], slug=row["slug"]
     )
@@ -238,7 +261,112 @@ def add_note(c, g, text, at_text, client=None):
         "title": title,
         "count": 1,
         "notes": [{"t": t, "text": text}],
+        "cut": (cut or {}).get("phrase"),
+        "missed": bool(cut and not cut.get("phrase")),
         "mailed": mailed,
+    }
+
+
+# ─── a cut, found in the transcript ──────────────────────────────────────────
+def tok(w):
+    """A word as tools/cut.py compares it: lower case, letters, digits and apostrophes only."""
+    return re.sub(r"[^a-z0-9']", "", w.lower())
+
+
+def transcript_of(row, client=None):
+    """The round's transcript: (start, speaker, body) per segment, from the archive; none without it."""
+    try:
+        doc = (client or archive.Client()).get_json(f"episodes/{row['slug']}/review/transcript.json")
+    except archive.ArchiveError:
+        return []
+    segs = (doc or {}).get("segments") or []
+    return [(float(s.get("startTime") or 0), s.get("speaker") or "", s.get("body") or "") for s in segs]
+
+
+def occurrences(segs, phrase):
+    """How many times the phrase's words occur in the transcript, compared the way tools/cut.py compares them."""
+    target = [tok(w) for w in phrase.split()]
+    target = [w for w in target if w]
+    toks = [tok(w) for _, _, body in segs for w in body.split()]
+    toks = [w for w in toks if w]
+    if not target or len(target) > len(toks):
+        return 0
+    return sum(1 for i in range(len(toks) - len(target) + 1) if toks[i : i + len(target)] == target)
+
+
+def find_cut(c, g, row, text, t, env, client=None):
+    """What the note asks to remove, as the words of the transcript, found by
+    the model and checked here: None when the note is not a cut or the model
+    is not set up; {"phrase", "why"} when the words occur in the transcript
+    exactly once; {"phrase": None} when the model named words that do not."""
+    if not idea.ready(env):
+        return None
+    segs = transcript_of(row, client)
+    if not segs:
+        return None
+    if t is None:
+        shown = segs
+    else:
+        shown = [s for s in segs if t - CUT_WINDOW <= s[0] <= t + CUT_WINDOW] or segs
+    lines = "\n".join(f"[{mmss(s)}] {spk}: {body}" for s, spk, body in shown)
+    moment = f", about the moment {mmss(t)}" if t is not None else ""
+    user = f'The guest\'s note{moment}:\n"{text}"\n\nThe transcript{", around that moment" if t is not None else ""}:\n{lines}'
+    try:
+        answer, usage, stop, model = idea.request(env, CUT_SYSTEM, [{"role": "user", "content": user}])
+        m = re.search(r"\{.*\}", answer, re.S)
+        got = json.loads(m.group(0)) if m else {}
+    except (idea.IdeaError, ValueError) as e:
+        ledger.event(c, "review:cut:failed", "engine", detail=str(e)[:300], guest=g["id"])
+        return None
+    if not got.get("cut"):
+        return None
+    phrase = " ".join(str(got.get("phrase") or "").split())
+    if phrase and occurrences(segs, phrase) == 1:
+        ledger.event(c, "review:cut:found", "engine", detail={"phrase": phrase[:200], "model": model}, guest=g["id"])
+        return {"phrase": phrase, "why": str(got.get("why") or "")[:120]}
+    ledger.event(c, "review:cut:missed", "engine", detail={"phrase": phrase[:200], "model": model}, guest=g["id"])
+    return {"phrase": None}
+
+
+def answer_cut(c, g, nid, yes, client=None):
+    """The guest's word on the words found: confirmed, which the pipeline takes into removals.json, or not."""
+    n = c.execute("SELECT * FROM review_note WHERE id=? AND guest=?", (nid, g["id"])).fetchone()
+    if not n or not n["remove"]:
+        raise ReviewError("No cut to answer")
+    if n["confirmed"] is not None:
+        raise ReviewError("You answered that one already")
+    c.execute("UPDATE review_note SET confirmed=? WHERE id=?", (1 if yes else 0, nid))
+    phrase = json.loads(n["remove"])["phrase"]
+    ledger.event(
+        c,
+        "guest:cut:confirmed" if yes else "guest:cut:declined",
+        g["address"],
+        detail={"slug": n["slug"], "round": n["round"], "phrase": phrase[:200]},
+        guest=g["id"],
+    )
+    mirror_notes(c, g, client)
+    row = current(c, g["id"])
+    title = title_of(row) if row else n["slug"]
+    what = "confirmed the cut" if yes else "decided against the cut"
+    _mail_hosts(
+        c,
+        g,
+        f"{g['name']} {what} on round {n['round']} of {title}",
+        f'Hello,\n\n{g["name"]} {what} on round {n["round"]} of "{title}" through {office()}:\n\n"{phrase}"\n\n'
+        + (
+            f"guests/{g['id']}/notes.json carries it as confirmed; `episode.py notes {n['slug']}` takes it into "
+            "removals.json."
+            if yes
+            else "The words stay; the note itself stands."
+        ),
+    )
+    return {
+        "slug": n["slug"],
+        "round": n["round"],
+        "title": title,
+        "text": n["text"],
+        "phrase": phrase,
+        "confirmed": yes,
     }
 
 
@@ -249,7 +377,11 @@ def notes_record(c, gid):
         r = rounds.setdefault(
             (n["slug"], n["round"]), {"n": n["round"], "slug": n["slug"], "at": n["at"], "notes": [], "sent": None}
         )
-        r["notes"].append({"at": n["at"], "t": n["t"], "text": n["text"], "sent": n["sent_at"]})
+        entry = {"at": n["at"], "t": n["t"], "text": n["text"], "sent": n["sent_at"]}
+        if n["remove"]:
+            entry["remove"] = {"phrase": json.loads(n["remove"])["phrase"]}
+            entry["confirmed"] = bool(n["confirmed"])
+        r["notes"].append(entry)
         if n["sent_at"] and (not r["sent"] or n["sent_at"] > r["sent"]):
             r["sent"] = n["sent_at"]
     return {"guest": gid, "rounds": list(rounds.values())}
@@ -478,7 +610,28 @@ def job_noted(env, a, c=None):
         f'{a["name"]} left a note on review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on {a["when"]}. '
         f"`episode.py notes {a['slug']}` brings the confirmed cuts in.\n\n"
     )
-    cm = linear.comment(env, a["issue"], head + linear.quote(a["name"], lines))
+    body = head + linear.quote(a["name"], lines)
+    if a.get("cut"):
+        body += f'\n\nThe words found in the transcript for the cut, awaiting their confirmation: "{a["cut"]}"'
+    elif a.get("missed"):
+        body += "\n\nThey asked for a cut, but the words could not be found in the transcript; read the note."
+    cm = linear.comment(env, a["issue"], body)
+    return {"issue": a["issue"], "comment": cm["url"]}
+
+
+def job_cut(env, a, c=None):
+    """The guest's word on a cut, on the issue."""
+    if a["confirmed"]:
+        text = (
+            f'{a["name"]} confirmed the cut on review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on '
+            f'{a["when"]}: "{a["phrase"]}". `episode.py notes {a["slug"]}` takes it into removals.json.'
+        )
+    else:
+        text = (
+            f'{a["name"]} decided against the cut on review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on '
+            f'{a["when"]}: "{a["phrase"]}" stays; the note itself stands.'
+        )
+    cm = linear.comment(env, a["issue"], text)
     return {"issue": a["issue"], "comment": cm["url"]}
 
 
@@ -530,22 +683,52 @@ def host_line(c, gid):
     return line + f' <span class="mono">guests/{esc(gid)}/notes.json, approval.json</span>'
 
 
+def note_item(n, ask=True):
+    """One note as the list shows it: its moment, its words, and the cut found for it with the guest's answer."""
+    t = (
+        f'<a class="t" href="#watch" data-t="{n["t"]:.1f}">{esc(mmss(n["t"]))}</a> '
+        if n["t"] is not None
+        else '<span class="t muted">general</span> '
+    )
+    cut = ""
+    if n["remove"]:
+        phrase = esc(json.loads(n["remove"])["phrase"])
+        if n["confirmed"] is None and ask:
+            cut = (
+                f'<div class="cut-ask"><p>Cut these words? <q>{phrase}</q></p>'
+                f'<form method="post" action="/review/cut" class="inline" data-live>'
+                f'<input type="hidden" name="id" value="{n["id"]}"><input type="hidden" name="answer" value="yes">'
+                '<button type="submit" class="signal">Yes, cut them</button></form> '
+                f'<form method="post" action="/review/cut" class="inline" data-live>'
+                f'<input type="hidden" name="id" value="{n["id"]}"><input type="hidden" name="answer" value="no">'
+                '<button type="submit">No, leave them</button></form></div>'
+            )
+        elif n["confirmed"]:
+            cut = f'<p class="cut-state">Cut confirmed: <q>{phrase}</q></p>'
+        elif n["confirmed"] is not None:
+            cut = f'<p class="cut-state muted">Left in, as you said: <q>{phrase}</q></p>'
+        else:
+            cut = f'<p class="cut-state muted">Words found, not answered: <q>{phrase}</q></p>'
+    return f"<li>{t}{esc(n['text'])}{cut}</li>"
+
+
 def notes_body(c, g, row, word=""):
-    """The notes section: this round's notes, and the form for one more, which sends it."""
+    """The notes section: this round's notes with any cut found for each, the
+    last round's for the record, and the form for one more, which sends it."""
     ns = notes(c, g["id"], row["slug"], row["round"])
-    items = []
-    for n in ns:
-        t = (
-            f'<a class="t" href="#watch" data-t="{n["t"]:.1f}">{esc(mmss(n["t"]))}</a> '
-            if n["t"] is not None
-            else '<span class="t muted">general</span> '
-        )
-        items.append(f"<li>{t}{esc(n['text'])}</li>")
+    items = [note_item(n) for n in ns]
     shown = (
         f'<p>Sent to James and Abrar:</p><ul class="notes-list">{"".join(items)}</ul>'
         if items
         else "<p>No notes yet on this round.</p>"
     )
+    if row["round"] > 1:
+        before = notes(c, g["id"], row["slug"], row["round"] - 1)
+        if before:
+            shown += (
+                f'<details class="before"><summary>What you asked on round {row["round"] - 1}</summary>'
+                f'<ul class="notes-list">{"".join(note_item(n, ask=False) for n in before)}</ul></details>'
+            )
     form = (
         '<form method="post" action="/review/note" class="block note-form" data-note data-live>'
         '<label for="note-text">A note</label>'
@@ -556,8 +739,9 @@ def notes_body(c, g, row, word=""):
         '<button type="button" data-here hidden>At this moment</button>'
         '<button type="submit" class="signal">Send the note</button></div>'
         '<p class="muted">Each note goes to James and Abrar as you send it. A moment makes it easy to act on; '
-        '"at this moment" takes it from the player. They re-cut from your notes, this page shows the new round, '
-        "and you approve when it is right.</p>"
+        '"at this moment" takes it from the player. For a cut, say what should go: the words are found in the '
+        "transcript and shown to you to confirm, so what is cut is exactly what you meant. They re-cut from your "
+        "notes, this page shows the new round, and you approve when it is right.</p>"
         f"{word}</form>"
     )
     return section("Notes", f"Round {row['round']}", shown + form, anchor="notes")
