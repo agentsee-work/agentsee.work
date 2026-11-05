@@ -140,8 +140,11 @@ def connect(boto3, slug="<slug>"):
             "SHA-256, shown as 'Secret Access Key' when the token was minted; mint again if lost")
     if not re.fullmatch(r"[0-9a-f]{64}", secret):
         print(f"  warning: AWS_SECRET_ACCESS_KEY is {len(secret)} chars, not the 64 hex of an R2 Secret Access Key")
+    # A copy inside the bucket (--from-archive) answers only when R2 has made it, and a 2.4 GB video took
+    # longer than botocore's minute, so the client waits a quarter of an hour for an answer.
     s3 = boto3.client("s3", region_name="auto",
-                      endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com")
+                      endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
+                      config=boto3.session.Config(connect_timeout=30, read_timeout=900))
     buckets = {"archive": os.environ["R2_ARCHIVE_BUCKET"], "media": os.environ["R2_MEDIA_BUCKET"]}
     # Cheap, before anything is uploaded: can the token read both buckets?
     for b, name in buckets.items():
