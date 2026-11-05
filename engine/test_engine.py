@@ -3889,6 +3889,9 @@ class EngineTest(unittest.TestCase):
         ):
             self.assertIn(s, body, s)
         self.assertNotIn('poster="" ', body)
+        self.assertLess(body.index('id="watch"'), body.index('id="notes"'), "the episode, then the notes under it")
+        self.assertLess(body.index('id="notes"'), body.index('id="clips"'), "then the clips")
+        self.assertLess(body.index('id="clips"'), body.index('id="approve"'), "then the approval")
         self.assertIn(f"media-src {endpoint}", h["Content-Security-Policy"])
         self.assertIn(f"img-src 'self' {endpoint} https://media.agentsee.work", h["Content-Security-Policy"])
         self.assertNotIn(
@@ -3896,15 +3899,24 @@ class EngineTest(unittest.TestCase):
         )
         self.assertEqual(req("GET", "/review.js", host=SEE)[0], 200)
 
-        # ── a note with its moment; a bad moment refused; the mirror the pipeline reads ──
+        # ── a note with its moment, sent as it is made: mirrored, mailed, on the issue; a bad one refused ──
+        sent = len(FakeSMTP.sent)
         st, h, body = req("POST", "/review/note", {"text": "Cut the bit about the loom", "at": "12:34"}, SEE, ada)
         self.assertEqual((st, h["Location"]), (303, "/review#notes"))
+        self.assertEqual(len(FakeSMTP.sent), sent + 1)
+        m = FakeSMTP.sent[-1]
+        self.assertEqual(
+            (m["To"], m["Subject"]), ("hello@agentsee.work", "Ada Lovelace's note on round 1 of Ada, on engines")
+        )
+        self.assertIn("- at 12:34: Cut the bit about the loom", m.get_content())
+        self.assertIn("episode.py notes ada-engines", m.get_content())
         st, h, body = req("POST", "/review/note", {"text": "Nice", "at": "noon"}, SEE, ada)
         self.assertEqual(st, 400)
         self.assertIn("A moment is m:ss", body)
         st, h, body = req("POST", "/review/note", {"text": " ", "at": ""}, SEE, ada, {"X-Office": "live"})
         self.assertEqual(st, 400)
         self.assertIn("Write the note first", json.loads(body)["error"])
+        self.assertEqual(len(FakeSMTP.sent), sent + 1, "a refused note sends nothing")
         st, h, body = req(
             "POST",
             "/review/note",
@@ -3916,46 +3928,31 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(st, 200)
         j = json.loads(body)
         self.assertEqual((j["ok"], j["sections"][0]["id"]), (True, "notes"))
-        self.assertIn("Saved.", j["sections"][0]["html"])
+        self.assertIn("Sent.", j["sections"][0]["html"])
         self.assertIn('data-t="754.0">12:34</a> Cut the bit about the loom', j["sections"][0]["html"])
         self.assertIn('<span class="t muted">general</span> The ending is lovely.', j["sections"][0]["html"])
-        self.assertIn("Send 2 notes to James and Abrar", j["sections"][0]["html"])
+        self.assertIn("Send the note", j["sections"][0]["html"])
+        self.assertNotIn("/review/send", j["sections"][0]["html"], "no second step")
         mirrored = json.loads(objs[f"guests/{gid}/notes.json"]["body"])
         self.assertEqual(len(mirrored["rounds"]), 1)
         r1 = mirrored["rounds"][0]
-        self.assertEqual((r1["n"], r1["slug"], r1["sent"]), (1, "ada-engines", None))
+        self.assertEqual((r1["n"], r1["slug"], r1["sent"][:4]), (1, "ada-engines", "2026"))
         self.assertEqual(
-            [(n["t"], n["text"], n["sent"]) for n in r1["notes"]],
-            [(754.0, "Cut the bit about the loom", None), (None, "The ending is lovely.\n\nKeep it.", None)],
+            [(n["t"], n["text"], n["sent"][:4]) for n in r1["notes"]],
+            [(754.0, "Cut the bit about the loom", "2026"), (None, "The ending is lovely.\n\nKeep it.", "2026")],
         )
-
-        # ── sent: to the hosts by mail, to the issue as the guest's words; nothing twice ──
-        sent = len(FakeSMTP.sent)
-        st, h, body = req("POST", "/review/send", {}, SEE, ada)
-        self.assertEqual((st, h["Location"]), (303, "/review#notes"))
-        self.assertEqual(len(FakeSMTP.sent), sent + 1)
-        m = FakeSMTP.sent[-1]
+        jobs = c.execute("SELECT * FROM linear_job WHERE kind='noted' ORDER BY id").fetchall()
         self.assertEqual(
-            (m["To"], m["Subject"]), ("hello@agentsee.work", "Ada Lovelace's notes on round 1 of Ada, on engines")
+            [(x["guest"], json.loads(x["args"])["notes"][0]["t"]) for x in jobs], [(gid, 754.0), (gid, None)]
         )
-        self.assertIn("- at 12:34: Cut the bit about the loom", m.get_content())
-        self.assertIn("episode.py notes ada-engines", m.get_content())
-        self.assertEqual(
-            json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"][0]["notes"][0]["sent"][:4], "2026"
-        )
-        self.assertTrue(json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"][0]["sent"])
-        job = c.execute("SELECT * FROM linear_job WHERE kind='noted'").fetchone()
-        self.assertEqual((job["guest"], json.loads(job["args"])["count"]), (gid, 2))
-        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
-        issue, text = fake.comments[-1]
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 2)
+        issue, text = fake.comments[-2]
         self.assertEqual(issue, "AGE-73")
-        self.assertIn('Ada Lovelace sent 2 notes on review round 1 of "Ada, on engines" (ada-engines)', text)
+        self.assertIn('Ada Lovelace left a note on review round 1 of "Ada, on engines" (ada-engines)', text)
         self.assertIn("**Ada Lovelace wrote, through [see.agentsee.work](https://see.agentsee.work):**", text)
         self.assertIn("> At 12:34: Cut the bit about the loom", text)
-        st, h, body = req("POST", "/review/send", {}, SEE, ada, {"X-Office": "live"})
-        self.assertEqual(st, 400)
-        self.assertIn("Nothing new to send", json.loads(body)["error"])
-        self.assertIn("(sent)", req("GET", "/review", host=SEE, cookies=ada)[2])
+        self.assertIn("> The ending is lovely.", fake.comments[-1][1])
+        self.assertEqual(req("GET", "/review/send", host=SEE, cookies=ada)[0], 404, "no send step any more")
 
         # ── the approval: the refusals, then the signing with a clip vetoed ──
         png = test_png()
@@ -4064,7 +4061,7 @@ class EngineTest(unittest.TestCase):
         os.environ["ENGINE_USER"] = "jameshartt@example.com"
         body = req("GET", f"/guests/{gid}")[2]
         self.assertIn("ada-engines round 1, seen", body)
-        self.assertIn("2 notes, 2 sent; approved on", body)
+        self.assertIn("2 notes; approved on", body)
         self.assertIn("vetoed clips/02-the-second.mp4", body)
 
         # ── a new round: the office sees it, the page says what changed and asks again ──

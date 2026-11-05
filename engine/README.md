@@ -292,8 +292,9 @@ through links the archive client signs for an hour (`archive.presign`), so
 the bucket stays private and nothing passes through the box; the guest
 host's content security policy names the archive for that. A note takes the
 moment in the player it is about (`static/review.js`) or one typed as
-`m:ss`; every note goes to `guests/<id>/notes.json` as it is made, and
-"send" tells the hosts by mail and on the issue (the job `noted`). The
+`m:ss`; every note is sent as it is made, to `guests/<id>/notes.json`, to
+the hosts by mail and to the issue (the job `noted`); the page runs the
+episode, the notes under it, the clips, then the approval. The
 approval is a second signature made and kept like the release's: the name
 typed, the address, the time, the IP and device, and the hash of the
 round's record, with the clips vetoed named as the review's `release.json`

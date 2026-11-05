@@ -14,9 +14,9 @@ What this module writes for the pipeline, under `guests/<id>/`: `notes.json`,
 every note of every round with the moment in the episode it is about where
 there is one; `approval.json`, the approval with its signature's record; and
 `approval.html`, the signed copy with the image in it, which goes to the guest
-by mail as well. The hosts hear of sent notes and of an approval by mail and
-on the guest's issue (linear.py's jobs `noted` and `approved`, the label
-`episode-approved`).
+by mail as well. The hosts hear of each note as it is made, and of the
+approval, by mail and on the guest's issue (linear.py's jobs `noted` and
+`approved`, the label `episode-approved`).
 
 The second signature is made and kept the way the release's is (release.py):
 a PNG from the pad, the name as typed, the address the code verified, the
@@ -46,11 +46,11 @@ WANT = ("episode.mp4", "episode.mp3", "thumbnail.png", "episode-art.png")
 
 NOTES_MAIL = """Hello,
 
-{name} sent {count} on round {round} of "{title}" through {host}:
+{name} left a note on round {round} of "{title}" through {host}:
 
 {notes}
 
-They are on the issue as well, and in the archive at guests/{gid}/notes.json; `episode.py notes {slug}` brings the
+It is on the issue as well, and in the archive at guests/{gid}/notes.json; `episode.py notes {slug}` brings the
 confirmed cuts in."""
 
 APPROVAL_MAIL = """Hello {first},
@@ -204,6 +204,8 @@ def notes(c, gid, slug=None, rnd=None):
 
 
 def add_note(c, g, text, at_text, client=None):
+    """A note, sent as it is made: kept, mirrored to the archive, mailed to the
+    hosts; returns what the issue's job needs (guests.tell)."""
     row = current(c, g["id"])
     if not row:
         raise ReviewError("Nothing to note yet")
@@ -213,8 +215,8 @@ def add_note(c, g, text, at_text, client=None):
     t = parse_t(at_text)
     at = ledger.now()
     c.execute(
-        "INSERT INTO review_note (guest, slug, round, t, text, at) VALUES (?,?,?,?,?,?)",
-        (g["id"], row["slug"], row["round"], t, text, at),
+        "INSERT INTO review_note (guest, slug, round, t, text, at, sent_at) VALUES (?,?,?,?,?,?,?)",
+        (g["id"], row["slug"], row["round"], t, text, at, at),
     )
     ledger.event(
         c,
@@ -224,7 +226,20 @@ def add_note(c, g, text, at_text, client=None):
         guest=g["id"],
     )
     mirror_notes(c, g, client)
-    return c.execute("SELECT last_insert_rowid()").fetchone()[0]
+    title = title_of(row)
+    line = f"- {'at ' + mmss(t) + ': ' if t is not None else ''}{text}"
+    body = NOTES_MAIL.format(
+        name=g["name"], round=row["round"], title=title, host=office(), notes=line, gid=g["id"], slug=row["slug"]
+    )
+    mailed = _mail_hosts(c, g, f"{g['name']}'s note on round {row['round']} of {title}", body)
+    return {
+        "slug": row["slug"],
+        "round": row["round"],
+        "title": title,
+        "count": 1,
+        "notes": [{"t": t, "text": text}],
+        "mailed": mailed,
+    }
 
 
 def notes_record(c, gid):
@@ -250,51 +265,6 @@ def mirror_notes(c, g, client=None):
         ledger.event(c, "review:mirror:failed", "engine", detail={"key": key, "error": str(e)[:300]}, guest=g["id"])
         return None
     return key
-
-
-def send_notes(c, g, who, client=None):
-    """The round's unsent notes to the hosts: marked sent, mirrored, mailed; what the issue's job needs."""
-    row = current(c, g["id"])
-    if not row:
-        raise ReviewError("Nothing to send yet")
-    unsent = [n for n in notes(c, g["id"], row["slug"], row["round"]) if not n["sent_at"]]
-    if not unsent:
-        raise ReviewError("Nothing new to send")
-    now = ledger.now()
-    c.execute(
-        f"UPDATE review_note SET sent_at=? WHERE id IN ({','.join('?' * len(unsent))})",
-        (now, *[n["id"] for n in unsent]),
-    )
-    ledger.event(
-        c,
-        "guest:notes:sent",
-        who,
-        detail={"slug": row["slug"], "round": row["round"], "count": len(unsent)},
-        guest=g["id"],
-    )
-    mirror_notes(c, g, client)
-    title = title_of(row)
-    lines = "\n".join(f"- {'at ' + mmss(n['t']) + ': ' if n['t'] is not None else ''}{n['text']}" for n in unsent)
-    count = f"{len(unsent)} note{'s' if len(unsent) != 1 else ''}"
-    text = NOTES_MAIL.format(
-        name=g["name"],
-        count=count,
-        round=row["round"],
-        title=title,
-        host=office(),
-        notes=lines,
-        gid=g["id"],
-        slug=row["slug"],
-    )
-    mailed = _mail_hosts(c, g, f"{g['name']}'s notes on round {row['round']} of {title}", text)
-    return {
-        "slug": row["slug"],
-        "round": row["round"],
-        "title": title,
-        "count": len(unsent),
-        "notes": [{"t": n["t"], "text": n["text"]} for n in unsent],
-        "mailed": mailed,
-    }
 
 
 def _mail_hosts(c, g, subject, text):
@@ -500,13 +470,13 @@ def signature_png(c, gid):
 
 # ─── the issue ───────────────────────────────────────────────────────────────
 def job_noted(env, a, c=None):
-    """The notes on the guest's issue, quoted as the guest's words, with the moment each is about."""
+    """The note on the guest's issue, quoted as the guest's words, with the moment it is about."""
     lines = "\n".join(
         f"{'At ' + mmss(n['t']) + ': ' if n.get('t') is not None else ''}{n['text']}" for n in a.get("notes") or []
     )
     head = (
-        f"{a['name']} sent {a['count']} note{'s' if a['count'] != 1 else ''} on review round {a['round']} of "
-        f'"{a["title"]}" ({a["slug"]}) on {a["when"]}. `episode.py notes {a["slug"]}` brings the confirmed cuts in.\n\n'
+        f'{a["name"]} left a note on review round {a["round"]} of "{a["title"]}" ({a["slug"]}) on {a["when"]}. '
+        f"`episode.py notes {a['slug']}` brings the confirmed cuts in.\n\n"
     )
     cm = linear.comment(env, a["issue"], head + linear.quote(a["name"], lines))
     return {"issue": a["issue"], "comment": cm["url"]}
@@ -548,11 +518,8 @@ def host_line(c, gid):
     if not row:
         return '<span class="muted">nothing for review yet</span>'
     ns = notes(c, gid, row["slug"], row["round"])
-    sent = sum(1 for n in ns if n["sent_at"])
     a = approval(c, gid, row)
     line = f"{esc(row['slug'])} round {row['round']}, seen {esc(when(row['seen_at']))}; {len(ns)} note{'s' if len(ns) != 1 else ''}"
-    if ns:
-        line += f", {sent} sent"
     if a:
         vetoed = json.loads(a["vetoed"])
         line += f"; approved on {esc(when(a['at']))}" + (
@@ -564,7 +531,7 @@ def host_line(c, gid):
 
 
 def notes_body(c, g, row, word=""):
-    """The notes section: this round's notes, the form for one more, and the send."""
+    """The notes section: this round's notes, and the form for one more, which sends it."""
     ns = notes(c, g["id"], row["slug"], row["round"])
     items = []
     for n in ns:
@@ -573,10 +540,12 @@ def notes_body(c, g, row, word=""):
             if n["t"] is not None
             else '<span class="t muted">general</span> '
         )
-        state = "sent" if n["sent_at"] else "not sent yet"
-        items.append(f'<li>{t}{esc(n["text"])} <span class="muted">({state})</span></li>')
-    shown = f'<ul class="notes-list">{"".join(items)}</ul>' if items else "<p>No notes yet on this round.</p>"
-    unsent = sum(1 for n in ns if not n["sent_at"])
+        items.append(f"<li>{t}{esc(n['text'])}</li>")
+    shown = (
+        f'<p>Sent to James and Abrar:</p><ul class="notes-list">{"".join(items)}</ul>'
+        if items
+        else "<p>No notes yet on this round.</p>"
+    )
     form = (
         '<form method="post" action="/review/note" class="block note-form" data-note data-live>'
         '<label for="note-text">A note</label>'
@@ -585,19 +554,13 @@ def notes_body(c, g, row, word=""):
         '<div class="row"><label for="note-at">At</label>'
         '<input type="text" id="note-at" name="at" class="at" placeholder="m:ss, or blank" autocomplete="off">'
         '<button type="button" data-here hidden>At this moment</button>'
-        '<button type="submit" class="signal">Add the note</button></div>'
-        '<p class="muted">A moment makes a note easy to act on; "at this moment" takes it from the player. '
-        "For a cut, say what should go and it will be found in the transcript and quoted back to you.</p>"
+        '<button type="submit" class="signal">Send the note</button></div>'
+        '<p class="muted">Each note goes to James and Abrar as you send it. A moment makes it easy to act on; '
+        '"at this moment" takes it from the player. They re-cut from your notes, this page shows the new round, '
+        "and you approve when it is right.</p>"
         f"{word}</form>"
     )
-    send = (
-        '<form method="post" action="/review/send" class="block" data-live>'
-        f'<p><button type="submit" class="signal"{"" if unsent else " disabled"}>Send '
-        f"{unsent if unsent else 'the'} note{'s' if unsent != 1 else ''} to James and Abrar</button></p>"
-        '<p class="muted">They re-cut from your notes and this page shows the new round; approve when it is right.</p>'
-        "</form>"
-    )
-    return section("Notes", f"Round {row['round']}", shown + form + send, anchor="notes")
+    return section("Notes", f"Round {row['round']}", shown + form, anchor="notes")
 
 
 def approve_body(c, g, row, word=""):
@@ -704,7 +667,8 @@ def review_page(c, g, msg=None, status=200, client=None):
         watch = player + f"<p>{downloads}. The links work for an hour; reload the page for fresh ones.</p>"
     else:
         watch = '<p class="honesty"><b>The files could not be reached just now. Try again in a minute.</b></p>'
-    body = lead + note + section("Watch", "The episode", watch, anchor="watch")
+    # The episode, the notes under it, the clips, then the approval, which is the order a guest works in.
+    body = lead + note + section("Watch", "The episode", watch, anchor="watch") + notes_body(c, g, row)
     if clips:
         figs = "".join(
             '<figure class="clip"><video controls playsinline preload="none"'
@@ -714,5 +678,5 @@ def review_page(c, g, msg=None, status=200, client=None):
             for i, cl in enumerate(clips, 1)
         )
         body += section("Clips", f"{len(clips)} for the socials", f'<div class="clips">{figs}</div>', anchor="clips")
-    body += notes_body(c, g, row) + approve_body(c, g, row)
+    body += approve_body(c, g, row)
     return "The review", body, status
