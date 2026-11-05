@@ -3927,8 +3927,8 @@ class EngineTest(unittest.TestCase):
         self.assertLess(body.index('id="clips"'), body.index('id="approve"'), "then the approval")
         self.assertIn(f"media-src {endpoint}", h["Content-Security-Policy"])
         self.assertIn(f"img-src 'self' {endpoint} https://media.agentsee.work", h["Content-Security-Policy"])
-        self.assertNotIn(
-            "media-src", req("GET", "/health")[1]["Content-Security-Policy"], "the engine host's policy stands"
+        self.assertIn(
+            f"media-src {endpoint}", req("GET", "/health")[1]["Content-Security-Policy"], "the engine's policy too"
         )
         self.assertEqual(req("GET", "/review.js", host=SEE)[0], 200)
 
@@ -4062,7 +4062,7 @@ class EngineTest(unittest.TestCase):
         self.assertIn("Cut these words? <q>The cards are the thing.</q>", json.loads(body)["sections"][0]["html"])
         nid = c.execute("SELECT id FROM review_note WHERE guest=? ORDER BY id DESC LIMIT 1", (gid,)).fetchone()[0]
         st, h, body = req("POST", "/review/cut", {"id": str(nid), "answer": "no"}, SEE, ada, {"X-Office": "live"})
-        self.assertIn("Left in, as you said: <q>The cards are the thing.</q>", json.loads(body)["sections"][0]["html"])
+        self.assertIn("Left in: <q>The cards are the thing.</q>", json.loads(body)["sections"][0]["html"])
         self.assertEqual(
             [n.get("confirmed") for n in json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"][0]["notes"]],
             [True, None, None, None, False],
@@ -4179,6 +4179,111 @@ class EngineTest(unittest.TestCase):
         self.assertIn("ada-engines round 1, seen", body)
         self.assertIn("5 notes; approved on", body)
         self.assertIn("vetoed clips/02-the-second.mp4", body)
+        self.assertIn("no host has approved yet", body)
+        self.assertIn(f'href="/guests/{gid}/review"', body)
+
+        # ── the hosts' side: the same round on the engine, their notes, their approvals, the pipeline's record ──
+        st, h, body = req("GET", f"/guests/{gid}/review")
+        self.assertEqual(st, 200)
+        for s in (
+            "Ada Lovelace: the review",
+            f'src="{signed}episode.mp4?X-Amz-Algorithm',
+            "<b>Ada</b>: ",
+            "Cut confirmed: <q>It was my grandmother",
+            f'action="/guests/{gid}/review/note"',
+            f'name="_t" value="{web.CSRF}"',
+            "Approve round 1 as James",
+            "<b>Ada Lovelace</b> approved round 1",
+            "vetoing clips/02-the-second.mp4",
+            "<b>James</b>: not yet",
+            "<b>Abrar</b>: not yet",
+            "/review.js",
+            "/office.js",
+        ):
+            self.assertIn(s, body, s)
+        self.assertNotIn("Yes, cut them", body, "the guest's cuts are the guest's to answer")
+        self.assertIn(f"media-src {endpoint}", h["Content-Security-Policy"])
+        self.assertEqual(req("GET", f"/guests/{gid}/review", host=SEE, cookies=ada)[0], 404, "not on the guest host")
+        self.assertEqual(req("GET", "/office.js")[0], 200)
+        ai.replies = ['{"cut": true, "phrase": "So tell us about the loom.", "why": "the lead-in"}']
+        sent = len(FakeSMTP.sent)
+        st, h, body = req(
+            "POST",
+            f"/guests/{gid}/review/note",
+            {"_t": web.CSRF, "text": "Lose my lead-in", "at": "12:21"},
+            headers={"X-Office": "live"},
+        )
+        self.assertEqual(st, 200)
+        html = json.loads(body)["sections"][0]["html"]
+        self.assertIn("<b>James</b>: ", html)
+        self.assertIn("Lose my lead-in", html)
+        self.assertIn("Cut these words? <q>So tell us about the loom.</q>", html)
+        self.assertIn(f'action="/guests/{gid}/review/cut"', html)
+        self.assertIn("Sent.", html)
+        self.assertEqual(len(FakeSMTP.sent), sent, "a host's note mails nobody")
+        self.assertIn("The host's note", ai.payloads[-1][0]["messages"][0]["content"])
+        rounds = json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"][0]["notes"]
+        self.assertEqual(
+            (rounds[-1]["by"], rounds[-1]["text"], rounds[-1]["remove"]["phrase"], rounds[-1]["confirmed"]),
+            ("James", "Lose my lead-in", "So tell us about the loom.", False),
+        )
+        self.assertNotIn("by", rounds[0], "the guest's own carry no author")
+        nid = c.execute("SELECT id FROM review_note WHERE guest=? ORDER BY id DESC LIMIT 1", (gid,)).fetchone()[0]
+        st, h, body = req("POST", "/review/cut", {"id": str(nid), "answer": "yes"}, SEE, ada)
+        self.assertEqual(st, 400)
+        self.assertIn("not yours to answer", body)
+        st, h, body = req("POST", f"/guests/{gid}/review/cut", {"_t": web.CSRF, "id": str(nid), "answer": "yes"})
+        self.assertEqual((st, h["Location"]), (303, f"/guests/{gid}/review#notes"))
+        self.assertTrue(json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"][0]["notes"][-1]["confirmed"])
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 2)
+        self.assertIn(
+            'James left a note on review round 1 of "Ada, on engines" (ada-engines) on the engine', fake.comments[-2][1]
+        )
+        self.assertNotIn("wrote, through", fake.comments[-2][1], "a host's words are not quoted as the guest's")
+        self.assertIn('awaiting their confirmation: "So tell us about the loom."', fake.comments[-2][1])
+        self.assertIn("James confirmed the cut", fake.comments[-1][1])
+        body = req("GET", "/review", host=SEE, cookies=ada)[2]
+        self.assertIn("<b>James</b>: ", body, "the guest sees the hosts' notes, by name")
+        self.assertIn("Lose my lead-in", body)
+        self.assertNotIn(f'action="/guests/{gid}/review/cut"', body)
+        self.assertEqual(
+            req("POST", f"/guests/{gid}/review/note", {"text": "no token"})[0],
+            403,
+            "the engine's forms carry the token",
+        )
+
+        st, h, body = req("POST", f"/guests/{gid}/review/approve", {"_t": web.CSRF}, headers={"X-Office": "live"})
+        self.assertEqual(st, 200)
+        html = json.loads(body)["sections"][0]["html"]
+        self.assertIn("<b>James</b>: approved on", html)
+        self.assertIn("<b>Abrar</b>: not yet", html)
+        self.assertNotIn("Approve round 1 as James", html)
+        hosts_rec = json.loads(objs["episodes/ada-engines/review/hosts.json"]["body"])
+        self.assertEqual(
+            (hosts_rec["round"], hosts_rec["sha256"], hosts_rec["hosts"], [x["host"] for x in hosts_rec["approvals"]]),
+            (1, a["sha256"], ["James", "Abrar"], ["James"]),
+        )
+        self.assertEqual(
+            (hosts_rec["approvals"][0]["who"], hosts_rec["approvals"][0]["ip"]), ("jameshartt@example.com", "127.0.0.1")
+        )
+        st, h, body = req("POST", f"/guests/{gid}/review/approve", {"_t": web.CSRF})
+        self.assertIn("msg=You+approved+round+1+already", h["Location"])
+        os.environ["ENGINE_USER"] = "nobody@example.com"
+        st, h, body = req("POST", f"/guests/{gid}/review/approve", {"_t": web.CSRF})
+        self.assertIn("hosts+are+James+and+Abrar", h["Location"])
+        os.environ["ENGINE_USER"] = "abrar@example.com"
+        st, h, body = req("POST", f"/guests/{gid}/review/approve", {"_t": web.CSRF})
+        self.assertEqual(h["Location"], f"/guests/{gid}/review#approve")
+        hosts_rec = json.loads(objs["episodes/ada-engines/review/hosts.json"]["body"])
+        self.assertEqual([x["host"] for x in hosts_rec["approvals"]], ["James", "Abrar"])
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 2)
+        self.assertIn("James approved review round 1", fake.comments[-2][1])
+        self.assertIn("waiting for Abrar", fake.comments[-2][1])
+        self.assertIn("Abrar approved review round 1", fake.comments[-1][1])
+        self.assertIn("the last of the hosts (James, Abrar). The guest has approved too", fake.comments[-1][1])
+        os.environ["ENGINE_USER"] = "jameshartt@example.com"
+        self.assertIn("hosts approved: James, Abrar", req("GET", f"/guests/{gid}")[2])
+        self.assertIn("The guest, and the hosts", req("GET", f"/guests/{gid}/review")[2])
 
         # ── a new round: the office sees it, the page says what changed and asks again ──
         put(

@@ -110,3 +110,26 @@ main.engine a { color: var(--ink); text-decoration: underline; text-decoration-c
 main.engine a:hover { color: var(--signal); text-decoration-color: var(--signal); }
 main.engine .lead { text-align: left; }
 main.engine .lead h1, main.engine .deck { margin-left: 0; text-align: left; }
+
+/* The review (engine/review.py, static/review.js), on the guest host and on the engine: the player, the clips,
+   the notes with the cuts found for them, the hosts' approvals. */
+video.episode { display: block; width: 100%; max-width: 44rem; background: #000; }
+.clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 1rem; max-width: 44rem; }
+.clip { margin: 0; }
+.clip video { display: block; width: 100%; background: #000; }
+.clip figcaption { font-size: .9rem; margin-top: .3rem; }
+.notes-list { list-style: none; padding: 0; margin: .4rem 0 1rem; max-width: 44rem; }
+.notes-list li { margin: .4rem 0; padding: .5rem .7rem; border: var(--hairline); border-radius: 4px; line-height: 1.45; }
+.notes-list .t { font-family: var(--mono); font-size: .8rem; margin-right: .4rem; }
+.notes-list q { font-style: italic; }
+.cut-ask { margin: .5rem 0 0; padding: .5rem .7rem; background: var(--paper-2); border-radius: 4px; }
+.cut-ask p { margin: 0 0 .4rem; }
+.cut-ask form.inline { display: inline-block; margin: 0 .3rem 0 0; }
+.cut-state { margin: .4rem 0 0; font-size: .95rem; }
+details.before { max-width: 44rem; margin: .6rem 0 1rem; }
+details.before summary { cursor: pointer; font-family: var(--mono); font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+.note-form { max-width: 44rem; }
+.note-form textarea { width: 100%; box-sizing: border-box; min-height: 4.2rem; line-height: 1.45; }
+.note-form .row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .5rem 0; }
+.note-form .at { width: 7rem; font-family: var(--mono); }
+.hosts { max-width: 44rem; padding-left: 1.2rem; line-height: 1.5; }

@@ -303,7 +303,15 @@ guest to confirm or decline (the job `cut`), so `notes.json` carries the
 cut as `remove.phrase` with `confirmed` and `episode.py notes` takes it
 into `removals.json` verbatim; words the model named that are not there,
 or the model down, leave a plain note and an event. A later round lists
-the last round's notes with their cuts, as a record. The
+the last round's notes with their cuts, as a record. The hosts see the
+same round on the engine, at `/guests/<id>/review`: the player and the
+clips through the same signed links, the guest's notes, their own notes
+with the same cut-finding (carrying `by` in `notes.json`, on the issue in
+plain words rather than quoted), and an approve button each, recorded
+like the release's host signatures (who, when, from where, the hash of
+the round's record) and mirrored to `episodes/<slug>/review/hosts.json`,
+which the pipeline's `approve` and `stage` require of every host for a
+guest's episode. The
 approval is a second signature made and kept like the release's: the name
 typed, the address, the time, the IP and device, and the hash of the
 round's record, with the clips vetoed named as the review's `release.json`
