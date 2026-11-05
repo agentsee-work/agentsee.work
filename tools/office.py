@@ -124,20 +124,19 @@ def seed_removals(d, guests):
     return added
 
 
-def drop_vetoed(d, guests):
-    """A clip the guest vetoed is dropped from clips.json, not re-cut, and every rendered clip
-    goes with it so the render that follows has only the clips that stand. A veto names the clip
-    as the review's release.json does: its file, its slug, its title or its index."""
+def vetoed_clips(d, guests):
+    """The clips that stand and the titles of those a guest vetoed; nothing changed. A veto names the
+    clip as the review's release.json does: its file, its slug, its title or its index."""
     path = d / "clips.json"
     if not path.exists():
-        return []
+        return [], []
     clips = load_json(path)
     vetoed = set()
     for g in guests:
         for v in (((g["approval"] or {}).get("clips") or {}).get("vetoed") or []):
             vetoed.add(str(v))
     if not vetoed:
-        return []
+        return clips, []
     keep, dropped = [], []
     for i, c in enumerate(clips, 1):
         slug = c.get("slug") or f"clip-{i:02d}"
@@ -146,8 +145,15 @@ def drop_vetoed(d, guests):
             dropped.append(c.get("title") or slug)
         else:
             keep.append(c)
+    return keep, dropped
+
+
+def drop_vetoed(d, guests):
+    """A clip the guest vetoed is dropped from clips.json, not re-cut, and every rendered clip
+    goes with it so the render that follows has only the clips that stand."""
+    keep, dropped = vetoed_clips(d, guests)
     if dropped:
-        save_json(path, keep)
+        save_json(d / "clips.json", keep)
         for p in (d / "out" / "clips").glob("*"):
             if p.is_file():
                 p.unlink()
@@ -206,6 +212,13 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
     added = fill_guests(cfg, guests)
     if added:
         print(f"  notes.guests: added {', '.join(added)}")
+    if a.dry_run:
+        keep, would_drop = vetoed_clips(d, guests)
+        rendered = (load_json(out / "release.json").get("episode") or {}).get("number")
+        print(f"  clips vetoed: {', '.join(would_drop) if would_drop else 'none'}; {len(keep)} would stand")
+        print(f"  render needed: {'yes' if str(rendered) != str(n) or would_drop else 'no'}")
+        print("dry run: nothing written, nothing rendered")
+        return 0
     dropped = drop_vetoed(d, guests)
     if dropped:
         print(f"  clips vetoed and dropped: {', '.join(dropped)}")
@@ -269,6 +282,8 @@ def main():
     ok.add_argument("--despite-warnings", action="store_true", help="approve although the release has warnings")
     ok.add_argument("--despite-guests", action="store_true",
                     help="approve although a guest's record does not clear it; the record says so")
+    ok.add_argument("--dry-run", action="store_true",
+                    help="the gate, the number, the clips that would go; nothing written, nothing rendered")
     a = ap.parse_args()
     sys.stdout.reconfigure(line_buffering=True)
     boto3 = boto(__file__)

@@ -491,3 +491,15 @@ def _schedule(name):  # the booking's turns (schedule.py): asked, moved, booked,
 
 
 JOBS.update({k: _schedule(k) for k in ("asked", "moved", "booked", "unbooked", "withdrawn")})
+
+
+def _review(name):  # the review's turns (review.py): noted, approved
+    def job(env, a, c=None):
+        import review
+
+        return getattr(review, f"job_{name}")(env, a, c)
+
+    return job
+
+
+JOBS.update({k: _review(k) for k in ("noted", "approved")})

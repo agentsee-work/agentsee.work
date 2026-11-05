@@ -46,6 +46,10 @@ idea.py          the idea conversation: the guest-episode skill run with the
 schedule.py      the time: the guest's choices in their zone against the rules,
                  both hosts' answers, the booking with its mail and calendar
                  file, the join link in its window; the issue told
+review.py        the review: the round's render from the archive through signed
+                 links, the guest's notes with the moment each is about, their
+                 approval with its signature and the clips vetoed, the copies
+                 and the mail; the records the pipeline reads; the issue told
 pages.py         the page shell in the site's typographic system, and the
                  guest host's
 static/engine.css  tables, forms, a status word; the rest is the site's CSS
@@ -57,6 +61,8 @@ static/office.js the office's one script: a save puts its section back in place,
                  conversation's reply streamed to the page as it is written
 static/time.js   the time's calendar: a tap on a day, a sheet with its half-hours in the
                  guest's zone, the choices as chips
+static/review.js the review: "at this moment" from the player into a note, a note's
+                 moment back into the player
 accounts.json    which accounts get which assets, at what hour, by which adapter
 config.json      the engine's settings, none secret
 engine.env       op:// references for `op run`; no values
@@ -275,6 +281,27 @@ That check reads the `Origin` header, so the guest host's pages say
 `Referrer-Policy: same-origin` where the engine's say `no-referrer`: under
 `no-referrer` a browser posts `Origin: null` to the host's own forms, and
 the door would turn everyone away.
+
+The review (`review.py`, AGE-111) is the last step of the office. The
+pipeline's `episode.py review <slug>` puts the render as it stands under
+`episodes/<slug>/review/` in the archive and the round's record at
+`guests/<id>/review.json`; the office reads that record whenever the guest
+looks (the ledger's `review` table keeps the copy and the round seen), and
+the page streams the episode, the clips and the posters from the archive
+through links the archive client signs for an hour (`archive.presign`), so
+the bucket stays private and nothing passes through the box; the guest
+host's content security policy names the archive for that. A note takes the
+moment in the player it is about (`static/review.js`) or one typed as
+`m:ss`; every note goes to `guests/<id>/notes.json` as it is made, and
+"send" tells the hosts by mail and on the issue (the job `noted`). The
+approval is a second signature made and kept like the release's: the name
+typed, the address, the time, the IP and device, and the hash of the
+round's record, with the clips vetoed named as the review's `release.json`
+names them; it goes to `guests/<id>/approval.json` and `.html` (the signed
+copy, with the image), to the guest by mail with a copy to hello@, and to
+the issue with the label `episode-approved` (the job `approved`). A newer
+round asks to be approved again. The pipeline's `approve` and `stage` read
+those records and refuse without them (`docs/PODCAST-PIPELINE.md`).
 
 ## Mail
 

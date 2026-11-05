@@ -150,6 +150,7 @@ def see_page(title, body, lifted=None):
 
 <script src="{asset("/assets/eye.js")}" defer></script>
 <script src="{asset("/door.js")}" defer></script>
+<script src="{asset("/review.js")}" defer></script>
 <script src="{asset("/sign.js")}" defer></script>
 <script src="{asset("/office.js")}" defer></script>
 <script src="{asset("/time.js")}" defer></script>

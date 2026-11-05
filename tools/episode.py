@@ -142,6 +142,9 @@ def main():
     rv = sub.add_parser("review", help="the render as it stands to the archive, for the guest to review; nothing public")
     rv.add_argument("slug")
     rv.add_argument("--dry-run", action="store_true", help="list what would go; no credentials")
+    rv.add_argument("--from-archive", metavar="SLUG",
+                    help="a file the archive holds at episodes/SLUG/out/ at the same size is copied there, not sent "
+                         "(a rehearsal from a staged episode)")
     nt = sub.add_parser("notes", help="the guest's confirmed cuts into removals.json; their name, line and link into the notes")
     nt.add_argument("slug")
     ok = sub.add_parser("approve", help="the guests' approvals, the episode number, the numbered render, the record")
@@ -201,7 +204,8 @@ def main():
         return 0
 
     if a.cmd == "review":
-        cmd = [TOOLS / "stage.py", a.slug, "--review"] + (["--dry-run"] if a.dry_run else [])
+        cmd = [TOOLS / "stage.py", a.slug, "--review"] + (["--dry-run"] if a.dry_run else []) \
+            + (["--from-archive", a.from_archive] if a.from_archive else [])
         if not a.dry_run:
             cmd = with_vault(cmd)
         return subprocess.call([str(c) for c in cmd])
@@ -219,7 +223,7 @@ def main():
             cmd += ["--by", a.by]
         if a.number:
             cmd += ["--number", a.number]
-        for flag in ("no_render", "despite_warnings", "despite_guests"):
+        for flag in ("no_render", "despite_warnings", "despite_guests", "dry_run"):
             if getattr(a, flag):
                 cmd.append("--" + flag.replace("_", "-"))
         return subprocess.call([str(c) for c in with_vault(cmd)])

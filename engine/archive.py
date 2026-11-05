@@ -79,11 +79,37 @@ def sign(method, host, path, query, headers, payload_hash, key, secret, region="
         ]
     )
     scope = f"{day}/{region}/s3/aws4_request"
-    to_sign = "\n".join(["AWS4-HMAC-SHA256", amz, scope, _sha(canonical.encode())])
-    k = _hmac(_hmac(_hmac(_hmac(("AWS4" + secret).encode(), day), region), "s3"), "aws4_request")
-    sig = hmac.new(k, to_sign.encode(), hashlib.sha256).hexdigest()
+    sig = _signature(secret, day, region, amz, scope, canonical)
     h["authorization"] = f"AWS4-HMAC-SHA256 Credential={key}/{scope}, SignedHeaders={signed}, Signature={sig}"
     return h
+
+
+def _signature(secret, day, region, amz, scope, canonical):
+    to_sign = "\n".join(["AWS4-HMAC-SHA256", amz, scope, _sha(canonical.encode())])
+    k = _hmac(_hmac(_hmac(_hmac(("AWS4" + secret).encode(), day), region), "s3"), "aws4_request")
+    return hmac.new(k, to_sign.encode(), hashlib.sha256).hexdigest()
+
+
+def presign(endpoint, host, path, key, secret, expires=3600, region="auto", when=None):
+    """A GET URL for one object that works for `expires` seconds without the
+    credential: the same SigV4, carried in the query instead of the headers,
+    the payload unsigned. The guest's player streams a review render from
+    the archive through these (engine/review.py); nothing else leaves the
+    bucket readable."""
+    when = when or dt.datetime.now(dt.timezone.utc)
+    amz, day = when.strftime("%Y%m%dT%H%M%SZ"), when.strftime("%Y%m%d")
+    scope = f"{day}/{region}/s3/aws4_request"
+    query = {
+        "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+        "X-Amz-Credential": f"{key}/{scope}",
+        "X-Amz-Date": amz,
+        "X-Amz-Expires": str(int(expires)),
+        "X-Amz-SignedHeaders": "host",
+    }
+    qs = "&".join(f"{quote(k, '-_.~')}={quote(v, '-_.~')}" for k, v in sorted(query.items()))
+    canonical = "\n".join(["GET", quote(path, "/-_.~"), qs, f"host:{host}\n", "host", "UNSIGNED-PAYLOAD"])
+    sig = _signature(secret, day, region, amz, scope, canonical)
+    return f"{endpoint}{quote(path, '/-_.~')}?{qs}&X-Amz-Signature={sig}"
 
 
 def file_sha256(path):
@@ -201,6 +227,18 @@ class Client:
             if st not in (200, 201):
                 raise ArchiveError(f"PUT {key}: " + self.said(st, r))
         return digest
+
+    def put_bytes(self, key, data, content_type="application/octet-stream"):
+        """A small object from memory: a record the office writes for the pipeline (guests/<id>/*.json)."""
+        st, rh, r = self.request("PUT", key, data, {"content-type": content_type})
+        with r:
+            if st not in (200, 201):
+                raise ArchiveError(f"PUT {key}: " + self.said(st, r))
+        return _sha(data)
+
+    def url(self, key, expires=3600):
+        """A link to the object that works for `expires` seconds without the credential."""
+        return presign(self.endpoint, self.host, f"/{self.bucket}/{key}", self.key, self.secret, expires)
 
 
 # ─── the engine's uses of it ─────────────────────────────────────────────────

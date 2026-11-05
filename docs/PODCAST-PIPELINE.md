@@ -401,11 +401,16 @@ token and state.
 What the office writes and the pipeline reads, under `guests/<id>/` in the
 archive: `guest.json`, the engine's record of the guest (`name`,
 `shown_name`, `bio`, `link`, `tz`); `notes.json`, their review notes,
-`{"rounds": [{"n", "at", "notes": [{"at", "text", "remove": {"phrase",
-"near"}, "confirmed"}]}]}`, a cut confirmed as the words to remove;
-`approval.json`, their approval, `{"at", "review": {"round"}, "episode":
-true, "clips": {"vetoed": [...]}, "signature": {...}}`, a vetoed clip named
-as the review's `release.json` names it (its file, slug, title or index).
+`{"rounds": [{"n", "slug", "at", "sent", "notes": [{"at", "t", "text",
+"sent", "remove": {"phrase", "near"}, "confirmed"}]}]}` (`t` the moment in
+the episode the note is about, in seconds, when there is one; `sent` when
+the guest sent the round's notes to the hosts; a cut confirmed as the
+words to remove); `approval.json`, their approval, `{"at", "review":
+{"slug", "round", "sha256", "files"}, "episode": true, "clips": {"vetoed":
+[...], "kept": [...]}, "signature": {"name", "address", "at", "ip", "ua",
+"sha256"}}`, a vetoed clip named as the review's `release.json` names it
+(its file, slug, title or index), the hash that of the review record
+approved, and `approval.html` the signed copy beside it (`engine/review.py`).
 What the pipeline writes for the office: `review.json` as above, and the
 render itself under `episodes/<slug>/review/`, which the office streams to
 the guest through signed links. The hosts' own episodes name no guest and
