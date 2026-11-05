@@ -50,6 +50,7 @@ import idea
 import ledger
 import linear
 import mail
+import pages
 import release
 import schedule
 from pages import button, esc, link, section, see_page, table, when
@@ -520,16 +521,47 @@ def page(h, title, body, status=200, headers=None):
     h.send(status, see_page(title, body), headers=headers)
 
 
+ARRIVAL = (
+    ('id="mark"', 'id="seymour"'),
+    ('id="eye"', 'id="seymour-eye"'),
+    ('id="iris"', 'id="seymour-iris"'),
+    ('id="eyeclip"', 'id="seymour-clip"'),
+    ("url(#eyeclip)", "url(#seymour-clip)"),
+    ('class="mark"', 'class="mark dormant"'),
+    ('aria-label="An eye wearing a fedora"', 'aria-label="Seymour, the AgentSee eye, in his fedora"'),
+)
+
+
+def seymour():
+    """The masthead's mark, for the arrival (static/door.js): the site's own drawing, so a change to the eye
+    reaches the door too; its ids made his own, since the masthead's are on the same page; and dormant, so
+    the script's sequence is the only thing he does."""
+    m = re.search(r'<div class="mark" id="mark">.*?</svg>\s*</div>', pages.lifted()["masthead"], re.S)
+    svg = m.group(0) if m else ""
+    for old, new in ARRIVAL:
+        svg = svg.replace(old, new)
+    return svg
+
+
 def door(c, h, invite=None, msg=None, address="", status=200):
     g = by_invite(c, invite) if invite else None
+    known = g if g and g["state"] != "revoked" else None
     hello = ""
-    if g and g["state"] != "revoked":
-        hello = f"<p>An invitation for <b>{esc(g['name'])}</b>.</p>"
+    if known:
+        hello = f"<p>An invitation for <b>{esc(known['name'])}</b>.</p>"
     elif invite:
         hello = '<p class="honesty">That invitation link is not one we know, or it has been withdrawn. The address you give is what counts.</p>'
     note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
     hidden = f'<input type="hidden" name="invite" value="{esc(invite)}">' if invite else ""
+    # Seymour meets a browser that has no cookie of ours yet: the first visit, as far as the door can tell, and
+    # not a third cookie, since the footer and the privacy notice name two. static/door.js plays him; without
+    # the script he is a picture above the door.
+    arrival = ""
+    if not (cookies(h).get(SESSION_COOKIE) or cookies(h).get(CODE_COOKIE)):
+        greet = f'<p class="hello">Hello, <b>{esc(known["name"])}</b>.</p>' if known else ""
+        arrival = f'<div class="arrival" id="arrival">{seymour()}{greet}<p class="hint">Tap to skip</p></div>'
     body = (
+        f"{arrival}"
         '<article class="lead"><p class="kicker">see.agentsee.work</p><h1>The office</h1>'
         '<p class="deck">You have been asked onto the AgentSee podcast. This is where it is arranged: the release '
         "to read and sign, the idea to flesh out, a time to record, and later the episode to watch and approve.</p></article>"
@@ -603,7 +635,7 @@ def not_found(h, status=404, msg="Not that"):
 
 
 def get(h, c, path, q):
-    if path in ("/see.css", "/engine.css", "/sign.js", "/office.js", "/time.js"):
+    if path in ("/see.css", "/engine.css", "/sign.js", "/office.js", "/time.js", "/door.js"):
         return h.static(STATIC, path[1:])
     for prefix, base in (("/assets/", PUBLIC / "assets"), ("/fonts/", PUBLIC / "fonts")):
         if path.startswith(prefix):

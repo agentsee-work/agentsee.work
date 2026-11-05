@@ -98,11 +98,16 @@ def page(title, body, who="", path="/", lifted=None):
 """
 
 
+def lifted():
+    """The site's masthead, classifieds and footer, from public/index.html (tools/site.py)."""
+    return _site.lifted()
+
+
 def see_page(title, body, lifted=None):
     """The guest host's shell (engine/guests.py): the site's masthead and
     footer, no engine nav and no identity line, because the person reading
-    it is the guest, and the only script is the site's own eye, which the
-    door says so.
+    it is the guest, and the scripts are the site's own eye and this host's
+    few, which the door says so.
 
     The lifted parts are the site's, so their links go to the site, not to
     this host; and the site's footer promises no cookies, which this host
@@ -144,6 +149,7 @@ def see_page(title, body, lifted=None):
 {footer}
 
 <script src="{asset("/assets/eye.js")}" defer></script>
+<script src="{asset("/door.js")}" defer></script>
 <script src="{asset("/sign.js")}" defer></script>
 <script src="{asset("/office.js")}" defer></script>
 <script src="{asset("/time.js")}" defer></script>

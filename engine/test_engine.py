@@ -2071,6 +2071,7 @@ class EngineTest(unittest.TestCase):
         st, h, body = req("GET", f"/i/{g['invite']}", host=SEE)
         self.assertEqual(st, 200)
         self.assertIn("An invitation for <b>Ada Lovelace</b>", body)
+        self.assertIn('<p class="hello">Hello, <b>Ada Lovelace</b>.</p>', body, "greeted by name at the arrival")
         self.assertIn(f'name="invite" value="{g["invite"]}"', body)
         st, h, body = req("GET", "/i/nothing-like-this", host=SEE)
         self.assertIn("not one we know", body)
@@ -2079,6 +2080,23 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(req("GET", "/see.css", host=SEE)[0], 200)
         self.assertEqual(req("GET", "/assets/styles.css", host=SEE)[0], 200)
         self.assertEqual(req("GET", "/assets/..%2Fstyles.css", host=SEE)[0], 404)
+
+        # ── the arrival: Seymour meets a browser with no cookie of ours, once ──
+        st, h, body = req("GET", "/", host=SEE)
+        self.assertIn('<div class="arrival" id="arrival">', body)
+        self.assertIn('aria-label="Seymour, the AgentSee eye, in his fedora"', body)
+        self.assertEqual(body.count('id="mark"'), 1, "the masthead's mark keeps its ids; Seymour has his own")
+        self.assertEqual((body.count('id="seymour"'), body.count("url(#seymour-clip)")), (1, 1))
+        self.assertIn('class="mark dormant"', body, "no resting blink of his own: the script's sequence only")
+        self.assertNotIn('class="hello"', body, "nobody to greet by name without an invitation")
+        self.assertIn(f'src="{guests.pages.asset("/door.js")}"', body)
+        self.assertEqual(req("GET", "/door.js", host=SEE)[0], 200)
+        st, h, body = req("GET", "/", host=SEE, cookies={"see_session": "stale"})
+        self.assertIn("Send me a code", body)
+        self.assertNotIn(
+            'id="arrival"', body, "a browser that has been here is not met again, nor is a third cookie set"
+        )
+        self.assertIsNone(h.get("Set-Cookie"))
 
         # ── the code: bound to the browser, five tries, once ──
         st, body, cid, ck = enter("not an address", g["invite"])
@@ -2090,6 +2108,7 @@ class EngineTest(unittest.TestCase):
         self.assertIn("ada@example.com", body)
         code, to = code_from_mail()
         self.assertEqual(to, "ada@example.com")
+        self.assertNotIn('id="arrival"', req("GET", "/", host=SEE, cookies=ck)[2], "the code's cookie counts as been")
         st, h, body = req("POST", "/code", {"id": cid, "code": code}, SEE)
         self.assertEqual(st, 400)
         self.assertIn("another device", body, "no binding cookie, no entry")

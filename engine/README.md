@@ -49,7 +49,9 @@ schedule.py      the time: the guest's choices in their zone against the rules,
 pages.py         the page shell in the site's typographic system, and the
                  guest host's
 static/engine.css  tables, forms, a status word; the rest is the site's CSS
-static/see.css   the door and the office, on top of engine.css
+static/see.css   the door and the office, on top of engine.css; the arrival's stage and lids
+static/door.js   the arrival: Seymour, the masthead's eye, big, for a browser's first visit;
+                 the site's moods in a sequence, the close, the black, the door behind it
 static/sign.js   the signature pad: a canvas, a finger or a mouse, or a photo
 static/office.js the office's one script: a save puts its section back in place, the
                  conversation's reply streamed to the page as it is written
