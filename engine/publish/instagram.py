@@ -121,21 +121,35 @@ def targets(info):
 
 
 def account(c, env):
-    """The account the token serves: its id and handle, from the credential row or from Meta once. Meta names
-    it under /me/assigned_instagram_accounts for the assets shared at the token's login, and under the token's
-    granular scopes (debug_token) either way; both are asked before giving up."""
+    """The account the token serves: its id and handle, from the credential row, or from Meta once. config.json
+    may name the id ("instagram": {"account": …}, the one Business settings shows under the app's connected
+    assets; not a secret), and then the token is asked to read that account, which proves the asset is shared.
+    Otherwise Meta is asked to name it: under /me/assigned_instagram_accounts for the assets shared at the
+    token's login, and under the token's granular scopes (debug_token); both are tried before giving up."""
     tok = env["INSTAGRAM_TOKEN"]
     if tok in _account:
         return _account[tok]
+    handle = (ACCOUNTS.get(PLATFORM) or {}).get("handle", "").lstrip("@")
+    fixed = str((ledger.CONFIG.get(PLATFORM) or {}).get("account") or "")
     row = ledger.credential(c, PLATFORM)
-    if row and row["who"]:
-        _account[tok] = {"id": row["who"], "username": (ACCOUNTS.get(PLATFORM) or {}).get("handle", "").lstrip("@")}
+    if row and row["who"] and row["who"] == (fixed or row["who"]):
+        _account[tok] = {"id": row["who"], "username": handle}
+        return _account[tok]
+    if fixed:
+        st, h, b = call("GET", fixed, {"fields": "id,username", "access_token": tok})
+        if st != 200:
+            refuse(st, h, b, f"reading the account {fixed} that config.json names", c)
+        a = json.loads(b)
+        ledger.set_credential(
+            c, PLATFORM, who=str(a["id"]), state="valid", checked_at=ledger.now(), note=f"@{a.get('username')}"
+        )
+        ledger.event(c, "instagram:account", "engine", detail={**a, "from": "config.json"})
+        _account[tok] = {"id": str(a["id"]), "username": a.get("username")}
         return _account[tok]
     st, h, b = call("GET", "me/assigned_instagram_accounts", {"fields": "id,username", "access_token": tok})
     if st != 200:
         refuse(st, h, b, "which account the token serves", c)
     found_ = json.loads(b).get("data") or []
-    handle = (ACCOUNTS.get(PLATFORM) or {}).get("handle", "").lstrip("@")
     if not found_:
         info = granted(env)
         for i in targets(info):

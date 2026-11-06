@@ -4809,6 +4809,8 @@ class EngineTest(unittest.TestCase):
         self.addCleanup(stub.server_close)
         self.addCleanup(stub.shutdown)
         instagram.API, instagram.POLL = f"http://127.0.0.1:{stub.server_address[1]}", 0
+        named = ledger.CONFIG.pop("instagram", None)  # config.json names the real account; here Meta is asked
+        self.addCleanup(lambda: ledger.CONFIG.__setitem__("instagram", named))
         plan.ACCOUNTS["instagram"].update(adapter="instagram", assets=["episode", "clip"])  # the switch-on
         self.addCleanup(lambda: plan.ACCOUNTS["instagram"].update(adapter="hand", assets=["clip"]))
         plan.plan(c, "ep9", "tester")  # the episode post the account now takes
@@ -4901,6 +4903,27 @@ class EngineTest(unittest.TestCase):
         self.assertIn("names none in the token's granular scopes", str(got.exception))
         self.assertIn("instagram_content_publish", str(got.exception), "the permissions it does carry, for a look")
         self.assertIn('type USER for the app "AgentSee engine", issued 2025-11-06', str(got.exception))
+        # config.json naming the account: the token reads it, which proves the asset is shared, and Meta is not
+        # asked to name it
+        ledger.CONFIG["instagram"] = {"account": StubInstagram.IG}
+        self.assertEqual(instagram.account(c, ienv), {"id": StubInstagram.IG, "username": "agentsee.work"})
+        self.assertEqual((s["asked"], ledger.credential(c, "instagram")["who"]), (3, StubInstagram.IG))
+        self.assertEqual(
+            json.loads(
+                c.execute("SELECT detail FROM event WHERE what='instagram:account' ORDER BY id DESC").fetchone()[0]
+            )["from"],
+            "config.json",
+        )
+        instagram._account.clear()
+        self.assertEqual(instagram.account(c, ienv)["id"], StubInstagram.IG, "from the row, which agrees with config")
+        self.assertEqual(s["asked"], 3)
+        instagram._account.clear()
+        ledger.CONFIG["instagram"] = {"account": "999"}
+        with self.assertRaises(publish.PublishError) as got:
+            instagram.account(c, ienv)
+        self.assertIn("reading the account 999 that config.json names", str(got.exception))
+        del ledger.CONFIG["instagram"]
+        instagram._account.clear()
         s["assigned"], s["granular"] = True, None
         instagram.account(c, ienv)
         # never twice: a retry whose container was published finds the post by its caption
