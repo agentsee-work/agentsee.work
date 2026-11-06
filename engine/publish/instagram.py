@@ -145,7 +145,9 @@ def account(c, env):
         scopes = ", ".join(info.get("scopes") or []) or "none"
         raise PublishError(
             "the token serves no Instagram account: Meta lists none under assigned_instagram_accounts and names "
-            f"none in the token's granular scopes (its permissions: {scopes}). Check that Business settings > "
+            f"none in the token's granular scopes. The token is of type {info.get('type') or '?'} for the app "
+            f'"{info.get("application") or "?"}", issued {stamp(info.get("issued_at")) or "at no stated time"}, '
+            f"as user {info.get('user_id') or '?'}; its permissions: {scopes}. Check that Business settings > "
             "Accounts > Instagram accounts holds the account in the AgentSee portfolio, then generate the token "
             "again with that account ticked on the assets step (AGE-130, C7)"
         )

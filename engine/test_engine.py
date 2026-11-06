@@ -4900,6 +4900,7 @@ class EngineTest(unittest.TestCase):
             instagram.account(c, ienv)
         self.assertIn("names none in the token's granular scopes", str(got.exception))
         self.assertIn("instagram_content_publish", str(got.exception), "the permissions it does carry, for a look")
+        self.assertIn('type USER for the app "AgentSee engine", issued 2025-11-06', str(got.exception))
         s["assigned"], s["granular"] = True, None
         instagram.account(c, ienv)
         # never twice: a retry whose container was published finds the post by its caption
