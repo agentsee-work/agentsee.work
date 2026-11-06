@@ -518,6 +518,38 @@ class StubThreads(Stub):
             )
         if u.path == "/v1.0/1784/threads":
             return self.out(200, {"data": list(reversed(s["posts"]))})
+        if u.path == "/v1.0/1784/threads_insights":
+            if q["metric"] == "clicks":
+                links = [{"value": 9, "link_url": "https://agentsee.work/p/e9thc01"}, {"value": 2, "link_url": "x"}]
+                return self.out(200, {"data": [{"name": "clicks", "period": "day", "link_total_values": links}]})
+            data = [
+                {
+                    "name": "views",
+                    "period": "day",
+                    "values": [{"value": 300, "end_time": "a"}, {"value": 40, "end_time": "b"}],
+                },
+                {"name": "likes", "period": "day", "total_value": {"value": 11}},
+                {"name": "replies", "period": "day", "total_value": {"value": 3}},
+                {"name": "reposts", "period": "day", "total_value": {"value": 2}},
+                {"name": "quotes", "period": "day", "total_value": {"value": 1}},
+                {"name": "followers_count", "period": "day", "total_value": {"value": 150}},
+            ]
+            return self.out(200, {"data": [d for d in data if d["name"] in q["metric"].split(",")]})
+        m = re.fullmatch(r"/v1.0/(m\d+)/insights", u.path)
+        if m:
+            values = {"views": 120, "likes": 7, "replies": 1, "reposts": 2, "quotes": 0, "shares": 4}
+            data = [
+                {
+                    "name": k,
+                    "period": "lifetime",
+                    "values": [{"value": v}],
+                    "title": k,
+                    "id": f"{m.group(1)}/insights/{k}",
+                }
+                for k, v in values.items()
+                if k in q["metric"].split(",")
+            ]
+            return self.out(200, {"data": data})
         m = re.fullmatch(r"/v1.0/(c\d+)", u.path)
         if m:
             ctn = s["containers"][m.group(1)]
@@ -602,8 +634,11 @@ class StubInstagram(Stub):
                     "id": mid,
                     "caption": ctn.get("caption", ""),
                     "permalink": f"https://www.instagram.com/{'reel/R' if reel else 'p/P'}{mid}/",
+                    "shortcode": f"{'R' if reel else 'P'}{mid}",
                     "timestamp": "2026-11-06T09:00:00+0000",
                     "media_product_type": "REELS" if reel else "FEED",
+                    "like_count": 5,
+                    "comments_count": 2,
                 }
             )
             return self.out(200, {"id": mid})
@@ -644,6 +679,43 @@ class StubInstagram(Stub):
             )
         if u.path == f"/v27.0/{self.IG}/media":
             return self.out(200, {"data": list(reversed(s["posts"]))})
+        if u.path == f"/v27.0/{self.IG}":
+            return self.out(200, {"id": self.IG, "followers_count": 42, "media_count": 7})
+        if u.path == f"/v27.0/{self.IG}/insights":
+            if q["metric"] == "follower_count":  # under a hundred followers
+                return self.out(400, {"error": {"message": "(#100) Not enough followers for this metric", "code": 100}})
+            assert (q["period"], q["metric_type"]) == ("day", "total_value"), q
+            values = {"reach": 80, "views": 200, "accounts_engaged": 9, "total_interactions": 14}
+            data = [
+                {"name": k, "period": "day", "total_value": {"value": v}, "id": f"{self.IG}/insights/{k}/day"}
+                for k, v in values.items()
+                if k in q["metric"].split(",")
+            ]
+            return self.out(200, {"data": data})
+        m = re.fullmatch(r"/v27.0/(m\d+)/insights", u.path)
+        if m:
+            p = next(x for x in s["posts"] if x["id"] == m.group(1))
+            values = {
+                "views": 500,
+                "reach": 410,
+                "likes": 5,
+                "comments": 2,
+                "saved": 6,
+                "shares": 3,
+                "total_interactions": 16,
+            }
+            if p["media_product_type"] == "REELS":
+                values.update(
+                    ig_reels_avg_watch_time=8500, ig_reels_video_view_total_time=4225000, reels_skip_rate=0.31
+                )
+            else:
+                values.update(follows=1, profile_visits=12)
+            asked = q["metric"].split(",")
+            assert all(k in values for k in asked), (asked, p["media_product_type"])
+            data = [
+                {"name": k, "period": "lifetime", "values": [{"value": v}]} for k, v in values.items() if k in asked
+            ]
+            return self.out(200, {"data": data})
         m = re.fullmatch(r"/v27.0/(c\d+)", u.path)
         if m:
             ctn = s["containers"][m.group(1)]
@@ -4915,6 +4987,86 @@ class EngineTest(unittest.TestCase):
         self.assertIn("@agentsee.work", body)
         self.assertIn("token honoured by Meta", body)
         srv.shutdown()
+
+    def test_28_meta_collect(self):
+        c = self.c()
+        quiet = lambda s: None  # noqa: E731
+        tstub = http.server.HTTPServer(("127.0.0.1", 0), StubThreads)
+        istub = http.server.HTTPServer(("127.0.0.1", 0), StubInstagram)
+        for srv in (tstub, istub):
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            self.addCleanup(srv.server_close)
+            self.addCleanup(srv.shutdown)
+        threads.API = f"http://127.0.0.1:{tstub.server_address[1]}"
+        instagram.API = f"http://127.0.0.1:{istub.server_address[1]}"
+        plan.ACCOUNTS["threads"]["adapter"] = "threads"
+        plan.ACCOUNTS["instagram"]["adapter"] = "instagram"
+        self.addCleanup(lambda: plan.ACCOUNTS["threads"].update(adapter="hand"))
+        self.addCleanup(lambda: plan.ACCOUNTS["instagram"].update(adapter="hand"))
+        env = {
+            "THREADS_APP_ID": "tid",
+            "THREADS_APP_SECRET": "tsec",
+            "INSTAGRAM_APP_ID": "iid",
+            "INSTAGRAM_APP_SECRET": "isec",
+            "INSTAGRAM_TOKEN": "IGTOK",
+            **self.menv,
+        }
+        th = {p["asset"]: p for p in c.execute("SELECT * FROM post WHERE episode='ep9' AND platform='threads'")}
+        ig = {p["asset"]: p for p in c.execute("SELECT * FROM post WHERE episode='ep9' AND platform='instagram'")}
+        self.assertTrue(th["clip:01-the-point"]["remote_id"] and ig["clip:01-the-point"]["remote_id"])
+        # two posts made by hand: a pasted permalink, no id
+        ledger.update_post(
+            c, th["episode"]["id"], remote_id=None, permalink="https://www.threads.com/@agentsee.work/post/Pm1"
+        )
+        ledger.update_post(c, ig["episode"]["id"], remote_id=None, permalink="https://www.instagram.com/p/Pm2/")
+        self.assertEqual(ledger.credential(c, "threads")["state"], "invalid", "as the last test left it")
+        res = collect.run(c, only=["tokens", "threads", "instagram"], env=env, who="tester", log=quiet)
+        self.assertEqual(ledger.credential(c, "threads")["state"], "valid", "the tokens source asked Meta first")
+        self.assertFalse([v for v in res.values() if v.startswith("failed")], res)
+        self.assertIn("threads: valid to", res["tokens"])
+        self.assertIn("instagram: @agentsee.work", res["tokens"])
+        self.assertIn("2 posts, the account, 1 links clicked, 1 matched by shortcode", res["threads"])
+        self.assertIn("2 posts, the account (42 followers; the day's count not yet", res["instagram"])
+        self.assertIn("1 matched by shortcode", res["instagram"])
+        # Threads: the post's lifetime numbers, the account's day, the clicks on the post's short link
+        m = collect.latest(c)
+        clip = th["clip:01-the-point"]["id"]
+        self.assertEqual(
+            (m[clip]["views"]["now"], m[clip]["shares"]["now"], m[clip]["link_clicks"]["now"]), (120, 4, 9)
+        )
+        self.assertEqual(ledger.post(c, th["episode"]["id"])["remote_id"], "m1", "matched by the shortcode")
+        self.assertEqual(m[th["episode"]["id"]]["likes"]["now"], 7)
+        acct = collect.account_latest(c)
+        self.assertEqual((acct["threads"]["followers_count"], acct["threads"]["views"]), (150, 40))
+        # Instagram: the media's counts and its insights, a Reel's watch time, the account under a hundred followers
+        reel = ig["clip:01-the-point"]["id"]
+        self.assertEqual((m[reel]["likes"]["now"], m[reel]["views"]["now"], m[reel]["saved"]["now"]), (5, 500, 6))
+        self.assertEqual((m[reel]["ig_reels_avg_watch_time"]["now"], m[reel]["reels_skip_rate"]["now"]), (8500, 0.31))
+        self.assertNotIn("follows", m[reel])
+        grid = ig["episode"]["id"]
+        self.assertEqual(ledger.post(c, grid)["remote_id"], "m2", "matched by the shortcode")
+        self.assertEqual((m[grid]["follows"]["now"], m[grid]["profile_visits"]["now"]), (1, 12))
+        self.assertNotIn("reels_skip_rate", m[grid])
+        self.assertEqual((acct["instagram"]["followers_count"], acct["instagram"]["reach"]), (42, 80))
+        self.assertNotIn("follower_count", acct["instagram"])
+        raw = c.execute("SELECT COUNT(*) FROM snapshot WHERE post=? AND raw IS NOT NULL", (reel,)).fetchone()[0]
+        self.assertEqual(raw, 1, "the platform's answer kept once per read")
+        # the screens
+        title, body = web.reach_page(c)
+        self.assertIn("Instagram Reels", body)
+        self.assertIn("8.5 s", body)
+        self.assertIn("Accounts", body)
+        self.assertIn("150", body)
+        # a token in trouble: its source says so and the run goes on; an adapter off, likewise
+        ledger.set_credential(c, "threads", state="invalid", note="test")
+        self.assertIn("skipped: the token is invalid", collect.threads(c, env, ledger.now(), quiet))
+        ledger.set_credential(c, "threads", state="valid", note=None)
+        plan.ACCOUNTS["instagram"]["adapter"] = "hand"
+        self.assertEqual(collect.instagram(c, env, ledger.now(), quiet), "skipped: the Instagram adapter is off")
+        self.assertEqual(collect.instagram(c, {}, ledger.now(), quiet), "skipped: the Instagram adapter is off")
+        plan.ACCOUNTS["instagram"]["adapter"] = "instagram"
+        self.assertEqual(collect.instagram(c, {}, ledger.now(), quiet), f"skipped: {instagram.NEEDS} not set")
+        self.assertIn("skipped: INSTAGRAM_APP_ID", collect.tokens(c, {}, ledger.now(), quiet))
 
 
 if __name__ == "__main__":

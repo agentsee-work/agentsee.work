@@ -499,6 +499,61 @@ def reach_page(c):
                 ],
             ),
         )
+    reels = [
+        p for p in posts if p["platform"] == "instagram" and newest.get(p["id"], {}).get("ig_reels_avg_watch_time")
+    ]
+    if reels:
+
+        def r(p, k):
+            return newest[p["id"]].get(k, {}).get("now")
+
+        body += section(
+            "Instagram Reels",
+            "Watch time and reach, from Meta's insights",
+            table(
+                ["Reel", "Views", "Reach", "Average watch", "Total watch", "Skipped", "Saves"],
+                [
+                    [
+                        link(f"/posts/{p['id']}", p["title"] or asset_label(p)),
+                        num(r(p, "views")),
+                        num(r(p, "reach")),
+                        f"{r(p, 'ig_reels_avg_watch_time') / 1000:.1f} s",
+                        (f"{r(p, 'ig_reels_video_view_total_time') / 60000:.0f} min")
+                        if r(p, "ig_reels_video_view_total_time") is not None
+                        else num(None),
+                        num(r(p, "reels_skip_rate") * 100 if r(p, "reels_skip_rate") is not None else None, pct=True),
+                        num(r(p, "saved")),
+                    ]
+                    for p in reels
+                ],
+            ),
+        )
+    accounts = collect.account_latest(c)
+    if accounts:
+        body += section(
+            "Accounts",
+            "The accounts themselves, as last read: followers in all, the rest for the day",
+            table(
+                ["Platform", "Followers", "Views", "Reach", "Engaged", "Likes", "Replies", "Reposts", "Quotes"],
+                [
+                    [esc(platform)]
+                    + [
+                        num(m.get(k))
+                        for k in (
+                            "followers_count",
+                            "views",
+                            "reach",
+                            "accounts_engaged",
+                            "likes",
+                            "replies",
+                            "reposts",
+                            "quotes",
+                        )
+                    ]
+                    for platform, m in sorted(accounts.items())
+                ],
+            ),
+        )
     return "Reach", body
 
 
@@ -1146,20 +1201,6 @@ def worker(stop, interval=60):
                     STATE["snapshot_day"] = dt.datetime.now(ledger.ZONE).date()
                 if daily_due("collect"):
                     collect.run(c, who="worker", log=lambda s: print(s, flush=True))
-                    try:  # the Threads token's upkeep, beside the day's collection
-                        print(
-                            "  threads: " + threads.upkeep(c, os.environ, log=lambda s: print(s, flush=True)),
-                            flush=True,
-                        )
-                    except Exception as e:  # noqa: BLE001 — a bad answer from Meta must not keep the day's collection from being marked done
-                        print(f"  threads: upkeep failed: {type(e).__name__}: {e}", flush=True)
-                    try:
-                        print(
-                            "  instagram: " + instagram.upkeep(c, os.environ, log=lambda s: print(s, flush=True)),
-                            flush=True,
-                        )
-                    except Exception as e:  # noqa: BLE001 — as above
-                        print(f"  instagram: upkeep failed: {type(e).__name__}: {e}", flush=True)
                     STATE["collect_day"] = dt.datetime.now(ledger.ZONE).date()
             finally:
                 c.close()

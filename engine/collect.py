@@ -48,7 +48,7 @@ import urllib.parse
 import urllib.request
 
 import ledger
-from plan import ACCOUNTS
+from plan import ACCOUNTS, short
 
 ROOT = pathlib.Path(__file__).resolve().parent
 UA = json.loads((ROOT / "useragents.json").read_text(encoding="utf-8"))
@@ -423,8 +423,196 @@ def x(c, env, at, log):
     return f"{n} posts"
 
 
+# ─── Threads, Instagram ──────────────────────────────────────────────────────
+# Meta's insights, one row per metric under Meta's own names. Threads' media metrics are lifetime totals; its
+# account metrics are the default window (yesterday to today), so `views` is the newest day's figure as of the
+# read. Instagram's media metrics are lifetime; the account's are the day's totals (period=day, total_value);
+# `follower_count` only once the account has a hundred followers, which Meta answers with an error until then.
+TH_MEDIA = "views,likes,replies,reposts,quotes,shares"
+TH_ACCOUNT = "views,likes,replies,reposts,quotes,followers_count"
+IG_REEL = (
+    "views,reach,likes,comments,saved,shares,total_interactions,"
+    "ig_reels_avg_watch_time,ig_reels_video_view_total_time,reels_skip_rate"
+)
+IG_FEED = "views,reach,likes,comments,saved,shares,total_interactions,follows,profile_visits"
+IG_ACCOUNT = "reach,views,accounts_engaged,total_interactions"
+SHORTCODE = re.compile(r"(?:threads\.(?:com|net)/@[^/]+/post/|instagram\.com/(?:reel|p)/)([A-Za-z0-9_-]+)")
+
+
+def value_of(item):
+    """A metric's number from Meta's two shapes: total_value.value, or the last of values[].value."""
+    tv = item.get("total_value")
+    if isinstance(tv, dict) and "value" in tv:
+        return tv["value"]
+    vals = item.get("values") or []
+    return vals[-1].get("value") if vals else None
+
+
+def meta_off(name, mod, env):
+    """Why a Meta source is not read today, or None: the adapter off, the credentials unset, the token in trouble."""
+    if ACCOUNTS.get(name, {}).get("adapter") != name:
+        return f"skipped: the {name.title()} adapter is off"
+    if not mod.ready(env):
+        return f"skipped: {mod.NEEDS} not set"
+    return None
+
+
+def red(c, platform):
+    row = ledger.credential(c, platform)
+    if row and row["state"] in ("invalid", "failed"):
+        return f"skipped: the token is {row['state']} ({row['note'] or 'no detail'}); see Health"
+    return None
+
+
+def by_shortcode(c, posts, listing):
+    """Posts with a pasted permalink and no id: matched by the permalink's shortcode to the account's recent media,
+    once; from then on they are read like the others."""
+    want = {}
+    for p in posts:
+        m = SHORTCODE.search(p["permalink"] or "") if not p["remote_id"] else None
+        if m:
+            want[m.group(1)] = p
+    if not want:
+        return 0
+    n = 0
+    for item in listing():
+        m = SHORTCODE.search(item.get("permalink") or "")
+        p = want.get(item.get("shortcode") or (m.group(1) if m else None))
+        if p:
+            ledger.update_post(c, p["id"], remote_id=str(item["id"]))
+            ledger.event(c, "collect:matched", "collector", post=p["id"], episode=p["episode"], detail=str(item["id"]))
+            n += 1
+    return n
+
+
+def meta_posts(c, platform):
+    return c.execute(
+        "SELECT * FROM post WHERE platform=? AND status='published' AND (remote_id IS NOT NULL OR permalink IS NOT NULL)",
+        (platform,),
+    ).fetchall()
+
+
+def tokens(c, env, at, log):
+    """The two Meta tokens' upkeep, first, so the sources below read with a token that stands
+    (publish/threads.py, publish/instagram.py)."""
+    from publish import instagram as ig
+    from publish import threads as th
+
+    lines = []
+    for name, mod in (("threads", th), ("instagram", ig)):
+        lines.append(f"{name}: " + (f"skipped: {mod.NEEDS} not set" if not mod.ready(env) else mod.upkeep(c, env, log)))
+    return "; ".join(lines)
+
+
+def threads(c, env, at, log):
+    from publish import PublishError
+    from publish import threads as th
+
+    why = meta_off("threads", th, env) or red(c, "threads")
+    if why:
+        return why
+    try:
+        tok = th.token(log)
+        uid = str(th.me(tok, c)["id"])
+    except PublishError as e:
+        return f"skipped: {e}"
+    base = f"{th.API}/{th.V}"
+
+    def q(path, **params):
+        return get_json(f"{base}/{path}?" + urllib.parse.urlencode({**params, "access_token": tok}))
+
+    matched = by_shortcode(
+        c,
+        meta_posts(c, "threads"),
+        lambda: q(f"{uid}/threads", fields="id,permalink,shortcode,timestamp", limit="50").get("data", []),
+    )
+    n = 0
+    for p in meta_posts(c, "threads"):
+        if not p["remote_id"]:
+            continue
+        d = q(f"{p['remote_id']}/insights", metric=TH_MEDIA)
+        snap(c, p, {i["name"]: value_of(i) for i in d.get("data", [])}, d, at)
+        n += 1
+    me = {"id": None, "account": "threads", "platform": "threads"}
+    d = q(f"{uid}/threads_insights", metric=TH_ACCOUNT)
+    snap(c, me, {i["name"]: value_of(i) for i in d.get("data", [])}, d, at)
+    by_short = {short(p["link_id"]): p for p in meta_posts(c, "threads") if p["link_id"]}
+    k = 0
+    for i in q(f"{uid}/threads_insights", metric="clicks").get("data", []):
+        for lv in i.get("link_total_values") or []:
+            p = by_short.get((lv.get("link_url") or "").rstrip("/"))
+            if p and lv.get("value") is not None:
+                snap(c, p, {"link_clicks": lv["value"]}, None, at)
+                k += 1
+    return f"{n} posts, the account, {k} links clicked" + (f", {matched} matched by shortcode" if matched else "")
+
+
+def instagram(c, env, at, log):
+    from publish import PublishError
+    from publish import instagram as ig
+
+    why = meta_off("instagram", ig, env) or red(c, "instagram")
+    if why:
+        return why
+    try:
+        igid = ig.account(c, env)["id"]
+    except PublishError as e:
+        return f"skipped: {e}"
+    tok, base = env["INSTAGRAM_TOKEN"], f"{ig.API}/{ig.V}"
+
+    def q(path, **params):
+        return get_json(f"{base}/{path}?" + urllib.parse.urlencode({**params, "access_token": tok}))
+
+    matched = by_shortcode(
+        c,
+        meta_posts(c, "instagram"),
+        lambda: q(f"{igid}/media", fields="id,permalink,shortcode,timestamp", limit="50").get("data", []),
+    )
+    n = 0
+    for p in meta_posts(c, "instagram"):
+        if not p["remote_id"]:
+            continue
+        d = q(p["remote_id"], fields="like_count,comments_count,media_product_type,permalink")
+        reel = d.get("media_product_type") == "REELS"
+        ins = q(f"{p['remote_id']}/insights", metric=IG_REEL if reel else IG_FEED)
+        metrics = {"likes": d.get("like_count"), "comments": d.get("comments_count")}
+        metrics.update({i["name"]: value_of(i) for i in ins.get("data", [])})
+        snap(c, p, metrics, {"media": d, "insights": ins}, at)
+        n += 1
+    me = {"id": None, "account": "instagram", "platform": "instagram"}
+    u = q(igid, fields="followers_count,media_count")
+    metrics = {"followers_count": u.get("followers_count"), "media_count": u.get("media_count")}
+    d = q(f"{igid}/insights", metric=IG_ACCOUNT, period="day", metric_type="total_value")
+    metrics.update({i["name"]: value_of(i) for i in d.get("data", [])})
+    st, body = http(
+        "GET",
+        f"{base}/{igid}/insights?"
+        + urllib.parse.urlencode({"metric": "follower_count", "period": "day", "access_token": tok}),
+    )
+    daily = "not yet (under a hundred followers)"
+    if st == 200:
+        items = json.loads(body).get("data") or []
+        v = value_of(items[0]) if items else None
+        if v is not None:
+            metrics["follower_count"] = v
+            daily = str(v)
+    snap(c, me, metrics, {"user": u, "insights": d}, at)
+    return f"{n} posts, the account ({metrics.get('followers_count')} followers; the day's count {daily})" + (
+        f", {matched} matched by shortcode" if matched else ""
+    )
+
+
 # ─── the run ─────────────────────────────────────────────────────────────────
-SOURCES = {"edge": edge, "youtube": youtube, "bluesky": bluesky, "mastodon": mastodon, "x": x}
+SOURCES = {
+    "tokens": tokens,
+    "edge": edge,
+    "youtube": youtube,
+    "bluesky": bluesky,
+    "mastodon": mastodon,
+    "x": x,
+    "threads": threads,
+    "instagram": instagram,
+}
 
 
 def run(c, only=None, env=None, who="engine", log=print):
@@ -512,9 +700,21 @@ def clicks_from(c, days=30):
 def latest(c):
     """{post: {metric: {"now": newest value, "week": the value a week or more ago, or None}}}."""
     week, out = since(7), {}
-    for r in c.execute("SELECT post, metric, observed_at, value FROM snapshot ORDER BY post, metric, observed_at"):
+    for r in c.execute(
+        "SELECT post, metric, observed_at, value FROM snapshot WHERE post IS NOT NULL ORDER BY post, metric, observed_at"
+    ):
         m = out.setdefault(r["post"], {}).setdefault(r["metric"], {"now": None, "week": None})
         m["now"] = r["value"]
         if r["observed_at"] <= week:
             m["week"] = r["value"]
+    return out
+
+
+def account_latest(c):
+    """{platform: {metric: newest value}} for the accounts' own rows, the ones with no post."""
+    out = {}
+    for r in c.execute(
+        "SELECT platform, metric, value FROM snapshot WHERE post IS NULL ORDER BY platform, metric, observed_at"
+    ):
+        out.setdefault(r["platform"], {})[r["metric"]] = r["value"]
     return out

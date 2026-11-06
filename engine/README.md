@@ -260,10 +260,22 @@ minutes, average view length and share, shares, subscribers gained, two or
 three days behind); Bluesky and Mastodon through their public endpoints
 with no token, from the permalink a person pasted back; X through the
 owned-post lookup once its adapter is on, a cent per thousand reads, and
-X forgets after thirty days so the snapshots are the record. A source that
-is missing its credentials says so and the others carry on. The Threads
-token's upkeep (`publish/threads.py`) runs right after the day's
-collection, and its line goes to the same log.
+X forgets after thirty days so the snapshots are the record; Threads and
+Instagram through Meta's insights under Meta's own metric names (Threads:
+views, likes, replies, reposts, quotes, shares per post; Instagram: likes
+and comments from the media, then views, reach, saved, shares, total
+interactions, and for a Reel its average and total watch time and skip
+rate), and once a day the accounts themselves as rows with no post
+(followers, the day's views and reach, Threads' clicks per link attributed
+to the post whose short link it is, beside the edge's own count, which
+stays the one Reach trusts). A Threads or Instagram post published by
+hand, with a pasted permalink and no id, is matched once by the
+permalink's shortcode to the account's recent media and read like the
+others from then on. The first source of the run is `tokens`: the two Meta
+tokens' upkeep (`publish/threads.py`, `publish/instagram.py`), so the
+sources after it read with a token that stands; a source whose token
+Health shows in trouble says so and the others carry on. A source that is
+missing its credentials says so and the others carry on.
 
 A listen is the IAB's: one address hash per file per day, from a 200 or 206
 that carried at least a minute's worth of the file, by something that is
