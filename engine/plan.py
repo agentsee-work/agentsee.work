@@ -15,6 +15,7 @@ the KV namespace the /p/ Worker reads; it needs the podcast's Cloudflare
 token and is idempotent, so it can run after a plan or any time later.
 """
 
+import datetime as dt
 import json
 import os
 import pathlib
@@ -193,6 +194,38 @@ def prune(c, slug, who="engine"):
         ledger.event(c, "prune", who, post=p["id"], episode=slug, detail=f"the plan no longer makes this post: {why}")
         gone.append(p["id"])
     return gone
+
+
+def skip_backlog(c, accounts, before=None, who="engine", dry_run=False):
+    """Posts on these accounts whose day has passed and that nobody posted (a card never pasted back, a planned
+    post left behind), marked skipped with the event saying why: the switch-on of an account to its adapter
+    (AGE-134), so the worker does not find a pile. Anything published, or made by hand with a permalink, is
+    left alone. Returns the rows it took, or would take."""
+    cutoff = dt.datetime.fromisoformat(before) if before else dt.datetime.now(dt.timezone.utc)
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.replace(tzinfo=ledger.ZONE)
+    marks = ",".join("?" * len(accounts))
+    rows = [
+        p
+        for p in c.execute(
+            f"SELECT * FROM post WHERE account IN ({marks}) AND status IN ('planned', 'due', 'hand') "
+            "AND scheduled_at IS NOT NULL ORDER BY scheduled_at, id",
+            tuple(accounts),
+        ).fetchall()
+        if dt.datetime.fromisoformat(p["scheduled_at"]) < cutoff
+    ]
+    if not dry_run:
+        for p in rows:
+            ledger.update_post(c, p["id"], who, status="skipped")
+            ledger.event(
+                c,
+                "skip:backlog",
+                who,
+                post=p["id"],
+                episode=p["episode"],
+                detail="its day passed before the account was on its adapter, and nobody posted the card",
+            )
+    return rows
 
 
 # ─── the short links, into KV ────────────────────────────────────────────────

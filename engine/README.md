@@ -88,6 +88,7 @@ op run --env-file=engine/engine.env -- ./engine/engine.py release sign Abrar --p
 op run --env-file=engine/engine.env -- ./engine/engine.py release normalise    # every kept signature as one ink on transparent, once
 op run --env-file=engine/engine.env -- ./engine/engine.py threads              # the Threads token's upkeep now: Meta's dates, a refresh when due
 op run --env-file=engine/engine.env -- ./engine/engine.py instagram            # which account the Instagram token serves, and whether Meta honours it
+./engine/engine.py skip-backlog threads instagram --dry-run                   # the cards nobody posted before the switch-on; without --dry-run, skipped
 
 ENGINE_GUEST_HOST=localhost ./engine/engine.py serve --no-worker   # the guest's door at http://localhost:8877/
 
@@ -160,13 +161,15 @@ characters with every link counted as 23. Their credentials are two vault
 items (`engine.env`, `docs/CREDENTIALS.md`), resolved when the container
 starts: file them before the box pulls a version that references them, or
 `op run` refuses to start the engine. Everything else is `hand`: the card.
-For Instagram that is for now. For LinkedIn it is the decision
+For LinkedIn it is the decision
 (20 October 2026): one card per episode per person, the post written by the
 person, the card there for the short link and the record, and no adapter to
 come.
 
-The Threads adapter is real (`publish/threads.py`; the account joins it
-with `"adapter": "threads"` in `accounts.json`, the switch-on): the art as
+The Threads adapter is real (`publish/threads.py`; the account is on it
+by `"adapter": "threads"` in `accounts.json`, the switch-on of AGE-134,
+which also skipped the backlog of cards nobody posted with
+`engine.py skip-backlog threads instagram`): the art as
 an image post, a clip as a video post, each with alt text, by three
 requests, since Meta fetches the file itself from the media host: a
 container with the text and the file's public address, a poll until Meta
@@ -194,8 +197,8 @@ profile is public) or a refresh fails. `engine.env` carries the Threads
 app's id and secret, the pair on the use case's Settings page; the token
 itself is never in the environment.
 
-The Instagram adapter is real too (`publish/instagram.py`; the switch-on
-gives the account `"adapter": "instagram"` and, by decision, the episode
+The Instagram adapter is real too (`publish/instagram.py`; the account is
+on it by `"adapter": "instagram"`, and takes, by decision, the episode
 asset beside the clips): a clip as a Reel shared to the feed, with the
 clip's JPEG poster as its cover (`tools/clips.py` writes one beside the
 PNG; an episode staged before that gets the first frame), the art as an

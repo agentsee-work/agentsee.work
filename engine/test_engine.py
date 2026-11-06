@@ -1754,8 +1754,12 @@ class EngineTest(unittest.TestCase):
         th = c.execute("SELECT * FROM post WHERE link_id='e9thc01'").fetchone()
         st, h, body = get(f"/posts/{th['id']}")
         self.assertEqual(st, 200)
-        self.assertIn("threads.net/intent/post", body)
-        self.assertIn(MEDIA + "clips/01-the-point.mp4", body)
+        self.assertNotIn("threads.net/intent/post", body, "Threads goes by API since the switch-on: no composer card")
+        lp = c.execute("SELECT * FROM post WHERE link_id='e9lpe'").fetchone()
+        st, h, body = get(f"/posts/{lp['id']}")
+        self.assertEqual(st, 200)
+        self.assertIn("linkedin.com/feed/?shareActive", body, "the LinkedIn page stays a card, by decision")
+        self.assertIn(MEDIA + "episode-art.jpg", body)
         self.assertIn("Paste the permalink", body)
         st, h, body = post(f"/posts/{x['id']}/text", {"_t": "wrong", "text": "nope"})
         self.assertEqual(st, 403)
@@ -4672,8 +4676,9 @@ class EngineTest(unittest.TestCase):
         threads.API, threads.AUTH, threads.POLL = base, base + "/oauth/authorize", 0
         tvault = FakeVault("pending", item="Threads podcast token")
         threads.vault = tvault
-        plan.ACCOUNTS["threads"]["adapter"] = "threads"  # the switch-on, here regardless of accounts.json
-        self.addCleanup(lambda: plan.ACCOUNTS["threads"].update(adapter="hand"))
+        was = dict(plan.ACCOUNTS["threads"])
+        plan.ACCOUNTS["threads"]["adapter"] = "threads"  # on, here regardless of accounts.json
+        self.addCleanup(lambda: plan.ACCOUNTS["threads"].update(was))
         tenv = {"THREADS_APP_ID": "tid", "THREADS_APP_SECRET": "tsec", **self.menv}
         quiet = lambda s: None  # noqa: E731
         s = StubThreads.state
@@ -4865,8 +4870,9 @@ class EngineTest(unittest.TestCase):
         self.addCleanup(stub.server_close)
         self.addCleanup(stub.shutdown)
         instagram.API, instagram.POLL = f"http://127.0.0.1:{stub.server_address[1]}", 0
-        plan.ACCOUNTS["instagram"].update(adapter="instagram", assets=["episode", "clip"])  # the switch-on
-        self.addCleanup(lambda: plan.ACCOUNTS["instagram"].update(adapter="hand", assets=["clip"]))
+        was = dict(plan.ACCOUNTS["instagram"])
+        plan.ACCOUNTS["instagram"].update(adapter="instagram", assets=["episode", "clip"])  # on, with the grid
+        self.addCleanup(lambda: plan.ACCOUNTS["instagram"].update(was))
         plan.plan(c, "ep9", "tester")  # the episode post the account now takes
         ienv = {"INSTAGRAM_APP_ID": "iid", "INSTAGRAM_APP_SECRET": "isec", "INSTAGRAM_TOKEN": "IGTOK", **self.menv}
         quiet = lambda s: None  # noqa: E731
@@ -4999,10 +5005,10 @@ class EngineTest(unittest.TestCase):
             self.addCleanup(srv.shutdown)
         threads.API = f"http://127.0.0.1:{tstub.server_address[1]}"
         instagram.API = f"http://127.0.0.1:{istub.server_address[1]}"
+        was = {k: dict(plan.ACCOUNTS[k]) for k in ("threads", "instagram")}
         plan.ACCOUNTS["threads"]["adapter"] = "threads"
         plan.ACCOUNTS["instagram"]["adapter"] = "instagram"
-        self.addCleanup(lambda: plan.ACCOUNTS["threads"].update(adapter="hand"))
-        self.addCleanup(lambda: plan.ACCOUNTS["instagram"].update(adapter="hand"))
+        self.addCleanup(lambda: [plan.ACCOUNTS[k].update(v) for k, v in was.items()])
         env = {
             "THREADS_APP_ID": "tid",
             "THREADS_APP_SECRET": "tsec",
@@ -5067,6 +5073,38 @@ class EngineTest(unittest.TestCase):
         plan.ACCOUNTS["instagram"]["adapter"] = "instagram"
         self.assertEqual(collect.instagram(c, {}, ledger.now(), quiet), f"skipped: {instagram.NEEDS} not set")
         self.assertIn("skipped: INSTAGRAM_APP_ID", collect.tokens(c, {}, ledger.now(), quiet))
+
+    def test_29_switch_on(self):
+        """The accounts are on their adapters in accounts.json, and the backlog of cards nobody posted is skipped
+        (AGE-134): a card past its day and a planned post past its day go, a published post and a future one stay."""
+        self.assertEqual(
+            (plan.ACCOUNTS["threads"]["adapter"], plan.ACCOUNTS["instagram"]["adapter"]), ("threads", "instagram")
+        )
+        self.assertEqual(plan.ACCOUNTS["instagram"]["assets"], ["episode", "clip"], "the episode on the grid")
+        c = self.c()
+        th = {p["asset"]: p for p in c.execute("SELECT * FROM post WHERE episode='ep9' AND platform='threads'")}
+        ig = {p["asset"]: p for p in c.execute("SELECT * FROM post WHERE episode='ep9' AND platform='instagram'")}
+        past, future = (
+            "2026-10-20T09:00:00+01:00",
+            (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=3)).isoformat(),
+        )
+        ledger.update_post(c, th["episode"]["id"], status="hand", scheduled_at=past)  # a card never pasted back
+        ledger.update_post(c, ig["clip:01-the-point"]["id"], status="planned", scheduled_at=past)  # left behind
+        ledger.update_post(c, ig["episode"]["id"], status="planned", scheduled_at=future)  # its day to come
+        self.assertEqual(ledger.post(c, th["clip:01-the-point"]["id"])["status"], "published")
+        rows = plan.skip_backlog(c, ["threads", "instagram"], who="tester", dry_run=True)
+        self.assertEqual(sorted(p["id"] for p in rows), sorted([th["episode"]["id"], ig["clip:01-the-point"]["id"]]))
+        self.assertEqual(ledger.post(c, th["episode"]["id"])["status"], "hand", "a dry run changes nothing")
+        rows = plan.skip_backlog(c, ["threads", "instagram"], who="tester")
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(ledger.post(c, th["episode"]["id"])["status"], "skipped")
+        self.assertEqual(ledger.post(c, ig["clip:01-the-point"]["id"])["status"], "skipped")
+        self.assertEqual(ledger.post(c, ig["episode"]["id"])["status"], "planned", "its day has not come")
+        self.assertEqual(ledger.post(c, th["clip:01-the-point"]["id"])["status"], "published", "left alone")
+        why = c.execute("SELECT detail FROM event WHERE what='skip:backlog' ORDER BY id DESC LIMIT 1").fetchone()[0]
+        self.assertIn("nobody posted the card", why)
+        self.assertEqual(plan.skip_backlog(c, ["threads", "instagram"], who="tester"), [], "nothing twice")
+        self.assertEqual(plan.skip_backlog(c, ["instagram"], before="2026-10-01", dry_run=True), [], "before the day")
 
 
 if __name__ == "__main__":
