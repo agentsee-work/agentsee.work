@@ -133,6 +133,13 @@ def cmd_collect(a):
     print("; ".join(f"{k}: {v}" for k, v in res.items()))
 
 
+def cmd_threads(a):
+    from publish import threads
+
+    c = ledger.connect(a.ledger)
+    print(threads.upkeep(c, os.environ))
+
+
 def cmd_serve(a):
     import web
 
@@ -349,6 +356,10 @@ def main():
         "--only", nargs="*", choices=["edge", "youtube", "bluesky", "mastodon", "x"], help="these sources only"
     )
     p.set_defaults(fn=cmd_collect)
+    p = sub.add_parser(
+        "threads", help="the Threads token's upkeep now: Meta's dates, a refresh when due (the worker does it daily)"
+    )
+    p.set_defaults(fn=cmd_threads)
     p = sub.add_parser("serve", help="the screens, with the worker")
     p.add_argument("--port", type=int, default=8877)
     p.add_argument(
