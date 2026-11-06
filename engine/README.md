@@ -205,8 +205,13 @@ and the same never-twice through the container event, matched by caption.
 The token is the system-user token the dashboard generated (AGE-130, C7),
 read from the environment, with no consent and no refresh: it stands until
 the account leaves the portfolio or the app is removed from it. The
-account id is never typed: the adapter asks Meta once which account the
-token serves and keeps the id in the `credential` row. The upkeep
+account id is `config.json`'s `"instagram": {"account": …}`, the one
+Business settings shows under the app's connected assets (not a secret),
+and the adapter proves it by reading the account with the token before
+keeping it in the `credential` row; without it the adapter asks Meta to
+name the account, under the assets shared at the token's login and under
+the token's granular scopes, which for a system-user token has answered
+empty even with the asset shared (6 November 2026). The upkeep
 (`engine.py instagram`, and daily beside the collection) asks `debug_token`
 with the app's own token whether Meta still honours it; Health shows
 "Instagram token: @agentsee.work, account …, token honoured by Meta", and
