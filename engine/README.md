@@ -87,6 +87,7 @@ op run --env-file=engine/engine.env -- ./engine/engine.py linear --retry       #
 op run --env-file=engine/engine.env -- ./engine/engine.py release sign Abrar --png sig.png  # a host's signature by command
 op run --env-file=engine/engine.env -- ./engine/engine.py release normalise    # every kept signature as one ink on transparent, once
 op run --env-file=engine/engine.env -- ./engine/engine.py threads              # the Threads token's upkeep now: Meta's dates, a refresh when due
+op run --env-file=engine/engine.env -- ./engine/engine.py instagram            # which account the Instagram token serves, and whether Meta honours it
 
 ENGINE_GUEST_HOST=localhost ./engine/engine.py serve --no-worker   # the guest's door at http://localhost:8877/
 
@@ -192,6 +193,27 @@ grant has under fourteen days left (a refresh renews it only while the
 profile is public) or a refresh fails. `engine.env` carries the Threads
 app's id and secret, the pair on the use case's Settings page; the token
 itself is never in the environment.
+
+The Instagram adapter is real too (`publish/instagram.py`; the switch-on
+gives the account `"adapter": "instagram"` and, by decision, the episode
+asset beside the clips): a clip as a Reel shared to the feed, with the
+clip's JPEG poster as its cover (`tools/clips.py` writes one beside the
+PNG; an episode staged before that gets the first frame), the art as an
+image on the grid with alt text; 2,200 characters and thirty hashtags; the
+same container, poll, publish and read as Threads, on graph.facebook.com,
+and the same never-twice through the container event, matched by caption.
+The token is the system-user token the dashboard generated (AGE-130, C7),
+read from the environment, with no consent and no refresh: it stands until
+the account leaves the portfolio or the app is removed from it. The
+account id is never typed: the adapter asks Meta once which account the
+token serves and keeps the id in the `credential` row. The upkeep
+(`engine.py instagram`, and daily beside the collection) asks `debug_token`
+with the app's own token whether Meta still honours it; Health shows
+"Instagram token: @agentsee.work, account …, token honoured by Meta", and
+hello@ hears when it is refused, since a new one must be generated in the
+dashboard and filed, and the engine recreated. `/meta/instagram/callback`
+is a plain page, there because the Unified Login setup asked for a redirect
+address; no other business ever logs in through it.
 
 X's refresh token is single use, so the vault item is the live copy: the
 adapter reads it with `op read` when it needs an access token and writes
@@ -490,7 +512,6 @@ other's X tokens.
 ## Not yet
 
 The Spend screen and the export drop zones for Spotify's CSV and LinkedIn's
-XLSX (AGE-69, items 4 and 5); the Instagram adapter, a module in
-`publish/` with the names the contract asks for (AGE-132), the collector's
-Threads and Instagram sources (AGE-133) and the Threads account's
-switch-on (AGE-134); Apple's Reporter (item 6).
+XLSX (AGE-69, items 4 and 5); the collector's Threads and Instagram
+sources (AGE-133) and the two accounts' switch-on (AGE-134); Apple's
+Reporter (item 6).

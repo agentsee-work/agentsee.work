@@ -354,7 +354,12 @@ runs in seconds, and is safe to re-run.
   mapped through the edit list to the output's time, so a post can say "at
   6:52" and link there, and the feed can carry the clip as a
   `podcast:soundbite`. Each clip also gets a VTT of its captions in its own
-  time, alt text for the platforms that take it, and a post text.
+  time, alt text for the platforms that take it, and a post text. Its
+  poster frame is written twice by `clips.py`: a PNG for the site, and the
+  same frame as a JPEG (`clips/NN-slug.jpg`, listed as the clip's
+  `poster_jpg`), the only kind Instagram takes for a Reel's cover; the
+  release warns when it is missing, and the engine then lets Instagram use
+  the first frame.
 - **Episode artwork**, 3000 square and a 1400 JPEG, for the directories
   that show one beside the cover.
 - **Every file with its size, type, duration and SHA-256**, so a publisher

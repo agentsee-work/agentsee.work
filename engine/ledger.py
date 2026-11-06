@@ -219,3 +219,19 @@ def episode(c, slug):
 
 def release(row):
     return json.loads(row["release_json"])
+
+
+def credential(c, platform):
+    """A platform's token as the engine last knew it: who it is for, Meta's dates, its state (publish/meta.py)."""
+    return c.execute("SELECT * FROM credential WHERE platform=?", (platform,)).fetchone()
+
+
+def set_credential(c, platform, **fields):
+    """The row made or updated with these columns."""
+    fields["updated_at"] = now()
+    cols, marks = ", ".join(fields), ", ".join("?" * len(fields))
+    sets = ", ".join(f"{k}=excluded.{k}" for k in fields)
+    c.execute(
+        f"INSERT INTO credential (platform, {cols}) VALUES (?, {marks}) ON CONFLICT(platform) DO UPDATE SET {sets}",
+        (platform, *fields.values()),
+    )

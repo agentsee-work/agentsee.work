@@ -268,8 +268,11 @@ def render_clip(d, m, words, bus, clip, idx, args, theme, plate, fontdir, edl):
     run(cmd)
     tmp_n.unlink(missing_ok=True)
     got = measure(out, args.target)
+    # The poster: one frame as a PNG for the site, and the same frame as a JPEG (quality ~90), which is the
+    # only kind Instagram takes for a Reel's cover (engine/publish/instagram.py).
     run(["ffmpeg", "-nostdin", "-y", "-ss", f"{min(dur / 2, 3.0):.2f}", "-i", out,
-         "-frames:v", "1", out.with_suffix(".png")])
+         "-frames:v", "1", out.with_suffix(".png"),
+         "-frames:v", "1", "-q:v", "2", out.with_suffix(".jpg")])
     return out, got, len(cues), dur, len(local["items"])
 
 

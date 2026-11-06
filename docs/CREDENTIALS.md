@@ -133,6 +133,8 @@ The type decides the field names, and `infra/op.env` references fields by name:
 | X podcast token | API Credential | `username` (the account id it is for), `credential` (the OAuth 2.0 refresh token, not the two-hour access token beside it; X replaces it on every refresh, and the publisher writes the new one back here) |
 | Threads podcast app | API Credential | `username` (the Threads app ID), `credential` (the Threads app secret): the pair on the Threads use case's Settings page of the app "AgentSee publisher", not the Meta app id on its Basic page (AGE-130, D3) |
 | Threads podcast token | API Credential | `username` (the Threads user id, written by the consent), `credential` (the sixty-day user token; `pending` until the consent at `https://engine.agentsee.work/meta/threads/consent` fills it, after which the engine's daily upkeep refreshes it and writes each replacement back here; nobody types it) |
+| Instagram podcast app | API Credential | `username` (the App ID of the Meta app "AgentSee engine", App settings > Basic), `credential` (its App secret) (AGE-130, C8). Together they are the app token `debug_token` wants |
+| Instagram podcast token | API Credential | `username` (`agentsee.work`), `credential` (the Business Integration System User token the dashboard generated for the show's account under the Unified Login setup, C7; it does not expire unless the account leaves the portfolio or the app is removed from it; a replacement is generated there and filed here, never refreshed by code, and the engine recreated to read it) |
 | Bluesky podcast token | API Credential | `username` (the handle, `agentsee.work`), `credential` (an app password from Settings > Privacy and security > App passwords, not the account password) |
 | Mastodon podcast token | API Credential | `username` (the handle), `credential` (the access token of an application the account made at Preferences > Development, scopes `write:media write:statuses`) |
 | Spotify podcast app | API Credential | `username` (the Client ID of an app made at developer.spotify.com, under an account that holds Premium, which Spotify has required of app owners since March 2026), `credential` (its Client Secret). Read only by `tools/directories.py` (`tools/directories.env`), for each episode's own Spotify link; nothing of any user |
@@ -456,6 +458,13 @@ apply, so rename deliberately and grep `infra/op.env` first.
       it every few weeks from then on, writing each replacement back
       (`engine/publish/threads.py`); nobody types or copies it. The item's
       username becomes the Threads user id at the consent.
+- [x] File the Instagram pair in **Engineering** (6 November 2026, AGE-130 C7
+      and C8): `Instagram podcast app` (the App ID and App secret of the Meta
+      app "AgentSee engine") and `Instagram podcast token` (the system-user
+      token the dashboard generated once for the show's account; it is shown
+      once and copied straight into the item). The engine reads all three
+      from the environment; `engine.py instagram` says which account the
+      token serves and whether Meta still honours it.
 - [x] The restic passphrase in **Security**, and on paper with the Emergency
       Kit. The one whose loss cannot be undone.
 - [~] **The social signups in [SOCIAL.md](SOCIAL.md)** — under way, and the

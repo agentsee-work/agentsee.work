@@ -46,9 +46,9 @@ import urllib.parse
 import urllib.request
 
 import ledger
-import mail
 import vault
 from publish import Hold, PublishError
+from publish.meta import BAD_TOKEN, NOT_NOW, REST, error, parse, public_url, rest_until, said, stamp, warn
 from vault import VaultError
 
 SCHEDULES = False
@@ -67,11 +67,8 @@ PENDING = "pending"  # what the vault item holds before the first consent (AGE-1
 READ_AGAIN = 3600  # seconds a token read from the vault is trusted before it is read again
 REFRESH_UNDER = dt.timedelta(days=30)
 GRANT_UNDER = dt.timedelta(days=14)
-MAIL_AGAIN = dt.timedelta(days=7)
-REST = 3600  # seconds to rest when Meta names no time
-NOT_NOW = (4, 17, 613)  # Meta's rate-limit codes
-BAD_TOKEN = 190
 TYPES = {".mp4": "VIDEO", ".jpg": "IMAGE", ".jpeg": "IMAGE", ".png": "IMAGE"}
+SUBJECT = "The Threads token needs a look"
 
 _token = {"value": None, "read_at": 0.0, "user": None, "unsaved": None}
 
@@ -94,6 +91,14 @@ def redirect_uri():
 
 def links(text):
     return re.findall(r"https?://\S+", text or "")
+
+
+def record(c, **fields):
+    ledger.set_credential(c, PLATFORM, **fields)
+
+
+def status(c):
+    return ledger.credential(c, PLATFORM)
 
 
 # ─── the token ───────────────────────────────────────────────────────────────
@@ -160,33 +165,6 @@ def call(method, path, params=None, timeout=60, version=V):
             return e.code, e.headers, e.read()
 
 
-def error(body):
-    try:
-        e = json.loads(body).get("error")
-        return e if isinstance(e, dict) else {}
-    except ValueError, AttributeError:
-        return {}
-
-
-def said(status, body):
-    e = error(body)
-    if e:
-        return f"{status}: {e.get('message') or e.get('type') or e}" + (f" (code {e['code']})" if "code" in e else "")
-    return f"{status}: {body[:300]!r}"
-
-
-def rest_until(headers):
-    """When Meta says to try again: its estimate in minutes from the usage header; an hour when it gives none."""
-    minutes = 0
-    try:
-        for entries in json.loads(headers.get("X-Business-Use-Case-Usage") or "{}").values():
-            for e in entries:
-                minutes = max(minutes, int(e.get("estimated_time_to_regain_access") or 0))
-    except ValueError, AttributeError, TypeError:
-        pass
-    return dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=minutes * 60 if minutes else REST)
-
-
 def refuse(st, h, b, what, c=None):
     """Meta said no: a Hold when it means not now, a PublishError otherwise; a refused token marks the record."""
     e = error(b)
@@ -213,19 +191,6 @@ def me(tok, c=None):
 
 
 # ─── the post ────────────────────────────────────────────────────────────────
-def public_url(c, post, episode):
-    """Where the media host serves the file: the ingest's record, or the episode's media address and the name."""
-    row = c.execute(
-        "SELECT url FROM deliverable WHERE episode=? AND name=?", (post["episode"], post["media"])
-    ).fetchone()
-    if row and row["url"]:
-        return row["url"]
-    base = (episode["media_url"] or "").rstrip("/")
-    if not base:
-        raise PublishError(f"no public address for {post['media']}: Meta fetches the file from the media host")
-    return f"{base}/{post['media']}"
-
-
 def alt_for(post, episode, release):
     if post["asset"] == "episode":
         return f"{episode['title']}: the episode art"
@@ -338,8 +303,11 @@ def publish(post, episode, release, files, env, account, log):
         kind = TYPES.get(pathlib.Path(post["media"]).suffix.lower())
         if not kind:
             raise PublishError(f"Threads takes no {pathlib.Path(post['media']).suffix} files")
+        url = public_url(c, episode, post["media"])
+        if not url:
+            raise PublishError(f"no public address for {post['media']}: Meta fetches the file from the media host")
         params["media_type"] = kind
-        params["image_url" if kind == "IMAGE" else "video_url"] = public_url(c, post, episode)
+        params["image_url" if kind == "IMAGE" else "video_url"] = url
         params["alt_text"] = alt_for(post, episode, release)[:ALT]
     else:
         params["media_type"] = "TEXT"
@@ -459,14 +427,6 @@ def inspect(tok):
     return json.loads(b).get("data") or {}
 
 
-def stamp(unix):
-    return dt.datetime.fromtimestamp(int(unix), dt.timezone.utc).replace(microsecond=0).isoformat() if unix else None
-
-
-def parse(iso):
-    return dt.datetime.fromisoformat(iso) if iso else None
-
-
 def dates(info, expires_in=0):
     """The three instants from a debug_token answer; the expiry from the exchange's seconds when Meta says 0."""
     expires = stamp(info.get("expires_at"))
@@ -479,21 +439,6 @@ def dates(info, expires_in=0):
         "expires_at": expires,
         "grant_expires_at": stamp(info.get("data_access_expires_at")),
     }
-
-
-def record(c, **fields):
-    """The credential row for Threads, made or updated."""
-    fields["updated_at"] = ledger.now()
-    cols, marks = ", ".join(fields), ", ".join("?" * len(fields))
-    sets = ", ".join(f"{k}=excluded.{k}" for k in fields)
-    c.execute(
-        f"INSERT INTO credential (platform, {cols}) VALUES (?, {marks}) ON CONFLICT(platform) DO UPDATE SET {sets}",
-        (PLATFORM, *fields.values()),
-    )
-
-
-def status(c):
-    return c.execute("SELECT * FROM credential WHERE platform=?", (PLATFORM,)).fetchone()
 
 
 def consent(c, env, code, who="engine", log=print):
@@ -522,28 +467,6 @@ def consent(c, env, code, who="engine", log=print):
 
 
 # ─── the upkeep ──────────────────────────────────────────────────────────────
-def warn(c, env, text, log=print):
-    """A word to hello@, at most once a week, and the row marked."""
-    row = status(c)
-    last = parse(row["warned_at"]) if row and row["warned_at"] else None
-    if last and dt.datetime.now(dt.timezone.utc) - last < MAIL_AGAIN:
-        return False
-    state = row["state"] if row and row["state"] in ("failed", "invalid") else "warned"  # the worse word stays
-    to, subject = mail.settings()["copy_to"], "The Threads token needs a look"
-    if not mail.ready(env):
-        log(f"  (no mail: {mail.NEEDS} not set) {text}")
-        record(c, warned_at=ledger.now(), state=state, note=text[:300])
-        return False
-    try:
-        msgid = mail.send(to, subject, text + f"\n\nHealth: https://{host()}/health", env)
-        mail.record(c, "engine", to, subject, msgid)
-    except mail.MailError as e:
-        mail.record(c, "engine", to, subject, error=e)
-        log(f"  the warning could not be mailed: {e}")
-    record(c, warned_at=ledger.now(), state=state, note=text[:300])
-    return True
-
-
 def upkeep(c, env, log=print, now=None):
     """Once a day: Meta's dates for the token, a refresh under thirty days, a word to hello@ when the grant is
     lapsing or a refresh failed. Returns one line for the log."""
@@ -560,11 +483,18 @@ def upkeep(c, env, log=print, now=None):
         info = inspect(tok)
     except PublishError as e:
         record(c, checked_at=ledger.now(), state="failed", note=str(e)[:300])
-        warn(c, env, f"Meta would not describe the Threads token: {e}", log)
+        warn(c, env, PLATFORM, SUBJECT, f"Meta would not describe the Threads token: {e}", log)
         return f"failed: {e}"
     if info.get("is_valid") is False:
         record(c, checked_at=ledger.now(), state="invalid", note="Meta says the token is not valid")
-        warn(c, env, f"The Threads token is no longer valid. Give the consent again at {consent_url()}", log)
+        warn(
+            c,
+            env,
+            PLATFORM,
+            SUBJECT,
+            f"The Threads token is no longer valid. Give the consent again at {consent_url()}",
+            log,
+        )
         return "invalid: the consent must be given again"
     row = status(c)
     d = dates(info)
@@ -584,7 +514,12 @@ def upkeep(c, env, log=print, now=None):
         except PublishError as e:
             record(c, state="failed", note=str(e)[:300])
             warn(
-                c, env, f"The Threads token could not be refreshed: {e}. Give the consent again at {consent_url()}", log
+                c,
+                env,
+                PLATFORM,
+                SUBJECT,
+                f"The Threads token could not be refreshed: {e}. Give the consent again at {consent_url()}",
+                log,
             )
             words.append(f"refresh failed: {e}")
     if grant:
@@ -593,6 +528,8 @@ def upkeep(c, env, log=print, now=None):
             warn(
                 c,
                 env,
+                PLATFORM,
+                SUBJECT,
                 f"The Threads grant lapses on {grant:%d %B %Y}. A refresh renews it only while the profile is public; "
                 f"otherwise the consent must be given again at {consent_url()}",
                 log,

@@ -60,7 +60,7 @@ EDIT = ["episode.json", "manifest.json", "chapters.json", "clips.json", "removal
 SKIP_OUT = {"episode.wav", "variants", "staged.json", "review.json"}
 PUBLIC = {"episode.mp3", "episode-art.png", "episode-art.jpg", "thumbnail.png", "transcript.vtt",
           "transcript.json", "captions.srt", "chapters.json"}
-PUBLIC_CLIP_SUFFIXES = {".mp4", ".png", ".vtt"}
+PUBLIC_CLIP_SUFFIXES = {".mp4", ".png", ".jpg", ".vtt"}  # the JPEG poster is a Reel's cover (AGE-132)
 CACHE = "public, max-age=86400"
 ENV = ("R2_ACCOUNT_ID", "R2_ARCHIVE_BUCKET", "R2_MEDIA_BUCKET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
 
