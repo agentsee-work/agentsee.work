@@ -5054,6 +5054,8 @@ class EngineTest(unittest.TestCase):
             self.addCleanup(srv.shutdown)
         threads.API = f"http://127.0.0.1:{tstub.server_address[1]}"
         instagram.API = f"http://127.0.0.1:{istub.server_address[1]}"
+        named = ledger.CONFIG.pop("instagram", None)  # config.json names the real account; here Meta is asked
+        self.addCleanup(lambda: ledger.CONFIG.__setitem__("instagram", named))
         plan.ACCOUNTS["threads"]["adapter"] = "threads"
         plan.ACCOUNTS["instagram"]["adapter"] = "instagram"
         self.addCleanup(lambda: plan.ACCOUNTS["threads"].update(adapter="hand"))
