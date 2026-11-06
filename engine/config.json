@@ -13,6 +13,7 @@
   "datasets": {"media": "podcast_media", "links": "podcast_links"},
   "x": {"vault": "Engineering", "item": "X podcast token", "field": "credential"},
   "threads": {"vault": "Engineering", "item": "Threads podcast token", "field": "credential"},
+  "instagram": {"account": "17841432490924151"},
   "linear": {
     "vault": "Engineering",
     "item": "Linear podcast token",

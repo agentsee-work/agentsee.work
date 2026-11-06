@@ -575,7 +575,17 @@ class StubInstagram(Stub):
     estimate), "bad-token" (a 190), "restricted" (subcode 2207050)."""
 
     IG = "17841400001"
-    state = {"mode": None, "containers": {}, "posts": [], "polls": 0, "quota": 2, "valid": True, "asked": 0}
+    state = {
+        "mode": None,
+        "containers": {},
+        "posts": [],
+        "polls": 0,
+        "quota": 2,
+        "valid": True,
+        "asked": 0,
+        "assigned": True,  # the account shared at the token's login, under /me/assigned_instagram_accounts
+        "granular": None,  # the ids debug_token names under granular_scopes; None for the account itself
+    }
 
     def no(self):
         s = StubInstagram.state
@@ -662,6 +672,10 @@ class StubInstagram(Stub):
                         "is_valid": s["valid"],
                         "issued_at": 1762400000,
                         "scopes": ["instagram_basic", "instagram_content_publish", "instagram_manage_insights"],
+                        "granular_scopes": [
+                            {"scope": sc, "target_ids": [self.IG] if s["granular"] is None else s["granular"]}
+                            for sc in ("instagram_basic", "instagram_content_publish")
+                        ],
                         "user_id": "100000001",
                     }
                 },
@@ -672,7 +686,9 @@ class StubInstagram(Stub):
             return None
         if u.path == "/v27.0/me/assigned_instagram_accounts":
             s["asked"] += 1
-            return self.out(200, {"data": [{"id": self.IG, "username": "agentsee.work"}]})
+            return self.out(200, {"data": [{"id": self.IG, "username": "agentsee.work"}] if s["assigned"] else []})
+        if u.path == f"/v27.0/{self.IG}" and q.get("fields") == "id,username":
+            return self.out(200, {"id": self.IG, "username": "agentsee.work"})
         if u.path == f"/v27.0/{self.IG}/content_publishing_limit":
             return self.out(
                 200, {"data": [{"quota_usage": s["quota"], "config": {"quota_total": 100, "quota_duration": 86400}}]}
@@ -4870,6 +4886,8 @@ class EngineTest(unittest.TestCase):
         self.addCleanup(stub.server_close)
         self.addCleanup(stub.shutdown)
         instagram.API, instagram.POLL = f"http://127.0.0.1:{stub.server_address[1]}", 0
+        named = ledger.CONFIG.pop("instagram", None)  # config.json names the real account; here Meta is asked
+        self.addCleanup(lambda: ledger.CONFIG.__setitem__("instagram", named))
         was = dict(plan.ACCOUNTS["instagram"])
         plan.ACCOUNTS["instagram"].update(adapter="instagram", assets=["episode", "clip"])  # on, with the grid
         self.addCleanup(lambda: plan.ACCOUNTS["instagram"].update(was))
@@ -4949,6 +4967,43 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(line, f"@agentsee.work (id {StubInstagram.IG}), token valid, no expiry")
         self.assertEqual(ledger.credential(c, "instagram")["state"], "valid")
         self.assertEqual(s["asked"], 1, "the account id came from the ledger")
+        # a token whose login shared no asset: the account is found through the token's granular scopes instead
+        ledger.set_credential(c, "instagram", who=None)
+        instagram._account.clear()
+        s["assigned"] = False
+        self.assertEqual(instagram.account(c, ienv), {"id": StubInstagram.IG, "username": "agentsee.work"})
+        self.assertEqual((s["asked"], ledger.credential(c, "instagram")["who"]), (2, StubInstagram.IG))
+        ledger.set_credential(c, "instagram", who=None)
+        instagram._account.clear()
+        s["granular"] = []
+        with self.assertRaises(publish.PublishError) as got:
+            instagram.account(c, ienv)
+        self.assertIn("names none in the token's granular scopes", str(got.exception))
+        self.assertIn("instagram_content_publish", str(got.exception), "the permissions it does carry, for a look")
+        self.assertIn('type USER for the app "AgentSee engine", issued 2025-11-06', str(got.exception))
+        # config.json naming the account: the token reads it, which proves the asset is shared, and Meta is not
+        # asked to name it
+        ledger.CONFIG["instagram"] = {"account": StubInstagram.IG}
+        self.assertEqual(instagram.account(c, ienv), {"id": StubInstagram.IG, "username": "agentsee.work"})
+        self.assertEqual((s["asked"], ledger.credential(c, "instagram")["who"]), (3, StubInstagram.IG))
+        self.assertEqual(
+            json.loads(
+                c.execute("SELECT detail FROM event WHERE what='instagram:account' ORDER BY id DESC").fetchone()[0]
+            )["from"],
+            "config.json",
+        )
+        instagram._account.clear()
+        self.assertEqual(instagram.account(c, ienv)["id"], StubInstagram.IG, "from the row, which agrees with config")
+        self.assertEqual(s["asked"], 3)
+        instagram._account.clear()
+        ledger.CONFIG["instagram"] = {"account": "999"}
+        with self.assertRaises(publish.PublishError) as got:
+            instagram.account(c, ienv)
+        self.assertIn("reading the account 999 that config.json names", str(got.exception))
+        del ledger.CONFIG["instagram"]
+        instagram._account.clear()
+        s["assigned"], s["granular"] = True, None
+        instagram.account(c, ienv)
         # never twice: a retry whose container was published finds the post by its caption
         c.execute("DELETE FROM event WHERE what='publish:container' AND post=?", (clip["id"],))
         res = publish.run(c, [ledger.post(c, clip["id"])], env=ienv, log=quiet)
@@ -5005,6 +5060,8 @@ class EngineTest(unittest.TestCase):
             self.addCleanup(srv.shutdown)
         threads.API = f"http://127.0.0.1:{tstub.server_address[1]}"
         instagram.API = f"http://127.0.0.1:{istub.server_address[1]}"
+        named = ledger.CONFIG.pop("instagram", None)  # config.json names the real account; here Meta is asked
+        self.addCleanup(lambda: ledger.CONFIG.__setitem__("instagram", named))
         was = {k: dict(plan.ACCOUNTS[k]) for k in ("threads", "instagram")}
         plan.ACCOUNTS["threads"]["adapter"] = "threads"
         plan.ACCOUNTS["instagram"]["adapter"] = "instagram"
