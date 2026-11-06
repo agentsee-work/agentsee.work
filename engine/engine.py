@@ -360,7 +360,10 @@ def main():
     p.set_defaults(fn=cmd_publish)
     p = sub.add_parser("collect", help="read what every post and file did, into the ledger (the worker does it daily)")
     p.add_argument(
-        "--only", nargs="*", choices=["edge", "youtube", "bluesky", "mastodon", "x"], help="these sources only"
+        "--only",
+        nargs="*",
+        choices=["tokens", "edge", "youtube", "bluesky", "mastodon", "x", "threads", "instagram"],
+        help="these sources only",
     )
     p.set_defaults(fn=cmd_collect)
     p = sub.add_parser(
