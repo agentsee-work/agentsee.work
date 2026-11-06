@@ -80,6 +80,15 @@ def cmd_plan(a):
                 print(f"  short links not pushed: {e}\n  (run `engine.py links` under op run when ready)")
 
 
+def cmd_skip_backlog(a):
+    c = ledger.connect(a.ledger)
+    rows = plan.skip_backlog(c, a.account, a.before, who(), a.dry_run)
+    for p in rows:
+        t = ledger.local(p["scheduled_at"])
+        print(f"{p['id']:4d}  {t:%Y-%m-%d}  {p['status']:<8} {p['account']:<12} {p['asset']:<28} {p['title'] or ''}")
+    print(f"{len(rows)} post(s) {'would be' if a.dry_run else ''} skipped".replace("  ", " "))
+
+
 def cmd_links(a):
     c = ledger.connect(a.ledger)
     print(f"{plan.links(c, a.slug, who=who())} short links in KV")
@@ -342,6 +351,14 @@ def main():
         help="skip planned posts the plan no longer makes (an account dropped, or an asset it no longer takes)",
     )
     p.set_defaults(fn=cmd_plan)
+    p = sub.add_parser(
+        "skip-backlog",
+        help="posts on these accounts whose day has passed and nobody posted, marked skipped: the switch-on (AGE-134)",
+    )
+    p.add_argument("account", nargs="+", help="the account names in accounts.json, e.g. threads instagram")
+    p.add_argument("--before", help="only posts due before this ISO instant or date (default: now)")
+    p.add_argument("--dry-run", action="store_true", help="list them, change nothing")
+    p.set_defaults(fn=cmd_skip_backlog)
     p = sub.add_parser("links", help="push every short link to KV (idempotent)")
     p.add_argument("slug", nargs="?")
     p.set_defaults(fn=cmd_links)

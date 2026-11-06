@@ -57,7 +57,7 @@
       "clip"
     ],
     "at": "09:00",
-    "adapter": "hand",
+    "adapter": "threads",
     "limit": 500
   },
   "instagram": {
@@ -65,10 +65,11 @@
     "handle": "@agentsee.work",
     "code": "ig",
     "assets": [
+      "episode",
       "clip"
     ],
     "at": "09:00",
-    "adapter": "hand",
+    "adapter": "instagram",
     "limit": 2200
   },
   "linkedin-james": {
