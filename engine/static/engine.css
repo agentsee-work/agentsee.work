@@ -22,7 +22,7 @@ main.engine .deck { color: var(--ink-2); max-width: 44rem; margin: 0 0 1.4rem; }
 .engine-table td { padding: .45rem .6rem .45rem 0; border-bottom: var(--hairline); vertical-align: top; }
 .engine-table td.num, .engine-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .engine-table .mono, .mono { font-family: var(--mono); font-size: .85em; }
-.engine-table a { color: inherit; text-decoration-color: var(--hair); }
+.engine-table a { color: inherit; text-decoration-color: var(--underline); }
 .engine-table a:hover { color: var(--signal); }
 .day-head td { padding-top: 1.2rem; font-family: var(--mono); font-size: .75rem; letter-spacing: .06em;
   text-transform: uppercase; color: var(--ink-2); border-bottom: 1px solid var(--rule); }
@@ -106,7 +106,7 @@ pre.card-text { white-space: pre-wrap; background: var(--paper-2); border: var(-
 .error { color: var(--signal); font-family: var(--mono); font-size: .85rem; overflow-wrap: anywhere; }
 .poster { max-width: 14rem; height: auto; border: var(--hairline); display: block; margin: .4rem 0; }
 
-main.engine a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--hair); text-underline-offset: .15em; }
+main.engine a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--underline); text-underline-offset: .15em; }
 main.engine a:hover { color: var(--signal); text-decoration-color: var(--signal); }
 main.engine .lead { text-align: left; }
 main.engine .lead h1, main.engine .deck { margin-left: 0; text-align: left; }
