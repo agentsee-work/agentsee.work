@@ -41,7 +41,9 @@ def kind_of(name):
     if name.startswith("episode-art."):
         return "art"
     if name.startswith("clips/"):
-        return {"mp4": "clip", "png": "poster", "vtt": "clip-captions"}.get(name.rsplit(".", 1)[-1], "other")
+        return {"mp4": "clip", "png": "poster", "jpg": "poster", "vtt": "clip-captions"}.get(
+            name.rsplit(".", 1)[-1], "other"
+        )
     return "other"
 
 

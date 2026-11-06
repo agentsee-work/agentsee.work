@@ -140,6 +140,13 @@ def cmd_threads(a):
     print(threads.upkeep(c, os.environ))
 
 
+def cmd_instagram(a):
+    from publish import instagram
+
+    c = ledger.connect(a.ledger)
+    print(instagram.upkeep(c, os.environ))
+
+
 def cmd_serve(a):
     import web
 
@@ -360,6 +367,10 @@ def main():
         "threads", help="the Threads token's upkeep now: Meta's dates, a refresh when due (the worker does it daily)"
     )
     p.set_defaults(fn=cmd_threads)
+    p = sub.add_parser(
+        "instagram", help="the Instagram token's upkeep now: which account, and whether Meta still honours it"
+    )
+    p.set_defaults(fn=cmd_instagram)
     p = sub.add_parser("serve", help="the screens, with the worker")
     p.add_argument("--port", type=int, default=8877)
     p.add_argument(

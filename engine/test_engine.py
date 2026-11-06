@@ -45,6 +45,7 @@ import vault  # noqa: E402
 import web  # noqa: E402
 from publish import (
     bluesky,  # noqa: E402
+    instagram,  # noqa: E402
     mastodon,  # noqa: E402
     threads,  # noqa: E402
     x,  # noqa: E402
@@ -68,6 +69,7 @@ def fixture(root):
         "episode-art.jpg": b"\xff\xd8" + b"\0" * 50,
         "clips/01-the-point.mp4": os.urandom(256 * 1024 + 7),
         "clips/01-the-point.png": b"\x89PNG" + b"\0" * 20,
+        "clips/01-the-point.jpg": b"\xff\xd8" + b"\0" * 20,
         "clips/01-the-point.vtt": b"WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n",
     }
     for name, data in files.items():
@@ -113,6 +115,7 @@ def fixture(root):
                 "title": "The point",
                 "file": "clips/01-the-point.mp4",
                 "poster": "clips/01-the-point.png",
+                "poster_jpg": "clips/01-the-point.jpg",
                 "captions": "clips/01-the-point.vtt",
                 "post": {
                     "text": "The point\n\nFrom episode 9.",
@@ -530,6 +533,131 @@ class StubThreads(Stub):
         if m:
             p = next(x for x in s["posts"] if x["id"] == m.group(1))
             return self.out(200, {**p, "shortcode": "P" + p["id"]})
+        self.out(404, {"error": {"message": u.path, "code": 803}})
+
+
+class StubInstagram(Stub):
+    """Meta's Graph API for the Instagram account: which account the token serves, debug_token with the app's
+    own token, the publishing quota, the container with its status poll, the publish, the media read and the
+    recent media. `mode` bends one answer: "error" (a container Meta cannot take), "limit" (a 613 with Meta's
+    estimate), "bad-token" (a 190), "restricted" (subcode 2207050)."""
+
+    IG = "17841400001"
+    state = {"mode": None, "containers": {}, "posts": [], "polls": 0, "quota": 2, "valid": True, "asked": 0}
+
+    def no(self):
+        s = StubInstagram.state
+        if s["mode"] == "bad-token":
+            return self.out(
+                400, {"error": {"message": "Invalid OAuth access token", "type": "OAuthException", "code": 190}}
+            )
+        if s["mode"] == "restricted":
+            return self.out(
+                400,
+                {
+                    "error": {
+                        "message": "The user is not allowed to perform this action",
+                        "type": "OAuthException",
+                        "code": 10,
+                        "error_subcode": 2207050,
+                    }
+                },
+            )
+        return False
+
+    def do_POST(self):
+        u = urllib.parse.urlparse(self.path)
+        s = StubInstagram.state
+        q = {k: v[0] for k, v in urllib.parse.parse_qs(self.body().decode()).items()}
+        if q.get("access_token") != "IGTOK":
+            return self.out(400, {"error": {"message": "Invalid OAuth access token", "code": 190}})
+        if self.no() is not False:
+            return None
+        if u.path == f"/v27.0/{self.IG}/media":
+            if s["mode"] == "limit":
+                s["mode"] = None
+                usage = {
+                    "call_count": 100,
+                    "total_cputime": 25,
+                    "total_time": 25,
+                    "estimated_time_to_regain_access": 12,
+                }
+                return self.out(
+                    400,
+                    {"error": {"message": "Application request limit reached", "type": "OAuthException", "code": 613}},
+                    {"X-App-Usage": json.dumps(usage)},
+                )
+            cid = f"c{len(s['containers']) + 1}"
+            s["containers"][cid] = {**q, "status_code": "IN_PROGRESS", "polls": 0, "error": s["mode"] == "error"}
+            s["mode"] = None
+            return self.out(200, {"id": cid})
+        if u.path == f"/v27.0/{self.IG}/media_publish":
+            ctn = s["containers"][q["creation_id"]]
+            assert ctn["status_code"] == "FINISHED", ctn
+            ctn["status_code"] = "PUBLISHED"
+            mid = f"m{len(s['posts']) + 1}"
+            reel = ctn.get("media_type") == "REELS"
+            s["posts"].append(
+                {
+                    "id": mid,
+                    "caption": ctn.get("caption", ""),
+                    "permalink": f"https://www.instagram.com/{'reel/R' if reel else 'p/P'}{mid}/",
+                    "timestamp": "2026-11-06T09:00:00+0000",
+                    "media_product_type": "REELS" if reel else "FEED",
+                }
+            )
+            return self.out(200, {"id": mid})
+        self.out(404, {"error": {"message": u.path, "code": 803}})
+
+    def do_GET(self):
+        u = urllib.parse.urlparse(self.path)
+        s = StubInstagram.state
+        q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
+        if u.path == "/v27.0/debug_token":
+            assert (q["access_token"], q["input_token"]) == ("iid|isec", "IGTOK"), q
+            return self.out(
+                200,
+                {
+                    "data": {
+                        "app_id": "456",
+                        "type": "USER",
+                        "application": "AgentSee engine",
+                        "data_access_expires_at": 0,
+                        "expires_at": 0,
+                        "is_valid": s["valid"],
+                        "issued_at": 1762400000,
+                        "scopes": ["instagram_basic", "instagram_content_publish", "instagram_manage_insights"],
+                        "user_id": "100000001",
+                    }
+                },
+            )
+        if q.get("access_token") != "IGTOK":
+            return self.out(400, {"error": {"message": "Invalid OAuth access token", "code": 190}})
+        if self.no() is not False:
+            return None
+        if u.path == "/v27.0/me/assigned_instagram_accounts":
+            s["asked"] += 1
+            return self.out(200, {"data": [{"id": self.IG, "username": "agentsee.work"}]})
+        if u.path == f"/v27.0/{self.IG}/content_publishing_limit":
+            return self.out(
+                200, {"data": [{"quota_usage": s["quota"], "config": {"quota_total": 100, "quota_duration": 86400}}]}
+            )
+        if u.path == f"/v27.0/{self.IG}/media":
+            return self.out(200, {"data": list(reversed(s["posts"]))})
+        m = re.fullmatch(r"/v27.0/(c\d+)", u.path)
+        if m:
+            ctn = s["containers"][m.group(1)]
+            s["polls"] += 1
+            ctn["polls"] += 1
+            if ctn["status_code"] == "IN_PROGRESS" and ctn["polls"] >= 2:
+                ctn["status_code"] = "ERROR" if ctn["error"] else "FINISHED"
+            ans = {"id": m.group(1), "status_code": ctn["status_code"]}
+            if ctn["status_code"] == "ERROR":
+                ans["status"] = "Error: Media download failed (error_subcode: 2207026)"
+            return self.out(200, ans)
+        m = re.fullmatch(r"/v27.0/(m\d+)", u.path)
+        if m:
+            return self.out(200, next(x for x in s["posts"] if x["id"] == m.group(1)))
         self.out(404, {"error": {"message": u.path, "code": 803}})
 
 
@@ -1184,7 +1312,7 @@ class EngineTest(unittest.TestCase):
     def test_01_ingest(self):
         c = self.c()
         n = ingest.ingest(c, "ep9", self.src, "tester")
-        self.assertEqual(n, 8)
+        self.assertEqual(n, 9)
         e = ledger.episode(c, "ep9")
         self.assertEqual(e["title"], "Nine")
         self.assertTrue(e["release_at"].startswith(DAY0 + "T06:00"))
@@ -1196,7 +1324,8 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(kinds["clips/01-the-point.mp4"], ("clip", MEDIA + "clips/01-the-point.mp4", 1))
         self.assertEqual(kinds["clips/01-the-point.vtt"][0], "clip-captions")
         self.assertEqual(kinds["episode-art.jpg"][0], "art")
-        self.assertEqual(ingest.ingest(c, "ep9", self.src), 8, "re-ingest is idempotent")
+        self.assertEqual(kinds["clips/01-the-point.jpg"], ("poster", MEDIA + "clips/01-the-point.jpg", 1))
+        self.assertEqual(ingest.ingest(c, "ep9", self.src), 9, "re-ingest is idempotent")
 
     def test_02_plan(self):
         c = self.c()
@@ -4655,6 +4784,136 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(threads.status(c)["state"], "invalid")
         self.assertIn("no longer valid", FakeSMTP.sent[-1].get_content())
         s["valid"] = True
+        srv.shutdown()
+
+    def test_27_instagram(self):
+        c = self.c()
+        stub = http.server.HTTPServer(("127.0.0.1", 0), StubInstagram)
+        threading.Thread(target=stub.serve_forever, daemon=True).start()
+        self.addCleanup(stub.server_close)
+        self.addCleanup(stub.shutdown)
+        instagram.API, instagram.POLL = f"http://127.0.0.1:{stub.server_address[1]}", 0
+        plan.ACCOUNTS["instagram"].update(adapter="instagram", assets=["episode", "clip"])  # the switch-on
+        self.addCleanup(lambda: plan.ACCOUNTS["instagram"].update(adapter="hand", assets=["clip"]))
+        plan.plan(c, "ep9", "tester")  # the episode post the account now takes
+        ienv = {"INSTAGRAM_APP_ID": "iid", "INSTAGRAM_APP_SECRET": "isec", "INSTAGRAM_TOKEN": "IGTOK", **self.menv}
+        quiet = lambda s: None  # noqa: E731
+        s = StubInstagram.state
+        posts = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='instagram' ORDER BY asset").fetchall()
+        self.assertEqual([p["asset"] for p in posts], ["clip:01-the-point", "episode"])
+        clip, ep = posts
+        for p in posts:
+            ledger.update_post(c, p["id"], status="planned", remote_id=None, permalink=None)
+        posts = [ledger.post(c, p["id"]) for p in posts]
+        self.assertEqual(ep["media"], "episode-art.jpg")
+        self.assertIn("an Instagram reel of clips/01-the-point.mp4", instagram.describe(clip, None, None))
+        self.assertIn("an Instagram image post of episode-art.jpg", instagram.describe(ep, None, None))
+        self.assertEqual([r[1] for r in publish.run(c, posts, env=ienv, dry_run=True, log=quiet)], ["dry-run"] * 2)
+        self.assertEqual([r[1] for r in publish.run(c, posts, env={}, log=quiet)], ["skipped-no-credentials"] * 2)
+        # the Reel with its cover, the art on the grid: the account asked once, then the container, poll, publish
+        res = publish.run(c, posts, env=ienv, who="tester", log=quiet)
+        self.assertEqual([r[1] for r in res], ["published", "published"], res)
+        reel = next(x for x in s["containers"].values() if x.get("media_type") == "REELS")
+        image = next(x for x in s["containers"].values() if "image_url" in x)
+        self.assertEqual(
+            (reel["video_url"], reel["cover_url"], reel["share_to_feed"]),
+            (MEDIA + "clips/01-the-point.mp4", MEDIA + "clips/01-the-point.jpg", "true"),
+        )
+        self.assertNotIn("thumb_offset", reel)
+        self.assertIn("https://agentsee.work/p/e9igc01", reel["caption"])
+        self.assertEqual((image["image_url"], image["alt_text"]), (MEDIA + "episode-art.jpg", "Nine: the episode art"))
+        self.assertEqual(image["caption"], ep["text"])
+        self.assertEqual(s["asked"], 1, "which account the token serves was asked once")
+        row = ledger.credential(c, "instagram")
+        self.assertEqual((row["who"], row["state"], row["note"]), (StubInstagram.IG, "valid", "@agentsee.work"))
+        self.assertTrue(ledger.post(c, clip["id"])["permalink"].startswith("https://www.instagram.com/reel/R"))
+        self.assertTrue(ledger.post(c, ep["id"])["permalink"].startswith("https://www.instagram.com/p/P"))
+        self.assertEqual(s["polls"], 4, "two polls per container")
+        e = ledger.episode(c, "ep9")
+        self.assertIsNone(instagram.cover_for(c, e, {"files": {}}, "clips/01-the-point.mp4"), "no JPEG: first frame")
+        self.assertEqual(instagram.cover_for(c, e, ledger.release(e), clip["media"]), MEDIA + "clips/01-the-point.jpg")
+        # a container Meta cannot take, with Meta's subcode
+        c.execute("DELETE FROM event WHERE what='publish:container' AND post=?", (clip["id"],))
+        ledger.update_post(c, clip["id"], status="planned", remote_id=None, permalink=None)
+        s["mode"] = "error"
+        res = publish.run(c, [ledger.post(c, clip["id"])], env=ienv, log=quiet)
+        self.assertEqual(res[0][1], "failed")
+        self.assertIn("2207026", ledger.post(c, clip["id"])["last_error"])
+        # not now, with Meta's estimate from the app-usage header
+        ledger.update_post(c, clip["id"], status="planned")
+        s["mode"] = "limit"
+        res = publish.run(c, [ledger.post(c, clip["id"])], env=ienv, log=quiet)
+        self.assertEqual(res[0][1], "held")
+        until, why = publish.HELD.pop("instagram")
+        wait = until - dt.datetime.now(dt.timezone.utc)
+        self.assertTrue(dt.timedelta(minutes=11) < wait <= dt.timedelta(minutes=12), wait)
+        self.assertIn("613", why)
+        # the day's quota spent: a hold of a day
+        s["quota"] = 100
+        res = publish.run(c, [ledger.post(c, clip["id"])], env=ienv, log=quiet)
+        self.assertEqual(res[0][1], "held")
+        until, why = publish.HELD.pop("instagram")
+        self.assertIn("100 of 100", why)
+        self.assertTrue(until - dt.datetime.now(dt.timezone.utc) > dt.timedelta(hours=23))
+        s["quota"] = 2
+        # an account Meta restricts, and a token it refuses: both mark the record and say what to do
+        for mode, code in (("restricted", "2207050"), ("bad-token", "190")):
+            s["mode"] = mode
+            res = publish.run(c, [ledger.post(c, clip["id"])], env=ienv, log=quiet)
+            self.assertEqual(res[0][1], "failed", mode)
+            err = ledger.post(c, clip["id"])["last_error"]
+            self.assertIn(code, err)
+            self.assertIn("app dashboard", err)
+            self.assertEqual(ledger.credential(c, "instagram")["state"], "invalid")
+            s["mode"] = None
+            ledger.update_post(c, clip["id"], status="planned")
+        line = instagram.upkeep(c, ienv, log=quiet)
+        self.assertEqual(line, f"@agentsee.work (id {StubInstagram.IG}), token valid, no expiry")
+        self.assertEqual(ledger.credential(c, "instagram")["state"], "valid")
+        self.assertEqual(s["asked"], 1, "the account id came from the ledger")
+        # never twice: a retry whose container was published finds the post by its caption
+        c.execute("DELETE FROM event WHERE what='publish:container' AND post=?", (clip["id"],))
+        res = publish.run(c, [ledger.post(c, clip["id"])], env=ienv, log=quiet)
+        self.assertEqual(res[0][1], "published", res)
+        mid, n = ledger.post(c, clip["id"])["remote_id"], len(s["containers"])
+        ledger.update_post(c, clip["id"], status="planned", remote_id=None, permalink=None)
+        res = publish.run(c, [ledger.post(c, clip["id"])], env=ienv, log=quiet)
+        self.assertEqual(res[0][1], "published", res)
+        self.assertEqual((len(s["containers"]), ledger.post(c, clip["id"])["remote_id"]), (n, mid), "no new container")
+        note = json.loads(
+            c.execute("SELECT detail FROM event WHERE what='publish:published' ORDER BY id DESC").fetchone()[0]
+        )["note"]
+        self.assertIn("found by its caption", note)
+        # a token Meta no longer honours: the upkeep says so and hello@ hears
+        s["valid"] = False
+        FakeSMTP.sent.clear()
+        ledger.set_credential(c, "instagram", warned_at=None)
+        line = instagram.upkeep(c, ienv, log=quiet)
+        self.assertIn("invalid", line)
+        self.assertEqual(ledger.credential(c, "instagram")["state"], "invalid")
+        self.assertEqual(FakeSMTP.sent[-1]["Subject"], "The Instagram token needs a look")
+        self.assertIn("app dashboard", FakeSMTP.sent[-1].get_content())
+        s["valid"] = True
+        instagram.upkeep(c, ienv, log=quiet)
+        # the callback page Meta was given, and Health
+        web.STATE["ledger"] = str(self.db)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        wbase = f"http://127.0.0.1:{srv.server_address[1]}"
+        os.environ.update(INSTAGRAM_APP_ID="iid", INSTAGRAM_APP_SECRET="isec", INSTAGRAM_TOKEN="IGTOK")
+        self.addCleanup(
+            lambda: [os.environ.pop(k) for k in ("INSTAGRAM_APP_ID", "INSTAGRAM_APP_SECRET", "INSTAGRAM_TOKEN")]
+        )
+        with urllib.request.urlopen(wbase + "/meta/instagram/callback", timeout=10) as r:
+            self.assertEqual(r.status, 200)
+            self.assertIn("Nothing to do here", r.read().decode())
+        with urllib.request.urlopen(wbase + "/health", timeout=10) as r:
+            body = r.read().decode()
+        self.assertIn("Instagram token", body)
+        self.assertIn("@agentsee.work", body)
+        self.assertIn("token honoured by Meta", body)
         srv.shutdown()
 
 

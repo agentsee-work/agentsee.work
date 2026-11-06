@@ -229,7 +229,7 @@ def clips_out(d, out, edl, words, din, clips, show, ep, names, prev, warn):
         hook = c.get("hook") or c["title"]
         tags = list(dict.fromkeys(show.get("hashtags", []) + c.get("tags", [])))
         entry = {"index": i, "slug": slug, "title": c["title"], "hook": hook,
-                 "file": f"clips/{base}.mp4", "poster": f"clips/{base}.png",
+                 "file": f"clips/{base}.mp4", "poster": f"clips/{base}.png", "poster_jpg": f"clips/{base}.jpg",
                  "captions": f"clips/{base}.vtt", "caption_cues": n_cues,
                  "source": {"t0": t0, "t1": t1}, "at": at, "end": end,
                  "at_hms": mmss(at) if at is not None else None, "duration": round(dur, 3),
@@ -241,6 +241,11 @@ def clips_out(d, out, edl, words, din, clips, show, ep, names, prev, warn):
                  **{k: v for k, v in finfo.items() if k != "mtime"}}
         if not 15 <= dur <= 120:
             warn(f"clip {base}: {dur:.1f}s is outside the 15-120s a podcast:soundbite allows")
+        if not 3 <= dur <= 900 or finfo.get("bytes", 0) > 300e6:
+            warn(f"clip {base}: {dur:.1f}s, {finfo.get('bytes', 0) / 1e6:.0f} MB; Instagram takes a Reel of 3 s to "
+                 "15 min under 300 MB")
+        if not (out / f"clips/{base}.jpg").exists():
+            warn(f"clip {base}: no JPEG poster (clips.py writes one since AGE-132); Instagram will use the first frame")
         res.append(entry)
     return res
 
@@ -474,7 +479,7 @@ def main():
         elif name in ("episode.mp3", "episode.mp4"):
             warn(f"{name} missing: assemble has not rendered it")
     for c in clip_entries:
-        for key in ("file", "poster", "captions"):
+        for key in ("file", "poster", "poster_jpg", "captions"):
             p = out / c[key]
             if p.exists():
                 k, info = file_info(p, prev.get("files"))

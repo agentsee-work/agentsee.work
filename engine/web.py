@@ -41,7 +41,7 @@ import review
 import schedule
 from pages import button, composer, esc, link, page, section, status, table, when
 from plan import ACCOUNTS, short
-from publish import threads
+from publish import instagram, threads
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PUBLIC = ROOT / "public"
@@ -601,6 +601,28 @@ def threads_callback(c, h, q):
     )
 
 
+def instagram_health(c):
+    """The system-user token: which account it serves and whether Meta still honours it, from the daily upkeep."""
+    if not instagram.ready(os.environ):
+        return f'<span class="error">missing: {esc(instagram.NEEDS)}</span>'
+    row = ledger.credential(c, "instagram")
+    if not row:
+        return "not asked yet: the first post, or the daily upkeep, asks Meta which account the token serves"
+    words = [f"account {esc(row['who'] or '?')}"]
+    if (row["note"] or "").startswith("@"):
+        words.insert(0, esc(row["note"]))
+    if row["expires_at"]:
+        words.append(f"valid to {esc(when(row['expires_at'], '%d %b %Y'))}")
+    if row["checked_at"]:
+        words.append(f"checked {esc(when(row['checked_at']))}")
+    if row["state"] != "valid":
+        return (
+            f'<span class="error">{esc(row["state"])}: {esc(row["note"] or "")}</span>; {", ".join(words)}; '
+            "a new token is generated in the app dashboard (AGE-130, C7) and filed, then the engine recreated"
+        )
+    return ", ".join(words) + ", token honoured by Meta"
+
+
 def health_page(c):
     counts = c.execute("SELECT status, COUNT(*) n FROM post GROUP BY status ORDER BY status").fetchall()
     last = c.execute("SELECT at, detail FROM event WHERE what='publisher:run' ORDER BY at DESC LIMIT 1").fetchone()
@@ -704,6 +726,7 @@ def health_page(c):
             ),
         ),
         ("Threads token", threads_health(c)),
+        ("Instagram token", instagram_health(c)),
     ]
     body = (
         '<article class="lead"><h1>Health</h1></article><dl class="facts">'
@@ -794,6 +817,13 @@ class App(BaseHTTPRequestHandler):
             return self.static(PUBLIC / "assets", path[8:])
         if path.startswith("/fonts/"):
             return self.static(PUBLIC / "fonts", path[7:])
+        if path == "/meta/instagram/callback":  # registered at Meta because the Unified Login setup asks for one
+            return self.html(
+                "Instagram",
+                '<article class="lead"><h1>Nothing to do here</h1></article><p>The Instagram token is generated in '
+                "the app dashboard (AGE-130, C7), not by a login through this address, which exists because the "
+                f"Unified Login setup asked for one.</p><p>{link('/health', 'Health')}</p>",
+            )
         if path == "/meta/threads/consent":  # to Meta's consent screen, with a state this process can check
             if not threads.ready(os.environ):
                 return self.fail(503, f"Threads is not set up here: {threads.NEEDS} not set")
@@ -1123,6 +1153,13 @@ def worker(stop, interval=60):
                         )
                     except Exception as e:  # noqa: BLE001 — a bad answer from Meta must not keep the day's collection from being marked done
                         print(f"  threads: upkeep failed: {type(e).__name__}: {e}", flush=True)
+                    try:
+                        print(
+                            "  instagram: " + instagram.upkeep(c, os.environ, log=lambda s: print(s, flush=True)),
+                            flush=True,
+                        )
+                    except Exception as e:  # noqa: BLE001 — as above
+                        print(f"  instagram: upkeep failed: {type(e).__name__}: {e}", flush=True)
                     STATE["collect_day"] = dt.datetime.now(ledger.ZONE).date()
             finally:
                 c.close()
