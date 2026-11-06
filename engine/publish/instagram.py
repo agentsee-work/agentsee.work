@@ -101,8 +101,29 @@ def refuse(st, h, b, what, c=None):
     raise PublishError(f"Instagram, {what}: {said(st, b)}")
 
 
+def granted(env):
+    """Meta's word on the token, from debug_token with the app's own token: is_valid, the dates, the scopes, and
+    under granular_scopes the ids of the accounts each permission was granted for."""
+    app = f"{env['INSTAGRAM_APP_ID']}|{env['INSTAGRAM_APP_SECRET']}"
+    st, h, b = call("GET", "debug_token", {"input_token": env["INSTAGRAM_TOKEN"], "access_token": app})
+    if st != 200:
+        raise PublishError("Meta would not describe the token: " + said(st, b))
+    return json.loads(b).get("data") or {}
+
+
+def targets(info):
+    """The Instagram account ids the token's instagram_* permissions name, in the order Meta gives them."""
+    ids = []
+    for g in info.get("granular_scopes") or []:
+        if str(g.get("scope", "")).startswith("instagram_"):
+            ids += [str(t) for t in g.get("target_ids") or [] if str(t) not in ids]
+    return ids
+
+
 def account(c, env):
-    """The account the token serves: its id and handle, from the credential row or from Meta once."""
+    """The account the token serves: its id and handle, from the credential row or from Meta once. Meta names
+    it under /me/assigned_instagram_accounts for the assets shared at the token's login, and under the token's
+    granular scopes (debug_token) either way; both are asked before giving up."""
     tok = env["INSTAGRAM_TOKEN"]
     if tok in _account:
         return _account[tok]
@@ -114,9 +135,20 @@ def account(c, env):
     if st != 200:
         refuse(st, h, b, "which account the token serves", c)
     found_ = json.loads(b).get("data") or []
-    if not found_:
-        raise PublishError("the token serves no Instagram account: the login that generated it chose none")
     handle = (ACCOUNTS.get(PLATFORM) or {}).get("handle", "").lstrip("@")
+    if not found_:
+        info = granted(env)
+        for i in targets(info):
+            st, h, b = call("GET", i, {"fields": "id,username", "access_token": tok})
+            found_.append(json.loads(b) if st == 200 and "id" in json.loads(b) else {"id": i, "username": handle})
+    if not found_:
+        scopes = ", ".join(info.get("scopes") or []) or "none"
+        raise PublishError(
+            "the token serves no Instagram account: Meta lists none under assigned_instagram_accounts and names "
+            f"none in the token's granular scopes (its permissions: {scopes}). Check that Business settings > "
+            "Accounts > Instagram accounts holds the account in the AgentSee portfolio, then generate the token "
+            "again with that account ticked on the assets step (AGE-130, C7)"
+        )
     a = next((x for x in found_ if x.get("username") == handle), found_[0])
     ledger.set_credential(
         c, PLATFORM, who=str(a["id"]), state="valid", checked_at=ledger.now(), note=f"@{a.get('username')}"
