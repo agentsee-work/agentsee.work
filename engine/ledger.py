@@ -118,6 +118,9 @@ CREATE TABLE IF NOT EXISTS host_approval (
   id INTEGER PRIMARY KEY, guest TEXT NOT NULL REFERENCES guest(id) ON DELETE CASCADE, slug TEXT NOT NULL,
   round INTEGER NOT NULL, host TEXT NOT NULL, who TEXT NOT NULL, ip TEXT, ua TEXT, at TEXT NOT NULL,
   sha256 TEXT NOT NULL, UNIQUE(slug, round, host));
+CREATE TABLE IF NOT EXISTS credential (
+  platform TEXT PRIMARY KEY, who TEXT, issued_at TEXT, expires_at TEXT, grant_expires_at TEXT, checked_at TEXT,
+  refreshed_at TEXT, warned_at TEXT, state TEXT NOT NULL DEFAULT 'valid', note TEXT, updated_at TEXT NOT NULL);
 """
 
 MIGRATIONS = [

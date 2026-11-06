@@ -131,6 +131,8 @@ The type decides the field names, and `infra/op.env` references fields by name:
 | YouTube podcast token | API Credential | `username` (the channel id it is for), `credential` (the refresh token) |
 | X podcast app | API Credential | `username` (the OAuth 2.0 Client ID), `credential` (its Client Secret) |
 | X podcast token | API Credential | `username` (the account id it is for), `credential` (the OAuth 2.0 refresh token, not the two-hour access token beside it; X replaces it on every refresh, and the publisher writes the new one back here) |
+| Threads podcast app | API Credential | `username` (the Threads app ID), `credential` (the Threads app secret): the pair on the Threads use case's Settings page of the app "AgentSee publisher", not the Meta app id on its Basic page (AGE-130, D3) |
+| Threads podcast token | API Credential | `username` (the Threads user id, written by the consent), `credential` (the sixty-day user token; `pending` until the consent at `https://engine.agentsee.work/meta/threads/consent` fills it, after which the engine's daily upkeep refreshes it and writes each replacement back here; nobody types it) |
 | Bluesky podcast token | API Credential | `username` (the handle, `agentsee.work`), `credential` (an app password from Settings > Privacy and security > App passwords, not the account password) |
 | Mastodon podcast token | API Credential | `username` (the handle), `credential` (the access token of an application the account made at Preferences > Development, scopes `write:media write:statuses`) |
 | Spotify podcast app | API Credential | `username` (the Client ID of an app made at developer.spotify.com, under an account that holds Premium, which Spotify has required of app owners since March 2026), `credential` (its Client Secret). Read only by `tools/directories.py` (`tools/directories.env`), for each episode's own Spotify link; nothing of any user |
@@ -445,6 +447,15 @@ apply, so rename deliberately and grep `infra/op.env` first.
       in a browser, with `http://127.0.0.1:8794/callback` on the app's callback
       list. Done 15 October 2026: both items filed, the token proven with
       `check --refresh` and its replacement filed.
+- [x] File the Threads pair in **Engineering** (5 and 6 November 2026, AGE-130):
+      `Threads podcast app` (the Threads app ID and Threads app secret from
+      the use case's Settings page of the Meta app "AgentSee publisher") and
+      `Threads podcast token` with `pending` as its credential. The engine
+      fills the token at the consent, `https://engine.agentsee.work/meta/threads/consent`,
+      in a browser signed in to Threads as the show's account, and refreshes
+      it every few weeks from then on, writing each replacement back
+      (`engine/publish/threads.py`); nobody types or copies it. The item's
+      username becomes the Threads user id at the consent.
 - [x] The restic passphrase in **Security**, and on paper with the Emergency
       Kit. The one whose loss cannot be undone.
 - [~] **The social signups in [SOCIAL.md](SOCIAL.md)** — under way, and the

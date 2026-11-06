@@ -86,6 +86,7 @@ op run --env-file=engine/engine.env -- ./engine/engine.py linear AGE-106       #
 op run --env-file=engine/engine.env -- ./engine/engine.py linear --retry       # outbox jobs that gave up, back in the queue and drained
 op run --env-file=engine/engine.env -- ./engine/engine.py release sign Abrar --png sig.png  # a host's signature by command
 op run --env-file=engine/engine.env -- ./engine/engine.py release normalise    # every kept signature as one ink on transparent, once
+op run --env-file=engine/engine.env -- ./engine/engine.py threads              # the Threads token's upkeep now: Meta's dates, a refresh when due
 
 ENGINE_GUEST_HOST=localhost ./engine/engine.py serve --no-worker   # the guest's door at http://localhost:8877/
 
@@ -158,10 +159,39 @@ characters with every link counted as 23. Their credentials are two vault
 items (`engine.env`, `docs/CREDENTIALS.md`), resolved when the container
 starts: file them before the box pulls a version that references them, or
 `op run` refuses to start the engine. Everything else is `hand`: the card.
-For Threads and Instagram that is for now. For LinkedIn it is the decision
+For Instagram that is for now. For LinkedIn it is the decision
 (20 October 2026): one card per episode per person, the post written by the
 person, the card there for the short link and the record, and no adapter to
 come.
+
+The Threads adapter is real (`publish/threads.py`; the account joins it
+with `"adapter": "threads"` in `accounts.json`, the switch-on): the art as
+an image post, a clip as a video post, each with alt text, by three
+requests, since Meta fetches the file itself from the media host: a
+container with the text and the file's public address, a poll until Meta
+has fetched and processed it, then the publish; and one read for the
+permalink. Five hundred characters and five links at most. Meta's "not
+now" (its rate-limit codes, or the day's 250 posts spent) is a hold with
+Meta's own estimate of the wait. The container's id goes into an event the
+moment Meta issues it, and a retry reads that first: a container Meta says
+is published is found among the account's recent posts by its text, never
+posted again. The token is a sixty-day user token, minted by a consent
+through the engine itself: `/meta/threads/consent` on the engine host
+(behind Access, in a browser signed in to Threads as the show's account)
+sends the browser to Meta with a state in a signed cookie, and
+`/meta/threads/callback` checks the state, exchanges the code twice (an
+hour's token, then the sixty-day one), files the token in the vault item
+`config.json` names (`"threads"`), asks Meta for its dates (`debug_token`)
+and keeps them in the ledger's `credential` row, which Health shows as
+"Threads token: valid to …, grant to …". The upkeep runs beside the daily
+collection, or by hand as `engine.py threads`: it asks Meta for the dates
+again, refreshes under thirty days (allowed once the token is a day old),
+writing the new token to the vault before anything uses it, with X's guard
+when the write fails; and it mails hello@ when the consent's ninety-day
+grant has under fourteen days left (a refresh renews it only while the
+profile is public) or a refresh fails. `engine.env` carries the Threads
+app's id and secret, the pair on the use case's Settings page; the token
+itself is never in the environment.
 
 X's refresh token is single use, so the vault item is the live copy: the
 adapter reads it with `op read` when it needs an access token and writes
@@ -209,7 +239,9 @@ three days behind); Bluesky and Mastodon through their public endpoints
 with no token, from the permalink a person pasted back; X through the
 owned-post lookup once its adapter is on, a cent per thousand reads, and
 X forgets after thirty days so the snapshots are the record. A source that
-is missing its credentials says so and the others carry on.
+is missing its credentials says so and the others carry on. The Threads
+token's upkeep (`publish/threads.py`) runs right after the day's
+collection, and its line goes to the same log.
 
 A listen is the IAB's: one address hash per file per day, from a 200 or 206
 that carried at least a minute's worth of the file, by something that is
@@ -458,6 +490,7 @@ other's X tokens.
 ## Not yet
 
 The Spend screen and the export drop zones for Spotify's CSV and LinkedIn's
-XLSX (AGE-69, items 4 and 5); the Threads and Instagram adapters, each a
-module in `publish/` with the names the contract asks for;
-Apple's Reporter (item 6).
+XLSX (AGE-69, items 4 and 5); the Instagram adapter, a module in
+`publish/` with the names the contract asks for (AGE-132), the collector's
+Threads and Instagram sources (AGE-133) and the Threads account's
+switch-on (AGE-134); Apple's Reporter (item 6).

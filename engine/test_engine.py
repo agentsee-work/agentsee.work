@@ -46,6 +46,7 @@ import web  # noqa: E402
 from publish import (
     bluesky,  # noqa: E402
     mastodon,  # noqa: E402
+    threads,  # noqa: E402
     x,  # noqa: E402
     youtube,  # noqa: E402
 )
@@ -388,6 +389,150 @@ class StubX(Stub):
         self.out(404, {"title": "Not Found", "detail": u.path, "status": 404})
 
 
+class StubThreads(Stub):
+    """Meta's Threads endpoints: the consent's two exchanges, debug_token, me, the publishing quota, the
+    container with its status poll, the publish, the media read, the recent posts, the refresh. The vault is
+    FakeVault. `mode` bends one answer: "error" (a container Meta cannot take), "limit" (a 613 with Meta's
+    estimate), "bad-token" (a 190)."""
+
+    state = {
+        "mode": None,
+        "token": None,
+        "n": 1,
+        "exchanges": 0,
+        "refreshes": 0,
+        "containers": {},
+        "posts": [],
+        "polls": 0,
+        "quota": 1,
+        "valid": True,
+        "expires_at": 0,
+        "grant_at": 0,
+        "issued_at": 0,
+    }
+
+    @staticmethod
+    def now():
+        return int(dt.datetime.now(dt.timezone.utc).timestamp())
+
+    def do_POST(self):
+        u = urllib.parse.urlparse(self.path)
+        s = StubThreads.state
+        q = {k: v[0] for k, v in urllib.parse.parse_qs(self.body().decode()).items()}
+        if u.path == "/oauth/access_token":
+            assert (q["grant_type"], q["client_id"], q["client_secret"]) == ("authorization_code", "tid", "tsec"), q
+            assert q["redirect_uri"] == "https://engine.agentsee.work/meta/threads/callback", q
+            if q["code"] != "CODE1":
+                return self.out(400, {"error": {"message": "Invalid code", "type": "OAuthException", "code": 100}})
+            s["exchanges"] += 1
+            return self.out(200, {"access_token": "SL1", "token_type": "bearer", "user_id": 1784})
+        if q.get("access_token") != s["token"] or s["mode"] == "bad-token":  # the mode lasts until the test ends it
+            return self.out(
+                400, {"error": {"message": "Invalid OAuth access token", "type": "OAuthException", "code": 190}}
+            )
+        if u.path == "/v1.0/1784/threads":
+            if s["mode"] == "limit":
+                s["mode"] = None
+                usage = {"123": [{"type": "threads", "call_count": 100, "estimated_time_to_regain_access": 7}]}
+                return self.out(
+                    400,
+                    {"error": {"message": "Application request limit reached", "type": "OAuthException", "code": 613}},
+                    {"X-Business-Use-Case-Usage": json.dumps(usage)},
+                )
+            cid = f"c{len(s['containers']) + 1}"
+            s["containers"][cid] = {**q, "status": "IN_PROGRESS", "polls": 0, "error": s["mode"] == "error"}
+            s["mode"] = None
+            return self.out(200, {"id": cid})
+        if u.path == "/v1.0/1784/threads_publish":
+            ctn = s["containers"][q["creation_id"]]
+            assert ctn["status"] == "FINISHED", ctn
+            ctn["status"] = "PUBLISHED"
+            mid = f"m{len(s['posts']) + 1}"
+            s["posts"].append(
+                {
+                    "id": mid,
+                    "text": ctn.get("text", ""),
+                    "permalink": f"https://www.threads.com/@agentsee.work/post/P{mid}",
+                    "timestamp": "2026-11-06T09:00:00+0000",
+                }
+            )
+            return self.out(200, {"id": mid})
+        self.out(404, {"error": {"message": u.path, "code": 803}})
+
+    def do_GET(self):
+        u = urllib.parse.urlparse(self.path)
+        s = StubThreads.state
+        q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
+        if u.path == "/access_token":
+            assert q == {"grant_type": "th_exchange_token", "client_secret": "tsec", "access_token": "SL1"}, q
+            s["token"] = "LL1"
+            s["expires_at"], s["grant_at"], s["issued_at"] = (
+                self.now() + 60 * 86400,
+                self.now() + 90 * 86400,
+                self.now(),
+            )
+            return self.out(200, {"access_token": "LL1", "token_type": "bearer", "expires_in": 5183944})
+        if u.path == "/refresh_access_token":
+            assert q["grant_type"] == "th_refresh_token"
+            if q["access_token"] != s["token"]:
+                return self.out(400, {"error": {"message": "Invalid OAuth access token", "code": 190}})
+            s["refreshes"] += 1
+            s["n"] += 1
+            s["token"] = f"LL{s['n']}"
+            s["expires_at"], s["grant_at"], s["issued_at"] = (
+                self.now() + 60 * 86400,
+                self.now() + 90 * 86400,
+                self.now(),
+            )
+            return self.out(200, {"access_token": s["token"], "token_type": "bearer", "expires_in": 5183944})
+        if q.get("access_token") != s["token"] or s["mode"] == "bad-token":  # the mode lasts until the test ends it
+            return self.out(
+                400, {"error": {"message": "Invalid OAuth access token", "type": "OAuthException", "code": 190}}
+            )
+        if u.path == "/v1.0/debug_token":
+            assert q["input_token"] == s["token"]
+            return self.out(
+                200,
+                {
+                    "data": {
+                        "app_id": "123",
+                        "type": "USER",
+                        "application": "AgentSee publisher",
+                        "data_access_expires_at": s["grant_at"],
+                        "expires_at": s["expires_at"],
+                        "is_valid": s["valid"],
+                        "issued_at": s["issued_at"],
+                        "scopes": list(threads.SCOPES),
+                        "user_id": "1784",
+                    }
+                },
+            )
+        if u.path == "/v1.0/me":
+            return self.out(200, {"id": "1784", "username": "agentsee.work"})
+        if u.path == "/v1.0/1784/threads_publishing_limit":
+            return self.out(
+                200, {"data": [{"quota_usage": s["quota"], "config": {"quota_total": 250, "quota_duration": 86400}}]}
+            )
+        if u.path == "/v1.0/1784/threads":
+            return self.out(200, {"data": list(reversed(s["posts"]))})
+        m = re.fullmatch(r"/v1.0/(c\d+)", u.path)
+        if m:
+            ctn = s["containers"][m.group(1)]
+            s["polls"] += 1
+            ctn["polls"] += 1
+            if ctn["status"] == "IN_PROGRESS" and ctn["polls"] >= 2:
+                ctn["status"] = "ERROR" if ctn["error"] else "FINISHED"
+            ans = {"id": m.group(1), "status": ctn["status"]}
+            if ctn["status"] == "ERROR":
+                ans["error_message"] = "FAILED_DOWNLOADING_VIDEO"
+            return self.out(200, ans)
+        m = re.fullmatch(r"/v1.0/(m\d+)", u.path)
+        if m:
+            p = next(x for x in s["posts"] if x["id"] == m.group(1))
+            return self.out(200, {**p, "shortcode": "P" + p["id"]})
+        self.out(404, {"error": {"message": u.path, "code": 803}})
+
+
 class FakeR2(Stub):
     """R2's S3 face, as far as the engine uses it: PUT, GET and HEAD of one
     object at a time under /bucket/key, with the SigV4 shape of every
@@ -689,13 +834,17 @@ class FakeVault:
     """One item the engine writes, in memory. Can refuse one write."""
 
     def __init__(self, value, item="X podcast token"):
-        self.value, self.fail_write, self.writes, self.item = value, False, 0, item
+        self.value, self.fail_write, self.writes, self.item, self.fields = value, False, 0, item, {}
 
     def read(self, vault_, item, field):
         assert (vault_, item, field) == ("Engineering", self.item, "credential")
         return self.value
 
     def write(self, vault_, item, field, value):
+        assert (vault_, item) == ("Engineering", self.item)
+        if field != "credential":  # the item's other fields (a username the consent fills in)
+            self.fields[field] = value
+            return
         self.writes += 1
         if self.fail_write:
             self.fail_write = False
@@ -4311,6 +4460,202 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(st, 303)
         self.assertEqual([r["n"] for r in json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"]], [1, 2])
         self.assertIn("Nothing to watch yet", review.not_yet(c, guests.guest(c, gid), "")[1])
+
+    def test_26_threads(self):
+        c = self.c()
+        stub = http.server.HTTPServer(("127.0.0.1", 0), StubThreads)
+        threading.Thread(target=stub.serve_forever, daemon=True).start()
+        self.addCleanup(stub.server_close)
+        self.addCleanup(stub.shutdown)
+        base = f"http://127.0.0.1:{stub.server_address[1]}"
+        threads.API, threads.AUTH, threads.POLL = base, base + "/oauth/authorize", 0
+        tvault = FakeVault("pending", item="Threads podcast token")
+        threads.vault = tvault
+        plan.ACCOUNTS["threads"]["adapter"] = "threads"  # the switch-on, here regardless of accounts.json
+        self.addCleanup(lambda: plan.ACCOUNTS["threads"].update(adapter="hand"))
+        tenv = {"THREADS_APP_ID": "tid", "THREADS_APP_SECRET": "tsec", **self.menv}
+        quiet = lambda s: None  # noqa: E731
+        s = StubThreads.state
+        posts = c.execute("SELECT * FROM post WHERE episode='ep9' AND account='threads' ORDER BY asset").fetchall()
+        self.assertEqual(len(posts), 2)
+        ep, clip = next(p for p in posts if p["asset"] == "episode"), next(p for p in posts if p["asset"] != "episode")
+        for p in posts:
+            ledger.update_post(c, p["id"], status="planned", remote_id=None, permalink=None)
+        posts = [ledger.post(c, p["id"]) for p in posts]
+        # before the consent: the dry run describes; without the app, skipped; with it, the error says where to go
+        res = publish.run(c, posts, env=tenv, dry_run=True, log=quiet)
+        self.assertEqual([r[1] for r in res], ["dry-run"] * 2)
+        self.assertIn("video post of clips/01-the-point.mp4 with its alt text", threads.describe(clip, None, None))
+        self.assertEqual([r[1] for r in publish.run(c, posts, env={}, log=quiet)], ["skipped-no-credentials"] * 2)
+        res = publish.run(c, [posts[0]], env=tenv, log=quiet)
+        self.assertEqual(res[0][1], "failed")
+        self.assertIn(
+            "give the consent at https://engine.agentsee.work/meta/threads/consent",
+            ledger.post(c, posts[0]["id"])["last_error"],
+        )
+        ledger.update_post(c, posts[0]["id"], status="planned")
+        # the consent, through the engine
+        web.STATE["ledger"] = str(self.db)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        wbase = f"http://127.0.0.1:{srv.server_address[1]}"
+        os.environ.update(THREADS_APP_ID="tid", THREADS_APP_SECRET="tsec", **self.menv)
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in ("THREADS_APP_ID", "THREADS_APP_SECRET", *self.menv)])
+
+        def get(path, cookie=None):
+            req = urllib.request.Request(wbase + path, headers={"Cookie": cookie} if cookie else {})
+            try:
+                with urllib.request.build_opener(NoRedirect).open(req, timeout=10) as r:
+                    return r.status, dict(r.headers), r.read().decode(errors="replace")
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code, dict(e.headers), e.read().decode(errors="replace")
+
+        st, h, body = get("/meta/threads/consent")
+        self.assertEqual(st, 303)
+        self.assertTrue(h["Location"].startswith(threads.AUTH + "?"), h["Location"])
+        qs = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(h["Location"]).query).items()}
+        self.assertEqual(qs["client_id"], "tid")
+        self.assertEqual(qs["redirect_uri"], "https://engine.agentsee.work/meta/threads/callback")
+        self.assertEqual(qs["scope"], "threads_basic,threads_content_publish,threads_manage_insights,threads_delete")
+        self.assertEqual(qs["response_type"], "code")
+        cookie = "th_state=" + re.search(r"th_state=([^;]+)", h["Set-Cookie"]).group(1)
+        self.assertIn("HttpOnly", h["Set-Cookie"])
+        self.assertEqual(get("/meta/threads/callback?code=CODE1&state=wrong", cookie)[0], 403, "the state is checked")
+        self.assertEqual(get(f"/meta/threads/callback?code=CODE1&state={qs['state']}")[0], 403, "and the cookie")
+        st, h, body = get(
+            f"/meta/threads/callback?error=access_denied&error_reason=user_denied"
+            f"&error_description=The+user+denied+your+request&state={qs['state']}",
+            cookie,
+        )
+        self.assertEqual(st, 400)
+        self.assertIn("denied your request", body)
+        st, h, body = get(f"/meta/threads/callback?code=CODE1%23_&state={qs['state']}", cookie)
+        self.assertEqual(st, 200, body)
+        self.assertIn("the token is in", body)
+        self.assertIn("@agentsee.work", body)
+        self.assertIn("valid to", body)
+        self.assertEqual((s["exchanges"], tvault.value), (1, "LL1"), "the sixty-day token is in the vault")
+        row = threads.status(c)
+        self.assertEqual((row["who"], row["state"]), ("1784", "valid"))
+        days = lambda col: (dt.datetime.fromisoformat(row[col]) - dt.datetime.now(dt.timezone.utc)).days  # noqa: E731
+        self.assertIn(days("expires_at"), (59, 60))
+        self.assertIn(days("grant_expires_at"), (89, 90))
+        st, h, body = get("/health")
+        self.assertIn("Threads token", body)
+        self.assertIn("valid to", body)
+        # the posts: the art as an image, the clip as a video, each a container, a poll, a publish, a read
+        res = publish.run(c, [ledger.post(c, p["id"]) for p in posts], env=tenv, who="tester", log=quiet)
+        self.assertEqual([r[1] for r in res], ["published", "published"], res)
+        image = next(x for x in s["containers"].values() if x["media_type"] == "IMAGE")
+        video = next(x for x in s["containers"].values() if x["media_type"] == "VIDEO")
+        self.assertEqual((image["image_url"], image["alt_text"]), (MEDIA + "episode-art.jpg", "Nine: the episode art"))
+        self.assertEqual((video["video_url"], video["alt_text"]), (MEDIA + "clips/01-the-point.mp4", "The point"))
+        self.assertEqual(image["text"], ep["text"])
+        self.assertIn("https://agentsee.work/p/e9thc01", video["text"])
+        self.assertEqual(s["polls"], 4, "two polls per container: in progress, then finished")
+        ep2, clip2 = ledger.post(c, ep["id"]), ledger.post(c, clip["id"])
+        self.assertTrue(ep2["permalink"].startswith("https://www.threads.com/@agentsee.work/post/P"), ep2["permalink"])
+        self.assertEqual(ep2["remote_id"], ep2["permalink"].rsplit("/P", 1)[1])
+        self.assertTrue(clip2["published_at"])
+        events = c.execute("SELECT * FROM event WHERE what='publish:container' AND post=?", (clip["id"],)).fetchall()
+        self.assertEqual(len(events), 1)
+        self.assertEqual(json.loads(events[0]["detail"])["media"], "clips/01-the-point.mp4")
+        # a container Meta cannot take (the clip as a post never tried: its container events gone)
+        ledger.update_post(c, clip["id"], status="planned", remote_id=None, permalink=None)
+        c.execute("DELETE FROM event WHERE what='publish:container' AND post=?", (clip["id"],))
+        s["mode"] = "error"
+        res = publish.run(c, [ledger.post(c, clip["id"])], env=tenv, log=quiet)
+        self.assertEqual(res[0][1], "failed")
+        self.assertIn("FAILED_DOWNLOADING_VIDEO", ledger.post(c, clip["id"])["last_error"])
+        # not now: Meta's rate limit, with its estimate of the wait
+        ledger.update_post(c, clip["id"], status="planned")
+        s["mode"] = "limit"
+        res = publish.run(c, [ledger.post(c, clip["id"])], env=tenv, log=quiet)
+        self.assertEqual(res[0][1], "held")
+        until, why = publish.HELD.pop("threads")
+        wait = until - dt.datetime.now(dt.timezone.utc)
+        self.assertTrue(dt.timedelta(minutes=6) < wait <= dt.timedelta(minutes=7), wait)
+        self.assertIn("613", why)
+        self.assertEqual(ledger.post(c, clip["id"])["status"], "planned", "a hold keeps the state")
+        # and the day's quota spent
+        s["quota"] = 250
+        res = publish.run(c, [ledger.post(c, clip["id"])], env=tenv, log=quiet)
+        self.assertEqual(res[0][1], "held")
+        self.assertIn("250 of 250", publish.HELD.pop("threads")[1])
+        s["quota"] = 3
+        # a token Meta refuses marks the record and names the consent
+        s["mode"] = "bad-token"
+        res = publish.run(c, [ledger.post(c, clip["id"])], env=tenv, log=quiet)
+        self.assertEqual(res[0][1], "failed")
+        err = ledger.post(c, clip["id"])["last_error"]
+        self.assertIn("190", err)
+        self.assertIn("/meta/threads/consent", err)
+        self.assertEqual(threads.status(c)["state"], "invalid")
+        self.assertIn("invalid", get("/health")[2])
+        s["mode"] = None
+        line = threads.upkeep(c, tenv, log=quiet)
+        self.assertIn("valid to", line)
+        self.assertEqual(threads.status(c)["state"], "valid", "the upkeep asked Meta, which vouched for the token")
+        # never twice: a retry whose container was published finds the post by its text
+        c.execute("DELETE FROM event WHERE what='publish:container' AND post=?", (clip["id"],))
+        ledger.update_post(c, clip["id"], status="planned")
+        res = publish.run(c, [ledger.post(c, clip["id"])], env=tenv, log=quiet)
+        self.assertEqual(res[0][1], "published", res)
+        mid, n = ledger.post(c, clip["id"])["remote_id"], len(s["containers"])
+        ledger.update_post(c, clip["id"], status="planned", remote_id=None, permalink=None)
+        res = publish.run(c, [ledger.post(c, clip["id"])], env=tenv, log=quiet)
+        self.assertEqual(res[0][1], "published", res)
+        self.assertEqual((len(s["containers"]), ledger.post(c, clip["id"])["remote_id"]), (n, mid), "no new container")
+        note = json.loads(
+            c.execute("SELECT detail FROM event WHERE what='publish:published' ORDER BY id DESC").fetchone()[0]
+        )["note"]
+        self.assertIn("found by its text", note)
+        # the upkeep: a refresh at 29 days, with the write-back guard
+        s["expires_at"], s["issued_at"] = StubThreads.now() + 29 * 86400, StubThreads.now() - 31 * 86400
+        tvault.fail_write = True
+        FakeSMTP.sent.clear()
+        line = threads.upkeep(c, tenv, log=quiet)
+        self.assertIn("refresh failed", line)
+        self.assertIn("Do not restart", line)
+        self.assertEqual((s["refreshes"], threads._token["unsaved"], tvault.value), (1, "LL2", "LL1"))
+        self.assertEqual(threads.status(c)["state"], "failed")
+        self.assertEqual(
+            (FakeSMTP.sent[-1]["To"], FakeSMTP.sent[-1]["Subject"]),
+            ("hello@agentsee.work", "The Threads token needs a look"),
+        )
+        line = threads.upkeep(c, tenv, log=quiet)
+        self.assertEqual(
+            (tvault.value, threads._token["unsaved"], s["refreshes"]),
+            ("LL2", None, 1),
+            "the held token went to the vault first; no second refresh",
+        )
+        self.assertIn("valid to", line)
+        row = threads.status(c)
+        self.assertEqual(row["state"], "valid")
+        self.assertTrue(row["refreshed_at"])
+        self.assertEqual(len(FakeSMTP.sent), 1, "nothing more to say")
+        # the mail at 13 days of grant, once a week at most
+        s["grant_at"] = StubThreads.now() + 13 * 86400
+        threads.record(c, warned_at=None)
+        line = threads.upkeep(c, tenv, log=quiet)
+        self.assertIn("grant to", line)
+        self.assertEqual(len(FakeSMTP.sent), 2)
+        self.assertIn("grant lapses", FakeSMTP.sent[-1].get_content())
+        self.assertEqual(threads.status(c)["state"], "warned")
+        threads.upkeep(c, tenv, log=quiet)
+        self.assertEqual(len(FakeSMTP.sent), 2, "not again this week")
+        # a token Meta no longer vouches for
+        s["valid"] = False
+        threads.record(c, warned_at=None)
+        line = threads.upkeep(c, tenv, log=quiet)
+        self.assertIn("consent must be given again", line)
+        self.assertEqual(threads.status(c)["state"], "invalid")
+        self.assertIn("no longer valid", FakeSMTP.sent[-1].get_content())
+        s["valid"] = True
+        srv.shutdown()
 
 
 if __name__ == "__main__":

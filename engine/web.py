@@ -17,6 +17,7 @@ when a screen asks for something now.
 import datetime as dt
 import email
 import email.policy
+import hmac
 import mimetypes
 import os
 import pathlib
@@ -40,6 +41,7 @@ import review
 import schedule
 from pages import button, composer, esc, link, page, section, status, table, when
 from plan import ACCOUNTS, short
+from publish import threads
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PUBLIC = ROOT / "public"
@@ -537,6 +539,68 @@ def audience_page(c):
     return "Audience", body
 
 
+def threads_health(c):
+    """The sixty-day token's state, from the credential row the consent and the upkeep keep."""
+    give = link("/meta/threads/consent", "give the consent")
+    if not threads.ready(os.environ):
+        return f'<span class="error">missing: {esc(threads.NEEDS)}</span>; then {give}'
+    row = threads.status(c)
+    if not row:
+        return f"none yet: {give}, in a browser signed in to Threads as the show's account"
+    words = [
+        f"{label} {esc(when(row[col], fmt))}"
+        for label, col, fmt in (
+            ("valid to", "expires_at", "%d %b %Y"),
+            ("grant to", "grant_expires_at", "%d %b %Y"),
+            ("refreshed", "refreshed_at", "%d %b %Y"),
+            ("checked", "checked_at", "%a %d %b %Y, %H:%M"),
+        )
+        if row[col]
+    ]
+    text = ", ".join(words) or "no dates yet"
+    if row["state"] != "valid":
+        return f'<span class="error">{esc(row["state"])}: {esc(row["note"] or "")}</span>; {text}; {give} again'
+    return f"{text} (user {esc(row['who'])}); the upkeep refreshes it daily when due"
+
+
+def threads_callback(c, h, q):
+    """Back from Meta with the code: the state checked against the cookie the consent set, the token minted and
+    filed, a plain page saying whose and until when."""
+    state, _, sig = (guests.cookies(h).get("th_state") or "").partition(".")
+    if not (state and q.get("state") == state and hmac.compare_digest(sig, guests.mac("threads", state))):
+        return (
+            "Not that",
+            '<article class="lead"><h1>That consent did not start here</h1></article>'
+            "<p>Open the consent link again from Health, in the same browser, and approve it within ten minutes.</p>",
+            403,
+        )
+    if q.get("error") or not q.get("code"):
+        why = q.get("error_description") or q.get("error_reason") or q.get("error") or "no code came back"
+        return (
+            "Threads",
+            f'<article class="lead"><h1>Meta did not give a token</h1></article><p>{esc(why)}</p>'
+            f"<p>{link('/meta/threads/consent', 'Try again')}</p>",
+            400,
+        )
+    try:
+        row, profile = threads.consent(c, os.environ, q["code"], h.who())
+    except publish.PublishError as e:
+        return (
+            "Threads",
+            f'<article class="lead"><h1>The token could not be filed</h1></article><p class="error">{esc(e)}</p>'
+            f"<p>{link('/meta/threads/consent', 'Try again')}</p>",
+            502,
+        )
+    grant = f", the grant to {esc(when(row['grant_expires_at'], '%d %B %Y'))}" if row["grant_expires_at"] else ""
+    return (
+        "Threads",
+        '<article class="lead"><h1>Threads: the token is in</h1></article>'
+        f"<p>For @{esc(profile.get('username') or row['who'])}, valid to {esc(when(row['expires_at'], '%d %B %Y'))}"
+        f"{grant}. The engine refreshes it from here on; nothing else to type.</p><p>{link('/health', 'Health')}</p>",
+        200,
+    )
+
+
 def health_page(c):
     counts = c.execute("SELECT status, COUNT(*) n FROM post GROUP BY status ORDER BY status").fetchall()
     last = c.execute("SELECT at, detail FROM event WHERE what='publisher:run' ORDER BY at DESC LIMIT 1").fetchone()
@@ -639,6 +703,7 @@ def health_page(c):
                 else "; no failure recorded"
             ),
         ),
+        ("Threads token", threads_health(c)),
     ]
     body = (
         '<article class="lead"><h1>Health</h1></article><dl class="facts">'
@@ -729,8 +794,16 @@ class App(BaseHTTPRequestHandler):
             return self.static(PUBLIC / "assets", path[8:])
         if path.startswith("/fonts/"):
             return self.static(PUBLIC / "fonts", path[7:])
+        if path == "/meta/threads/consent":  # to Meta's consent screen, with a state this process can check
+            if not threads.ready(os.environ):
+                return self.fail(503, f"Threads is not set up here: {threads.NEEDS} not set")
+            state = secrets.token_urlsafe(24)
+            cookie = guests.set_cookie("th_state", f"{state}.{guests.mac('threads', state)}", 600)
+            return self.redirect(threads.authorize_url(os.environ, state), [cookie])
         c = ledger.connect(STATE["ledger"])
         try:
+            if path == "/meta/threads/callback":
+                return self.html(*threads_callback(c, self, q))
             if path == "/you":
                 return self.html(*release.you_page(c, guests.host_name(self.who()), self.who(), CSRF, q.get("msg")))
             if path == "/you/signature.png":
@@ -1043,6 +1116,13 @@ def worker(stop, interval=60):
                     STATE["snapshot_day"] = dt.datetime.now(ledger.ZONE).date()
                 if daily_due("collect"):
                     collect.run(c, who="worker", log=lambda s: print(s, flush=True))
+                    try:  # the Threads token's upkeep, beside the day's collection
+                        print(
+                            "  threads: " + threads.upkeep(c, os.environ, log=lambda s: print(s, flush=True)),
+                            flush=True,
+                        )
+                    except Exception as e:  # noqa: BLE001 — a bad answer from Meta must not keep the day's collection from being marked done
+                        print(f"  threads: upkeep failed: {type(e).__name__}: {e}", flush=True)
                     STATE["collect_day"] = dt.datetime.now(ledger.ZONE).date()
             finally:
                 c.close()
