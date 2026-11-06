@@ -543,7 +543,17 @@ class StubInstagram(Stub):
     estimate), "bad-token" (a 190), "restricted" (subcode 2207050)."""
 
     IG = "17841400001"
-    state = {"mode": None, "containers": {}, "posts": [], "polls": 0, "quota": 2, "valid": True, "asked": 0}
+    state = {
+        "mode": None,
+        "containers": {},
+        "posts": [],
+        "polls": 0,
+        "quota": 2,
+        "valid": True,
+        "asked": 0,
+        "assigned": True,  # the account shared at the token's login, under /me/assigned_instagram_accounts
+        "granular": None,  # the ids debug_token names under granular_scopes; None for the account itself
+    }
 
     def no(self):
         s = StubInstagram.state
@@ -627,6 +637,10 @@ class StubInstagram(Stub):
                         "is_valid": s["valid"],
                         "issued_at": 1762400000,
                         "scopes": ["instagram_basic", "instagram_content_publish", "instagram_manage_insights"],
+                        "granular_scopes": [
+                            {"scope": sc, "target_ids": [self.IG] if s["granular"] is None else s["granular"]}
+                            for sc in ("instagram_basic", "instagram_content_publish")
+                        ],
                         "user_id": "100000001",
                     }
                 },
@@ -637,7 +651,9 @@ class StubInstagram(Stub):
             return None
         if u.path == "/v27.0/me/assigned_instagram_accounts":
             s["asked"] += 1
-            return self.out(200, {"data": [{"id": self.IG, "username": "agentsee.work"}]})
+            return self.out(200, {"data": [{"id": self.IG, "username": "agentsee.work"}] if s["assigned"] else []})
+        if u.path == f"/v27.0/{self.IG}" and q.get("fields") == "id,username":
+            return self.out(200, {"id": self.IG, "username": "agentsee.work"})
         if u.path == f"/v27.0/{self.IG}/content_publishing_limit":
             return self.out(
                 200, {"data": [{"quota_usage": s["quota"], "config": {"quota_total": 100, "quota_duration": 86400}}]}
@@ -4871,6 +4887,21 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(line, f"@agentsee.work (id {StubInstagram.IG}), token valid, no expiry")
         self.assertEqual(ledger.credential(c, "instagram")["state"], "valid")
         self.assertEqual(s["asked"], 1, "the account id came from the ledger")
+        # a token whose login shared no asset: the account is found through the token's granular scopes instead
+        ledger.set_credential(c, "instagram", who=None)
+        instagram._account.clear()
+        s["assigned"] = False
+        self.assertEqual(instagram.account(c, ienv), {"id": StubInstagram.IG, "username": "agentsee.work"})
+        self.assertEqual((s["asked"], ledger.credential(c, "instagram")["who"]), (2, StubInstagram.IG))
+        ledger.set_credential(c, "instagram", who=None)
+        instagram._account.clear()
+        s["granular"] = []
+        with self.assertRaises(publish.PublishError) as got:
+            instagram.account(c, ienv)
+        self.assertIn("names none in the token's granular scopes", str(got.exception))
+        self.assertIn("instagram_content_publish", str(got.exception), "the permissions it does carry, for a look")
+        s["assigned"], s["granular"] = True, None
+        instagram.account(c, ienv)
         # never twice: a retry whose container was published finds the post by its caption
         c.execute("DELETE FROM event WHERE what='publish:container' AND post=?", (clip["id"],))
         res = publish.run(c, [ledger.post(c, clip["id"])], env=ienv, log=quiet)
