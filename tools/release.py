@@ -70,10 +70,18 @@ from eplib import (
 )
 
 SHOW = ROOT / "tools" / "show.json"
-PI_NAMESPACE = uuid.UUID("ead4c236-bf58-58c6-a2c6-a6b28d128cb6")   # podcast:guid, per the spec
-MIME = {".mp3": "audio/mpeg", ".mp4": "video/mp4", ".png": "image/png", ".jpg": "image/jpeg",
-        ".srt": "application/x-subrip", ".vtt": "text/vtt", ".json": "application/json",
-        ".txt": "text/plain", ".md": "text/markdown"}
+PI_NAMESPACE = uuid.UUID("ead4c236-bf58-58c6-a2c6-a6b28d128cb6")  # podcast:guid, per the spec
+MIME = {
+    ".mp3": "audio/mpeg",
+    ".mp4": "video/mp4",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".srt": "application/x-subrip",
+    ".vtt": "text/vtt",
+    ".json": "application/json",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+}
 YT_TITLE, YT_DESC, YT_TAGS = 100, 5000, 500
 
 
@@ -129,20 +137,37 @@ def people(m, show, notes, warn):
     out = []
     for p in m["participants"]:
         known = show.get("people", {}).get(p["short"]) or next(
-            (v for v in show.get("people", {}).values() if v.get("name") == p["name"]), None)
+            (v for v in show.get("people", {}).values() if v.get("name") == p["name"]), None
+        )
         g = guests.pop(p["name"], None)
         if known:
-            out.append({"name": p["name"], "short": p["short"], "role": known.get("role", "host"),
-                        "href": known.get("href"), "group": "cast"})
+            out.append(
+                {
+                    "name": p["name"],
+                    "short": p["short"],
+                    "role": known.get("role", "host"),
+                    "href": known.get("href"),
+                    "group": "cast",
+                }
+            )
             continue
         if g is None:
-            warn(f"{p['name']} is on a track but not in tools/show.json or notes.guests: "
-                 f"listed as a guest with no line and no link")
-        out.append({"name": p["name"], "short": p["short"], "role": "guest",
-                    "href": (g or {}).get("href"), "who": (g or {}).get("who"), "group": "cast"})
+            warn(
+                f"{p['name']} is on a track but not in tools/show.json or notes.guests: "
+                f"listed as a guest with no line and no link"
+            )
+        out.append(
+            {
+                "name": p["name"],
+                "short": p["short"],
+                "role": "guest",
+                "href": (g or {}).get("href"),
+                "who": (g or {}).get("who"),
+                "group": "cast",
+            }
+        )
     for g in guests.values():
-        out.append({"name": g["name"], "role": "guest", "href": g.get("href"),
-                    "who": g.get("who"), "group": "cast"})
+        out.append({"name": g["name"], "role": "guest", "href": g.get("href"), "who": g.get("who"), "group": "cast"})
     return out
 
 
@@ -202,8 +227,7 @@ def clip_vtt(path, ws):
     cues = caption_cues(caption_words(ws), max_chars=26, max_lines=2, max_dur=5.0, gap=1.0, fill=0.7)
     lines = ["WEBVTT", ""]
     for cue in cues:
-        lines += [f"{hms(cue[0]['t0'])} --> {hms(cue[-1]['t1'])}",
-                  esc_vtt(" ".join(w["w"] for w in cue)), ""]
+        lines += [f"{hms(cue[0]['t0'])} --> {hms(cue[-1]['t1'])}", esc_vtt(" ".join(w["w"] for w in cue)), ""]
     path.write_text("\n".join(lines))
     return len(cues)
 
@@ -238,22 +262,40 @@ def clips_out(d, out, edl, words, din, clips, show, ep, names, prev, warn):
             alt = alt[:997].rsplit(" ", 1)[0] + "..."
         hook = c.get("hook") or c["title"]
         tags = list(dict.fromkeys(show.get("hashtags", []) + c.get("tags", [])))
-        entry = {"index": i, "slug": slug, "title": c["title"], "hook": hook,
-                 "file": f"clips/{base}.mp4", "poster": f"clips/{base}.png", "poster_jpg": f"clips/{base}.jpg",
-                 "captions": f"clips/{base}.vtt", "caption_cues": n_cues,
-                 "source": {"t0": t0, "t1": t1}, "at": at, "end": end,
-                 "at_hms": mmss(at) if at is not None else None, "duration": round(dur, 3),
-                 "text": text, "alt": alt, "hashtags": tags,
-                 "post": {"text": f"{hook}\n\nFrom {show['name']}{' episode ' + str(ep['number']) if ep.get('number') is not None else ''}, "
-                                  f"“{ep['title']}”.",
-                          "link": ep["url"], "link_at": f"{ep['url']}#t={int(at)}" if at is not None else ep["url"],
-                          "at_hms": mmss(at) if at is not None else None},
-                 **{k: v for k, v in finfo.items() if k != "mtime"}}
+        entry = {
+            "index": i,
+            "slug": slug,
+            "title": c["title"],
+            "hook": hook,
+            "file": f"clips/{base}.mp4",
+            "poster": f"clips/{base}.png",
+            "poster_jpg": f"clips/{base}.jpg",
+            "captions": f"clips/{base}.vtt",
+            "caption_cues": n_cues,
+            "source": {"t0": t0, "t1": t1},
+            "at": at,
+            "end": end,
+            "at_hms": mmss(at) if at is not None else None,
+            "duration": round(dur, 3),
+            "text": text,
+            "alt": alt,
+            "hashtags": tags,
+            "post": {
+                "text": f"{hook}\n\nFrom {show['name']}{' episode ' + str(ep['number']) if ep.get('number') is not None else ''}, "
+                f"“{ep['title']}”.",
+                "link": ep["url"],
+                "link_at": f"{ep['url']}#t={int(at)}" if at is not None else ep["url"],
+                "at_hms": mmss(at) if at is not None else None,
+            },
+            **{k: v for k, v in finfo.items() if k != "mtime"},
+        }
         if not 15 <= dur <= 120:
             warn(f"clip {base}: {dur:.1f}s is outside the 15-120s a podcast:soundbite allows")
         if not 3 <= dur <= 900 or finfo.get("bytes", 0) > 300e6:
-            warn(f"clip {base}: {dur:.1f}s, {finfo.get('bytes', 0) / 1e6:.0f} MB; Instagram takes a Reel of 3 s to "
-                 "15 min under 300 MB")
+            warn(
+                f"clip {base}: {dur:.1f}s, {finfo.get('bytes', 0) / 1e6:.0f} MB; Instagram takes a Reel of 3 s to "
+                "15 min under 300 MB"
+            )
         if not (out / f"clips/{base}.jpg").exists():
             warn(f"clip {base}: no JPEG poster (clips.py writes one since AGE-132); Instagram will use the first frame")
         res.append(entry)
@@ -272,8 +314,10 @@ def questions_quoted(d, cfg, notes, show, warn):
         key = str(n)
         if key in quoted:
             if 1 <= n <= len(site) and site[n - 1] != quoted[key]:
-                warn(f"question {n} on the site now reads differently; the notes keep the wording "
-                     f"quoted when the episode was made")
+                warn(
+                    f"question {n} on the site now reads differently; the notes keep the wording "
+                    f"quoted when the episode was made"
+                )
             pairs.append((n, quoted[key]))
         elif 1 <= n <= len(site):
             quoted[key] = site[n - 1]
@@ -298,18 +342,24 @@ def build_notes(ep, show, chapters, links, q_pairs, people_, warn):
         summary = "In this episode: " + "; ".join(c["title"] for c in chapters if c["title"] != "Outro") + "."
     guest_line = None
     if guests:
-        guest_line = "With " + ", ".join(
-            f"{g['name']}" + (f", {g['who']}" if g.get("who") else "") for g in guests) + "."
+        guest_line = (
+            "With " + ", ".join(f"{g['name']}" + (f", {g['who']}" if g.get("who") else "") for g in guests) + "."
+        )
     chap_lines = [f"{c['hms']} {c['title']}" for c in chapters]
     q_lines = [f"{n}. {text}" for n, text in q_pairs]
     footer = [ln.format(site=show["site"], feed_url=show["feed_url"]) for ln in show.get("footer", [])]
     cast_lines = [f"{p['name']}" + (f" — {p['href']}" if p.get("href") else "") for p in hosts + guests]
 
     # markdown, for reading
-    md = [f"# {ep['title']}", "",
-          f"{show['name']}{', episode ' + str(ep['number']) if ep.get('number') is not None else ''} · "
-          f"{ep['date']} · {ep['duration_hms']}", "",
-          summary, ""]
+    md = [
+        f"# {ep['title']}",
+        "",
+        f"{show['name']}{', episode ' + str(ep['number']) if ep.get('number') is not None else ''} · "
+        f"{ep['date']} · {ep['duration_hms']}",
+        "",
+        summary,
+        "",
+    ]
     if guest_line:
         md += [guest_line, ""]
     md += ["## Chapters", ""] + chap_lines + [""]
@@ -338,10 +388,19 @@ def build_notes(ep, show, chapters, links, q_pairs, people_, warn):
         h.append(f"<p>{html.escape(guest_line)}</p>")
     h.append("<p>Chapters:</p><ul>" + "".join(f"<li>{html.escape(ln)}</li>" for ln in chap_lines) + "</ul>")
     if links:
-        h.append("<p>Mentioned:</p><ul>" + "".join(
-            f'<li><a href="{html.escape(l["url"], quote=True)}">{html.escape(l["title"])}</a></li>' for l in links) + "</ul>")
+        h.append(
+            "<p>Mentioned:</p><ul>"
+            + "".join(
+                f'<li><a href="{html.escape(l["url"], quote=True)}">{html.escape(l["title"])}</a></li>' for l in links
+            )
+            + "</ul>"
+        )
     if q_lines:
-        h.append("<p>Of the questions on the site, this one touches:</p><ul>" + "".join(f"<li>{html.escape(q)}</li>" for q in q_lines) + "</ul>")
+        h.append(
+            "<p>Of the questions on the site, this one touches:</p><ul>"
+            + "".join(f"<li>{html.escape(q)}</li>" for q in q_lines)
+            + "</ul>"
+        )
     for ln in footer:
         ln_h = html.escape(ln)
         for url in re.findall(r"https?://\S+", ln):
@@ -353,8 +412,11 @@ def build_notes(ep, show, chapters, links, q_pairs, people_, warn):
     # starting at 0:00, three or more, ten seconds apart, become the chapter
     # bar and timestamp links; the rules are checked below.
     # Without a number (a review render) the title is the title and the show.
-    yt_title = (show["youtube"]["title"].format(title=ep["title"], show=show["name"], number=ep["number"])
-                if ep.get("number") is not None else f"{ep['title']} | {show['name']}")
+    yt_title = (
+        show["youtube"]["title"].format(title=ep["title"], show=show["name"], number=ep["number"])
+        if ep.get("number") is not None
+        else f"{ep['title']} | {show['name']}"
+    )
     yt = [summary]
     if guest_line:
         yt.append(guest_line)
@@ -380,10 +442,19 @@ def build_notes(ep, show, chapters, links, q_pairs, people_, warn):
             warn(f"chapters {a['title']!r} and {b['title']!r} are under 10s apart: YouTube drops the bar")
     if chapters and chapters[0]["start"] != 0:
         warn("the first chapter does not start at 0:00: YouTube shows no chapter bar")
-    return {"markdown": markdown, "text": text, "html": htm, "summary": summary,
-            "youtube": {"title": yt_title, "description": yt_desc, "tags": tags,
-                        "category": show["youtube"].get("category"),
-                        "playlist": show["youtube"].get("playlist")}}
+    return {
+        "markdown": markdown,
+        "text": text,
+        "html": htm,
+        "summary": summary,
+        "youtube": {
+            "title": yt_title,
+            "description": yt_desc,
+            "tags": tags,
+            "category": show["youtube"].get("category"),
+            "playlist": show["youtube"].get("playlist"),
+        },
+    }
 
 
 def episode_art(out, ep, theme, prev, force):
@@ -393,17 +464,19 @@ def episode_art(out, ep, theme, prev, force):
         return sig, False
     from banner import render
     from show import build
-    html_, w, h = build("episodeart", theme, ep["title"], None,
-                        number=ep["number"] if ep.get("number") is not None else "")
+
+    html_, w, h = build(
+        "episodeart", theme, ep["title"], None, number=ep["number"] if ep.get("number") is not None else ""
+    )
     render(html_, png, w, h)
     from PIL import Image
+
     Image.open(png).convert("RGB").resize((1400, 1400), Image.LANCZOS).save(jpg, quality=90)
     return sig, True
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slug")
     ap.add_argument("--no-art", action="store_true", help="do not render the episode artwork")
     ap.add_argument("--art", action="store_true", help="render the artwork even if it is current")
@@ -436,32 +509,51 @@ def main():
     din = qc["timings"]["dialogue_in"]
     names = words.get("speakers", {})
     total = qc.get("episode_mp4_duration") or qc["timings"]["total"]
-    ep = {"number": cfg.get("number"), "season": cfg.get("season"), "type": cfg.get("type", "full"),
-          "title": cfg["title"], "slug": a.slug, "guid": guid, "date": cfg["date"],
-          "release": cfg.get("release") or cfg["date"], "explicit": bool(cfg.get("explicit", show.get("explicit", False))),
-          "duration": round(total, 3), "duration_hms": mmss(total),
-          "url": show["episode_url"].format(slug=a.slug), "media_url": show["media_url"].format(slug=a.slug),
-          "summary": notes.get("summary"), "questions": notes.get("questions", []),
-          "tags": notes.get("tags", []),
-          "approved": {k: v for k, v in (cfg.get("approved") or {}).items() if k != "files"} or None}
+    ep = {
+        "number": cfg.get("number"),
+        "season": cfg.get("season"),
+        "type": cfg.get("type", "full"),
+        "title": cfg["title"],
+        "slug": a.slug,
+        "guid": guid,
+        "date": cfg["date"],
+        "release": cfg.get("release") or cfg["date"],
+        "explicit": bool(cfg.get("explicit", show.get("explicit", False))),
+        "duration": round(total, 3),
+        "duration_hms": mmss(total),
+        "url": show["episode_url"].format(slug=a.slug),
+        "media_url": show["media_url"].format(slug=a.slug),
+        "summary": notes.get("summary"),
+        "questions": notes.get("questions", []),
+        "tags": notes.get("tags", []),
+        "approved": {k: v for k, v in (cfg.get("approved") or {}).items() if k != "files"} or None,
+    }
 
     # chapters, from the render's own list, so the mp3's ID3 chapters, the
     # video's chapter cards, YouTube and the feed all say the same times
     chapters = [{"title": c["title"], "start": c["t"], "hms": mmss(c["t"])} for c in qc["chapters"]]
-    save_json(out / "chapters.json", {
-        "version": "1.2.0", "title": ep["title"], "podcastName": show["name"],
-        "chapters": [{"startTime": c["start"], "title": c["title"]} for c in chapters]})
+    save_json(
+        out / "chapters.json",
+        {
+            "version": "1.2.0",
+            "title": ep["title"],
+            "podcastName": show["name"],
+            "chapters": [{"startTime": c["start"], "title": c["title"]} for c in chapters],
+        },
+    )
 
     print("transcript")
     mapped = tidy_words(map_words(edl, words["words"], shift=din))
-    n_cues = transcript_files(out, mapped, names, show['name'])
+    n_cues = transcript_files(out, mapped, names, show["name"])
     print(f"  {n_cues} cues, {len(mapped)} words, {len(names)} speakers")
 
     print("clips")
     people_ = people(m, show, notes, warn)
     clip_entries = clips_out(d, out, edl, words["words"], din, clips, show, ep, names, prev.get("files"), warn)
     for c in clip_entries:
-        print(f"  {c['index']:02d} {c['slug']:<28} at {c['at_hms'] or '--:--':>6}  {c['duration']:.1f}s  {c['caption_cues']} cues")
+        print(
+            f"  {c['index']:02d} {c['slug']:<28} at {c['at_hms'] or '--:--':>6}  {c['duration']:.1f}s  {c['caption_cues']} cues"
+        )
 
     print("notes")
     links = notes.get("links", [])
@@ -470,8 +562,10 @@ def main():
     (out / "description.txt").write_text(notes_out["text"])
     (out / "description.html").write_text(notes_out["html"])
     (out / "youtube.txt").write_text(notes_out["youtube"]["title"] + "\n\n" + notes_out["youtube"]["description"])
-    print(f"  youtube title {len(notes_out['youtube']['title'])} chars, description {len(notes_out['youtube']['description'])}; "
-          f"{len(chapters)} chapters, {len(links)} links")
+    print(
+        f"  youtube title {len(notes_out['youtube']['title'])} chars, description {len(notes_out['youtube']['description'])}; "
+        f"{len(chapters)} chapters, {len(links)} links"
+    )
 
     art = prev.get("art")
     if not a.no_art:
@@ -480,8 +574,17 @@ def main():
 
     print("files")
     files = {}
-    for name in ("episode.mp3", "episode.mp4", "captions.srt", "transcript.vtt", "transcript.json",
-                 "chapters.json", "thumbnail.png", "episode-art.png", "episode-art.jpg"):
+    for name in (
+        "episode.mp3",
+        "episode.mp4",
+        "captions.srt",
+        "transcript.vtt",
+        "transcript.json",
+        "chapters.json",
+        "thumbnail.png",
+        "episode-art.png",
+        "episode-art.jpg",
+    ):
         p = out / name
         if p.exists():
             k, info = file_info(p, prev.get("files"))
@@ -497,7 +600,9 @@ def main():
     files["chapters.json"]["type"] = "application/json+chapters"
     for k in ("episode.mp3", "episode.mp4"):
         if k in files:
-            print(f"  {k:<14} {files[k]['bytes'] / 1e6:8.1f} MB  {files[k].get('duration', 0):.1f}s  {files[k]['sha256'][:12]}")
+            print(
+                f"  {k:<14} {files[k]['bytes'] / 1e6:8.1f} MB  {files[k].get('duration', 0):.1f}s  {files[k]['sha256'][:12]}"
+            )
     print(f"  {len(files)} files listed")
 
     # a day-by-day plan the publisher can follow or override: the episode on
@@ -505,21 +610,60 @@ def main():
     day0 = dt.date.fromisoformat(ep["release"])
     plan = [{"asset": "episode", "day": 0, "date": day0.isoformat()}]
     for i, c in enumerate(clip_entries, 1):
-        plan.append({"asset": f"clip:{c['index']:02d}-{c['slug']}", "day": i, "date": (day0 + dt.timedelta(days=i)).isoformat()})
+        plan.append(
+            {"asset": f"clip:{c['index']:02d}-{c['slug']}", "day": i, "date": (day0 + dt.timedelta(days=i)).isoformat()}
+        )
 
-    rel = {"slug": a.slug, "generated": dt.datetime.now().isoformat(timespec="seconds"),
-           "show": {k: show.get(k) for k in ("name", "subtitle", "guid", "site", "feed_url", "language",
-                                             "categories", "explicit", "owner", "description", "hashtags")},
-           "episode": ep, "people": people_,
-           "chapters": chapters,
-           "soundbites": [{"startTime": c["at"], "duration": round(c["duration"], 1), "title": c["title"]}
-                          for c in clip_entries if c["at"] is not None],
-           "transcript": {"vtt": "transcript.vtt", "json": "transcript.json", "srt": "captions.srt",
-                          "txt": "transcript.txt", "cues": n_cues, "words": len(mapped)},
-           "notes": {"summary": notes_out["summary"], "markdown": "notes.md", "html": "description.html",
-                     "text": "description.txt", "youtube": "youtube.txt", "links": links},
-           "youtube": notes_out["youtube"],
-           "art": art, "files": files, "clips": clip_entries, "plan": plan, "warnings": warnings}
+    rel = {
+        "slug": a.slug,
+        "generated": dt.datetime.now().isoformat(timespec="seconds"),
+        "show": {
+            k: show.get(k)
+            for k in (
+                "name",
+                "subtitle",
+                "guid",
+                "site",
+                "feed_url",
+                "language",
+                "categories",
+                "explicit",
+                "owner",
+                "description",
+                "hashtags",
+            )
+        },
+        "episode": ep,
+        "people": people_,
+        "chapters": chapters,
+        "soundbites": [
+            {"startTime": c["at"], "duration": round(c["duration"], 1), "title": c["title"]}
+            for c in clip_entries
+            if c["at"] is not None
+        ],
+        "transcript": {
+            "vtt": "transcript.vtt",
+            "json": "transcript.json",
+            "srt": "captions.srt",
+            "txt": "transcript.txt",
+            "cues": n_cues,
+            "words": len(mapped),
+        },
+        "notes": {
+            "summary": notes_out["summary"],
+            "markdown": "notes.md",
+            "html": "description.html",
+            "text": "description.txt",
+            "youtube": "youtube.txt",
+            "links": links,
+        },
+        "youtube": notes_out["youtube"],
+        "art": art,
+        "files": files,
+        "clips": clip_entries,
+        "plan": plan,
+        "warnings": warnings,
+    }
     save_json(out / "release.json", rel)
     print(f"{(out / 'release.json').relative_to(ROOT)}  {len(warnings)} warning{'s' if len(warnings) != 1 else ''}")
     return 0

@@ -108,8 +108,10 @@ def write(p, text):
 # The nameplate of the lifted masthead becomes a link home: its opening and
 # closing lines, as they are written in public/index.html.
 NAMEPLATE = ('  <div class="nameplate">\n', '  <p class="wordmark">AgentSee</p>\n  </div>\n')
-HOME_NAMEPLATE = ('  <a class="nameplate home" href="/" aria-label="AgentSee, the front page">\n',
-                  '  <p class="wordmark">AgentSee</p>\n  </a>\n')
+HOME_NAMEPLATE = (
+    '  <a class="nameplate home" href="/" aria-label="AgentSee, the front page">\n',
+    '  <p class="wordmark">AgentSee</p>\n  </a>\n',
+)
 
 
 def lifted():
@@ -118,9 +120,11 @@ def lifted():
     front."""
     s = (PUBLIC / "index.html").read_text(encoding="utf-8")
     parts = {}
-    for key, pat in (("masthead", r'<header class="masthead">.*?</header>'),
-                     ("ads", r'<div class="classifieds">.*?</div>'),
-                     ("footer", r"<footer>.*?</footer>")):
+    for key, pat in (
+        ("masthead", r'<header class="masthead">.*?</header>'),
+        ("ads", r'<div class="classifieds">.*?</div>'),
+        ("footer", r"<footer>.*?</footer>"),
+    ):
         m = re.search(pat, s, re.S)
         if not m:
             sys.exit(f"error: public/index.html has no {key} to lift")
@@ -158,14 +162,18 @@ def episodes(as_of):
             print(f"  {d.name}: not staged, left out")
             continue
         r, s = load(rel), load(st)
-        stale = [k for k, v in s["media"].items()
-                 if k in r["files"] and r["files"][k]["sha256"] != v["sha256"]]
+        stale = [k for k, v in s["media"].items() if k in r["files"] and r["files"][k]["sha256"] != v["sha256"]]
         if stale:
-            print(f"  {d.name}: the media host has older files than the release "
-                  f"({', '.join(stale)}): stage again. Left out")
+            print(
+                f"  {d.name}: the media host has older files than the release "
+                f"({', '.join(stale)}): stage again. Left out"
+            )
             continue
-        missing = [k for k in ("episode.mp3", "episode-art.jpg", "transcript.vtt",
-                               "transcript.json", "chapters.json") if k not in s["media"]]
+        missing = [
+            k
+            for k in ("episode.mp3", "episode-art.jpg", "transcript.vtt", "transcript.json", "chapters.json")
+            if k not in s["media"]
+        ]
         if missing:
             print(f"  {d.name}: not on the media host: {', '.join(missing)}. Left out")
             continue
@@ -253,8 +261,10 @@ def feed(eps, show, hosts):
             person_tags(r["people"], "      "),
         ]
         for sb in r.get("soundbites", []):
-            lines.append(f'      <podcast:soundbite startTime="{sb["startTime"]:.3f}" '
-                         f'duration="{sb["duration"]:.1f}">{esc(sb["title"])}</podcast:soundbite>')
+            lines.append(
+                f'      <podcast:soundbite startTime="{sb["startTime"]:.3f}" '
+                f'duration="{sb["duration"]:.1f}">{esc(sb["title"])}</podcast:soundbite>'
+            )
         lines.append("    </item>")
         items.append("\n".join(lines))
 
@@ -267,27 +277,27 @@ def feed(eps, show, hosts):
      xmlns:content="http://purl.org/rss/1.0/modules/content/"
      xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>{esc(show['name'])}</title>
-    <link>{esc(show['site'])}/podcast/</link>
-    <atom:link href="{esc(show['feed_url'])}" rel="self" type="application/rss+xml"/>
-    <description>{esc(desc['paragraph'])}</description>
-    <language>{esc(show['language'].lower())}</language>
+    <title>{esc(show["name"])}</title>
+    <link>{esc(show["site"])}/podcast/</link>
+    <atom:link href="{esc(show["feed_url"])}" rel="self" type="application/rss+xml"/>
+    <description>{esc(desc["paragraph"])}</description>
+    <language>{esc(show["language"].lower())}</language>
     <image>
-      <url>{esc(show['site'])}{COVER}</url>
-      <title>{esc(show['name'])}</title>
-      <link>{esc(show['site'])}/podcast/</link>
+      <url>{esc(show["site"])}{COVER}</url>
+      <title>{esc(show["name"])}</title>
+      <link>{esc(show["site"])}/podcast/</link>
     </image>
-    <itunes:image href="{esc(show['site'])}{COVER}"/>
-    <itunes:author>{esc(show['owner']['name'])}</itunes:author>
+    <itunes:image href="{esc(show["site"])}{COVER}"/>
+    <itunes:author>{esc(show["owner"]["name"])}</itunes:author>
     <itunes:owner>
-      <itunes:name>{esc(show['owner']['name'])}</itunes:name>
-      <itunes:email>{esc(show['owner']['email'])}</itunes:email>
+      <itunes:name>{esc(show["owner"]["name"])}</itunes:name>
+      <itunes:email>{esc(show["owner"]["email"])}</itunes:email>
     </itunes:owner>
 {cats}
-    <itunes:explicit>{'true' if show.get('explicit') else 'false'}</itunes:explicit>
+    <itunes:explicit>{"true" if show.get("explicit") else "false"}</itunes:explicit>
     <itunes:type>episodic</itunes:type>
-    <podcast:guid>{esc(show['guid'])}</podcast:guid>
-    <podcast:locked owner="{esc(show['owner']['email'])}">yes</podcast:locked>
+    <podcast:guid>{esc(show["guid"])}</podcast:guid>
+    <podcast:locked owner="{esc(show["owner"]["email"])}">yes</podcast:locked>
 {person_tags(hosts, "    ")}
 {chr(10).join(reversed(items))}
   </channel>
@@ -348,19 +358,23 @@ def people_section(kicker, people, lines):
     cards = []
     for p in people:
         img = portrait(p["name"])
-        pic = (f'<img class="portrait" src="{img}" alt="" width="256" height="256" '
-               f'loading="lazy" decoding="async">\n          ' if img else "")
+        pic = (
+            f'<img class="portrait" src="{img}" alt="" width="256" height="256" '
+            f'loading="lazy" decoding="async">\n          '
+            if img
+            else ""
+        )
         role = (p.get("role") or "host").capitalize()
         body = lines.get(p["name"]) or p.get("line") or ""
         link = f'\n          <p class="links"><a href="{esc(p["href"])}">LinkedIn</a></p>' if p.get("href") else ""
         cards.append(f"""      <article class="person">
         <div class="byline">
           {pic}<div>
-            <h3>{esc(p['name'])}</h3>
+            <h3>{esc(p["name"])}</h3>
             <p class="role">{esc(role)}</p>
           </div>
         </div>
-        <div class="body">{('<p>' + esc(body) + '</p>') if body else ''}{link}
+        <div class="body">{("<p>" + esc(body) + "</p>") if body else ""}{link}
         </div>
       </article>""")
     return f"""
@@ -379,7 +393,7 @@ def classifieds(parts, kicker):
     <p class="kicker">{kicker}</p>
     <h2>Everything below reaches both of us directly. No sequence, no drip, no CRM.</h2>
 
-    {parts['ads']}
+    {parts["ads"]}
   </section>
 """
 
@@ -394,8 +408,10 @@ def transcript_turns(segments):
     out = []
     for t in turns:
         at = int(t["at"])
-        out.append(f'      <p class="turn"><a class="at" href="#t={at}" data-t="{at}">{clock(at)}</a>'
-                   f'<b class="who">{esc(t["who"])}</b> {esc(t["text"])}</p>')
+        out.append(
+            f'      <p class="turn"><a class="at" href="#t={at}" data-t="{at}">{clock(at)}</a>'
+            f'<b class="who">{esc(t["who"])}</b> {esc(t["text"])}</p>'
+        )
     return "\n".join(out), len(turns)
 
 
@@ -413,39 +429,58 @@ def episode_page(r, s, d, parts, show):
     youtube = (own.get("youtube") or {}).get("url")
     # The episode in each directory that lists the show (tools/directories.py
     # finds its own link there); the show's link until then, one click away.
-    listed = [(name, (own.get("directories") or {}).get(name), show_url)
-              for name, show_url in load(SHOW).get("directories", {}).items()]
+    listed = [
+        (name, (own.get("directories") or {}).get(name), show_url)
+        for name, show_url in load(SHOW).get("directories", {}).items()
+    ]
 
     chapters = "\n".join(
         f'      <li><a href="#t={int(c["start"])}" data-t="{int(c["start"])}">{clock(c["start"])}</a>'
-        f"<span>{esc(c['title'])}</span></li>" for c in r["chapters"])
+        f"<span>{esc(c['title'])}</span></li>"
+        for c in r["chapters"]
+    )
     shorts = (own.get("youtube") or {}).get("clips") or {}  # clip index → its Short, once public
     moments = "\n".join(
         f'      <li><a href="#t={int(c["at"])}" data-t="{int(c["at"])}">{clock(c["at"])}</a>'
         f"<span>{esc(c['title'])}"
-        + (f' &middot; <a href="{esc(shorts[str(int(c["index"]))])}">on YouTube</a>' if str(int(c["index"])) in shorts else "")
-        + "</span></li>" for c in r["clips"])
+        + (
+            f' &middot; <a href="{esc(shorts[str(int(c["index"]))])}">on YouTube</a>'
+            if str(int(c["index"])) in shorts
+            else ""
+        )
+        + "</span></li>"
+        for c in r["clips"]
+    )
 
     ld = {
-        "@context": "https://schema.org", "@type": "PodcastEpisode",
-        "url": url, "name": title, "datePublished": ep["release"],
-        "description": ep["summary"], "duration": iso_duration(ep["duration"]),
+        "@context": "https://schema.org",
+        "@type": "PodcastEpisode",
+        "url": url,
+        "name": title,
+        "datePublished": ep["release"],
+        "description": ep["summary"],
+        "duration": iso_duration(ep["duration"]),
         "image": f"https://agentsee.work{art_rel}",
         "associatedMedia": {"@type": "MediaObject", "contentUrl": mp3, "encodingFormat": "audio/mpeg"},
-        "partOfSeries": {"@type": "PodcastSeries", "name": show["name"],
-                         "url": f"{show['site']}/podcast/", "webFeed": show["feed_url"]},
-        "author": [{"@type": "Person", "name": p["name"], **({"url": p["href"]} if p.get("href") else {})}
-                   for p in r["people"]],
+        "partOfSeries": {
+            "@type": "PodcastSeries",
+            "name": show["name"],
+            "url": f"{show['site']}/podcast/",
+            "webFeed": show["feed_url"],
+        },
+        "author": [
+            {"@type": "Person", "name": p["name"], **({"url": p["href"]} if p.get("href") else {})} for p in r["people"]
+        ],
     }
     if n > 0:
         ld["episodeNumber"] = n
     if any(u for _, u, _ in listed):
         ld["sameAs"] = [u for _, u, _ in listed if u]
-    extra = ('<script type="application/ld+json">'
-             + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>\n")
+    extra = (
+        '<script type="application/ld+json">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>\n"
+    )
 
-    listen = [f'<a href="{esc(mp3)}" download>Download the mp3</a>',
-              '<a href="/podcast/feed.xml">RSS feed</a>']
+    listen = [f'<a href="{esc(mp3)}" download>Download the mp3</a>', '<a href="/podcast/feed.xml">RSS feed</a>']
     for name, u, show_url in reversed(listed):
         listen.insert(0, f'<a href="{esc(u or show_url)}">Listen on {esc(name)}</a>')
     if youtube:
@@ -453,34 +488,43 @@ def episode_page(r, s, d, parts, show):
     lines = {p["name"]: p.get("line") for p in load(SHOW)["people"].values() if p.get("line")}
     lines.update({g.get("name"): g.get("line") for g in (r["notes"].get("guests") or []) if g.get("name")})
 
-    page = head(f"{title} — {show['name']}, episode {n}", ep["summary"], url,
-                f"https://agentsee.work{art_rel}", (1400, 1400), extra)
+    page = head(
+        f"{title} — {show['name']}, episode {n}",
+        ep["summary"],
+        url,
+        f"https://agentsee.work{art_rel}",
+        (1400, 1400),
+        extra,
+    )
     counter = iter(range(1, 20))
 
     def kicker(label):
         return f"{next(counter):02d} — {label}"
 
     page += parts["masthead"]
-    page += dateline(esc(show["name"]), f"Episode {n} &middot; {long_date(ep['release'])}",
-                     f"{spoken(ep['duration'])} &middot; Free, obviously")
+    page += dateline(
+        esc(show["name"]),
+        f"Episode {n} &middot; {long_date(ep['release'])}",
+        f"{spoken(ep['duration'])} &middot; Free, obviously",
+    )
     page += f"""
 <main>
 
   <article class="lead" id="opening">
     <h1>{esc(title)}</h1>
-    <p class="deck">{esc(ep['summary'])}</p>
+    <p class="deck">{esc(ep["summary"])}</p>
   </article>
 
   <figure class="plate">
     <audio controls preload="none" data-player src="{esc(mp3)}"></audio>
-    <figcaption>Episode {n}, {clock(ep['duration'])}. Chapters and the transcript below seek the player.</figcaption>
+    <figcaption>Episode {n}, {clock(ep["duration"])}. Chapters and the transcript below seek the player.</figcaption>
     <p class="links listen">
-      {chr(10).join('      ' + a for a in listen).strip()}
+      {chr(10).join("      " + a for a in listen).strip()}
     </p>
   </figure>
 
   <section class="section" id="chapters">
-    <p class="kicker">{kicker('Chapters')}</p>
+    <p class="kicker">{kicker("Chapters")}</p>
     <ol class="chapters">
 {chapters}
     </ol>
@@ -490,7 +534,7 @@ def episode_page(r, s, d, parts, show):
     if notes:
         page += f"""
   <section class="section" id="notes">
-    <p class="kicker">{kicker('Show notes')}</p>
+    <p class="kicker">{kicker("Show notes")}</p>
     <div class="notes">
 {notes}
     </div>
@@ -499,7 +543,7 @@ def episode_page(r, s, d, parts, show):
     if r["clips"]:
         page += f"""
   <section class="section" id="moments">
-    <p class="kicker">{kicker('Moments')}</p>
+    <p class="kicker">{kicker("Moments")}</p>
     <p class="aside">The stretches that went out as clips. Each one seeks the player.</p>
     <ol class="chapters">
 {moments}
@@ -509,9 +553,9 @@ def episode_page(r, s, d, parts, show):
     page += people_section(kicker("On this episode"), r["people"], lines)
     page += f"""
   <section class="section" id="transcript">
-    <p class="kicker">{kicker('Transcript')}</p>
+    <p class="kicker">{kicker("Transcript")}</p>
     <details class="transcript">
-      <summary>Read the transcript: {n_turns} turns{f', {words:,} words' if words else ''}</summary>
+      <summary>Read the transcript: {n_turns} turns{f", {words:,} words" if words else ""}</summary>
 {turns_html}
     </details>
   </section>
@@ -529,37 +573,42 @@ def show_page(due, later, parts, show, hosts):
     for r, s, d in reversed(later):
         ep = r["episode"]
         rows.append(f"""      <div class="issue pending">
-        <span class="issue-no">Episode {int(ep['number'])}</span>
-        <span class="issue-title">{esc(ep['title'])}</span>
-        <span class="issue-meta">{day_date(ep['release'])}</span>
+        <span class="issue-no">Episode {int(ep["number"])}</span>
+        <span class="issue-title">{esc(ep["title"])}</span>
+        <span class="issue-meta">{day_date(ep["release"])}</span>
       </div>""")
     for r, s, d in reversed(due):
         ep = r["episode"]
-        rows.append(f"""      <a class="issue" href="/podcast/{esc(ep['slug'])}/">
-        <span class="issue-no">Episode {int(ep['number'])}</span>
-        <span class="issue-title">{esc(ep['title'])}</span>
-        <span class="issue-meta">{long_date(ep['release'])} &middot; {clock(ep['duration'])}</span>
+        rows.append(f"""      <a class="issue" href="/podcast/{esc(ep["slug"])}/">
+        <span class="issue-no">Episode {int(ep["number"])}</span>
+        <span class="issue-title">{esc(ep["title"])}</span>
+        <span class="issue-meta">{long_date(ep["release"])} &middot; {clock(ep["duration"])}</span>
       </a>""")
     eps = due
     count = f"{len(eps)} episode{'s' if len(eps) != 1 else ''}"
     so_far = f"{count} so far" if eps else f"First episode {day_date(later[0][0]['episode']['release'])}"
-    paras = "\n".join(f"      <p{' class=\"drop\"' if i == 0 else ''}>{esc(p)}</p>"
-                      for i, p in enumerate(desc["long"].split("\n\n")))
+    paras = "\n".join(
+        f"      <p{' class="drop"' if i == 0 else ''}>{esc(p)}</p>" for i, p in enumerate(desc["long"].split("\n\n"))
+    )
     # The directories that have accepted the show, as links, from show.json
     # itself (not the release's copy): a directory is added when it answers,
     # with no re-release.
-    listed = "".join(f'\n      <a href="{esc(u)}">{esc(n)}</a>'
-                     for n, u in load(SHOW).get("directories", {}).items())
-    page = head(f"{show['name']} — {desc['line']}", desc["paragraph"], f"{show['site']}/podcast/",
-                f"{show['site']}{COVER}", (3000, 3000))
+    listed = "".join(f'\n      <a href="{esc(u)}">{esc(n)}</a>' for n, u in load(SHOW).get("directories", {}).items())
+    page = head(
+        f"{show['name']} — {desc['line']}",
+        desc["paragraph"],
+        f"{show['site']}/podcast/",
+        f"{show['site']}{COVER}",
+        (3000, 3000),
+    )
     page += parts["masthead"]
     page += dateline("The podcast", so_far, "Audio &middot; Free, obviously")
     page += f"""
 <main>
 
   <article class="lead" id="opening">
-    <h1>{esc(show['name'])}</h1>
-    <p class="deck">{esc(desc['line'])}</p>
+    <h1>{esc(show["name"])}</h1>
+    <p class="deck">{esc(desc["line"])}</p>
   </article>
 
   <section class="section" id="about">
@@ -572,7 +621,7 @@ def show_page(due, later, parts, show, hosts):
   <section class="section" id="listen">
     <p class="kicker">02 — How to listen</p>
     <h2>In any podcast app, by its feed. The directories follow.</h2>
-    <p class="aside">Paste <code>{esc(show['feed_url'])}</code> into the app's "add by URL". Every episode page
+    <p class="aside">Paste <code>{esc(show["feed_url"])}</code> into the app's "add by URL". Every episode page
       has a player, the chapters, the notes and the transcript. The video of each episode is on YouTube.</p>
     <p class="links listen">
       <a href="/podcast/feed.xml">RSS feed</a>{listed}
@@ -612,10 +661,12 @@ def sitemap(eps, show):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--as-of", default=dt.datetime.now(LONDON).date().isoformat(),
-                    help="the day to write the site for (default today, London)")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument(
+        "--as-of",
+        default=dt.datetime.now(LONDON).date().isoformat(),
+        help="the day to write the site for (default today, London)",
+    )
     a = ap.parse_args()
     due, later = episodes(a.as_of)
     if not due and not later:
@@ -624,8 +675,10 @@ def main():
     # The show as release.py wrote it (name, guid, feed URL, description), which
     # is the shape the publisher reads too; the people from show.json itself.
     show = (due or later)[-1][0]["show"]
-    hosts = [{"name": p["name"], "role": p.get("role", "host"), "href": p.get("href"), "line": p.get("line")}
-             for p in load(SHOW)["people"].values()]
+    hosts = [
+        {"name": p["name"], "role": p.get("role", "host"), "href": p.get("href"), "line": p.get("line")}
+        for p in load(SHOW)["people"].values()
+    ]
     parts = lifted()
     changed = []
     for r, s, d in eps:
@@ -653,10 +706,18 @@ def main():
         changed.append("podcast/feed.xml")
     if sitemap(eps, show):
         changed.append("sitemap.xml")
-    print(f"as of {a.as_of}: {len(eps)} episode{'s' if len(eps) != 1 else ''} on the site"
-          + (": " + ", ".join(r["episode"]["slug"] for r, _, _ in eps) if eps else "")
-          + (("; still to come: " + ", ".join(f"{r['episode']['slug']} on {r['episode']['release']}"
-                                              for r, _, _ in later)) if later else ""))
+    print(
+        f"as of {a.as_of}: {len(eps)} episode{'s' if len(eps) != 1 else ''} on the site"
+        + (": " + ", ".join(r["episode"]["slug"] for r, _, _ in eps) if eps else "")
+        + (
+            (
+                "; still to come: "
+                + ", ".join(f"{r['episode']['slug']} on {r['episode']['release']}" for r, _, _ in later)
+            )
+            if later
+            else ""
+        )
+    )
     print("  written: " + (", ".join(changed) if changed else "nothing, already current"))
     return 0
 

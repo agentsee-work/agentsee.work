@@ -61,6 +61,7 @@ W, H = 1080, 1920
 
 # ── proposals ─────────────────────────────────────────────────────────────────
 
+
 def propose(words, segments, n, lo, hi):
     """Windows of consecutive sentences, lo..hi seconds, scored for density
     and for ending cleanly. Crude on purpose: it is a shortlist, not a pick."""
@@ -86,8 +87,15 @@ def propose(words, segments, n, lo, hi):
             lead = max(spk.values()) / len(ws)
             ends_clean = 1.0 if re.search(r"[.?!]$", sents[j]["text"]) else 0.3
             score = density * ends_clean * (0.7 + 0.3 * lead) - 0.15 * restarts - 0.1 * fillers
-            cands.append({"t0": round(t0, 2), "t1": round(t1, 2), "score": round(score, 3),
-                          "lead": max(spk, key=spk.get), "text": text})
+            cands.append(
+                {
+                    "t0": round(t0, 2),
+                    "t1": round(t1, 2),
+                    "score": round(score, 3),
+                    "lead": max(spk, key=spk.get),
+                    "text": text,
+                }
+            )
     cands.sort(key=lambda c: -c["score"])
     picked = []
     for c in cands:
@@ -101,6 +109,7 @@ def propose(words, segments, n, lo, hi):
 
 # ── rendering ─────────────────────────────────────────────────────────────────
 
+
 def caption_font():
     """libass wants a static TTF; the site ships a variable woff2. Make one
     instance at a reading weight, once."""
@@ -109,6 +118,7 @@ def caption_font():
         return out
     from fontTools.ttLib import TTFont
     from fontTools.varLib import instancer
+
     FONT_DIR.mkdir(parents=True, exist_ok=True)
     f = TTFont(FONT_SRC)
     f.flavor = None
@@ -133,7 +143,7 @@ def ass_file(cues, t_start, theme, path, max_chars=26):
     t = THEMES[theme]
     ink, lit = ass_colour(t["ink"]), ass_colour(t["signal"])
     cz = CLIP_ZONES["captions"]
-    centre = (W // 2, (cz[0] + cz[1]) // 2)   # the block sits in the middle of its zone
+    centre = (W // 2, (cz[0] + cz[1]) // 2)  # the block sits in the middle of its zone
     head = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {W}
@@ -148,6 +158,7 @@ Style: Cap,Newsreader Captions,62,{ink},{ink},&H00000000,&H00000000,0,0,0,0,100,
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
+
     def ts(x):
         x = max(0.0, x)
         h, r = divmod(x, 3600)
@@ -211,6 +222,7 @@ def render_clip(d, m, words, bus, clip, idx, args, theme, plate, fontdir, edl):
     # audio: the summed dialogue, cut with the same crossfades as the episode
     tmp_a = d / "mix" / f"clip-{idx:02d}-a.wav"
     import soundfile as sf
+
     cut = cut_with_crossfades(bus, local["items"], xf=0.02)
     # Bring the raw bus near the target first. loudnorm's linear pass gives
     # up and goes dynamic when the gain it needs would push the true peak
@@ -223,8 +235,7 @@ def render_clip(d, m, words, bus, clip, idx, args, theme, plate, fontdir, edl):
     tmp_a.unlink(missing_ok=True)
 
     # video: each panel is its kept stretches concatenated, cut hard where the audio crossfades
-    cmd = ["ffmpeg", "-nostdin", "-y", "-loop", "1", "-framerate", str(m["fps"]),
-           "-t", f"{dur:.3f}", "-i", plate]
+    cmd = ["ffmpeg", "-nostdin", "-y", "-loop", "1", "-framerate", str(m["fps"]), "-t", f"{dur:.3f}", "-i", plate]
     filt = []
     for i, p in enumerate(parts):
         # seek the source to just before the first frame the clip needs.
@@ -241,17 +252,18 @@ def render_clip(d, m, words, bus, clip, idx, args, theme, plate, fontdir, edl):
         pieces = []
         for k, (it, nf) in enumerate(zip(local["items"], plan)):
             sf_ = max(0, round((it["t0"] - p["offset"]) * m["fps"])) - skip
-            filt.append(f"[{i + 1}:v]trim=start_frame={sf_}:end_frame={sf_ + nf},"
-                        f"setpts=PTS-STARTPTS[q{i}_{k}]")
+            filt.append(f"[{i + 1}:v]trim=start_frame={sf_}:end_frame={sf_ + nf},setpts=PTS-STARTPTS[q{i}_{k}]")
             pieces.append(f"[q{i}_{k}]")
         src = f"[q{i}_0]" if len(pieces) == 1 else f"[j{i}]"
         if len(pieces) > 1:
             filt.append("".join(pieces) + f"concat=n={len(pieces)}:v=1:a=0[j{i}]")
         mine = speech_intervals([x for x in ws if x["spk"] == p["short"]], merge_gap=0.6, pad=0.1)
         on = "+".join(f"between(t,{a:.2f},{b:.2f})" for a, b in mine) or "0"
-        filt.append(f"{src}crop={cw}:{ch}:(iw-{cw})/2:(ih-{ch})/2,"
-                    f"scale={pw}:{ph}:flags=lanczos,setsar=1,fps={m['fps']},"
-                    f"drawbox=x=0:y=0:w=8:h=ih:color={sig}@1.0:t=fill:enable='gt({on},0)'[v{i}]")
+        filt.append(
+            f"{src}crop={cw}:{ch}:(iw-{cw})/2:(ih-{ch})/2,"
+            f"scale={pw}:{ph}:flags=lanczos,setsar=1,fps={m['fps']},"
+            f"drawbox=x=0:y=0:w=8:h=ih:color={sig}@1.0:t=fill:enable='gt({on},0)'[v{i}]"
+        )
     prev = "[0:v]"
     for i in range(n):
         filt.append(f"{prev}[v{i}]overlay=0:{band[0] + i * ph}:shortest=1[o{i}]")
@@ -259,24 +271,59 @@ def render_clip(d, m, words, bus, clip, idx, args, theme, plate, fontdir, edl):
     filt.append(f"{prev}ass={ass}:fontsdir={fontdir}[v]")
     cmd += ["-i", tmp_n]
     filt.append(f"[{n + 1}:a]aformat=channel_layouts=stereo[a]")
-    cmd += ["-filter_complex", ";".join(filt), "-map", "[v]", "-map", "[a]",
-            "-r", str(m["fps"]), "-t", f"{dur:.3f}",
-            *video_codec(args.fast, args.cpu_encode), "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "160k", "-ar", str(RATE), "-movflags", "+faststart", out]
+    cmd += [
+        "-filter_complex",
+        ";".join(filt),
+        "-map",
+        "[v]",
+        "-map",
+        "[a]",
+        "-r",
+        str(m["fps"]),
+        "-t",
+        f"{dur:.3f}",
+        *video_codec(args.fast, args.cpu_encode),
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "160k",
+        "-ar",
+        str(RATE),
+        "-movflags",
+        "+faststart",
+        out,
+    ]
     run(cmd)
     tmp_n.unlink(missing_ok=True)
     got = measure(out, args.target)
     # The poster: one frame as a PNG for the site, and the same frame as a JPEG (quality ~90), which is the
     # only kind Instagram takes for a Reel's cover (engine/publish/instagram.py).
-    run(["ffmpeg", "-nostdin", "-y", "-ss", f"{min(dur / 2, 3.0):.2f}", "-i", out,
-         "-frames:v", "1", out.with_suffix(".png"),
-         "-frames:v", "1", "-q:v", "2", out.with_suffix(".jpg")])
+    run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-y",
+            "-ss",
+            f"{min(dur / 2, 3.0):.2f}",
+            "-i",
+            out,
+            "-frames:v",
+            "1",
+            out.with_suffix(".png"),
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
+            out.with_suffix(".jpg"),
+        ]
+    )
     return out, got, len(cues), dur, len(local["items"])
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slug")
     ap.add_argument("--propose", type=int, metavar="N", help="shortlist N candidates")
     ap.add_argument("--min", type=float, default=28.0)
@@ -302,8 +349,10 @@ def main():
         save_json(d / "clips.proposed.json", picks)
         print(f"{(d / 'clips.proposed.json').relative_to(ROOT)}")
         for c in picks:
-            print(f"\n  {hms(c['t0'], False)} - {hms(c['t1'], False)}  ({c['t1'] - c['t0']:.0f}s, "
-                  f"mostly {c['lead']}, score {c['score']})\n  {c['text'][:400]}")
+            print(
+                f"\n  {hms(c['t0'], False)} - {hms(c['t1'], False)}  ({c['t1'] - c['t0']:.0f}s, "
+                f"mostly {c['lead']}, score {c['score']})\n  {c['text'][:400]}"
+            )
         return 0
 
     path = d / "clips.json"
@@ -325,16 +374,18 @@ def main():
         c = dict(c)
         c["t0"] = round(snap(c["t0"], words, before=True), 3)
         c["t1"] = round(snap(c["t1"], words, before=False), 3)
-        out, got, ncues, dur, nitems = render_clip(d, m, words, bus, c, i, a, theme, plate,
-                                                   FONT_DIR, edl)
+        out, got, ncues, dur, nitems = render_clip(d, m, words, bus, c, i, a, theme, plate, FONT_DIR, edl)
         lvl = f"{got['lufs']:.1f} LUFS" if got else "?"
-        return (f"{out.relative_to(ROOT)}  {dur:.1f}s from {c['t1'] - c['t0']:.1f}s  "
-                f"{nitems} stretches  {ncues} captions  {lvl}")
+        return (
+            f"{out.relative_to(ROOT)}  {dur:.1f}s from {c['t1'] - c['t0']:.1f}s  "
+            f"{nitems} stretches  {ncues} captions  {lvl}"
+        )
 
     # each clip is its own ffmpeg, and a 1080x1920 encode cannot use the
     # whole machine, so several run at once; every temp file carries the
     # clip's number, so they do not collide
     from concurrent.futures import ThreadPoolExecutor
+
     todo = [(i, c) for i, c in enumerate(clips, 1) if not a.only or i == a.only]
     with ThreadPoolExecutor(max_workers=max(1, a.jobs)) as ex:
         for line in ex.map(lambda ic: one(*ic), todo):

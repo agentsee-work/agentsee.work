@@ -41,7 +41,7 @@ from show import ASSETS, build
 CARDS = {
     # name: (layout, chain, note)
     "title": ("titlecard", "intro", "wakes as the sting starts, holds alert"),
-    "end":   ("endcard", "signoff", "warm, then closed, held under the outro"),
+    "end": ("endcard", "signoff", "warm, then closed, held under the outro"),
 }
 
 
@@ -50,15 +50,25 @@ def render_ss(html, out, w, h, ss=2):
     to scale 1, which is right for a still and wrong for a frame that moves:
     on a shallow curve a one-pixel antialiasing ramp still stair-steps."""
     from PIL import Image
+
     with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
         f.write(html)
         src = f.name
     try:
         subprocess.run(
-            ["google-chrome", "--headless=new", "--disable-gpu", "--hide-scrollbars",
-             f"--force-device-scale-factor={ss}", f"--window-size={w},{h}",
-             f"--screenshot={out}", f"file://{src}"],
-            check=True, capture_output=True)
+            [
+                "google-chrome",
+                "--headless=new",
+                "--disable-gpu",
+                "--hide-scrollbars",
+                f"--force-device-scale-factor={ss}",
+                f"--window-size={w},{h}",
+                f"--screenshot={out}",
+                f"file://{src}",
+            ],
+            check=True,
+            capture_output=True,
+        )
     finally:
         pathlib.Path(src).unlink(missing_ok=True)
     im = Image.open(out).convert("RGB")
@@ -70,6 +80,7 @@ def render_ss(html, out, w, h, ss=2):
 def average(ims):
     import numpy as np
     from PIL import Image
+
     acc = sum(np.asarray(im, dtype=np.float64) for im in ims) / len(ims)
     return Image.fromarray(np.clip(acc + 0.5, 0, 255).astype("uint8"), "RGB")
 
@@ -77,8 +88,15 @@ def average(ims):
 def animate(layout, chain, theme, dur, fps, blur, ss, jobs, fields, out_dir, slug):
     """Frames for a card: the chain's motion, then a hold to `dur`."""
     c = CHAINS[chain]
-    frames = timeline(c["seq"], fps * blur, c.get("hold", 0.5), c.get("trans", 0.38),
-                      blink=False, jitter=c.get("jitter", 0.0), roll=c.get("roll"))
+    frames = timeline(
+        c["seq"],
+        fps * blur,
+        c.get("hold", 0.5),
+        c.get("trans", 0.38),
+        blink=False,
+        jitter=c.get("jitter", 0.0),
+        roll=c.get("roll"),
+    )
     n_total = round(dur * fps) * blur
     if len(frames) < n_total:
         frames += [dict(frames[-1]) for _ in range(n_total - len(frames))]
@@ -93,8 +111,9 @@ def animate(layout, chain, theme, dur, fps, blur, ss, jobs, fields, out_dir, slu
 
     def one(item):
         k, fr = item
-        html, _, _ = build(layout, theme, fields.get("title", ""), fr,
-                           **{x: y for x, y in fields.items() if x != "title"})
+        html, _, _ = build(
+            layout, theme, fields.get("title", ""), fr, **{x: y for x, y in fields.items() if x != "title"}
+        )
         return k, render_ss(html, tmp / f"u_{abs(hash(k)) % 10**9:09d}.png", w, h, ss)
 
     cache = {}
@@ -109,16 +128,36 @@ def animate(layout, chain, theme, dur, fps, blur, ss, jobs, fields, out_dir, slu
         (group[0] if blur == 1 else average(group)).save(seq / f"f_{n:04d}.png")
         n += 1
     mp4 = out_dir / f"{slug}.mp4"
-    run(["ffmpeg", "-nostdin", "-y", "-framerate", fps, "-i", seq / "f_%04d.png",
-         "-c:v", "libx264", "-preset", "slow", "-crf", "15", "-pix_fmt", "yuv420p",
-         "-r", fps, mp4])
-    shutil.copyfile(seq / f"f_{n-1:04d}.png", out_dir / f"{slug}.png")
+    run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-y",
+            "-framerate",
+            fps,
+            "-i",
+            seq / "f_%04d.png",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "slow",
+            "-crf",
+            "15",
+            "-pix_fmt",
+            "yuv420p",
+            "-r",
+            fps,
+            mp4,
+        ]
+    )
+    shutil.copyfile(seq / f"f_{n - 1:04d}.png", out_dir / f"{slug}.png")
     shutil.rmtree(tmp)
     return mp4, n, len(uniq)
 
 
 def static(layout, theme, out, **fields):
     from banner import render
+
     html, w, h = build(layout, theme, fields.pop("title", ""), None, **fields)
     out.parent.mkdir(parents=True, exist_ok=True)
     render(html, out, w, h)
@@ -126,19 +165,19 @@ def static(layout, theme, out, **fields):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slug")
     ap.add_argument("--title", default=None)
     ap.add_argument("--number", default=None, help="episode number")
     ap.add_argument("--hosts", default=None)
-    ap.add_argument("--chapter", nargs=2, metavar=("N", "TITLE"), action="append",
-                    help="render one chapter card (repeatable)")
+    ap.add_argument(
+        "--chapter", nargs=2, metavar=("N", "TITLE"), action="append", help="render one chapter card (repeatable)"
+    )
     ap.add_argument("--only", choices=sorted(CARDS), help="one animated card")
-    ap.add_argument("--title-dur", type=float, default=7.0,
-                    help="seconds the opening card runs; the sting lands at 6.4")
-    ap.add_argument("--end-dur", type=float, default=19.0,
-                    help="seconds the closing card runs; the outro is 17.6")
+    ap.add_argument(
+        "--title-dur", type=float, default=7.0, help="seconds the opening card runs; the sting lands at 6.4"
+    )
+    ap.add_argument("--end-dur", type=float, default=19.0, help="seconds the closing card runs; the outro is 17.6")
     ap.add_argument("--fps", type=int, default=24)
     ap.add_argument("--blur", type=int, default=2, help="sub-frames averaged per frame")
     ap.add_argument("--ss", type=int, default=2, choices=[1, 2, 3])
@@ -150,9 +189,11 @@ def main():
 
     d = ep_dir(a.slug)
     cfg = load_json(d / "episode.json") if (d / "episode.json").exists() else {}
-    fields = {"title": a.title if a.title is not None else cfg.get("title", ""),
-              "number": a.number if a.number is not None else cfg.get("number"),
-              "hosts": a.hosts if a.hosts is not None else cfg.get("hosts")}
+    fields = {
+        "title": a.title if a.title is not None else cfg.get("title", ""),
+        "number": a.number if a.number is not None else cfg.get("number"),
+        "hosts": a.hosts if a.hosts is not None else cfg.get("hosts"),
+    }
     fields = {k: v for k, v in fields.items() if v is not None}
     theme = "newsprint" if a.newsprint else "noir"
     out_dir = d / "cards"
@@ -162,8 +203,7 @@ def main():
 
     if a.chapter:
         for n, title in a.chapter:
-            out = static("chapter", theme, out_dir / f"chapter-{int(n):02d}.png",
-                         title=title, number=n)
+            out = static("chapter", theme, out_dir / f"chapter-{int(n):02d}.png", title=title, number=n)
             print(f"{out.relative_to(ROOT)}")
         if not a.only:
             return 0
@@ -173,10 +213,8 @@ def main():
             continue
         dur = a.title_dur if slug == "title" else a.end_dur
         f = dict(fields) if slug == "title" else {}
-        mp4, n, uniq = animate(layout, chain, theme, dur, a.fps, a.blur, a.ss,
-                               a.jobs, f, out_dir, slug)
-        print(f"{mp4.relative_to(ROOT)}  {n} frames  {n/a.fps:.2f}s  "
-              f"{uniq} distinct renders  chain {chain}")
+        mp4, n, uniq = animate(layout, chain, theme, dur, a.fps, a.blur, a.ss, a.jobs, f, out_dir, slug)
+        print(f"{mp4.relative_to(ROOT)}  {n} frames  {n / a.fps:.2f}s  {uniq} distinct renders  chain {chain}")
     return 0
 
 

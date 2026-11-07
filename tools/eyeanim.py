@@ -42,7 +42,7 @@ from banner import ROOT, THEMES
 from eye import AXES, EXPRESSIONS, REST, font_b64, mark_css, mark_svg
 from eye import axes as eye_axes
 
-MAX_GRID = 8000   # px per side; Chrome will go further, but not happily
+MAX_GRID = 8000  # px per side; Chrome will go further, but not happily
 
 
 def render_alpha(html, out, w, h, ss=1):
@@ -53,17 +53,29 @@ def render_alpha(html, out, w, h, ss=1):
     looks fine in a viewer and fails the moment it goes over footage."""
     import subprocess as sp
     import tempfile
+
     with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
         f.write(html)
         src = f.name
     try:
-        sp.run(["google-chrome", "--headless=new", "--disable-gpu", "--hide-scrollbars",
+        sp.run(
+            [
+                "google-chrome",
+                "--headless=new",
+                "--disable-gpu",
+                "--hide-scrollbars",
                 "--default-background-color=00000000",
                 f"--force-device-scale-factor={ss}",
-                f"--window-size={w},{h}", f"--screenshot={out}", f"file://{src}"],
-               check=True, capture_output=True)
+                f"--window-size={w},{h}",
+                f"--screenshot={out}",
+                f"file://{src}",
+            ],
+            check=True,
+            capture_output=True,
+        )
     finally:
         pathlib.Path(src).unlink(missing_ok=True)
+
 
 OUT = ROOT / "build" / "eye"
 
@@ -80,17 +92,26 @@ OUT = ROOT / "build" / "eye"
 # A step is an expression name, or a dict of axis overrides for a waypoint that
 # does not deserve a name of its own — which is how the eye roll is built.
 CHAINS = {
-    "blink":       dict(seq=["attentive", "attentive"], note="Just a blink. Loops."),
-    "listen":      dict(seq=["attentive", "curious", "attentive"], note="Workhorse cutaway. Loops."),
-    "idle":        dict(seq=["attentive", "curious", "thinking", "attentive"], note="Longer filler. Loops."),
-    "intro":       dict(seq=["asleep", "attentive", "alert"], note="Wake and focus. Opening title."),
-    "startle":     dict(seq=["asleep", "surprised", "alert"], hold=0.30, trans=0.14,
-                        jitter=0.66, note="Woken suddenly. Fast, with a tremor."),
-    "consider":    dict(seq=["attentive", "thinking", "wry"], trans=0.46,
-                        note="Weighing it, and landing somewhere knowing."),
-    "concede":     dict(seq=["sceptical", "closed", "amused"], trans=0.30,
-                        note="Resistance, a beat shut, then warmth. Concession needs the beat."),
-    "doubt":       dict(seq=["attentive", "sceptical"], trans=0.26, note="One sharp turn into doubt."),
+    "blink": dict(seq=["attentive", "attentive"], note="Just a blink. Loops."),
+    "listen": dict(seq=["attentive", "curious", "attentive"], note="Workhorse cutaway. Loops."),
+    "idle": dict(seq=["attentive", "curious", "thinking", "attentive"], note="Longer filler. Loops."),
+    "intro": dict(seq=["asleep", "attentive", "alert"], note="Wake and focus. Opening title."),
+    "startle": dict(
+        seq=["asleep", "surprised", "alert"],
+        hold=0.30,
+        trans=0.14,
+        jitter=0.66,
+        note="Woken suddenly. Fast, with a tremor.",
+    ),
+    "consider": dict(
+        seq=["attentive", "thinking", "wry"], trans=0.46, note="Weighing it, and landing somewhere knowing."
+    ),
+    "concede": dict(
+        seq=["sceptical", "closed", "amused"],
+        trans=0.30,
+        note="Resistance, a beat shut, then warmth. Concession needs the beat.",
+    ),
+    "doubt": dict(seq=["attentive", "sceptical"], trans=0.26, note="One sharp turn into doubt."),
     "unconvinced": dict(seq=["curious", "sceptical", "unimpressed"], note="Doubt hardening."),
     # Three steps, not two: the arc runs attentive -> attentive so the lid
     # stays out of the way, and only then does it land on unimpressed. Rolling
@@ -99,25 +120,39 @@ CHAINS = {
     # Two steps, not three. A middle step meant a hold between the roll
     # finishing and the landing, and the eye visibly parked at centre before
     # closing. The arc now carries the landing itself.
-    "eyeroll":     dict(seq=["attentive", "unimpressed"], hold=0.26,
-                        roll=dict(dur=1.6, rx=31, ry=31, a0=-38, a1=-142),
-                        note="Snap up, hold, track across, hold, back. Then deadpan."),
-    "scrutinise":  dict(seq=["curious", "scrutiny"], note="Into the technical section."),
-    "reveal":      dict(seq=["scrutiny", "surprised", "alert"], trans=0.22,
-                        note="Found something. Quick."),
-    "doubletake":  dict(seq=["attentive", "surprised", "scrutiny", "surprised"],
-                        hold=0.26, trans=0.15, note="Did that say what I think. Fast."),
-    "deadpan":     dict(seq=["attentive", "unimpressed"], hold=1.10, trans=0.60,
-                        note="Comedy beat. The stillness is the joke."),
-    "lose-interest": dict(seq=["attentive", "curious", "unimpressed", "asleep"],
-                          hold=0.60, trans=0.55,
-                          note="Attention wanders, then droops. Not the same as going to sleep."),
-    "hardno":      dict(seq=["curious", "angry", "angry"], hold=0.34, trans=0.16,
-                        jitter=0.80, note="A refusal, with the hat down and a tremor."),
-    "signoff":     dict(seq=["attentive", "amused", "closed"], note="End card, on a warm note."),
-    "sleep":       dict(seq=["attentive", "asleep"], trans=0.55, note="Into the standby card."),
+    "eyeroll": dict(
+        seq=["attentive", "unimpressed"],
+        hold=0.26,
+        roll=dict(dur=1.6, rx=31, ry=31, a0=-38, a1=-142),
+        note="Snap up, hold, track across, hold, back. Then deadpan.",
+    ),
+    "scrutinise": dict(seq=["curious", "scrutiny"], note="Into the technical section."),
+    "reveal": dict(seq=["scrutiny", "surprised", "alert"], trans=0.22, note="Found something. Quick."),
+    "doubletake": dict(
+        seq=["attentive", "surprised", "scrutiny", "surprised"],
+        hold=0.26,
+        trans=0.15,
+        note="Did that say what I think. Fast.",
+    ),
+    "deadpan": dict(
+        seq=["attentive", "unimpressed"], hold=1.10, trans=0.60, note="Comedy beat. The stillness is the joke."
+    ),
+    "lose-interest": dict(
+        seq=["attentive", "curious", "unimpressed", "asleep"],
+        hold=0.60,
+        trans=0.55,
+        note="Attention wanders, then droops. Not the same as going to sleep.",
+    ),
+    "hardno": dict(
+        seq=["curious", "angry", "angry"],
+        hold=0.34,
+        trans=0.16,
+        jitter=0.80,
+        note="A refusal, with the hat down and a tremor.",
+    ),
+    "signoff": dict(seq=["attentive", "amused", "closed"], note="End card, on a warm note."),
+    "sleep": dict(seq=["attentive", "asleep"], trans=0.55, note="Into the standby card."),
 }
-
 
 
 def step_axes(step):
@@ -129,7 +164,7 @@ def step_axes(step):
 
 def ease(t):
     """Cubic in-out. Lids accelerate and settle; a linear lid reads mechanical."""
-    return 4 * t ** 3 if t < 0.5 else 1 - (-2 * t + 2) ** 3 / 2
+    return 4 * t**3 if t < 0.5 else 1 - (-2 * t + 2) ** 3 / 2
 
 
 def lerp(a, b, t):
@@ -156,10 +191,10 @@ def arc_frames(a, b, roll, fps):
     rx, ry = roll.get("rx", 31), roll.get("ry", 31)
     a0 = math.radians(roll.get("a0", -38))
     a1 = math.radians(roll.get("a1", -142))
-    out_s, in_s = 0.17, 0.83          # where the radius is fully extended
+    out_s, in_s = 0.17, 0.83  # where the radius is fully extended
     cA, cB = roll.get("corners", (0.19, 0.81))
     width = roll.get("linger", 0.12)  # how wide each slow patch is
-    floor = roll.get("floor", 0.10)   # speed at the bottom of a dip
+    floor = roll.get("floor", 0.10)  # speed at the bottom of a dip
 
     def smooth(x):
         x = min(1.0, max(0.0, x))
@@ -255,31 +290,33 @@ def timeline(chain, fps, hold, trans, blink, jitter=0.0, roll=None):
 
 def style(fr):
     """Lids are geometry now, so only the transform axes come through here."""
-    return (f"--iris-x:{fr['ix']:.3f}; --iris-y:{fr['iy']:.3f}; "
-            f"--pupil-s:{fr['ps']:.4f};")
+    return f"--iris-x:{fr['ix']:.3f}; --iris-y:{fr['iy']:.3f}; --pupil-s:{fr['ps']:.4f};"
 
 
 def sheet_html(frames, theme, cell, glow):
     t = THEMES[theme]
     cols = math.ceil(math.sqrt(len(frames)))
     rows = math.ceil(len(frames) / cols)
-    cells = "".join(f'<i style="{style(f)}">'
-                f'{mark_svg(f["lt"], f["lb"], f["tilt"], f["hat"])}</i>' for f in frames)
-    return f"""<!doctype html><meta charset="utf-8"><title>frames</title>
+    cells = "".join(f'<i style="{style(f)}">{mark_svg(f["lt"], f["lb"], f["tilt"], f["hat"])}</i>' for f in frames)
+    return (
+        f"""<!doctype html><meta charset="utf-8"><title>frames</title>
 <style>
 @font-face {{ font-family:'Newsreader';
   src:url('data:font/woff2;base64,{font_b64()}') format('woff2'); }}
 * {{ box-sizing:border-box; margin:0; }}
 html,body {{ background:transparent; }}
 .grid {{ display:grid; grid-template-columns:repeat({cols},{cell}px);
-         width:{cols*cell}px; }}
-i {{ display:block; width:{cell}px; height:{cell}px; padding:{round(cell*.06)}px;
-     --mark-w:{round(cell*.88)}px;
-     {f'filter: drop-shadow(0 0 {round(cell*.07)}px {t["glow"]});' if glow else ''} }}
+         width:{cols * cell}px; }}
+i {{ display:block; width:{cell}px; height:{cell}px; padding:{round(cell * 0.06)}px;
+     --mark-w:{round(cell * 0.88)}px;
+     {f"filter: drop-shadow(0 0 {round(cell * 0.07)}px {t['glow']});" if glow else ""} }}
 i svg {{ width:100%; height:100%; display:block; overflow:visible; }}
 {mark_css(t)}
 </style>
-<div class="grid">{cells}</div>""", cols, rows
+<div class="grid">{cells}</div>""",
+        cols,
+        rows,
+    )
 
 
 def frame_key(fr):
@@ -296,6 +333,7 @@ def merge(ims):
     fringe into every soft edge. Premultiply first and the transparent pixels
     contribute nothing, which is the point of them."""
     import numpy as np
+
     acc = None
     for im in ims:
         a = np.asarray(im, dtype=np.float64) / 255.0
@@ -305,6 +343,7 @@ def merge(ims):
     al = acc[..., 3:4]
     rgb = np.divide(acc[..., :3], al, out=np.zeros_like(acc[..., :3]), where=al > 1e-6)
     from PIL import Image
+
     out = np.clip(np.dstack([rgb, al]) * 255.0 + 0.5, 0, 255).astype("uint8")
     return Image.fromarray(out, "RGBA")
 
@@ -373,17 +412,15 @@ def encode(frames_dir, n, fps, fmt, slug):
     recipes = {
         # VP9 with alpha. Plays in browsers and OBS. ffmpeg writes alpha_mode=1
         # but cannot read its own alpha back, so this path is offered unverified.
-        "webm": ["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0",
-                 "-b:v", "0", "-crf", "28"],
+        "webm": ["-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-b:v", "0", "-crf", "28"],
         # ProRes 4444. What an NLE wants for an alpha overlay, and its alpha
         # survives a round-trip, which is why it is the default.
-        "mov":  ["-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le"],
+        "mov": ["-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le"],
         # Flattened preview. No alpha.
-        "mp4":  ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18"],
+        "mp4": ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18"],
     }
     out = frames_dir.parent / f"{slug}.{fmt}"
-    r = subprocess.run([ff, "-y", "-framerate", str(fps), "-i", src,
-                        *recipes[fmt], str(out)], capture_output=True)
+    r = subprocess.run([ff, "-y", "-framerate", str(fps), "-i", src, *recipes[fmt], str(out)], capture_output=True)
     if r.returncode != 0:
         return None, r.stderr.decode()[-400:]
     return out, None
@@ -420,14 +457,21 @@ i svg {{{{ width:100%; height:100%; display:block; overflow:visible; }}}}
 </style>
 <div class="band">{{title}}</div>
 <i style="{{st}}">{{svg}}</i>""".format(
-        font=font_b64(), w=cell,
+        font=font_b64(),
+        w=cell,
         h=round(cell * 0.88 * 210 / 240) + 2 * round(cell * 0.06) + REEL_TITLE_H,
         paper=t["paper"],
-        signal=t["signal"], fs=round(cell * 0.035), cell=cell,
-        pad=round(cell * 0.06), mark=round(cell * 0.88),
+        signal=t["signal"],
+        fs=round(cell * 0.035),
+        cell=cell,
+        pad=round(cell * 0.06),
+        mark=round(cell * 0.88),
         ih=round(cell * 0.88 * 210 / 240) + 2 * round(cell * 0.06),
-        mark_css=mark_css(t), title=title, st=style(frame),
-        svg=mark_svg(frame["lt"], frame["lb"], frame["tilt"], frame["hat"]))
+        mark_css=mark_css(t),
+        title=title,
+        st=style(frame),
+        svg=mark_svg(frame["lt"], frame["lb"], frame["tilt"], frame["hat"]),
+    )
 
 
 def contact_sheet(made, theme, per_row=9, cell=118):
@@ -438,6 +482,7 @@ def contact_sheet(made, theme, per_row=9, cell=118):
     perfectly against the dark ground they were authored on, which is how one
     survived several rounds of review here."""
     from PIL import Image, ImageDraw
+
     pad, gutter, label_h = 22, 8, 17
     w = pad * 2 + per_row * cell
     h = pad * 2 + len(made) * (cell + label_h + gutter)
@@ -456,8 +501,7 @@ def contact_sheet(made, theme, per_row=9, cell=118):
     return f"{out.relative_to(ROOT)}  {len(made)} chains"
 
 
-def build_reel(theme, cell, fps, blur, ss, blink, jobs,
-               hold_ends=0.56, ease_ends=0.34):
+def build_reel(theme, cell, fps, blur, ss, blink, jobs, hold_ends=0.56, ease_ends=0.34):
     """Every chain end to end, labelled, as one flattened video for review.
 
     Each clip is bracketed by a hold on its first and last frame: reviewing a
@@ -486,9 +530,9 @@ def build_reel(theme, cell, fps, blur, ss, blink, jobs,
 
     jobs_list = []
     for slug, c in CHAINS.items():
-        fr = timeline(c["seq"], fps * blur, c.get("hold", 0.5),
-                      c.get("trans", 0.38), blink, c.get("jitter", 0.0),
-                      c.get("roll"))
+        fr = timeline(
+            c["seq"], fps * blur, c.get("hold", 0.5), c.get("trans", 0.38), blink, c.get("jitter", 0.0), c.get("roll")
+        )
         lead = [lerp(home, fr[0], ease(i / ease_n)) for i in range(ease_n)]
         tail = [lerp(fr[-1], home, ease(i / ease_n)) for i in range(1, ease_n + 1)]
         fr = lead + [fr[0]] * pad_n + fr + [fr[-1]] * pad_n + tail
@@ -506,8 +550,7 @@ def build_reel(theme, cell, fps, blur, ss, blink, jobs,
         out = out_dir / f"u_{abs(hash(k)) % 10**9:09d}.png"
         render_alpha(reel_html(fr, theme, cell, slug), out, cell, reel_h(cell), ss)
         if ss != 1:
-            Image.open(out).convert("RGB").resize(
-                (cell, reel_h(cell)), Image.LANCZOS).save(out)
+            Image.open(out).convert("RGB").resize((cell, reel_h(cell)), Image.LANCZOS).save(out)
         return k, out
 
     cache = {}
@@ -523,36 +566,61 @@ def build_reel(theme, cell, fps, blur, ss, blink, jobs,
     files = sorted(out_dir.glob("r_*.png"))
     for k in range(len(files) // blur):
         group = [Image.open(files[k * blur + j]).convert("RGBA") for j in range(blur)]
-        (group[0] if blur == 1 else merge(group)).convert("RGB").save(
-            out_dir / f"f_{k:05d}.png")
+        (group[0] if blur == 1 else merge(group)).convert("RGB").save(out_dir / f"f_{k:05d}.png")
     for f in files:
         f.unlink()
 
     out = OUT / f"reel{'' if theme == 'noir' else '-newsprint'}.mp4"
-    subprocess.run([shutil.which("ffmpeg"), "-y", "-framerate", str(fps),
-                    "-i", str(out_dir / "f_%05d.png"),
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "17",
-                    str(out)], check=True, capture_output=True)
+    subprocess.run(
+        [
+            shutil.which("ffmpeg"),
+            "-y",
+            "-framerate",
+            str(fps),
+            "-i",
+            str(out_dir / "f_%05d.png"),
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-crf",
+            "17",
+            str(out),
+        ],
+        check=True,
+        capture_output=True,
+    )
     shutil.rmtree(out_dir)
     return out, len(files) // blur
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("chain", nargs="*", help="expressions in order, or a named chain")
     ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--hold", type=float, default=0.5, help="seconds on each expression")
     ap.add_argument("--trans", type=float, default=0.38, help="seconds between them")
-    ap.add_argument("--size", type=int, default=1080,
-                    help="frame size, square. Match the timeline, or it gets "
-                         "upscaled and the antialiasing turns to stair-steps")
-    ap.add_argument("--blur", type=int, default=3,
-                    help="sub-frames averaged per output frame. 1 disables it, "
-                         "and the edges then crawl as each frame antialiases "
-                         "independently of the last")
-    ap.add_argument("--ss", type=int, default=2, choices=[1, 2, 3],
-                    help="spatial supersample. Costs a lot at 1080 because the grid shrinks to 3x3 a launch; worth it for a hero asset, not a batch")
+    ap.add_argument(
+        "--size",
+        type=int,
+        default=1080,
+        help="frame size, square. Match the timeline, or it gets upscaled and the antialiasing turns to stair-steps",
+    )
+    ap.add_argument(
+        "--blur",
+        type=int,
+        default=3,
+        help="sub-frames averaged per output frame. 1 disables it, "
+        "and the edges then crawl as each frame antialiases "
+        "independently of the last",
+    )
+    ap.add_argument(
+        "--ss",
+        type=int,
+        default=2,
+        choices=[1, 2, 3],
+        help="spatial supersample. Costs a lot at 1080 because the grid shrinks to 3x3 a launch; worth it for a hero asset, not a batch",
+    )
     ap.add_argument("--blink", action="store_true", help="blink through each change")
     # Off by default, unlike every other asset here. The glow is a
     # background-dependent effect: against noir it reads as the mark catching
@@ -560,26 +628,22 @@ def main():
     # translucent amber cloud reaching ~48px past the mark and covering 39% of
     # the frame in partial alpha. Over footage that is an unmotivated halo.
     # Opt in for a composite you know sits on the theme background.
-    ap.add_argument("--glow", action="store_true",
-                    help="amber bloom — only for frames that will sit on the theme background")
+    ap.add_argument(
+        "--glow", action="store_true", help="amber bloom — only for frames that will sit on the theme background"
+    )
     ap.add_argument("--newsprint", action="store_true")
     ap.add_argument("--format", choices=["mov", "webm", "mp4", "none"], default="mov")
     ap.add_argument("--all", action="store_true", help="render every named chain")
-    ap.add_argument("--contact", action="store_true",
-                    help="one filmstrip row per chain, for reviewing a batch")
-    ap.add_argument("--reel", action="store_true",
-                    help="every chain end to end, labelled, as one video for review")
-    ap.add_argument("--jobs", type=int, default=8,
-                    help="parallel Chrome launches")
+    ap.add_argument("--contact", action="store_true", help="one filmstrip row per chain, for reviewing a batch")
+    ap.add_argument("--reel", action="store_true", help="every chain end to end, labelled, as one video for review")
+    ap.add_argument("--jobs", type=int, default=8, help="parallel Chrome launches")
     ap.add_argument("--list-chains", action="store_true")
     a = ap.parse_args()
 
     if a.reel:
         theme = "newsprint" if a.newsprint else "noir"
-        out, n = build_reel(theme, a.size, a.fps, a.blur, a.ss,
-                            a.blink, a.jobs)
-        print(f"{out.relative_to(ROOT)}  {n} frames  {n/a.fps:.1f}s  "
-              f"{len(CHAINS)} chains")
+        out, n = build_reel(theme, a.size, a.fps, a.blur, a.ss, a.blink, a.jobs)
+        print(f"{out.relative_to(ROOT)}  {n} frames  {n / a.fps:.1f}s  {len(CHAINS)} chains")
         return 0
 
     if a.list_chains or not (a.chain or a.all):
@@ -598,8 +662,7 @@ def main():
         jobs = [(a.chain[0], CHAINS[a.chain[0]])]
     else:
         jobs = [("-".join(a.chain), dict(seq=list(a.chain)))]
-    bad = sorted({x for _, c in jobs for x in c["seq"]
-                  if isinstance(x, str) and x not in EXPRESSIONS})
+    bad = sorted({x for _, c in jobs for x in c["seq"] if isinstance(x, str) and x not in EXPRESSIONS})
     if bad:
         print(f"unknown expression: {', '.join(bad)}", file=sys.stderr)
         return 2
@@ -616,25 +679,22 @@ def main():
         # Sub-frames are just a timeline at blur x the rate; averaging groups
         # of `blur` back down is what turns per-frame antialiasing into motion
         # blur, and with it the edge crawl into smooth movement.
-        frames = timeline(chain, a.fps * a.blur, hold, trans, a.blink, jit,
-                          conf.get('roll'))
+        frames = timeline(chain, a.fps * a.blur, hold, trans, a.blink, jit, conf.get("roll"))
 
         d = OUT / f"{slug}{suffix}"
         if d.exists():
             shutil.rmtree(d)
         (d / "frames").mkdir(parents=True)
 
-        n = render_frames(frames, theme, a.size, a.glow, a.ss,
-                          d / "frames", d / "_grid.png", a.blur, a.jobs)
+        n = render_frames(frames, theme, a.size, a.glow, a.ss, d / "frames", d / "_grid.png", a.blur, a.jobs)
         made.append((slug, d, n))
 
-        line = (f"{d.relative_to(ROOT)}/frames/  {n} frames  "
-                f"{a.size}x{a.size}  {a.fps}fps  {n/a.fps:.2f}s  alpha"
-                + (f"  blur x{a.blur}" if a.blur > 1 else ""))
+        line = f"{d.relative_to(ROOT)}/frames/  {n} frames  {a.size}x{a.size}  {a.fps}fps  {n / a.fps:.2f}s  alpha" + (
+            f"  blur x{a.blur}" if a.blur > 1 else ""
+        )
         if a.format != "none":
             out, err = encode(d / "frames", n, a.fps, a.format, slug)
-            line += (f"\n  {out.relative_to(ROOT)}  {out.stat().st_size:,} bytes"
-                     if out else f"\n  {err}")
+            line += f"\n  {out.relative_to(ROOT)}  {out.stat().st_size:,} bytes" if out else f"\n  {err}"
         print(line)
 
     if a.contact:

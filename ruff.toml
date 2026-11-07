@@ -43,8 +43,3 @@ ignore = [
 [lint.flake8-tidy-imports.banned-api]
 "sys.path".msg = "A script already finds its neighbours; engine/ and tools/ share module names. Load by file instead."
 
-[format]
-# The engine is formatted. The media pipeline in tools/ is not yet: running
-# the formatter over it is a 7,000-line diff that wants its own PR, and that PR
-# deletes this exclusion.
-exclude = ["tools/**"]

@@ -72,13 +72,13 @@ from eplib import (
     write_srt,
 )
 
-CUE = {"sting": "01-sting.wav", "bed": "bed-loop.wav", "button": "04-button.wav",
-       "outro": "02-outro.wav"}
-XF_IN, XF_END = 0.6, 1.0        # crossfades: card -> two-up, two-up -> end card
-OUTRO_GAP = 0.5                 # silence between the last word and the outro
+CUE = {"sting": "01-sting.wav", "bed": "bed-loop.wav", "button": "04-button.wav", "outro": "02-outro.wav"}
+XF_IN, XF_END = 0.6, 1.0  # crossfades: card -> two-up, two-up -> end card
+OUTRO_GAP = 0.5  # silence between the last word and the outro
 
 
 # ── audio helpers ─────────────────────────────────────────────────────────────
+
 
 def load_mono(path):
     x, r = sf.read(str(path), dtype="float64", always_2d=True)
@@ -98,6 +98,7 @@ def load_stereo(path):
 
 def highpass(x, hz=80.0):
     from scipy.signal import butter, sosfiltfilt
+
     return sosfiltfilt(butter(2, hz, "hp", fs=RATE, output="sos"), x)
 
 
@@ -110,10 +111,10 @@ def sound_intervals(track, ivs, min_len=0.25, below=10.0):
     env = 20 * np.log10(np.sqrt((track[:n].reshape(-1, hop) ** 2).mean(1)) + 1e-9)
     inw = np.zeros(len(env), dtype=bool)
     for a, b in ivs:
-        inw[max(0, int(a * 100)):int(b * 100) + 1] = True
+        inw[max(0, int(a * 100)) : int(b * 100) + 1] = True
     if not inw.any():
         return []
-    peaks = [env[max(0, int(a * 100)):int(b * 100) + 1].max() for a, b in ivs if int(b * 100) + 1 > int(a * 100)]
+    peaks = [env[max(0, int(a * 100)) : int(b * 100) + 1].max() for a, b in ivs if int(b * 100) + 1 > int(a * 100)]
     level = float(np.percentile(peaks, 30)) - below
     loud = np.append((env > level) & ~inw, False)
     out, start = [], None
@@ -141,6 +142,7 @@ def gate_envelope(n, intervals, floor_db, pre=0.2, post=0.35, ramp=0.15):
     """1 inside speech (widened by pre/post), floor outside, smooth edges.
     Built from the words, so it opens for speech and nothing else."""
     from scipy.ndimage import uniform_filter1d
+
     mask = np.zeros(n, dtype=np.float64)
     for a, b in intervals:
         i0, i1 = max(0, int((a - pre) * RATE)), min(n, int((b + post) * RATE))
@@ -168,7 +170,7 @@ def add(mix, clip, at):
     i0 = int(round(at * RATE))
     i1 = min(len(mix), i0 + len(clip))
     if i1 > i0:
-        mix[i0:i1] += clip[:i1 - i0]
+        mix[i0:i1] += clip[: i1 - i0]
 
 
 def measured(path, label, qc):
@@ -178,6 +180,7 @@ def measured(path, label, qc):
 
 
 # ── stages ────────────────────────────────────────────────────────────────────
+
 
 def dialogue_bus(d, m, words, args, qc):
     """Per-speaker gate, match, sum, and a plain gain to the target. Returns
@@ -207,8 +210,8 @@ def dialogue_bus(d, m, words, args, qc):
         x = highpass(x, args.highpass)
         off = int(round(p["offset"] * RATE))
         track = np.zeros(n)
-        seg = x[:max(0, n - off)]
-        track[off:off + len(seg)] = seg
+        seg = x[: max(0, n - off)]
+        track[off : off + len(seg)] = seg
         mine = [w for w in words if w["spk"] == p["short"]]
         ivs = speech_intervals(mine, merge_gap=0.5)
         extra = sound_intervals(track, ivs)
@@ -220,37 +223,59 @@ def dialogue_bus(d, m, words, args, qc):
         if meas is None:
             die(f"{p['short']}: nothing measurable on the gated track")
         gain = 10 ** ((args.speaker_lufs - meas["lufs"]) / 20)
-        qc[f"speaker_{p['short']}"] = {"gated_lufs": meas["lufs"], "gain_db": round(20 * math.log10(gain), 2),
-                                       "speech_seconds": round(sum(b - a for a, b in ivs), 1)}
-        print(f"  {p['short']:<8} gated {meas['lufs']:6.1f} LUFS -> {args.speaker_lufs} "
-              f"({20*math.log10(gain):+.1f} dB), speaks {qc[f'speaker_{p['short']}']['speech_seconds']:.0f}s, "
-              f"{len(extra)} sounds with no word kept open")
+        qc[f"speaker_{p['short']}"] = {
+            "gated_lufs": meas["lufs"],
+            "gain_db": round(20 * math.log10(gain), 2),
+            "speech_seconds": round(sum(b - a for a, b in ivs), 1),
+        }
+        print(
+            f"  {p['short']:<8} gated {meas['lufs']:6.1f} LUFS -> {args.speaker_lufs} "
+            f"({20 * math.log10(gain):+.1f} dB), speaks {qc[f'speaker_{p["short"]}']['speech_seconds']:.0f}s, "
+            f"{len(extra)} sounds with no word kept open"
+        )
         bus += track * gain
         tmp.unlink()
     raw = mix_dir / "dialogue-raw.wav"
     sf.write(raw, bus.astype(np.float32), RATE, subtype="FLOAT")
     meas = level_to(raw, norm, args.target)
     qc["dialogue_bus"] = meas
-    save_json(mix_dir / "dialogue.json",
-              {**{k: v for k, v in qc.items() if k == "dialogue_bus" or k.startswith("speaker_")},
-               "signature": sig})
+    save_json(
+        mix_dir / "dialogue.json",
+        {**{k: v for k, v in qc.items() if k == "dialogue_bus" or k.startswith("speaker_")}, "signature": sig},
+    )
     print(f"  dialogue bus {meas['lufs']:.1f} LUFS, peaks to {meas['tp']:.1f} dBTP, uncontrolled until the cut")
     return norm
 
 
 def bus_signature(m, args):
     """What the dialogue bus is a function of, besides the edit."""
-    return {"tracks": [[p["short"], p["audio"]["file"], p["audio"]["duration"], p["offset"]]
-                       for p in m["participants"]],
-            "duration": m["duration"], "highpass": args.highpass, "gate_db": args.gate_db,
-            "speaker_lufs": args.speaker_lufs, "target": args.target}
+    return {
+        "tracks": [[p["short"], p["audio"]["file"], p["audio"]["duration"], p["offset"]] for p in m["participants"]],
+        "duration": m["duration"],
+        "highpass": args.highpass,
+        "gate_db": args.gate_db,
+        "speaker_lufs": args.speaker_lufs,
+        "target": args.target,
+    }
 
 
 def twoup_signature(m, args):
     """What the two-up picture is a function of."""
-    return {"tracks": [[p["short"], p["video"]["file"], p["video"]["duration"], p["offset"],
-                        (p.get("layout") or {}).get("centre", 0)] for p in m["participants"]],
-            "fps": m["fps"], "duration": m["duration"], "fast": bool(args.fast)}
+    return {
+        "tracks": [
+            [
+                p["short"],
+                p["video"]["file"],
+                p["video"]["duration"],
+                p["offset"],
+                (p.get("layout") or {}).get("centre", 0),
+            ]
+            for p in m["participants"]
+        ],
+        "fps": m["fps"],
+        "duration": m["duration"],
+        "fast": bool(args.fast),
+    }
 
 
 def what_changed(old, new):
@@ -261,7 +286,8 @@ def what_changed(old, new):
         offs = [(t[0], t[3]) for t in new["tracks"]]
         was = {t[0]: t[3] for t in old.get("tracks", []) if len(t) > 3}
         if any(was.get(k) != v for k, v in offs) and all(
-                t[1:3] == o[1:3] for t, o in zip(new["tracks"], old.get("tracks", []))):
+            t[1:3] == o[1:3] for t, o in zip(new["tracks"], old.get("tracks", []))
+        ):
             return "offsets changed, " + ", ".join(f"{k} {was.get(k)} -> {v}" for k, v in offs if was.get(k) != v)
     return "changed: " + ", ".join(diff)
 
@@ -288,7 +314,7 @@ def music_and_mix(d, edl, dialogue, args, qc):
     if not args.no_bed:
         loop = cues["bed"]
         reps = int(math.ceil((args.bed_out - args.bed_in) / (len(loop) / RATE))) + 1
-        bed = np.tile(loop, (reps, 1))[:int((args.bed_out - args.bed_in) * RATE)].copy()
+        bed = np.tile(loop, (reps, 1))[: int((args.bed_out - args.bed_in) * RATE)].copy()
         bed *= 10 ** (args.bed_gain / 20)
         fade(bed, 0.5, True)
         fade(bed, args.bed_fade, False)
@@ -296,7 +322,7 @@ def music_and_mix(d, edl, dialogue, args, qc):
     buttons = []
     for it in edl["items"]:
         if it["type"] == "card":
-            b = cues["button"][:int(it["dur"] * RATE)].copy()
+            b = cues["button"][: int(it["dur"] * RATE)].copy()
             fade(b, 0.25, False)
             add(mix, b, din + it["out"])
             buttons.append(round(din + it["out"], 3))
@@ -310,12 +336,18 @@ def music_and_mix(d, edl, dialogue, args, qc):
     wav = out / (f"variant-{args.tag}.wav" if getattr(args, "tag", None) else "episode.wav")
     meas = normalise(full, wav, args.target, args.tp, limiter=True)
     qc["episode_wav"] = meas
-    timings = {"dialogue_in": din, "dialogue_len": round(dlen, 3),
-               "outro_start": round(outro_start, 3), "total": round(total, 3),
-               "buttons": buttons, "bed": None if args.no_bed else
-               {"in": args.bed_in, "out": args.bed_out, "fade": args.bed_fade}}
-    print(f"  mix {meas['lufs']:.1f} LUFS, {meas['tp']:.1f} dBTP, {total:.1f}s "
-          f"(dialogue in at {din}s, outro at {outro_start:.1f}s)")
+    timings = {
+        "dialogue_in": din,
+        "dialogue_len": round(dlen, 3),
+        "outro_start": round(outro_start, 3),
+        "total": round(total, 3),
+        "buttons": buttons,
+        "bed": None if args.no_bed else {"in": args.bed_in, "out": args.bed_out, "fade": args.bed_fade},
+    }
+    print(
+        f"  mix {meas['lufs']:.1f} LUFS, {meas['tp']:.1f} dBTP, {total:.1f}s "
+        f"(dialogue in at {din}s, outro at {outro_start:.1f}s)"
+    )
     return wav, timings
 
 
@@ -323,14 +355,21 @@ def ffmetadata(chapters, total, path, title):
     lines = [";FFMETADATA1", f"title={title}", "artist=AgentSee", ""]
     for i, c in enumerate(chapters):
         end = chapters[i + 1]["t"] if i + 1 < len(chapters) else total
-        lines += ["[CHAPTER]", "TIMEBASE=1/1000", f"START={int(c['t'] * 1000)}",
-                  f"END={int(end * 1000)}", f"title={c['title']}", ""]
+        lines += [
+            "[CHAPTER]",
+            "TIMEBASE=1/1000",
+            f"START={int(c['t'] * 1000)}",
+            f"END={int(end * 1000)}",
+            f"title={c['title']}",
+            "",
+        ]
     path.write_text("\n".join(lines))
     return path
 
 
 def cover_jpeg(path):
     from PIL import Image
+
     src = ROOT / "public/assets/brand/show-cover.png"
     Image.open(src).convert("RGB").resize((1400, 1400), Image.LANCZOS).save(path, quality=90)
     return path
@@ -340,14 +379,52 @@ def mp3(d, wav, meta, cfg, chapters_path, qc):
     out = d / "out" / "episode.mp3"
     cover = cover_jpeg(d / "mix" / "cover.jpg")
     year = (cfg.get("date") or dt.date.today().isoformat())[:4]
-    run(["ffmpeg", "-nostdin", "-y", "-i", wav, "-i", cover, "-i", chapters_path,
-         "-map", "0:a", "-map", "1:v", "-map_metadata", "2", "-map_chapters", "2",
-         "-c:a", "libmp3lame", "-b:a", "192k", "-id3v2_version", "3",
-         "-metadata", f"title={meta['title']}", "-metadata", "artist=AgentSee",
-         "-metadata", f"album={show_name()}", "-metadata", f"track={cfg.get('number', '')}",
-         "-metadata", f"date={year}", "-metadata", "genre=Podcast",
-         "-c:v", "copy", "-metadata:s:v", "title=Album cover",
-         "-metadata:s:v", "comment=Cover (front)", out])
+    run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-y",
+            "-i",
+            wav,
+            "-i",
+            cover,
+            "-i",
+            chapters_path,
+            "-map",
+            "0:a",
+            "-map",
+            "1:v",
+            "-map_metadata",
+            "2",
+            "-map_chapters",
+            "2",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "192k",
+            "-id3v2_version",
+            "3",
+            "-metadata",
+            f"title={meta['title']}",
+            "-metadata",
+            "artist=AgentSee",
+            "-metadata",
+            f"album={show_name()}",
+            "-metadata",
+            f"track={cfg.get('number', '')}",
+            "-metadata",
+            f"date={year}",
+            "-metadata",
+            "genre=Podcast",
+            "-c:v",
+            "copy",
+            "-metadata:s:v",
+            "title=Album cover",
+            "-metadata:s:v",
+            "comment=Cover (front)",
+            out,
+        ]
+    )
     qc["episode_mp3"] = measure(out)
     r = run(["ffprobe", "-v", "error", "-show_chapters", "-of", "csv=p=0", out])
     qc["mp3_chapters"] = len([ln for ln in r.stdout.splitlines() if ln.strip()])
@@ -356,6 +433,7 @@ def mp3(d, wav, meta, cfg, chapters_path, qc):
 
 def chapter_cards(d, edl, theme):
     from cards import static
+
     made = []
     for it in edl["items"]:
         if it["type"] == "card":
@@ -377,8 +455,7 @@ def two_up(d, m, args):
         if cached == sig:
             return out
         print("  two-up rebuilt: " + what_changed(cached, sig))
-    parts = sorted(m["participants"],
-                   key=lambda p: (p.get("layout") or {}).get("centre", 0))
+    parts = sorted(m["participants"], key=lambda p: (p.get("layout") or {}).get("centre", 0))
     n = len(parts)
     pw, ph = 1920 // n, 1080
     cmd = ["ffmpeg", "-nostdin", "-y"]
@@ -389,13 +466,24 @@ def two_up(d, m, args):
         # centre crop to the panel's aspect, then scale to the panel
         cw = min(w, int(h * pw / ph))
         ch = min(h, int(w * ph / pw))
-        filt.append(f"[{i}:v]tpad=start_duration={p['offset']},"
-                    f"crop={cw}:{ch}:(iw-{cw})/2:(ih-{ch})/2,"
-                    f"scale={pw}:{ph}:flags=lanczos,setsar=1,fps={m['fps']}[p{i}]")
-    filt.append("".join(f"[p{i}]" for i in range(n)) +
-                (f"hstack=inputs={n}[v]" if n > 1 else "null[v]"))
-    cmd += ["-filter_complex", ";".join(filt), "-map", "[v]", "-t", m["duration"],
-            *video_codec(args.fast, args.cpu_encode, final=False), "-pix_fmt", "yuv420p", out]
+        filt.append(
+            f"[{i}:v]tpad=start_duration={p['offset']},"
+            f"crop={cw}:{ch}:(iw-{cw})/2:(ih-{ch})/2,"
+            f"scale={pw}:{ph}:flags=lanczos,setsar=1,fps={m['fps']}[p{i}]"
+        )
+    filt.append("".join(f"[p{i}]" for i in range(n)) + (f"hstack=inputs={n}[v]" if n > 1 else "null[v]"))
+    cmd += [
+        "-filter_complex",
+        ";".join(filt),
+        "-map",
+        "[v]",
+        "-t",
+        m["duration"],
+        *video_codec(args.fast, args.cpu_encode, final=False),
+        "-pix_fmt",
+        "yuv420p",
+        out,
+    ]
     run(cmd)
     save_json(side, sig)
     return out
@@ -432,7 +520,7 @@ def episode_video(d, edl, twoup, wav, timings, chapters_path, args, m, out=None,
     fps = m["fps"]
     din, total, outro = timings["dialogue_in"], timings["total"], timings["outro_start"]
     if limit:
-        total = min(total, limit)   # a bounded render, for checks
+        total = min(total, limit)  # a bounded render, for checks
     pad = OUTRO_GAP + XF_END
     cmd = ["ffmpeg", "-nostdin", "-y", "-i", title, "-i", end, "-i", wav, "-i", chapters_path]
     filt, labels = [], []
@@ -462,31 +550,58 @@ def episode_video(d, edl, twoup, wav, timings, chapters_path, args, m, out=None,
             first = g[0][0]
             last = g[-1][0] + g[-1][1] - 1
             # half a frame early, so the first frame decoded is `first` exactly
-            cmd += ["-ss", f"{(first - 0.5) / fps:.6f}" if first else "0",
-                    "-t", f"{(last - first + 1.5) / fps:.6f}", "-i", twoup]
+            cmd += [
+                "-ss",
+                f"{(first - 0.5) / fps:.6f}" if first else "0",
+                "-t",
+                f"{(last - first + 1.5) / fps:.6f}",
+                "-i",
+                twoup,
+            ]
             expr = "+".join(f"between(n,{sf_ - first},{sf_ + nf - 1 - first})" for sf_, nf in g)
             total_frames = sum(nf for _, nf in g)
-            filt.append(f"[{k}:v]select='{expr}',setpts=N/FRAME_RATE/TB,"
-                        f"trim=end_frame={total_frames}[s{i}]")
+            filt.append(f"[{k}:v]select='{expr}',setpts=N/FRAME_RATE/TB,trim=end_frame={total_frames}[s{i}]")
         else:
             it, nf = g
-            cmd += ["-loop", "1", "-framerate", str(fps), "-t", str(it["dur"]),
-                    "-i", cards / f"{it['name']}.png"]
-            filt.append(f"[{k}:v]format=yuv420p,setsar=1,trim=start_frame=0:end_frame={nf},"
-                        f"setpts=PTS-STARTPTS[s{i}]")
+            cmd += ["-loop", "1", "-framerate", str(fps), "-t", str(it["dur"]), "-i", cards / f"{it['name']}.png"]
+            filt.append(f"[{k}:v]format=yuv420p,setsar=1,trim=start_frame=0:end_frame={nf},setpts=PTS-STARTPTS[s{i}]")
         k += 1
         labels.append(f"[s{i}]")
     # one timebase and format for the three streams xfade sees
-    filt.append("".join(labels) + f"concat=n={len(labels)}:v=1:a=0,format=yuv420p,fps={fps},"
-                f"tpad=stop_mode=clone:stop_duration={pad}[cut]")
+    filt.append(
+        "".join(labels) + f"concat=n={len(labels)}:v=1:a=0,format=yuv420p,fps={fps},"
+        f"tpad=stop_mode=clone:stop_duration={pad}[cut]"
+    )
     filt.append(f"[0:v]format=yuv420p,fps={fps}[title]")
     filt.append(f"[1:v]format=yuv420p,fps={fps}[end]")
     filt.append(f"[title][cut]xfade=transition=fade:duration={XF_IN}:offset={din}[a]")
     filt.append(f"[a][end]xfade=transition=fade:duration={XF_END}:offset={outro}[v]")
-    cmd += ["-filter_complex", ";".join(filt), "-map", "[v]", "-map", "2:a",
-            "-map_metadata", "3", "-map_chapters", "3",
-            *video_codec(args.fast, args.cpu_encode), "-pix_fmt", "yuv420p", "-r", str(fps),
-            "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-t", total, out]
+    cmd += [
+        "-filter_complex",
+        ";".join(filt),
+        "-map",
+        "[v]",
+        "-map",
+        "2:a",
+        "-map_metadata",
+        "3",
+        "-map_chapters",
+        "3",
+        *video_codec(args.fast, args.cpu_encode),
+        "-pix_fmt",
+        "yuv420p",
+        "-r",
+        str(fps),
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-movflags",
+        "+faststart",
+        "-t",
+        total,
+        out,
+    ]
     run(cmd)
     return out
 
@@ -501,22 +616,35 @@ def src_to_out_safe(edl, t, shift):
 
 
 def contact(video, out):
-    info = run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                "-of", "csv=p=0", video]).stdout.strip()
+    info = run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", video]).stdout.strip()
     dur = float(info)
-    run(["ffmpeg", "-nostdin", "-y", "-i", video,
-         "-vf", f"fps=8/{dur:.3f},scale=480:-1,tile=4x2", "-frames:v", "1", out])
+    run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-y",
+            "-i",
+            video,
+            "-vf",
+            f"fps=8/{dur:.3f},scale=480:-1,tile=4x2",
+            "-frames:v",
+            "1",
+            out,
+        ]
+    )
     return out
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slug")
     ap.add_argument("--audio-only", action="store_true")
     ap.add_argument("--video-only", action="store_true", help="reuse out/episode.wav")
-    ap.add_argument("--text-only", action="store_true",
-                    help="only captions, transcript, chapters and thumbnail, from the last render")
+    ap.add_argument(
+        "--text-only",
+        action="store_true",
+        help="only captions, transcript, chapters and thumbnail, from the last render",
+    )
     ap.add_argument("--edl", help="an edit list other than edl.json")
     ap.add_argument("--tag", help="a variant: audio only, to out/variants/<tag>.mp3, nothing else touched")
     ap.add_argument("--fast", action="store_true", help="fast, lower-quality encodes")
@@ -564,6 +692,7 @@ def main():
         # levelled and limited now, on the cut, so the compressor's state
         # runs on across every join
         import soundfile as sf
+
         suffix = f"-{a.tag}" if a.tag else ""
         cut_raw = d / "mix" / f"dialogue-cut-raw{suffix}.wav"
         cut_norm = d / "mix" / f"dialogue-cut{suffix}.wav"
@@ -571,8 +700,10 @@ def main():
         qc["dialogue"] = normalise(cut_raw, cut_norm, a.target, a.tp, limiter=True, compress=True)
         cut_raw.unlink(missing_ok=True)
         dialogue = load_mono(cut_norm)
-        print(f"  cut dialogue {qc['dialogue']['lufs']:.1f} LUFS, {qc['dialogue']['tp']:.1f} dBTP, "
-              f"range {qc['dialogue']['lra']:.1f} LU")
+        print(
+            f"  cut dialogue {qc['dialogue']['lufs']:.1f} LUFS, {qc['dialogue']['tp']:.1f} dBTP, "
+            f"range {qc['dialogue']['lra']:.1f} LU"
+        )
         print("mix")
         wav, timings = music_and_mix(d, edl, dialogue, a, qc)
     din = timings["dialogue_in"]
@@ -586,41 +717,88 @@ def main():
         chapters_v.append({"title": "Outro", "t": timings["outro_start"]})
         ffm = ffmetadata(chapters_v, timings["total"], d / "mix" / f"chapters-{a.tag}.ffmeta", f"{title} [{a.tag}]")
         cover = cover_jpeg(d / "mix" / "cover.jpg")
-        run(["ffmpeg", "-nostdin", "-y", "-i", wav, "-i", cover, "-i", ffm, "-map", "0:a", "-map", "1:v",
-             "-map_metadata", "2", "-map_chapters", "2", "-c:a", "libmp3lame", "-b:a", "192k",
-             "-id3v2_version", "3", "-metadata", f"title={title} [{a.tag}]", "-metadata", "artist=AgentSee",
-             "-c:v", "copy", "-metadata:s:v", "title=Album cover", mp3_path])
+        run(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-y",
+                "-i",
+                wav,
+                "-i",
+                cover,
+                "-i",
+                ffm,
+                "-map",
+                "0:a",
+                "-map",
+                "1:v",
+                "-map_metadata",
+                "2",
+                "-map_chapters",
+                "2",
+                "-c:a",
+                "libmp3lame",
+                "-b:a",
+                "192k",
+                "-id3v2_version",
+                "3",
+                "-metadata",
+                f"title={title} [{a.tag}]",
+                "-metadata",
+                "artist=AgentSee",
+                "-c:v",
+                "copy",
+                "-metadata:s:v",
+                "title=Album cover",
+                mp3_path,
+            ]
+        )
         got = measure(mp3_path)
         words_kept = len(map_words(edl, words["words"], shift=din))
-        report = {"tag": a.tag, "params": edl["params"], "stats": edl["stats"],
-                  "duration": round(timings["total"], 2), "dialogue_seconds": round(edl["duration"], 2),
-                  "removed_seconds": edl["removed_seconds"], "cuts": len(edl["removed"]),
-                  "words_kept": words_kept, "words_total": len(words["words"]),
-                  "lufs": got["lufs"] if got else None}
+        report = {
+            "tag": a.tag,
+            "params": edl["params"],
+            "stats": edl["stats"],
+            "duration": round(timings["total"], 2),
+            "dialogue_seconds": round(edl["duration"], 2),
+            "removed_seconds": edl["removed_seconds"],
+            "cuts": len(edl["removed"]),
+            "words_kept": words_kept,
+            "words_total": len(words["words"]),
+            "lufs": got["lufs"] if got else None,
+        }
         save_json(vdir / f"{a.tag}.json", report)
         src_edl = pathlib.Path(a.edl) if a.edl else d / "edl.json"
         if src_edl.resolve() != (vdir / f"{a.tag}.edl.json").resolve():
             shutil.copyfile(src_edl, vdir / f"{a.tag}.edl.json")
-        lines = [f"{a.tag}: {report['duration']}s, {report['cuts']} cuts, {report['removed_seconds']}s removed, "
-                 f"params {edl['params']}", ""]
+        lines = [
+            f"{a.tag}: {report['duration']}s, {report['cuts']} cuts, {report['removed_seconds']}s removed, "
+            f"params {edl['params']}",
+            "",
+        ]
         for r in edl["removed"]:
             ws_ = " ".join(w["w"] for w in words["words"] if w["t0"] < r["t1"] and w["t1"] > r["t0"])
             o = src_to_out_safe(edl, r["t0"], din)
-            lines.append(f"  at {hms(o, False) if o is not None else '--:--:--'}  cut {r['t1'] - r['t0']:.2f}s  {r['why']:8}  {ws_}")
+            lines.append(
+                f"  at {hms(o, False) if o is not None else '--:--:--'}  cut {r['t1'] - r['t0']:.2f}s  {r['why']:8}  {ws_}"
+            )
         (vdir / f"{a.tag}.txt").write_text("\n".join(lines) + "\n")
         wav.unlink(missing_ok=True)
         (d / "mix" / f"full-raw-{a.tag}.wav").unlink(missing_ok=True)
-        print(f"{mp3_path.relative_to(ROOT)}  {report['duration']}s  {report['cuts']} cuts  "
-              f"{report['removed_seconds']}s removed  {got['lufs'] if got else '?'} LUFS")
+        print(
+            f"{mp3_path.relative_to(ROOT)}  {report['duration']}s  {report['cuts']} cuts  "
+            f"{report['removed_seconds']}s removed  {got['lufs'] if got else '?'} LUFS"
+        )
         return 0
 
     # chapters, in output time: the title chapter at 0, cards at their time, outro last
     chapters = [{"title": edl["chapters"][0]["title"] if edl["chapters"] else title, "t": 0.0}]
     chapters += [{"title": c["title"], "t": round(din + c["out"], 3)} for c in edl["chapters"][1:]]
     chapters.append({"title": "Outro", "t": timings["outro_start"]})
-    (out / "chapters.txt").write_text("\n".join(
-        f"{hms(c['t'], False)[3:] if c['t'] < 3600 else hms(c['t'], False)} {c['title']}"
-        for c in chapters) + "\n")
+    (out / "chapters.txt").write_text(
+        "\n".join(f"{hms(c['t'], False)[3:] if c['t'] < 3600 else hms(c['t'], False)} {c['title']}" for c in chapters)
+        + "\n"
+    )
     chapters_path = ffmetadata(chapters, timings["total"], d / "mix" / "chapters.ffmeta", title)
 
     if a.text_only:
@@ -641,9 +819,12 @@ def main():
             cur["words"].append(w["w"])
             cur["t1"] = w["t1"]
     names = words.get("speakers", {})
-    (out / "transcript.txt").write_text("\n".join(
-        f"[{hms(t['t0'], False)}] {names.get(t['spk'], t['spk'])}: {cap_first(' '.join(t['words']))}\n"
-        for t in turns))
+    (out / "transcript.txt").write_text(
+        "\n".join(
+            f"[{hms(t['t0'], False)}] {names.get(t['spk'], t['spk'])}: {cap_first(' '.join(t['words']))}\n"
+            for t in turns
+        )
+    )
     qc["captions"] = len(caption_cues(mapped))
     qc["words_kept"] = len(mapped)
     qc["words_total"] = len(words["words"])
@@ -651,6 +832,7 @@ def main():
     # thumbnail
     from banner import render
     from show import build
+
     html, w, h = build("thumbnail", theme, cfg.get("thumb") or title, None)
     render(html, out / "thumbnail.png", w, h)
 
@@ -665,23 +847,20 @@ def main():
         (d / "mix" / "cut.mp4").unlink(missing_ok=True)
         video = episode_video(d, edl, twoup, wav, timings, chapters_path, a, m)
         qc["episode_mp4"] = measure(video)
-        qc["episode_mp4_duration"] = float(run(["ffprobe", "-v", "error", "-show_entries",
-                                                "format=duration", "-of", "csv=p=0",
-                                                video]).stdout.strip())
+        qc["episode_mp4_duration"] = float(
+            run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", video]).stdout.strip()
+        )
         contact(video, out / "contact.png")
-        print(f"  {video.relative_to(ROOT)}  {qc['episode_mp4_duration']:.1f}s  "
-              f"{qc['episode_mp4']['lufs']:.1f} LUFS")
+        print(f"  {video.relative_to(ROOT)}  {qc['episode_mp4_duration']:.1f}s  {qc['episode_mp4']['lufs']:.1f} LUFS")
 
     qc["timings"] = timings
     qc["chapters"] = chapters
-    qc["edl"] = {"items": len(edl["items"]), "removed_seconds": edl["removed_seconds"],
-                 "duration": edl["duration"]}
+    qc["edl"] = {"items": len(edl["items"]), "removed_seconds": edl["removed_seconds"], "duration": edl["duration"]}
     save_json(out / "qc.json", qc)
     print(f"{(out / 'qc.json').relative_to(ROOT)}")
     for k in ("dialogue", "episode_wav", "episode_mp3", "episode_mp4"):
         if qc.get(k):
-            flag = "" if abs(qc[k]["lufs"] - a.target) <= 1.0 and qc[k]["tp"] <= a.tp + 0.3 \
-                else "  OFF TARGET"
+            flag = "" if abs(qc[k]["lufs"] - a.target) <= 1.0 and qc[k]["tp"] <= a.tp + 0.3 else "  OFF TARGET"
             print(f"  {k:<12} {qc[k]['lufs']:6.1f} LUFS  {qc[k]['tp']:5.1f} dBTP{flag}")
     return 0
 

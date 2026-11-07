@@ -31,7 +31,6 @@ def norm(w):
     return re.sub(r"[^a-z']", "", w.lower())
 
 
-
 def decode(path, ss=None, t=None):
     cmd = ["ffmpeg", "-nostdin", "-v", "error"]
     if ss is not None:
@@ -43,15 +42,23 @@ def decode(path, ss=None, t=None):
 
 
 def words_of(model, audio, prompt):
-    segments, info = model.transcribe(audio, word_timestamps=True, initial_prompt=prompt,
-                                      condition_on_previous_text=False)
+    segments, info = model.transcribe(
+        audio, word_timestamps=True, initial_prompt=prompt, condition_on_previous_text=False
+    )
     out = []
     for seg in segments:
-        for w in (seg.words or []):
+        for w in seg.words or []:
             if w.start is None or w.end is None:
                 continue
-            out.append({"w": w.word.strip(), "t0": round(float(w.start), 3), "t1": round(float(w.end), 3),
-                        "p": round(float(w.probability), 3), "nsp": round(float(seg.no_speech_prob), 3)})
+            out.append(
+                {
+                    "w": w.word.strip(),
+                    "t0": round(float(w.start), 3),
+                    "t1": round(float(w.end), 3),
+                    "p": round(float(w.probability), 3),
+                    "nsp": round(float(seg.no_speech_prob), 3),
+                }
+            )
     return out, float(info.duration)
 
 
@@ -60,6 +67,7 @@ def main():
     fill = "--no-fill" not in sys.argv
     from erm.asr import VERBATIM_PROMPT
     from faster_whisper import WhisperModel
+
     model = WhisperModel(model_name, device="auto", compute_type="auto")
     ws, dur = words_of(model, track, VERBATIM_PROMPT)
     filled, holes = [], []
@@ -70,7 +78,7 @@ def main():
         env = 20 * np.log10(np.sqrt((x[:n].reshape(-1, hop) ** 2).mean(1)) + 1e-9)
         inw = np.zeros(len(env), dtype=bool)
         for w in ws:
-            inw[max(0, int((w["t0"] - 0.15) * 100)):int((w["t1"] + 0.15) * 100) + 1] = True
+            inw[max(0, int((w["t0"] - 0.15) * 100)) : int((w["t1"] + 0.15) * 100) + 1] = True
         level = float(np.percentile(env[inw], 30)) - 8.0
         loud = np.append((env > level) & ~inw, False)
         start = None
@@ -89,10 +97,11 @@ def main():
             seg = decode(track, a, b - a)
 
             def on_sound(ws_, a=a, h0=h0, h1=h1):  # this hole's bounds, bound now
-                return [{**w, "t0": round(a + w["t0"], 3), "t1": round(a + w["t1"], 3), "filled": True}
-                        for w in ws_
-                        if h0 - 0.15 <= a + (w["t0"] + w["t1"]) / 2 <= h1 + 0.15
-                        and w["p"] >= 0.4 and w["nsp"] < 0.6]
+                return [
+                    {**w, "t0": round(a + w["t0"], 3), "t1": round(a + w["t1"], 3), "filled": True}
+                    for w in ws_
+                    if h0 - 0.15 <= a + (w["t0"] + w["t1"]) / 2 <= h1 + 0.15 and w["p"] >= 0.4 and w["nsp"] < 0.6
+                ]
 
             got = on_sound(words_of(model, seg, VERBATIM_PROMPT)[0])
             plain = on_sound(words_of(model, seg, None)[0])
@@ -109,10 +118,26 @@ def main():
                 continue
             filled += got
         ws = sorted(ws + filled, key=lambda w: w["t0"])
-    json.dump({"duration": dur, "words": ws, "filled": len(filled),
-               "holes": [[round(h0, 2), round(h1, 2)] for h0, h1 in holes]}, open(out, "w"), indent=1)
-    print(json.dumps({"words": len(ws), "holes": len(holes), "filled": len(filled),
-                      "filled_words": " ".join(w["w"] for w in filled)}))
+    json.dump(
+        {
+            "duration": dur,
+            "words": ws,
+            "filled": len(filled),
+            "holes": [[round(h0, 2), round(h1, 2)] for h0, h1 in holes],
+        },
+        open(out, "w"),
+        indent=1,
+    )
+    print(
+        json.dumps(
+            {
+                "words": len(ws),
+                "holes": len(holes),
+                "filled": len(filled),
+                "filled_words": " ".join(w["w"] for w in filled),
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -52,7 +52,7 @@ def show_name():
     p = ROOT / "tools" / "show.json"
     try:
         return load_json(p).get("name") or "AgentSee"
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return "AgentSee"
 
 
@@ -66,25 +66,37 @@ def run(cmd, **kw):
 
 
 def ffprobe(path):
-    r = run(["ffprobe", "-v", "error", "-show_entries",
-             "format=duration:stream=index,codec_type,codec_name,sample_rate,"
-             "channels,width,height,r_frame_rate,avg_frame_rate,nb_frames",
-             "-of", "json", path])
+    r = run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration:stream=index,codec_type,codec_name,sample_rate,"
+            "channels,width,height,r_frame_rate,avg_frame_rate,nb_frames",
+            "-of",
+            "json",
+            path,
+        ]
+    )
     d = json.loads(r.stdout)
     out = {"duration": float(d["format"]["duration"]), "audio": None, "video": None}
     for s in d.get("streams", []):
         if s["codec_type"] == "audio" and out["audio"] is None:
-            out["audio"] = {"codec": s["codec_name"], "rate": int(s["sample_rate"]),
-                            "channels": int(s["channels"])}
+            out["audio"] = {"codec": s["codec_name"], "rate": int(s["sample_rate"]), "channels": int(s["channels"])}
         if s["codec_type"] == "video" and out["video"] is None:
             num, den = s["r_frame_rate"].split("/")
             anum, aden = s["avg_frame_rate"].split("/")
             fps = int(num) / int(den)
             afps = int(anum) / int(aden) if int(aden) else fps
-            out["video"] = {"codec": s["codec_name"], "width": s["width"],
-                            "height": s["height"], "fps": fps,
-                            "cfr": abs(fps - afps) < 1e-3,
-                            "frames": int(s.get("nb_frames") or 0)}
+            out["video"] = {
+                "codec": s["codec_name"],
+                "width": s["width"],
+                "height": s["height"],
+                "fps": fps,
+                "cfr": abs(fps - afps) < 1e-3,
+                "frames": int(s.get("nb_frames") or 0),
+            }
     return out
 
 
@@ -94,27 +106,44 @@ def measure(path, target=-16.0, tp=-1.0):
     output is not used for anything, because it is pessimistic — see
     cues.py — and this pipeline only reports what it measured."""
     r = subprocess.run(
-        ["ffmpeg", "-nostdin", "-i", str(path),
-         "-af", f"loudnorm=I={target}:TP={tp}:LRA=11:print_format=json",
-         "-f", "null", "-"], capture_output=True, text=True)
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-i",
+            str(path),
+            "-af",
+            f"loudnorm=I={target}:TP={tp}:LRA=11:print_format=json",
+            "-f",
+            "null",
+            "-",
+        ],
+        capture_output=True,
+        text=True,
+    )
     blocks = re.findall(r"\{[^{}]*\"input_i\"[^{}]*\}", r.stderr, re.S)
     if not blocks:
         return None
     m = json.loads(blocks[-1])
     try:
-        return {"lufs": float(m["input_i"]), "tp": float(m["input_tp"]),
-                "lra": float(m["input_lra"]), "thresh": float(m["input_thresh"]),
-                "offset": float(m["target_offset"])}
-    except (ValueError, KeyError):
+        return {
+            "lufs": float(m["input_i"]),
+            "tp": float(m["input_tp"]),
+            "lra": float(m["input_lra"]),
+            "thresh": float(m["input_thresh"]),
+            "offset": float(m["target_offset"]),
+        }
+    except ValueError, KeyError:
         return None
 
 
 def loudnorm_filter(m, target=-16.0, tp=-1.0):
     """Second-pass, linear loudnorm from a first-pass measurement."""
-    return (f"loudnorm=I={target}:TP={tp}:LRA=11:linear=true:"
-            f"measured_I={m['lufs']}:measured_TP={m['tp']}:"
-            f"measured_LRA={m['lra']}:measured_thresh={m['thresh']}:"
-            f"offset={m['offset']}")
+    return (
+        f"loudnorm=I={target}:TP={tp}:LRA=11:linear=true:"
+        f"measured_I={m['lufs']}:measured_TP={m['tp']}:"
+        f"measured_LRA={m['lra']}:measured_thresh={m['thresh']}:"
+        f"offset={m['offset']}"
+    )
 
 
 # Gentle levelling for cut dialogue, applied once before the limiter. A
@@ -137,8 +166,22 @@ def level_to(src, dst, target=-16.0):
     m = measure(src, target, -1.0)
     if m is None:
         die(f"could not measure {src}")
-    run(["ffmpeg", "-nostdin", "-y", "-i", src, "-af", f"volume={target - m['lufs']:.2f}dB",
-         "-ar", RATE, "-c:a", "pcm_f32le", dst])
+    run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-y",
+            "-i",
+            src,
+            "-af",
+            f"volume={target - m['lufs']:.2f}dB",
+            "-ar",
+            RATE,
+            "-c:a",
+            "pcm_f32le",
+            dst,
+        ]
+    )
     return measure(dst, target, -1.0)
 
 
@@ -172,12 +215,25 @@ def normalise(src, dst, target=-16.0, tp=-1.0, limiter=False, compress=False):
             if compress and i == 0:
                 chain += "," + COMPRESSOR
             chain += f",alimiter=limit={lin:.4f}:level=false:attack=5:release=150"
-            run(["ffmpeg", "-nostdin", "-y", "-i", work, "-af", chain,
-                 "-ar", RATE, "-c:a", "pcm_s24le", tmps[i]])
+            run(["ffmpeg", "-nostdin", "-y", "-i", work, "-af", chain, "-ar", RATE, "-c:a", "pcm_s24le", tmps[i]])
             m = measure(tmps[i], target, tp)
             work = tmps[i]
-    run(["ffmpeg", "-nostdin", "-y", "-i", work, "-af", loudnorm_filter(m, target, tp),
-         "-ar", RATE, "-c:a", "pcm_s24le", dst])
+    run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-y",
+            "-i",
+            work,
+            "-af",
+            loudnorm_filter(m, target, tp),
+            "-ar",
+            RATE,
+            "-c:a",
+            "pcm_s24le",
+            dst,
+        ]
+    )
     for t_ in tmps:
         t_.unlink(missing_ok=True)
     return measure(dst, target, tp)
@@ -192,9 +248,27 @@ def gpu_encoder():
     with no usable GPU."""
     global _GPU_ENCODER
     if _GPU_ENCODER is None:
-        r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i", "color=size=256x256:rate=1",
-                            "-frames:v", "1", "-c:v", "h264_nvenc", "-f", "null", "-"],
-                           capture_output=True, text=True)
+        r = subprocess.run(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=size=256x256:rate=1",
+                "-frames:v",
+                "1",
+                "-c:v",
+                "h264_nvenc",
+                "-f",
+                "null",
+                "-",
+            ],
+            capture_output=True,
+            text=True,
+        )
         _GPU_ENCODER = "h264_nvenc" if r.returncode == 0 else ""
     return _GPU_ENCODER
 
@@ -212,8 +286,24 @@ def video_codec(fast=False, cpu=False, final=True):
     if fast:
         return ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "23"]
     if not cpu and gpu_encoder():
-        return ["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", "24" if final else "20", "-b:v", "0",
-                "-spatial-aq", "1", "-temporal-aq", "1", "-rc-lookahead", "20"]
+        return [
+            "-c:v",
+            "h264_nvenc",
+            "-preset",
+            "p5",
+            "-rc",
+            "vbr",
+            "-cq",
+            "24" if final else "20",
+            "-b:v",
+            "0",
+            "-spatial-aq",
+            "1",
+            "-temporal-aq",
+            "1",
+            "-rc-lookahead",
+            "20",
+        ]
     return ["-c:v", "libx264", "-preset", "slow" if final else "fast", "-crf", "18" if final else "14"]
 
 
@@ -231,6 +321,7 @@ def srt_time(t):
 
 
 # ── speech ────────────────────────────────────────────────────────────────────
+
 
 def speech_intervals(words, merge_gap=0.3, pad=0.0, limit=None):
     """Merge word intervals into stretches of speech. `pad` widens each
@@ -262,6 +353,7 @@ def speech_intervals(words, merge_gap=0.3, pad=0.0, limit=None):
 # `out`, the output second it starts at, which is derived — so it is written
 # by cut.py once and read everywhere else rather than recomputed differently.
 
+
 def edl_finalise(items):
     t = 0.0
     for it in items:
@@ -287,8 +379,7 @@ def sub_edl(edl, t0, t1):
         for it in edl["items"]:
             if it["type"] != "src" or it["t1"] <= t0 or it["t0"] >= t1:
                 continue
-            items.append({"type": "src", "t0": round(max(it["t0"], t0), 3),
-                          "t1": round(min(it["t1"], t1), 3)})
+            items.append({"type": "src", "t0": round(max(it["t0"], t0), 3), "t1": round(min(it["t1"], t1), 3)})
     if not items:
         items = [{"type": "src", "t0": t0, "t1": t1}]
     dur = edl_finalise(items)
@@ -324,15 +415,36 @@ CAPTION_FILLERS = {"um", "uh", "er", "erm", "ah", "hmm", "mm", "mhm", "huh"}
 # Lower-casing whatever also occurs in lower case elsewhere in the episode
 # would take the capital off Claude, Chrome and James, which the transcripts
 # also spell in lower case.
-NEVER_NAMES = {"and", "but", "or", "so", "because", "if", "then", "that", "that's", "it", "it's", "you", "you're",
-               "we", "we're", "they", "they're", "someone", "like", "yeah", "okay"}
+NEVER_NAMES = {
+    "and",
+    "but",
+    "or",
+    "so",
+    "because",
+    "if",
+    "then",
+    "that",
+    "that's",
+    "it",
+    "it's",
+    "you",
+    "you're",
+    "we",
+    "we're",
+    "they",
+    "they're",
+    "someone",
+    "like",
+    "yeah",
+    "okay",
+}
 
 
 def cap_first(text):
     """The first letter capitalised, if it is a letter and lower-case."""
     m = re.search(r"[A-Za-z]", text)
     if m and text[m.start()].islower():
-        return text[:m.start()] + text[m.start()].upper() + text[m.start() + 1:]
+        return text[: m.start()] + text[m.start()].upper() + text[m.start() + 1 :]
     return text
 
 
@@ -347,8 +459,12 @@ def tidy_words(words):
     for w in words:
         bare = re.sub(r"^[^\w]+|[^\w']+$", "", w["w"]).lower()
         if not bare or bare in CAPTION_FILLERS:
-            if (out and w.get("spk") == out[-1].get("spk") and re.search(r"[.?!]$", w["w"])
-                    and not re.search(r"[.?!]$", out[-1]["w"])):
+            if (
+                out
+                and w.get("spk") == out[-1].get("spk")
+                and re.search(r"[.?!]$", w["w"])
+                and not re.search(r"[.?!]$", out[-1]["w"])
+            ):
                 out[-1] = {**out[-1], "w": out[-1]["w"].rstrip(",;:") + w["w"][-1]}
             continue
         out.append(dict(w))
@@ -381,6 +497,7 @@ def caption_words(words):
     while a speaker holds the floor: captioned, it broke the speaker's
     sentence into one-word cues on either side of a one-word cue."""
     import re as _re
+
     ws = [w for w in words if _re.sub(r"[^a-z]", "", w["w"].lower()) not in CAPTION_FILLERS]
     runs = []
     for w in ws:
@@ -418,13 +535,15 @@ def caption_cues(words, max_chars=42, max_lines=2, max_dur=5.0, gap=0.7, fill=0.
             # with `fill` the cue is meant for a balanced two-line wrap,
             # so it is full when that wrap would spill a line, not at a
             # character count the greedy wrap would then break into three
-            full = (len(wrap_two(text, max_chars)) > 2 if fill and max_lines == 2
-                    else len(text) > max_chars * max_lines)
-            if (w.get("spk") != last.get("spk") or w["t0"] - last["t1"] > gap
-                    or w["t1"] - cur[0]["t0"] > max_dur
-                    or full
-                    or re.search(r"[.?!]$", last["w"])
-                    and len(text) > max(max_chars, fill * max_chars * max_lines)):
+            full = len(wrap_two(text, max_chars)) > 2 if fill and max_lines == 2 else len(text) > max_chars * max_lines
+            if (
+                w.get("spk") != last.get("spk")
+                or w["t0"] - last["t1"] > gap
+                or w["t1"] - cur[0]["t0"] > max_dur
+                or full
+                or re.search(r"[.?!]$", last["w"])
+                and len(text) > max(max_chars, fill * max_chars * max_lines)
+            ):
                 flush()
         cur.append(w)
     flush()
@@ -463,8 +582,12 @@ def write_srt(cues, path, max_chars=42):
     lines = []
     for i, cue in enumerate(cues, 1):
         text = " ".join(w["w"] for w in cue)
-        lines += [str(i), f"{srt_time(cue[0]['t0'])} --> {srt_time(cue[-1]['t1'])}",
-                  "\n".join(wrap_lines(text, max_chars)), ""]
+        lines += [
+            str(i),
+            f"{srt_time(cue[0]['t0'])} --> {srt_time(cue[-1]['t1'])}",
+            "\n".join(wrap_lines(text, max_chars)),
+            "",
+        ]
     pathlib.Path(path).write_text("\n".join(lines))
 
 
@@ -475,7 +598,7 @@ def write_srt(cues, path, max_chars=42):
 # itself: an energy envelope at 2 ms, and a cut that lands on the quietest
 # moment near where the words said to cut.
 
-ENV_HOP = 96   # samples at 48 kHz: 2 ms
+ENV_HOP = 96  # samples at 48 kHz: 2 ms
 
 
 def dialogue_sum(d, manifest, highpass_hz=80.0):
@@ -486,6 +609,7 @@ def dialogue_sum(d, manifest, highpass_hz=80.0):
     import numpy as np
     import soundfile as sf
     from scipy.signal import butter, sosfiltfilt
+
     n = int(math.ceil(manifest["duration"] * RATE))
     bus = np.zeros(n)
     for p in manifest["participants"]:
@@ -496,17 +620,18 @@ def dialogue_sum(d, manifest, highpass_hz=80.0):
         if highpass_hz:
             x = sosfiltfilt(butter(2, highpass_hz, "hp", fs=RATE, output="sos"), x)
         off = int(round(p["offset"] * RATE))
-        seg = x[:max(0, n - off)]
-        bus[off:off + len(seg)] += seg
+        seg = x[: max(0, n - off)]
+        bus[off : off + len(seg)] += seg
     return bus
 
 
 def envelope_db(x, hop=ENV_HOP):
     """RMS per hop, in dBFS."""
     import numpy as np
+
     n = len(x) // hop
-    frames = x[:n * hop].reshape(n, hop)
-    rms = np.sqrt((frames ** 2).mean(axis=1)) + 1e-9
+    frames = x[: n * hop].reshape(n, hop)
+    rms = np.sqrt((frames**2).mean(axis=1)) + 1e-9
     return 20 * np.log10(rms)
 
 
@@ -515,11 +640,12 @@ def snap_quiet(env, t, before, after, hop=ENV_HOP):
     negative. Searching asymmetrically lets a cut prefer the inside of a
     filler to the outside of the word next to it."""
     import numpy as np
+
     i0 = max(0, int((t + before) * RATE / hop))
     i1 = min(len(env) - 1, int((t + after) * RATE / hop))
     if i1 <= i0:
         return t
-    return (i0 + int(np.argmin(env[i0:i1 + 1]))) * hop / RATE
+    return (i0 + int(np.argmin(env[i0 : i1 + 1]))) * hop / RATE
 
 
 def cut_with_crossfades(x, items, xf=0.02):
@@ -538,7 +664,7 @@ def cut_with_crossfades(x, items, xf=0.02):
     import numpy as np
 
     def ramp(k):
-        return np.sin(np.linspace(0, math.pi / 2, k)) ** 2          # equal-power
+        return np.sin(np.linspace(0, math.pi / 2, k)) ** 2  # equal-power
 
     total = sum((it["t1"] - it["t0"]) if it["type"] == "src" else it["dur"] for it in items)
     out = np.zeros(int(round(total * RATE)) + int(0.5 * RATE))
@@ -551,7 +677,7 @@ def cut_with_crossfades(x, items, xf=0.02):
             b = int(round(it["t1"] * RATE)) + n_out // 2
             seg = np.zeros(b - a)
             lo, hi = max(0, a), min(len(x), b)
-            seg[lo - a:hi - a] = x[lo:hi]
+            seg[lo - a : hi - a] = x[lo:hi]
             if n_in:
                 seg[:n_in] *= ramp(n_in)
             if n_out:
@@ -559,8 +685,8 @@ def cut_with_crossfades(x, items, xf=0.02):
             start = pos - n_in // 2
             if start < 0:
                 seg, start = seg[-start:], 0
-            out[start:start + len(seg)] += seg
+            out[start : start + len(seg)] += seg
             pos += int(round(it["t1"] * RATE)) - int(round(it["t0"] * RATE))
         else:
             pos += int(round(it["dur"] * RATE))
-    return out[:int(round(total * RATE))]
+    return out[: int(round(total * RATE))]

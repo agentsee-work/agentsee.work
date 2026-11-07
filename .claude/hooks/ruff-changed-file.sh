@@ -5,7 +5,7 @@
 #
 # On that file only:
 #   ruff check --fix     the fixable findings (unused imports, import order, ...)
-#   ruff format          the formatting (tools/ is excluded from it: ruff.toml)
+#   ruff format          the formatting
 # It says nothing unless findings remain that Ruff cannot fix; those go back
 # to the agent (exit 2 feeds stderr to the model), to be dealt with now rather
 # than as a red tick later.

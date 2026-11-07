@@ -37,20 +37,36 @@ import sys
 
 import numpy as np
 
-SILENCE = 1e-4          # below this is the lead-in or the tail, not the music
-SEAM_WINDOW = 2048      # samples either side of the join to judge it by
+SILENCE = 1e-4  # below this is the lead-in or the tail, not the music
+SEAM_WINDOW = 2048  # samples either side of the join to judge it by
 
 
 def decode(path):
     """The file as mono float32, at its own sample rate."""
-    rate = int(subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
-         "stream=sample_rate", "-of", "default=nw=1:nk=1", path],
-        capture_output=True, text=True, check=True).stdout.strip())
+    rate = int(
+        subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_entries",
+                "stream=sample_rate",
+                "-of",
+                "default=nw=1:nk=1",
+                path,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    )
     raw = subprocess.run(
-        ["ffmpeg", "-nostdin", "-v", "error", "-i", path,
-         "-ac", "1", "-f", "f32le", "-"],
-        capture_output=True, check=True).stdout
+        ["ffmpeg", "-nostdin", "-v", "error", "-i", path, "-ac", "1", "-f", "f32le", "-"],
+        capture_output=True,
+        check=True,
+    ).stdout
     return np.frombuffer(raw, dtype=np.float32).astype(np.float64), rate
 
 
@@ -63,7 +79,7 @@ def music_span(x):
     return int(idx[0]), int(idx[-1]) + 1
 
 
-HOP = 256               # envelope resolution for the coarse search
+HOP = 256  # envelope resolution for the coarse search
 
 
 def coarse_period(x, first, cycles):
@@ -78,18 +94,17 @@ def coarse_period(x, first, cycles):
     lower = upper * 0.55
 
     n = span // HOP
-    env = np.sqrt(np.mean(
-        x[first:first + n * HOP].reshape(n, HOP) ** 2, axis=1))
+    env = np.sqrt(np.mean(x[first : first + n * HOP].reshape(n, HOP) ** 2, axis=1))
     env -= env.mean()
 
     size = 1 << int(np.ceil(np.log2(max(len(env) * 2, 2))))
     f = np.fft.rfft(env, size)
-    ac = np.fft.irfft(f * np.conj(f), size)[:len(env)]
+    ac = np.fft.irfft(f * np.conj(f), size)[: len(env)]
 
     lo, hi = max(1, int(lower / HOP)), min(int(upper / HOP), len(ac) - 1)
     if hi <= lo:
         sys.exit("file too short for the number of cycles given")
-    return (lo + int(np.argmax(ac[lo:hi + 1]))) * HOP
+    return (lo + int(np.argmax(ac[lo : hi + 1]))) * HOP
 
 
 def refine_period(x, start, coarse, search):
@@ -97,11 +112,11 @@ def refine_period(x, start, coarse, search):
     length = min(coarse * 3, len(x) - start - coarse - search)
     if length < coarse:
         length = max(coarse // 2, min(coarse, len(x) - start - coarse - search))
-    a = x[start:start + length]
+    a = x[start : start + length]
     na = np.linalg.norm(a)
     best, best_score = coarse, -np.inf
     for p in range(coarse - search, coarse + search + 1):
-        b = x[start + p:start + p + length]
+        b = x[start + p : start + p + length]
         if len(b) < length or na == 0:
             continue
         nb = np.linalg.norm(b)
@@ -123,9 +138,9 @@ def seam_error(x, start, period):
     w = SEAM_WINDOW
     if start + period + w > len(x):
         return None
-    head = x[start:start + w]
-    wrap = x[start + period:start + period + w]
-    rms = np.sqrt(np.mean(x[start:start + period] ** 2))
+    head = x[start : start + w]
+    wrap = x[start + period : start + period + w]
+    rms = np.sqrt(np.mean(x[start : start + period] ** 2))
     if rms == 0:
         return None
     err = np.sqrt(np.mean((head - wrap) ** 2))
@@ -133,16 +148,16 @@ def seam_error(x, start, period):
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src")
-    ap.add_argument("--cycles", type=int, required=True,
-                    help="how many identical repeats the render contains")
-    ap.add_argument("--beats", type=int, default=8,
-                    help="beats per cycle, for the bpm figure (default 8 = 2 bars of 4/4)")
+    ap.add_argument("--cycles", type=int, required=True, help="how many identical repeats the render contains")
+    ap.add_argument(
+        "--beats", type=int, default=8, help="beats per cycle, for the bpm figure (default 8 = 2 bars of 4/4)"
+    )
     ap.add_argument("--cut", metavar="OUT", help="write the best loop here")
-    ap.add_argument("--search", type=int, default=HOP * 2,
-                    help=f"± samples to refine around the estimate (default {HOP*2})")
+    ap.add_argument(
+        "--search", type=int, default=HOP * 2, help=f"± samples to refine around the estimate (default {HOP * 2})"
+    )
     a = ap.parse_args()
 
     for tool in ("ffmpeg", "ffprobe"):
@@ -155,17 +170,13 @@ def main():
     coarse = coarse_period(x, first, a.cycles)
     period, conf = refine_period(x, first, coarse, a.search)
 
-    print(f"{a.src}  {rate} Hz, {len(x)/rate:.3f} s")
-    print(f"  music runs {first:,} .. {last:,}  "
-          f"({span:,} samples, {span/rate:.3f} s)")
-    print(f"  lead-in {first/rate*1000:.0f} ms, tail after the music "
-          f"{(len(x)-last)/rate*1000:.0f} ms")
+    print(f"{a.src}  {rate} Hz, {len(x) / rate:.3f} s")
+    print(f"  music runs {first:,} .. {last:,}  ({span:,} samples, {span / rate:.3f} s)")
+    print(f"  lead-in {first / rate * 1000:.0f} ms, tail after the music {(len(x) - last) / rate * 1000:.0f} ms")
     print(f"  length / {a.cycles} (upper bound only): {span // a.cycles:,}")
     print(f"  envelope autocorrelation:          {coarse:,}")
-    print(f"  refined to the sample:             {period:,}  "
-          f"(match {conf:.4f})")
-    print(f"  = {period/rate:.6f} s  ->  {60*a.beats*rate/period:.2f} bpm "
-          f"for {a.beats} beats")
+    print(f"  refined to the sample:             {period:,}  (match {conf:.4f})")
+    print(f"  = {period / rate:.6f} s  ->  {60 * a.beats * rate / period:.2f} bpm for {a.beats} beats")
 
     print(f"\n  {'cycle':>5} {'start':>12} {'seam':>8}")
     rows = []
@@ -175,24 +186,34 @@ def main():
         if e is None:
             continue
         rows.append((e, c, s))
-        print(f"  {c+1:>5} {s:>12,} {e:>7.1f} dB")
+        print(f"  {c + 1:>5} {s:>12,} {e:>7.1f} dB")
     if not rows:
         sys.exit("no candidate cycle had room for a full loop plus its wrap")
     rows.sort()
     err, cyc, start = rows[0]
-    print(f"\n  cleanest join: cycle {cyc+1} at {start:,}, seam {err:.1f} dB "
-          f"below the music")
+    print(f"\n  cleanest join: cycle {cyc + 1} at {start:,}, seam {err:.1f} dB below the music")
 
-    cmd = (f"ffmpeg -i {a.src} -af "
-           f"atrim=start_sample={start}:end_sample={start+period} "
-           f"-c:a pcm_s24le LOOP.wav")
+    cmd = f"ffmpeg -i {a.src} -af atrim=start_sample={start}:end_sample={start + period} -c:a pcm_s24le LOOP.wav"
     print(f"\n  {cmd}")
 
     if a.cut:
         subprocess.run(
-            ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", a.src, "-af",
-             f"atrim=start_sample={start}:end_sample={start+period}",
-             "-c:a", "pcm_s24le", a.cut], check=True)
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-v",
+                "error",
+                "-y",
+                "-i",
+                a.src,
+                "-af",
+                f"atrim=start_sample={start}:end_sample={start + period}",
+                "-c:a",
+                "pcm_s24le",
+                a.cut,
+            ],
+            check=True,
+        )
         print(f"  wrote {a.cut}")
 
 

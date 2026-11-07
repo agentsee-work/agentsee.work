@@ -85,8 +85,7 @@ def stage_cmd(stage, slug, cfg, extra):
     if stage == "align":
         if not erm:
             return None
-        return [[TOOLS / "align.py", slug, *extra],
-                [TOOLS / "transcribe.py", slug, "--merge-only", "--from-aligned"]]
+        return [[TOOLS / "align.py", slug, *extra], [TOOLS / "transcribe.py", slug, "--merge-only", "--from-aligned"]]
     if stage == "cut":
         cmd = [TOOLS / "cut.py", slug, *extra]
         if (d / "chapters.json").exists() and "--chapters" not in extra:
@@ -116,16 +115,20 @@ def with_vault(cmd):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     n = sub.add_parser("new", help="write episode.json and ingest")
     n.add_argument("slug")
     n.add_argument("package")
     n.add_argument("--title", required=True)
     n.add_argument("--number", help="the episode number, when it is known already; approve mints one otherwise")
-    n.add_argument("--guest", action="append", default=[], metavar="ID",
-                   help="a guest's id from the engine's Guests screen; once per guest")
+    n.add_argument(
+        "--guest",
+        action="append",
+        default=[],
+        metavar="ID",
+        help="a guest's id from the engine's Guests screen; once per guest",
+    )
     n.add_argument("--names", required=True, help="id-prefix=name pairs")
     n.add_argument("--thumb", help="thumbnail words, three max; default is the title")
     n.add_argument("--hosts", help="credits line; default is the show's hosts")
@@ -138,27 +141,42 @@ def main():
     r.add_argument("extra", nargs="*", help="arguments for the stage, after --")
     s = sub.add_parser("status", help="what exists for an episode")
     s.add_argument("slug")
-    rv = sub.add_parser("review", help="the render as it stands to the archive, for the guest to review; nothing public")
+    rv = sub.add_parser(
+        "review", help="the render as it stands to the archive, for the guest to review; nothing public"
+    )
     rv.add_argument("slug")
     rv.add_argument("--dry-run", action="store_true", help="list what would go; no credentials")
-    rv.add_argument("--from-archive", metavar="SLUG",
-                    help="a file the archive holds at episodes/SLUG/out/ at the same size is copied there, not sent "
-                         "(a rehearsal from a staged episode)")
-    nt = sub.add_parser("notes", help="the guest's confirmed cuts into removals.json; their name, line and link into the notes")
+    rv.add_argument(
+        "--from-archive",
+        metavar="SLUG",
+        help="a file the archive holds at episodes/SLUG/out/ at the same size is copied there, not sent "
+        "(a rehearsal from a staged episode)",
+    )
+    nt = sub.add_parser(
+        "notes", help="the guest's confirmed cuts into removals.json; their name, line and link into the notes"
+    )
     nt.add_argument("slug")
     ok = sub.add_parser("approve", help="the guests' approvals, the episode number, the numbered render, the record")
     ok.add_argument("slug")
     ok.add_argument("--release", help="YYYY-MM-DD the episode goes out; default today")
     ok.add_argument("--by", help="who approved it; default the git user")
     ok.add_argument("--number", help="this number rather than the next free one, when plans changed")
-    ok.add_argument("--no-render", action="store_true",
-                    help="the render already carries the number; do not run cards, assemble, clips and release")
-    ok.add_argument("--despite-warnings", action="store_true",
-                    help="approve although the release has warnings")
-    ok.add_argument("--despite-guests", action="store_true",
-                    help="approve although a guest's record does not clear it; the record says so")
-    ok.add_argument("--dry-run", action="store_true",
-                    help="the gate, the number, the clips that would go; nothing written, nothing rendered")
+    ok.add_argument(
+        "--no-render",
+        action="store_true",
+        help="the render already carries the number; do not run cards, assemble, clips and release",
+    )
+    ok.add_argument("--despite-warnings", action="store_true", help="approve although the release has warnings")
+    ok.add_argument(
+        "--despite-guests",
+        action="store_true",
+        help="approve although a guest's record does not clear it; the record says so",
+    )
+    ok.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="the gate, the number, the clips that would go; nothing written, nothing rendered",
+    )
     st = sub.add_parser("stage", help="upload the approved episode: archive and public media")
     st.add_argument("slug")
     st.add_argument("--dry-run", action="store_true", help="list what would go; no credentials")
@@ -167,12 +185,17 @@ def main():
 
     if a.cmd == "new":
         d = EPISODES / a.slug
-        cfg = {"slug": a.slug, "title": a.title, "number": a.number,
-               "guests": a.guest or None,
-               "thumb": a.thumb or a.title, "hosts": a.hosts,
-               "date": a.date or dt.date.today().isoformat(),
-               "package": str(pathlib.Path(a.package).expanduser().resolve()),
-               "names": a.names}
+        cfg = {
+            "slug": a.slug,
+            "title": a.title,
+            "number": a.number,
+            "guests": a.guest or None,
+            "thumb": a.thumb or a.title,
+            "hosts": a.hosts,
+            "date": a.date or dt.date.today().isoformat(),
+            "package": str(pathlib.Path(a.package).expanduser().resolve()),
+            "names": a.names,
+        }
         cfg = {k: v for k, v in cfg.items() if v is not None}
         save_json(d / "episode.json", cfg)
         print(f"{(d / 'episode.json').relative_to(ROOT)}")
@@ -184,12 +207,19 @@ def main():
     cfg = load_json(d / "episode.json") if (d / "episode.json").exists() else {}
 
     if a.cmd == "status":
-        checks = [("manifest.json", "ingest"), ("transcript/words.json", "transcribe"),
-                  ("edl.json", "cut"), ("cards/title.mp4", "cards"),
-                  ("out/episode.mp3", "assemble (audio)"), ("out/episode.mp4", "assemble (video)"),
-                  ("clips.json", "clip list"), ("out/clips", "clips"),
-                  ("out/release.json", "release"), ("out/review.json", "review"),
-                  ("out/staged.json", "staged")]
+        checks = [
+            ("manifest.json", "ingest"),
+            ("transcript/words.json", "transcribe"),
+            ("edl.json", "cut"),
+            ("cards/title.mp4", "cards"),
+            ("out/episode.mp3", "assemble (audio)"),
+            ("out/episode.mp4", "assemble (video)"),
+            ("clips.json", "clip list"),
+            ("out/clips", "clips"),
+            ("out/release.json", "release"),
+            ("out/review.json", "review"),
+            ("out/staged.json", "staged"),
+        ]
         number = f"episode {cfg['number']}" if cfg.get("number") is not None else "no number until approved"
         guests = ", ".join(cfg.get("guests") or []) or "none"
         print(f"{a.slug}: {cfg.get('title', '?')} ({number}; guests: {guests})")
@@ -200,13 +230,15 @@ def main():
             r = load_json(rv)
             print(f"  review round {r.get('round')} sent {str(r.get('at', ''))[:16]}")
         ok = cfg.get("approved")
-        print(f"  approved by {ok['by']} on {ok['at'][:10]}, release {ok['release']}" if ok
-              else "  not approved")
+        print(f"  approved by {ok['by']} on {ok['at'][:10]}, release {ok['release']}" if ok else "  not approved")
         return 0
 
     if a.cmd == "review":
-        cmd = [TOOLS / "stage.py", a.slug, "--review"] + (["--dry-run"] if a.dry_run else []) \
+        cmd = (
+            [TOOLS / "stage.py", a.slug, "--review"]
+            + (["--dry-run"] if a.dry_run else [])
             + (["--from-archive", a.from_archive] if a.from_archive else [])
+        )
         if not a.dry_run:
             cmd = with_vault(cmd)
         return subprocess.call([str(c) for c in cmd])
@@ -230,15 +262,19 @@ def main():
         return subprocess.call([str(c) for c in with_vault(cmd)])
 
     if a.cmd == "stage":
-        cmd = [TOOLS / "stage.py", a.slug] + (["--dry-run"] if a.dry_run else []) \
+        cmd = (
+            [TOOLS / "stage.py", a.slug]
+            + (["--dry-run"] if a.dry_run else [])
             + (["--no-source"] if a.no_source else [])
+        )
         if not a.dry_run:
             cmd = with_vault(cmd)
         return subprocess.call([str(c) for c in cmd])
 
     stages = [a.only] if a.only else STAGES[1:]
     if a.from_ and not a.only:
-        stages = STAGES[STAGES.index(a.from_):]
+        stages = STAGES[STAGES.index(a.from_) :]
+
     def cmds_for(st):
         extra = list(a.extra)
         if a.fast and st in ("assemble", "clips"):
@@ -266,8 +302,9 @@ def main():
             side_cmds = cmds_for("clips")
             if side_cmds:
                 print("── assemble, with clips alongside")
-                side = subprocess.Popen([str(c) for c in side_cmds[0]], stdout=subprocess.PIPE,
-                                        stderr=subprocess.STDOUT, text=True)
+                side = subprocess.Popen(
+                    [str(c) for c in side_cmds[0]], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+                )
             else:
                 print("── assemble")
                 print("── clips: skipped (no clips.json)")
