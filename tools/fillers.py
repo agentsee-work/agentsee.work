@@ -35,6 +35,8 @@ import sys
 from eplib import ROOT, die, ep_dir, load_json
 
 VENV = ROOT / "build" / "venv-erm"
+# erm with a fixed seed, for the reason given in verbatim_words.py: its command line offers none.
+SEEDED_ERM = "import ctranslate2, sys; from erm.cli import main; ctranslate2.set_random_seed(1); sys.exit(main())"
 
 
 def main():
@@ -63,7 +65,8 @@ def main():
 
     def one(p):
         out = out_dir / f"{p['short']}.json"
-        cmd = [str(erm), str(d / p["audio"]["file"]), "--dry-run", "--json", str(out),
+        cmd = [str(VENV / "bin" / "python"), "-c", SEEDED_ERM, str(d / p["audio"]["file"]),
+               "--dry-run", "--json", str(out),
                "--model", a.model, "--gap-min-ms", str(a.gap_min_ms)]
         if a.no_gaps:
             cmd.append("--no-detect-gaps")
