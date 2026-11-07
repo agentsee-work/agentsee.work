@@ -551,13 +551,17 @@ with a different third each run. The clean decode is stable at 1,431 words.
 Spelling is fixed afterwards, deterministically, by `fixes` in episode.json,
 which loses nothing and is diffable.
 
-**The words change from run to run, on the same venv.** Six runs of fillers
-and align on episode 0 gave one host's track five different results, 967 to
-970 words, and the other's byte-identical every time (7 November 2026; cause
-not investigated). So running fillers again can change the transcript, the
-captions and a clip, as it did there, though the episode's own audio and video
-came out byte-identical across those full runs. To re-render, start at
-`--from cut` or later, which keeps the words.
+**Whisper samples where it is unsure, so fillers fixes the seed.** A segment
+that fails Whisper's quality thresholds is decoded again at a higher
+temperature, by sampling. Unseeded, seven runs on episode 0 gave one host's
+track five different results, all at one murmured spot ("When... Mm. Mm. Yeah."
+at 7:52), and erm's cut list varied too (7 November 2026). `fillers.py` and
+`verbatim_words.py` now seed CTranslate2, and three runs of fillers came out
+byte-identical. The seed holds on this machine; another GPU or library version
+may pick different words at such a spot, and any re-run can differ from words
+made before the seed. So running fillers again can still change an existing
+episode's transcript, captions and clips. To re-render, start at `--from cut`
+or later, which keeps the words.
 
 **Approval holds the deliverables to their hashes.** Anything that changes one
 afterwards, a re-run of fillers or a change to the release's text, makes

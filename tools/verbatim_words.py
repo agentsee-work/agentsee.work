@@ -65,9 +65,13 @@ def words_of(model, audio, prompt):
 def main():
     track, model_name, out = sys.argv[1:4]
     fill = "--no-fill" not in sys.argv
+    import ctranslate2
     from erm.asr import VERBATIM_PROMPT
     from faster_whisper import WhisperModel
 
+    # A segment that fails Whisper's quality thresholds is decoded again by sampling, so unseeded the
+    # words at such a spot change from run to run. The seed picks one and keeps it.
+    ctranslate2.set_random_seed(1)
     model = WhisperModel(model_name, device="auto", compute_type="auto")
     ws, dur = words_of(model, track, VERBATIM_PROMPT)
     filled, holes = [], []
