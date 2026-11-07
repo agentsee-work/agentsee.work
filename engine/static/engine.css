@@ -75,6 +75,7 @@ button:hover, a.button:hover { color: var(--signal); border-color: var(--signal)
 button.signal, a.button.signal { color: var(--paper); background: var(--ink); border-color: var(--ink); }
 button.signal:hover, a.button.signal:hover { background: var(--signal); border-color: var(--signal); color: var(--paper); }
 main.engine a.button { display: inline-block; text-decoration: none; line-height: 1.2; }  /* pages.go: the way on from a page */
+main.engine .steps a:not(.button) { border-bottom: 0; }  /* the site draws these with a border; here the underline is the line, and both would be two */
 label { display: block; font-family: var(--mono); font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); margin: .6rem 0 .25rem; }
 .row { display: flex; gap: .8rem; flex-wrap: wrap; align-items: end; }
 .choices { margin: .4rem 0 .8rem; }
