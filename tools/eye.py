@@ -55,45 +55,48 @@ AXES = tuple(REST)
 
 
 EXPRESSIONS = {
-    "attentive":   dict(note="Default. Lower thirds, wordmark lockups."),
-    "alert":       dict(hat=2.0, ps=0.92,
-                        note="Sharper than attentive. Hat lifts, pupil tightens."),
-    "curious":     dict(ix=-9, iy=-6, note="Chapter marks, question cards."),
-    "thinking":    dict(lt=0.19, ix=-6, iy=-9, note="Going into a question."),
-    "amused":      dict(lb=0.30, tilt=0.18, ix=-3, iy=2, hat=1.0,
-                        note="A smile, from below. One eye cannot grin any other way."),
-    "wry":         dict(lt=0.26, tilt=0.55, ix=5, hat=-1.0,
-                        note="Knowing. The tilt does all of it."),
-    "sceptical":   dict(lt=0.34, lb=0.05, tilt=0.40, ix=11, iy=2, hat=-1.5,
-                        note="The steel-man beats."),
-    "scrutiny":    dict(lt=0.26, lb=0.20, note="Technical sections. Reading closely."),
-    "surprised":   dict(iy=-1, ps=0.55, hat=2.5, note="Reveals. The pupil does this."),
-    "angry":       dict(lt=0.22, lb=0.18, tilt=0.62, hat=-5.0, ps=0.80,
-                        note="Hat down like a brow, lids converging, pupil hard."),
+    "attentive": dict(note="Default. Lower thirds, wordmark lockups."),
+    "alert": dict(hat=2.0, ps=0.92, note="Sharper than attentive. Hat lifts, pupil tightens."),
+    "curious": dict(ix=-9, iy=-6, note="Chapter marks, question cards."),
+    "thinking": dict(lt=0.19, ix=-6, iy=-9, note="Going into a question."),
+    "amused": dict(
+        lb=0.30, tilt=0.18, ix=-3, iy=2, hat=1.0, note="A smile, from below. One eye cannot grin any other way."
+    ),
+    "wry": dict(lt=0.26, tilt=0.55, ix=5, hat=-1.0, note="Knowing. The tilt does all of it."),
+    "sceptical": dict(lt=0.34, lb=0.05, tilt=0.40, ix=11, iy=2, hat=-1.5, note="The steel-man beats."),
+    "scrutiny": dict(lt=0.26, lb=0.20, note="Technical sections. Reading closely."),
+    "surprised": dict(iy=-1, ps=0.55, hat=2.5, note="Reveals. The pupil does this."),
+    "angry": dict(
+        lt=0.22, lb=0.18, tilt=0.62, hat=-5.0, ps=0.80, note="Hat down like a brow, lids converging, pupil hard."
+    ),
     # Was lt .40 with the iris at +5, which reads sad rather than deadpan:
     # downcast is sadness, deadpan is level and entirely still. The comedy is
     # in the stillness, so it takes a slow hold and barely any lid.
     "unimpressed": dict(lt=0.30, tilt=0.15, iy=1, note="Deadpan. Level, and still."),
-    "sad":         dict(lt=0.30, tilt=-0.34, iy=7, hat=1.5,
-                        note="The tilt inverted. Downcast, unlike deadpan."),
-    "puzzled":     dict(lt=0.12, tilt=-0.35, hat=4.0, ix=-4, iy=-3,
-                        note="Hat cocked one way, lid the other. I do not follow."),
-    "realising":   dict(hat=2.0, iy=-2, ps=1.18, gl=1.25,
-                        note="The ah. Opening up — not the shock of surprised."),
-    "delighted":   dict(lb=0.34, tilt=0.20, hat=1.5, ps=1.22, gl=1.35,
-                        note="Warmth. Dilated pupil and a wet glint do the work."),
-    "bored":       dict(lt=0.44, tilt=0.10, ix=-10, iy=3, gl=0.70,
-                        note="Heavy, and looking elsewhere. Deadpan is level; this is away."),
-    "resolute":    dict(lt=0.22, lb=0.12, hat=-2.5, ps=0.90,
-                        note="Narrowed and level, no tilt. Doing it anyway."),
-    "wince":       dict(lt=0.46, lb=0.30, tilt=0.35, hat=-1.0, ix=-7,
-                        note="Squeezed, looking away. For when the log says what you feared."),
-    "cold":        dict(lt=0.16, ps=0.88, gl=0.0,
-                        note="No catchlight. Unnerving, and the cheapest effect here."),
-    "weary":       dict(lt=0.52, tilt=-0.15, hat=1.0, iy=5, gl=0.75,
-                        note="Three in the morning. Heavy rather than sad."),
-    "asleep":      dict(lt=0.64, lb=0.14, iy=6, note="Standby card."),
-    "closed":      dict(lt=0.94, note="End card. Sign-off."),
+    "sad": dict(lt=0.30, tilt=-0.34, iy=7, hat=1.5, note="The tilt inverted. Downcast, unlike deadpan."),
+    "puzzled": dict(
+        lt=0.12, tilt=-0.35, hat=4.0, ix=-4, iy=-3, note="Hat cocked one way, lid the other. I do not follow."
+    ),
+    "realising": dict(hat=2.0, iy=-2, ps=1.18, gl=1.25, note="The ah. Opening up — not the shock of surprised."),
+    "delighted": dict(
+        lb=0.34, tilt=0.20, hat=1.5, ps=1.22, gl=1.35, note="Warmth. Dilated pupil and a wet glint do the work."
+    ),
+    "bored": dict(
+        lt=0.44, tilt=0.10, ix=-10, iy=3, gl=0.70, note="Heavy, and looking elsewhere. Deadpan is level; this is away."
+    ),
+    "resolute": dict(lt=0.22, lb=0.12, hat=-2.5, ps=0.90, note="Narrowed and level, no tilt. Doing it anyway."),
+    "wince": dict(
+        lt=0.46,
+        lb=0.30,
+        tilt=0.35,
+        hat=-1.0,
+        ix=-7,
+        note="Squeezed, looking away. For when the log says what you feared.",
+    ),
+    "cold": dict(lt=0.16, ps=0.88, gl=0.0, note="No catchlight. Unnerving, and the cheapest effect here."),
+    "weary": dict(lt=0.52, tilt=-0.15, hat=1.0, iy=5, gl=0.75, note="Three in the morning. Heavy rather than sad."),
+    "asleep": dict(lt=0.64, lb=0.14, iy=6, note="Standby card."),
+    "closed": dict(lt=0.94, note="End card. Sign-off."),
 }
 
 
@@ -113,7 +116,7 @@ def axes(name):
 # between the open curve and the opposite one. Corners are fixed, so the lids
 # can only meet, never cross — and they meet exactly when lid_top + lid_bottom
 # reaches 1, which is a property of the geometry rather than a rule to obey.
-LID_OPEN, LID_SHUT = 104, 178   # control-point y, open and fully closed
+LID_OPEN, LID_SHUT = 104, 178  # control-point y, open and fully closed
 
 # The lid margin as a fraction of the outline's weight. At parity the two lines
 # compete: the outline is structure and the margin is detail, and drawing them
@@ -136,7 +139,7 @@ def lid_paths(lid_top, lid_bottom, tilt=0.0):
     # The lower lid takes half the skew: matching it fully reads as the whole
     # eye rotating, which is a different thing entirely.
     top = f"M44 142C72 {ty - t:.2f} 168 {ty + t:.2f} 196 142"
-    bot = f"M44 142C72 {by - t * .5:.2f} 168 {by + t * .5:.2f} 196 142"
+    bot = f"M44 142C72 {by - t * 0.5:.2f} 168 {by + t * 0.5:.2f} 196 142"
     # Each fill closes away from the aperture, so at rest it sits outside the
     # clip entirely and costs nothing.
     return top + " L196 -60 L44 -60 Z", top, bot + " L196 340 L44 340 Z", bot
@@ -188,17 +191,17 @@ def mark_css(t):
     they cannot drift from each other."""
     return f"""
 .mark svg {{ width: 100%; height: auto; display: block; overflow: visible; }}
-.hat-crown, .hat-brim {{ fill: {t['ink']}; }}
-.hat-band   {{ fill: {t['paper']}; opacity: .16; }}
-.hat-buckle {{ fill: {t['signal']}; }}
-.sclera     {{ fill: {t['paper_2']}; }}
-.eye-outline {{ fill: none; stroke: {t['ink']};
+.hat-crown, .hat-brim {{ fill: {t["ink"]}; }}
+.hat-band   {{ fill: {t["paper"]}; opacity: .16; }}
+.hat-buckle {{ fill: {t["signal"]}; }}
+.sclera     {{ fill: {t["paper_2"]}; }}
+.eye-outline {{ fill: none; stroke: {t["ink"]};
                 stroke-width: calc(var(--mark-w) * .025); stroke-linejoin: round; }}
-.iris-outer {{ fill: {t['signal']}; }}
-.iris-inner {{ fill: {t['signal']}; filter: brightness(.82); }}
+.iris-outer {{ fill: {t["signal"]}; }}
+.iris-inner {{ fill: {t["signal"]}; filter: brightness(.82); }}
 /* Pinned, not swapped — see the note beside .pupil in styles.css. */
-.pupil      {{ fill: {t['pupil']}; }}
-.glint      {{ fill: {t['glint']}; opacity: .92; }}
+.pupil      {{ fill: {t["pupil"]}; }}
+.glint      {{ fill: {t["glint"]}; opacity: .92; }}
 .glint.sm   {{ opacity: .5; }}
 
 /* Iris and pupil really are transforms, so they stay in CSS. Lid geometry
@@ -226,8 +229,8 @@ def mark_css(t):
    running the full width of the shape it belongs to. Same weight and same
    non-scaling-stroke as eye-outline, or a closing eye changes line weight
    halfway down. */
-.lid-fill {{ fill: {t['lid']}; }}
-.lid-edge {{ fill: none; stroke: {t['lid_edge']}; stroke-linecap: round;
+.lid-fill {{ fill: {t["lid"]}; }}
+.lid-edge {{ fill: none; stroke: {t["lid_edge"]}; stroke-linecap: round;
              stroke-width: calc(var(--mark-w) * .025 * {LID_EDGE_W}); }}
 /* At rest a lid edge lies exactly on eye-outline, and two coincident
    antialiased strokes composite heavier than one — 170 pixels' worth on a
@@ -241,8 +244,7 @@ def mark_css(t):
 def expr_vars(name):
     """Only the axes that are still CSS. Lids come from mark_svg()."""
     a = axes(name)
-    return (f"--iris-x:{a['ix']}; --iris-y:{a['iy']}; "
-            f"--pupil-s:{a['ps']}; --glint-s:{a['gl']};")
+    return f"--iris-x:{a['ix']}; --iris-y:{a['iy']}; --pupil-s:{a['ps']}; --glint-s:{a['gl']};"
 
 
 def expr_mark(name):
@@ -279,7 +281,11 @@ def build_single(name, theme, size):
     t = THEMES[theme]
     pad = int(size * 0.12)
     return PAGE.format(
-        font=font_b64(), w=size, h=size, paper=t["paper"], ink=t["ink"],
+        font=font_b64(),
+        w=size,
+        h=size,
+        paper=t["paper"],
+        ink=t["ink"],
         mark_css=mark_css(t),
         extra=f".mark {{ --mark-w: {size - pad * 2}px; width: var(--mark-w); }}",
         body=f'<div class="mark" style="{expr_vars(name)}">{expr_mark(name)}</div>',
@@ -296,29 +302,39 @@ def build_sheet(theme, cell=300):
     w, h = cols * cell, rows * (cell + 54)
     cells = "".join(
         f'<figure><div class="mark" style="{expr_vars(n)}">{expr_mark(n)}</div>'
-        f'<figcaption><b>{n}</b>{EXPRESSIONS[n]["note"]}</figcaption></figure>'
+        f"<figcaption><b>{n}</b>{EXPRESSIONS[n]['note']}</figcaption></figure>"
         for n in EXPRESSIONS
     )
     extra = f"""
 body {{ display: block; padding: 0; }}
 .grid {{ display: grid; grid-template-columns: repeat({cols}, {cell}px); }}
 figure {{ padding: {cell // 10}px {cell // 12}px {cell // 18}px; text-align: center; }}
-.mark {{ --mark-w: {int(cell * .66)}px; width: var(--mark-w); margin: 0 auto; }}
+.mark {{ --mark-w: {int(cell * 0.66)}px; width: var(--mark-w); margin: 0 auto; }}
 figcaption {{ margin-top: {cell // 14}px; font-family: ui-monospace, Menlo, monospace;
               font-size: {max(9, cell // 26)}px; letter-spacing: .06em;
-              color: {t['ink_3']}; line-height: 1.5; }}
-figcaption b {{ display: block; color: {t['signal']}; font-weight: 400;
+              color: {t["ink_3"]}; line-height: 1.5; }}
+figcaption b {{ display: block; color: {t["signal"]}; font-weight: 400;
                 text-transform: uppercase; letter-spacing: .16em;
                 margin-bottom: .35em; }}
 """
-    return PAGE.format(font=font_b64(), w=w, h=h, paper=t["paper"], ink=t["ink"],
-                       mark_css=mark_css(t), extra=extra,
-                       body=f'<div class="grid">{cells}</div>'), w, h
+    return (
+        PAGE.format(
+            font=font_b64(),
+            w=w,
+            h=h,
+            paper=t["paper"],
+            ink=t["ink"],
+            mark_css=mark_css(t),
+            extra=extra,
+            body=f'<div class="grid">{cells}</div>',
+        ),
+        w,
+        h,
+    )
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("expression", nargs="?", choices=sorted(EXPRESSIONS))
     ap.add_argument("--sheet", action="store_true", help="contact sheet of all expressions")
     ap.add_argument("--newsprint", action="store_true", help="light theme (default is noir)")

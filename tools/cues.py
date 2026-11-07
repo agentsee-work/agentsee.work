@@ -51,19 +51,31 @@ SHORT_PEAK_DBFS = -3.0
 
 def ffprobe_duration(path):
     out = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "default=nw=1:nk=1", str(path)],
-        capture_output=True, text=True, check=True)
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(path)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     return float(out.stdout.strip())
 
 
 def measure(path, target, tp):
     """First loudnorm pass. Returns the measured values, or None if too quiet."""
     r = subprocess.run(
-        ["ffmpeg", "-nostdin", "-i", str(path),
-         "-af", f"loudnorm=I={target}:TP={tp}:LRA=11:print_format=json",
-         "-f", "null", "-"],
-        capture_output=True, text=True)
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-i",
+            str(path),
+            "-af",
+            f"loudnorm=I={target}:TP={tp}:LRA=11:print_format=json",
+            "-f",
+            "null",
+            "-",
+        ],
+        capture_output=True,
+        text=True,
+    )
     blocks = re.findall(r"\{[^{}]*\"input_i\"[^{}]*\}", r.stderr, re.S)
     if not blocks:
         return None
@@ -89,17 +101,32 @@ def verify(path, target):
 
 def peak_dbfs(path):
     r = subprocess.run(
-        ["ffmpeg", "-nostdin", "-i", str(path), "-af", "volumedetect",
-         "-f", "null", "-"], capture_output=True, text=True)
+        ["ffmpeg", "-nostdin", "-i", str(path), "-af", "volumedetect", "-f", "null", "-"],
+        capture_output=True,
+        text=True,
+    )
     hit = re.search(r"max_volume:\s*(-?[\d.]+) dB", r.stderr)
     return float(hit.group(1)) if hit else None
 
 
 def ffprobe_rate(path):
     out = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "a:0",
-         "-show_entries", "stream=sample_rate", "-of", "default=nw=1:nk=1",
-         str(path)], capture_output=True, text=True, check=True)
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=sample_rate",
+            "-of",
+            "default=nw=1:nk=1",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     return int(out.stdout.strip())
 
 
@@ -113,28 +140,39 @@ def write(path, out, filt, rate):
     # soxr rather than the default resampler: 44.1 -> 48 is 160:147, an
     # awkward ratio, and this is the one place quality is free.
     subprocess.run(
-        ["ffmpeg", "-nostdin", "-y", "-i", str(path), "-af", filt,
-         "-ar", str(rate), "-resampler", "soxr", "-precision", "28",
-         "-c:a", "pcm_s24le", str(out)],
-        capture_output=True, text=True, check=True)
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-y",
+            "-i",
+            str(path),
+            "-af",
+            filt,
+            "-ar",
+            str(rate),
+            "-resampler",
+            "soxr",
+            "-precision",
+            "28",
+            "-c:a",
+            "pcm_s24le",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src", help="directory of exported masters, or one file")
-    ap.add_argument("-o", "--out", default="delivery",
-                    help="where to write normalised cues (default: delivery/)")
-    ap.add_argument("--lufs", type=float, default=-16.0,
-                    help="target for foreground cues (default: -16)")
-    ap.add_argument("--bed-lufs", type=float, default=-30.0,
-                    help="target for anything named *bed* (default: -30)")
-    ap.add_argument("--tp", type=float, default=-1.0,
-                    help="true-peak ceiling in dBTP (default: -1)")
-    ap.add_argument("--rate", type=int, default=48000,
-                    help="output sample rate (default: 48000; 0 keeps the input's)")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="measure and report, write nothing")
+    ap.add_argument("-o", "--out", default="delivery", help="where to write normalised cues (default: delivery/)")
+    ap.add_argument("--lufs", type=float, default=-16.0, help="target for foreground cues (default: -16)")
+    ap.add_argument("--bed-lufs", type=float, default=-30.0, help="target for anything named *bed* (default: -30)")
+    ap.add_argument("--tp", type=float, default=-1.0, help="true-peak ceiling in dBTP (default: -1)")
+    ap.add_argument("--rate", type=int, default=48000, help="output sample rate (default: 48000; 0 keeps the input's)")
+    ap.add_argument("--dry-run", action="store_true", help="measure and report, write nothing")
     a = ap.parse_args()
 
     for tool in ("ffmpeg", "ffprobe"):
@@ -142,8 +180,11 @@ def main():
             sys.exit(f"{tool} not found on PATH — `brew install ffmpeg` on macOS")
 
     src = pathlib.Path(a.src)
-    files = sorted(p for p in ([src] if src.is_file() else src.iterdir())
-                   if p.suffix.lower() in (".wav", ".flac", ".aiff", ".aif", ".mp3"))
+    files = sorted(
+        p
+        for p in ([src] if src.is_file() else src.iterdir())
+        if p.suffix.lower() in (".wav", ".flac", ".aiff", ".aif", ".mp3")
+    )
     if not files:
         sys.exit(f"no audio files in {src}")
 
@@ -153,15 +194,14 @@ def main():
 
     resampled = []
     out_label = "predicted" if a.dry_run else "measured"
-    print(f"{'cue':28} {'role':5} {'secs':>5} {'in LUFS':>8} "
-          f"{'target':>7} {out_label:>9} {'dBTP':>6}  note")
+    print(f"{'cue':28} {'role':5} {'secs':>5} {'in LUFS':>8} {'target':>7} {out_label:>9} {'dBTP':>6}  note")
     for f in files:
         role = "bed" if BED.search(f.name) else "fore"
         target = a.bed_lufs if role == "bed" else a.lufs
         secs = ffprobe_duration(f)
         out = out_dir / (f.stem + ".wav")
         in_rate = ffprobe_rate(f)
-        rate = a.rate or in_rate          # 0 means "whatever came in"
+        rate = a.rate or in_rate  # 0 means "whatever came in"
         if rate != in_rate:
             resampled.append((f.name, in_rate, rate))
 
@@ -170,43 +210,51 @@ def main():
             gain = SHORT_PEAK_DBFS - pk if pk is not None else 0.0
             if not a.dry_run:
                 write(f, out, f"volume={gain:+.2f}dB", rate)
-            print(f"{f.name:28} {role:5} {secs:>5.1f} {'peak':>8} "
-                  f"{SHORT_PEAK_DBFS:>7.1f} {pk + gain:>9.1f} {'':>6}  "
-                  f"too short to gate; peak-normalised")
+            print(
+                f"{f.name:28} {role:5} {secs:>5.1f} {'peak':>8} "
+                f"{SHORT_PEAK_DBFS:>7.1f} {pk + gain:>9.1f} {'':>6}  "
+                f"too short to gate; peak-normalised"
+            )
             continue
 
         m = measure(f, target, a.tp)
         if m is None:
-            print(f"{f.name:28} {role:5} {secs:>5.1f} {'-':>8} {'-':>7} "
-                  f"{'-':>9} {'-':>6}  SKIPPED: no measurable loudness (silent?)")
+            print(
+                f"{f.name:28} {role:5} {secs:>5.1f} {'-':>8} {'-':>7} "
+                f"{'-':>9} {'-':>6}  SKIPPED: no measurable loudness (silent?)"
+            )
             continue
-        filt = (f"loudnorm=I={target}:TP={a.tp}:LRA=11:linear=true:"
-                f"measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
-                f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:"
-                f"offset={m['target_offset']}")
+        filt = (
+            f"loudnorm=I={target}:TP={a.tp}:LRA=11:linear=true:"
+            f"measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
+            f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:"
+            f"offset={m['target_offset']}"
+        )
         if a.dry_run:
             got, got_tp = float(m["output_i"]), float(m["output_tp"])
             note = ""
         else:
             write(f, out, filt, rate)
             got, got_tp = verify(out, target)
-            note = "" if got is None or abs(got - target) <= 1.0 \
-                   else f"OFF TARGET by {got - target:+.1f} dB"
-        print(f"{f.name:28} {role:5} {secs:>5.1f} {float(m['input_i']):>8.1f} "
-              f"{target:>7.1f} {got:>9.1f} {got_tp:>6.1f}  {note}")
+            note = "" if got is None or abs(got - target) <= 1.0 else f"OFF TARGET by {got - target:+.1f} dB"
+        print(
+            f"{f.name:28} {role:5} {secs:>5.1f} {float(m['input_i']):>8.1f} "
+            f"{target:>7.1f} {got:>9.1f} {got_tp:>6.1f}  {note}"
+        )
 
     if resampled:
         print("\nRESAMPLED:")
         for name, was, now in resampled:
             print(f"  {name}: {was} -> {now} Hz")
-        print("  If any of these get looped, cut the loop from the resampled\n"
-              "  file, not the master — a resampler has nothing beyond the\n"
-              "  file's edges and that is where a loop joins.")
+        print(
+            "  If any of these get looped, cut the loop from the resampled\n"
+            "  file, not the master — a resampler has nothing beyond the\n"
+            "  file's edges and that is where a loop joins."
+        )
     if a.dry_run:
         print("\n(dry run — nothing written)")
     else:
-        print(f"\nwrote 24-bit WAV to {out_dir}/"
-              + (f" at {a.rate} Hz" if a.rate else " at each source's own rate"))
+        print(f"\nwrote 24-bit WAV to {out_dir}/" + (f" at {a.rate} Hz" if a.rate else " at each source's own rate"))
 
 
 if __name__ == "__main__":

@@ -38,8 +38,7 @@ from eplib import ROOT, die, ep_dir, load_json, save_json
 
 # a venv of its own with the GPU build of torch; the CPU build in venv-erm is
 # the fallback, at about ten times the time
-VENVS = [ROOT / "build" / "venv-align" / "bin" / "python",
-         ROOT / "build" / "venv-erm" / "bin" / "python"]
+VENVS = [ROOT / "build" / "venv-align" / "bin" / "python", ROOT / "build" / "venv-erm" / "bin" / "python"]
 MODEL = "facebook/wav2vec2-base-960h"
 SR = 16000
 
@@ -48,6 +47,7 @@ def ensure_venv():
     try:
         import torch  # noqa: F401
         import transformers  # noqa: F401
+
         return
     except ImportError:
         pass
@@ -60,8 +60,12 @@ def ensure_venv():
 
 def decode(path):
     import numpy as np
-    raw = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-ac", "1",
-                          "-ar", str(SR), "-f", "f32le", "-"], capture_output=True, check=True).stdout
+
+    raw = subprocess.run(
+        ["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"],
+        capture_output=True,
+        check=True,
+    ).stdout
     return np.frombuffer(raw, dtype=np.float32)
 
 
@@ -71,7 +75,7 @@ def clean(word):
     return re.sub(r"[^A-Z']", "", word.upper())
 
 
-HOP, RF = 320, 400   # wav2vec2-base: one frame per 320 samples, 400 in view
+HOP, RF = 320, 400  # wav2vec2-base: one frame per 320 samples, 400 in view
 
 
 def viterbi(logp, tokens, blank=0, lo=None, hi=None):
@@ -84,6 +88,7 @@ def viterbi(logp, tokens, blank=0, lo=None, hi=None):
     word next to a long silence cannot wander thirty seconds along it,
     which it did."""
     import numpy as np
+
     T = logp.shape[0]
     ext = [blank]
     for t in tokens:
@@ -146,6 +151,7 @@ def full_logp(model, proc, audio, device, window=24.0, step=22.0):
     out, and the aligner then had to put the word on the wrong sound."""
     import numpy as np
     import torch
+
     G = max(1, (len(audio) - RF) // HOP + 1)
     out = np.full((G, model.config.vocab_size), np.nan, dtype=np.float32)
     s = 0.0
@@ -164,7 +170,7 @@ def full_logp(model, proc, audio, device, window=24.0, step=22.0):
         hi = T if c1 >= len(audio) else T - 50
         hi = min(hi, G - g0)
         if hi > lo:
-            out[g0 + lo:g0 + hi] = lp[lo:hi]
+            out[g0 + lo : g0 + hi] = lp[lo:hi]
         if c1 >= len(audio):
             break
         s += step
@@ -215,17 +221,16 @@ def align_words(logp, proc, words, band=4.0):
             continue
         s0, s1 = out.get(o, (a, b))
         out[o] = (min(s0, a), max(s1, b))
-    return [(out[i][0] * frame, (out[i][1] + 1) * frame) if i in out else (None, None)
-            for i in range(len(words))]
+    return [(out[i][0] * frame, (out[i][1] + 1) * frame) if i in out else (None, None) for i in range(len(words))]
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slug")
     ap.add_argument("--only")
-    ap.add_argument("--band", type=float, default=4.0,
-                    help="seconds either side of Whisper's time a word may be placed")
+    ap.add_argument(
+        "--band", type=float, default=4.0, help="seconds either side of Whisper's time a word may be placed"
+    )
     a = ap.parse_args()
     ensure_venv()
     import numpy as np
@@ -276,8 +281,7 @@ def main():
         # drag the line down with it
         peaks = [level(env, *sp) for sp in spans if sp[0] is not None]
         talk = float(np.percentile(peaks, 30)) - 8.0 if peaks else -40.0
-        tracks.append({"p": p, "words": words, "spans": spans, "env": env, "talk": talk,
-                       "selected": selected})
+        tracks.append({"p": p, "words": words, "spans": spans, "env": env, "talk": talk, "selected": selected})
 
     for t in tracks:
         if not t["selected"]:
@@ -313,8 +317,11 @@ def main():
             if (words[seg[0]].get("nsp") or 0.0) <= 0.6:
                 continue
             placed = [(i, spans[i]) for i in seg if spans[i][0] is not None]
-            if placed and all(level(env, *sp) < talk + 5 for _, sp in placed) \
-                    and any(talked_over(*sp) for _, sp in placed):
+            if (
+                placed
+                and all(level(env, *sp) < talk + 5 for _, sp in placed)
+                and any(talked_over(*sp) for _, sp in placed)
+            ):
                 doubted.update(i for i, _ in placed)
 
         out, moved, ghosts = [], [], []
@@ -329,8 +336,15 @@ def main():
             # stretched across the silence; a spoken one is neither
             crammed = chars / dur > 25
             stretched = dur > max(0.5, chars * 0.12)
-            rec = {"w": w["w"], "t0": round(sp[0], 3), "t1": round(sp[1], 3), "whisper_t0": w["t0"],
-                   "whisper_t1": w["t1"], "aligned": True, "db": round(lv, 1)}
+            rec = {
+                "w": w["w"],
+                "t0": round(sp[0], 3),
+                "t1": round(sp[1], 3),
+                "whisper_t0": w["t0"],
+                "whisper_t1": w["t1"],
+                "aligned": True,
+                "db": round(lv, 1),
+            }
             if w.get("filled"):
                 rec["filled"] = True
             # a real quiet word sits a few dB under the line; a made-up one
@@ -347,10 +361,12 @@ def main():
             out.append(rec)
         save_json(d / "erm" / f"{p['short']}.aligned.json", {"model": MODEL, "words": out})
         moved = np.array(moved) if moved else np.zeros(1)
-        print(f"  {p['short']:<8} {len(words)} words; start moved by median {np.median(moved):.3f}s, "
-              f"p90 {np.percentile(moved, 90):.3f}s, max {moved.max():.2f}s; "
-              f"{len(ghosts)} ghosts (no sound under them, or doubted by Whisper and talked over; "
-              f"speech line {talk:.0f} dB)")
+        print(
+            f"  {p['short']:<8} {len(words)} words; start moved by median {np.median(moved):.3f}s, "
+            f"p90 {np.percentile(moved, 90):.3f}s, max {moved.max():.2f}s; "
+            f"{len(ghosts)} ghosts (no sound under them, or doubted by Whisper and talked over; "
+            f"speech line {talk:.0f} dB)"
+        )
         for g in ghosts[:24]:
             print(f"     ghost {g[0]!r} at {g[1]:.2f}s, {g[2]:.0f} dB, {g[3]}")
     return 0

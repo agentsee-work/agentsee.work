@@ -60,9 +60,8 @@ from eplib import (
     src_to_out,
 )
 
-BUTTON_LEN = 2.7   # 04-button's first phrase; see AGE-62 for why not 5.0
-FILLERS = {"um", "uh", "erm", "er", "hmm", "mm", "mhm", "ah", "uhm", "umm", "uhh",
-           "ehm", "hm", "mmm", "huh"}
+BUTTON_LEN = 2.7  # 04-button's first phrase; see AGE-62 for why not 5.0
+FILLERS = {"um", "uh", "erm", "er", "hmm", "mm", "mhm", "ah", "uhm", "umm", "uhh", "ehm", "hm", "mmm", "huh"}
 HOP = ENV_HOP / RATE
 REASON = {1: "filler", 2: "stammer", 3: "pause", 4: "chapter", 5: "manual", 7: "um (verbatim)"}
 
@@ -85,7 +84,7 @@ def find_phrase(words, phrase, from_end=False):
     n = len(target)
     rng = range(len(toks) - n, -1, -1) if from_end else range(0, len(toks) - n + 1)
     for i in rng:
-        if toks[i:i + n] == target:
+        if toks[i : i + n] == target:
             return i, i + n - 1
     return None
 
@@ -119,8 +118,7 @@ def segment_of(words, segments):
         mid = (w["t0"] + w["t1"]) / 2
         # by the middle of the word, with no tolerance: a tolerance put the
         # second half of a split word into the first word's segment
-        hit = next((k for k, s in enumerate(segs)
-                    if s["spk"] == w["spk"] and s["t0"] <= mid < s["t1"]), None)
+        hit = next((k for k, s in enumerate(segs) if s["spk"] == w["spk"] and s["t0"] <= mid < s["t1"]), None)
         ids.append(hit)
     return ids
 
@@ -165,8 +163,7 @@ def runs(mask):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slug")
     ap.add_argument("--start", type=float, help="source second the show starts (override)")
     ap.add_argument("--end", type=float, help="source second the show ends (override)")
@@ -175,41 +172,72 @@ def main():
     ap.add_argument("--pad", type=float, default=0.25, help="seconds kept before the first and after the last word")
     ap.add_argument("--max-pause", type=float, default=0.7, help="silence longer than this is closed")
     ap.add_argument("--pause", type=float, default=0.4, help="what a closed silence becomes")
-    ap.add_argument("--fillers", choices=["all", "clean", "off"], default="all",
-                    help="clean: only where both edges of the cut are quiet")
-    ap.add_argument("--stammers", choices=["all", "clean", "off"], default="all",
-                    help="clean: only where both edges of the cut are quiet")
+    ap.add_argument(
+        "--fillers",
+        choices=["all", "clean", "off"],
+        default="all",
+        help="clean: only where both edges of the cut are quiet",
+    )
+    ap.add_argument(
+        "--stammers",
+        choices=["all", "clean", "off"],
+        default="all",
+        help="clean: only where both edges of the cut are quiet",
+    )
     ap.add_argument("--no-fillers", action="store_true", help="same as --fillers off")
     ap.add_argument("--no-stammers", action="store_true", help="same as --stammers off")
-    ap.add_argument("--removals", help="removals.json: [{phrase, near} | {t0, t1}], editorial cuts; "
-                         "default is the episode's removals.json if it exists")
+    ap.add_argument(
+        "--removals",
+        help="removals.json: [{phrase, near} | {t0, t1}], editorial cuts; "
+        "default is the episode's removals.json if it exists",
+    )
     ap.add_argument("--out", help="where to write the EDL (default edl.json)")
-    ap.add_argument("--quiet-join-db", type=float, default=8.0,
-                    help="an edge counts as quiet within this many dB of the silence threshold")
+    ap.add_argument(
+        "--quiet-join-db",
+        type=float,
+        default=8.0,
+        help="an edge counts as quiet within this many dB of the silence threshold",
+    )
     ap.add_argument("--no-erm", action="store_true", help="ignore erm/<short>.json even if present")
-    ap.add_argument("--erm-passes", default="gap,in,long",
-                    help="which of erm's acoustic detectors to take, outside any transcribed word: "
-                         "gap, in (inside a word), long (trailing vowel)")
-    ap.add_argument("--gap-clear", type=float, default=0.12,
-                    help="an untokened sound between two words must sit this far (s) from both; "
-                         "smaller catches a quick um before a vowel, at some risk to the vowel")
-    ap.add_argument("--clean-ms", type=float, default=40.0,
-                    help="clean mode: silence needed at each edge of a cut, in ms")
+    ap.add_argument(
+        "--erm-passes",
+        default="gap,in,long",
+        help="which of erm's acoustic detectors to take, outside any transcribed word: "
+        "gap, in (inside a word), long (trailing vowel)",
+    )
+    ap.add_argument(
+        "--gap-clear",
+        type=float,
+        default=0.12,
+        help="an untokened sound between two words must sit this far (s) from both; "
+        "smaller catches a quick um before a vowel, at some risk to the vowel",
+    )
+    ap.add_argument(
+        "--clean-ms", type=float, default=40.0, help="clean mode: silence needed at each edge of a cut, in ms"
+    )
     ap.add_argument("--fillers-extra", default="", help="more filler words, comma separated")
-    ap.add_argument("--silence-db", type=float, default=28.0,
-                    help="how far below the speech level counts as silence")
-    ap.add_argument("--silence-above-floor", type=float, default=14.0,
-                    help="how far above the noise floor still counts as silence")
-    ap.add_argument("--chapters", help="chapters.json: [{title, at: 'first words of the section'"
-                         "[, after: 'last words of the one before'][, card: false]}]; "
-                         "or {title, t0} in source seconds for the seam-finder")
+    ap.add_argument("--silence-db", type=float, default=28.0, help="how far below the speech level counts as silence")
+    ap.add_argument(
+        "--silence-above-floor", type=float, default=14.0, help="how far above the noise floor still counts as silence"
+    )
+    ap.add_argument(
+        "--chapters",
+        help="chapters.json: [{title, at: 'first words of the section'"
+        "[, after: 'last words of the one before'][, card: false]}]; "
+        "or {title, t0} in source seconds for the seam-finder",
+    )
     ap.add_argument("--no-chapters", action="store_true")
     ap.add_argument("--chapter-window", type=float, default=25.0)
     ap.add_argument("--card-dur", type=float, default=BUTTON_LEN)
     ap.add_argument("--show", action="store_true")
-    ap.add_argument("--debug", nargs=2, type=float, metavar=("FROM", "TO"),
-                    help="print, per 10 ms of this source span, the reason code, protection, "
-                         "silence and level — for working out why a cut landed where it did")
+    ap.add_argument(
+        "--debug",
+        nargs=2,
+        type=float,
+        metavar=("FROM", "TO"),
+        help="print, per 10 ms of this source span, the reason code, protection, "
+        "silence and level — for working out why a cut landed where it did",
+    )
     a = ap.parse_args()
 
     d = ep_dir(a.slug)
@@ -230,14 +258,15 @@ def main():
         edl = load_json(edl_path)
         for it in edl["items"]:
             if it["type"] == "src":
-                print(f"  {hms(it['out'])}  src {hms(it['t0'])} - {hms(it['t1'])}  "
-                      f"({it['t1'] - it['t0']:.2f}s)")
+                print(f"  {hms(it['out'])}  src {hms(it['t0'])} - {hms(it['t1'])}  ({it['t1'] - it['t0']:.2f}s)")
             else:
                 print(f"  {hms(it['out'])}  card {it['dur']}s  {it['title']}")
         s = edl["stats"]
-        print(f"  {hms(edl['duration'])}  end  ({edl['duration']:.1f}s from "
-              f"{edl['source_seconds']:.1f}s: {s['fillers']} fillers, {s['stammers']} stammers, "
-              f"{s['pauses']} pauses, {edl['removed_seconds']:.1f}s removed in {len(edl['removed'])} cuts)")
+        print(
+            f"  {hms(edl['duration'])}  end  ({edl['duration']:.1f}s from "
+            f"{edl['source_seconds']:.1f}s: {s['fillers']} fillers, {s['stammers']} stammers, "
+            f"{s['pauses']} pauses, {edl['removed_seconds']:.1f}s removed in {len(edl['removed'])} cuts)"
+        )
         return 0
 
     m = load_json(d / "manifest.json")
@@ -255,7 +284,7 @@ def main():
     env_spk = {k: envelope_db(v)[:n] for k, v in sig_spk.items()}
     in_word = np.zeros(n, dtype=bool)
     for w in words:
-        in_word[int(w["t0"] / HOP):int(w["t1"] / HOP) + 1] = True
+        in_word[int(w["t0"] / HOP) : int(w["t1"] / HOP) + 1] = True
     speech_level = float(np.percentile(env[in_word], 70)) if in_word.any() else -20.0
     noise = float(np.percentile(env, 10))
     # Two mics' room tone and breathing sit well above the floor, so "silence"
@@ -276,7 +305,7 @@ def main():
         mine = np.zeros(n, dtype=bool)
         theirs = np.zeros(n, dtype=bool)
         for w in words:
-            (mine if w["spk"] == p["short"] else theirs)[int(w["t0"] / HOP):int(w["t1"] / HOP) + 1] = True
+            (mine if w["spk"] == p["short"] else theirs)[int(w["t0"] / HOP) : int(w["t1"] / HOP) + 1] = True
         quiet = theirs & ~mine
         if mine.any() and quiet.any():
             loud_spk[p["short"]] = (float(np.percentile(e[mine], 30)) + float(np.percentile(e[quiet], 97))) / 2
@@ -293,23 +322,30 @@ def main():
         mine = np.zeros(n, dtype=bool)
         for w in words:
             if w["spk"] == p["short"]:
-                mine[int(w["t0"] / HOP):int(w["t1"] / HOP) + 1] = True
-        peaks = [float(e[int(w["t0"] / HOP):int(w["t1"] / HOP) + 1].max()) for w in words
-                 if w["spk"] == p["short"] and int(w["t1"] / HOP) + 1 > int(w["t0"] / HOP)]
+                mine[int(w["t0"] / HOP) : int(w["t1"] / HOP) + 1] = True
+        peaks = [
+            float(e[int(w["t0"] / HOP) : int(w["t1"] / HOP) + 1].max())
+            for w in words
+            if w["spk"] == p["short"] and int(w["t1"] / HOP) + 1 > int(w["t0"] / HOP)
+        ]
         line = (float(np.percentile(peaks, 30)) - 8.0) if peaks else thr
         arr = np.zeros(n, dtype=bool)
         for a0, a1 in runs(e > line):
             if (a1 - a0) * HOP >= 0.3:
-                arr[max(0, a0 - int(0.1 / HOP)):a1 + int(0.1 / HOP)] = True
+                arr[max(0, a0 - int(0.1 / HOP)) : a1 + int(0.1 / HOP)] = True
         talk_spk[p["short"]] = arr
-    other_talk = {k: (np.any([v for o, v in talk_spk.items() if o != k], axis=0)
-                      if len(talk_spk) > 1 else np.zeros(n, dtype=bool)) for k in talk_spk}
+    other_talk = {
+        k: (
+            np.any([v for o, v in talk_spk.items() if o != k], axis=0) if len(talk_spk) > 1 else np.zeros(n, dtype=bool)
+        )
+        for k in talk_spk
+    }
     other_busy = {}
     for k in talk_spk:
         busy = other_talk[k].copy()
         for w in words:
             if w["spk"] != k and tok(w["w"]) not in FILLERS:
-                busy[int(w["t0"] / HOP):int(w["t1"] / HOP) + 1] = True
+                busy[int(w["t0"] / HOP) : int(w["t1"] / HOP) + 1] = True
         other_busy[k] = busy
 
     # ── head and tail ─────────────────────────────────────────────────────
@@ -318,7 +354,7 @@ def main():
     if a.slate_in:
         hit = find_phrase(words, a.slate_in)
         if hit:
-            nxt = next((w for w in words[hit[1] + 1:]), None)
+            nxt = next((w for w in words[hit[1] + 1 :]), None)
             head, how_head = (nxt["t0"] if nxt else words[hit[1]]["t1"]), f"slate '{a.slate_in}'"
         else:
             print(f"  slate-in '{a.slate_in}' not found")
@@ -349,6 +385,7 @@ def main():
     # the span, found by a lower threshold so soft words count, widened by
     # 30 ms. This is what stops the pause rule eating "them" or "the".
     from scipy.ndimage import maximum_filter1d
+
     in_span = np.zeros(n, dtype=bool)
     # just under the silence threshold: on episode 0 only two words have
     # their loudest moment below that, and room tone mostly sits under it
@@ -356,7 +393,7 @@ def main():
     for i, w in enumerate(words):
         if i in drop or i not in kept:
             continue
-        in_span[max(0, int((w["t0"] - 0.03) / HOP)):min(n, int((w["t1"] + 0.03) / HOP))] = True
+        in_span[max(0, int((w["t0"] - 0.03) / HOP)) : min(n, int((w["t1"] + 0.03) / HOP))] = True
 
     def word_sound(mask):
         """Contiguous sound of 40 ms or more, widened by 30 ms each side. A
@@ -377,9 +414,10 @@ def main():
 
     def edge_db(tt):
         i = int(tt / HOP)
-        return float(env[max(0, i - 3):i + 4].mean())
+        return float(env[max(0, i - 3) : i + 4].mean())
 
     from scipy.ndimage import uniform_filter1d
+
     env_spk_smooth = {k: uniform_filter1d(v, 10) for k, v in env_spk.items()}
 
     def valley(spk, t_lo, t_hi, depth=4.0):
@@ -392,7 +430,7 @@ def main():
         if j1 - j0 < 10:
             return None
         k = j0 + int(np.argmin(sm[j0:j1]))
-        if sm[j0:k + 1].max() - sm[k] >= depth and sm[k:j1].max() - sm[k] >= depth:
+        if sm[j0 : k + 1].max() - sm[k] >= depth and sm[k:j1].max() - sm[k] >= depth:
             return k * HOP
         return None
 
@@ -400,7 +438,7 @@ def main():
         """Does anyone else have a word inside [t0_, t1_]? With aligned words
         this is the honest guard: a backchannel hum under an um is sound,
         and not worth keeping; a word is."""
-        return bool(other_busy[spk][max(0, int(t0_ / HOP)):int(t1_ / HOP)].any())
+        return bool(other_busy[spk][max(0, int(t0_ / HOP)) : int(t1_ / HOP)].any())
 
     def clear_of_others(spk, i0, i1, margin=0.05):
         """The part of [i0, i1) the other person is not talking over, if
@@ -417,11 +455,11 @@ def main():
         best = None
         if (b0 - m_) - i0 >= int(0.12 / HOP):
             end = int(snap_quiet(e, (b0 - m_) * HOP, -0.08, 0.0) / HOP)
-            if end > i0 and e[max(i0, end - 2):end + 1].max() < quiet:
+            if end > i0 and e[max(i0, end - 2) : end + 1].max() < quiet:
                 best = (i0, end)
         if i1 - (b1 + m_) >= int(0.12 / HOP) and (best is None or i1 - (b1 + m_) > best[1] - best[0]):
             start = int(snap_quiet(e, (b1 + m_) * HOP, 0.0, 0.08) / HOP)
-            if start < i1 and e[start:min(i1, start + 3)].max() < quiet:
+            if start < i1 and e[start : min(i1, start + 3)].max() < quiet:
                 best = (start, i1)
         return best
 
@@ -472,7 +510,7 @@ def main():
             reason[i0:i1] = 5
             print(f"  removing '{what}' {hms(t0_)} - {hms(t1_)} by request")
     for t0_, t1_, what in keeps:
-        protected[max(0, int(t0_ / HOP)):min(n, int(t1_ / HOP))] = True
+        protected[max(0, int(t0_ / HOP)) : min(n, int(t1_ / HOP))] = True
         for i in [i for i, w in enumerate(words) if i in drop and w["t0"] < t1_ and w["t1"] > t0_]:
             drop.pop(i, None)
         print(f"  keeping '{what}' {hms(t0_)} - {hms(t1_)} by request")
@@ -533,8 +571,11 @@ def main():
                     f = erm_dir / f"{p['short']}.words.json"
                 if not f.exists():
                     continue
-                vw = [{"w": x["w"], "t0": x["t0"] + p["offset"], "t1": x["t1"] + p["offset"]}
-                      for x in load_json(f)["words"] if x["w"].strip() and x.get("aligned", True)]
+                vw = [
+                    {"w": x["w"], "t0": x["t0"] + p["offset"], "t1": x["t1"] + p["offset"]}
+                    for x in load_json(f)["words"]
+                    if x["w"].strip() and x.get("aligned", True)
+                ]
             k = 0
             while k < len(vw):
                 if not is_filler(vw[k]["w"]):
@@ -567,8 +608,14 @@ def main():
                     trimmed = clear_of_others(p["short"], i0, i1)
                     if trimmed is None:
                         filler_how["other speaker talking"] = filler_how.get("other speaker talking", 0) + 1
-                        skipped.append((ts, vw[k - n_tokens]["w"] if k - n_tokens >= 0 else "um", "filler",
-                                        f"the other speaker is talking over it ({hms(i0 * HOP)} - {hms(i1 * HOP)})"))
+                        skipped.append(
+                            (
+                                ts,
+                                vw[k - n_tokens]["w"] if k - n_tokens >= 0 else "um",
+                                "filler",
+                                f"the other speaker is talking over it ({hms(i0 * HOP)} - {hms(i1 * HOP)})",
+                            )
+                        )
                         continue
                     was = (i0, i1)
                     i0, i1 = trimmed
@@ -608,14 +655,17 @@ def main():
                     # the next word follows too closely for the margin; the
                     # token's own end is the only bound left
                     bound = max(lo + 0.04, min(te - 0.05, hi - 0.05))
-                stretches = [(r0 + w0, r1 + w0) for r0, r1 in stretches
-                             if (r1 - r0) * HOP >= 0.04 and (r0 + w0) * HOP < bound]
+                stretches = [
+                    (r0 + w0, r1 + w0) for r0, r1 in stretches if (r1 - r0) * HOP >= 0.04 and (r0 + w0) * HOP < bound
+                ]
                 if not stretches:
                     filler_how["no sound"] = filler_how.get("no sound", 0) + 1
                     if a.debug:
-                        print(f"  debug: no sound for '{vw[k - 1]['w']}' token {ts:.2f}-{te:.2f} lo {lo:.2f} hi {hi:.2f} "
-                              f"bound {bound:.2f} window {w0 * HOP:.2f}-{w1 * HOP:.2f} max dB {float(e[w0:w1].max()) if w1 > w0 else -99:.0f} vs {loud_spk[p['short']]:.0f} "
-                              f"raw runs {[(round((r0 + w0) * HOP, 2), round((r1 + w0) * HOP, 2)) for r0, r1 in runs(loud)]}")
+                        print(
+                            f"  debug: no sound for '{vw[k - 1]['w']}' token {ts:.2f}-{te:.2f} lo {lo:.2f} hi {hi:.2f} "
+                            f"bound {bound:.2f} window {w0 * HOP:.2f}-{w1 * HOP:.2f} max dB {float(e[w0:w1].max()) if w1 > w0 else -99:.0f} vs {loud_spk[p['short']]:.0f} "
+                            f"raw runs {[(round((r0 + w0) * HOP, 2), round((r1 + w0) * HOP, 2)) for r0, r1 in runs(loud)]}"
+                        )
                     continue
                 if stretches[0][0] <= w0 + 2:
                     # continuous with the previous word. Whisper's boundary
@@ -640,8 +690,7 @@ def main():
                     # at the quietest moment in the 200 ms before the word
                     i1 = int(snap_quiet(e, end_cap, -0.2, 0.0) / HOP)
                 else:
-                    i1 = min(int(end_cap / HOP),
-                             int(snap_quiet(e, stretches[-1][1] * HOP, -0.01, 0.04) / HOP))
+                    i1 = min(int(end_cap / HOP), int(snap_quiet(e, stretches[-1][1] * HOP, -0.01, 0.04) / HOP))
                 if (i1 - i0) * HOP < 0.06:
                     filler_how["no sound"] = filler_how.get("no sound", 0) + 1
                     continue
@@ -652,9 +701,11 @@ def main():
                     filler_how["join on sound"] = filler_how.get("join on sound", 0) + 1
                     continue
                 if a.debug and i0 * HOP < a.debug[1] and i1 * HOP > a.debug[0]:
-                    print(f"  debug: verbatim '{vw[k - 1]['w']}' token {ts:.2f}-{te:.2f} lo {lo:.2f} hi {hi:.2f} "
-                          f"stretches {[(round(x * HOP, 2), round(y * HOP, 2)) for x, y in stretches]} "
-                          f"-> cut {i0 * HOP:.2f}-{i1 * HOP:.2f}")
+                    print(
+                        f"  debug: verbatim '{vw[k - 1]['w']}' token {ts:.2f}-{te:.2f} lo {lo:.2f} hi {hi:.2f} "
+                        f"stretches {[(round(x * HOP, 2), round(y * HOP, 2)) for x, y in stretches]} "
+                        f"-> cut {i0 * HOP:.2f}-{i1 * HOP:.2f}"
+                    )
                 protected[i0:i1] = False
                 reason[i0:i1] = np.where(reason[i0:i1] > 0, reason[i0:i1], 7)
                 verbatim_regions.append((i0 * HOP, i1 * HOP))
@@ -675,7 +726,7 @@ def main():
                 g0, g1 = a_w["t1"], b_w["t0"]
                 if g1 - g0 < 0.4 or g1 - g0 > 2.0 or not (head <= g0 and g1 <= tail):
                     continue
-                if reason[int(g0 / HOP):int(g1 / HOP)].any():
+                if reason[int(g0 / HOP) : int(g1 / HOP)].any():
                     continue
                 # an isolated burst in the middle of the gap, clear of both
                 # words by 120 ms, 150-800 ms long, with quiet either side
@@ -688,8 +739,10 @@ def main():
                 if i0 * HOP < g0 + a.gap_clear or i1 * HOP > g1 - a.gap_clear:
                     continue
                 e_ = env_spk[p["short"]]
-                if not (e_[max(0, i0 - 15):i0].max() < loud_spk[p["short"]] - 10.0
-                        and e_[i1:i1 + 15].max() < loud_spk[p["short"]] - 10.0):
+                if not (
+                    e_[max(0, i0 - 15) : i0].max() < loud_spk[p["short"]] - 10.0
+                    and e_[i1 : i1 + 15].max() < loud_spk[p["short"]] - 10.0
+                ):
                     continue
                 if other_word(p["short"], i0 * HOP, i1 * HOP):
                     continue
@@ -725,7 +778,7 @@ def main():
             gap = nxt["t0"] - w["t1"]
             if gap <= 1.2:
                 continue
-            cut_s = HOP * int((reason[int(w["t1"] / HOP):int(nxt["t0"] / HOP)] == 7).sum())
+            cut_s = HOP * int((reason[int(w["t1"] / HOP) : int(nxt["t0"] / HOP)] == 7).sum())
             if gap - cut_s <= 1.2:
                 drop[i] = 2
                 n_split += 1
@@ -737,7 +790,7 @@ def main():
             continue
         w = words[i]
         if why == 1 and (words_aligned or any(r0 < w["t1"] and r1 > w["t0"] for r0, r1 in verbatim_regions)):
-            continue   # placed from the aligned words above
+            continue  # placed from the aligned words above
         if why == 2 and words_aligned:
             # a stammer with aligned neighbours: the first try is the sound
             # between the word before it and the repeat that follows
@@ -824,8 +877,15 @@ def main():
                 continue
             for c in load_json(f)["cuts"]:
                 lab = c["word"]
-                kind = ("gap" if lab.startswith("<gap") else "in" if lab.startswith("<in:")
-                        else "long" if lab.startswith("<long:") else "word")
+                kind = (
+                    "gap"
+                    if lab.startswith("<gap")
+                    else "in"
+                    if lab.startswith("<in:")
+                    else "long"
+                    if lab.startswith("<long:")
+                    else "word"
+                )
                 if kind not in passes:
                     continue
                 t0_, t1_ = c["start"] + p["offset"], c["end"] + p["offset"]
@@ -836,14 +896,13 @@ def main():
                     erm_stats["other speaker talking"] = erm_stats.get("other speaker talking", 0) + 1
                     continue
                 if kind == "word":
-                    continue   # placed from the verbatim words above
+                    continue  # placed from the verbatim words above
                 # the acoustic passes are heuristics about the shape of a
                 # word, and the words they are least wrong about are the ones
                 # our transcript has nothing for at all. Inside one of our
                 # words — where "in" and "long" live by definition — a quiet
                 # tail like "-ing" reads as a gap and the cut clips the word.
-                if any(w["t0"] < t1_ and w["t1"] > t0_ and tok(w["w"]) not in FILLERS
-                       for w in words):
+                if any(w["t0"] < t1_ and w["t1"] > t0_ and tok(w["w"]) not in FILLERS for w in words):
                     erm_stats["inside one of our words"] = erm_stats.get("inside one of our words", 0) + 1
                     continue
                 i0 = int(snap_quiet(env, t0_, -0.03, 0.03) / HOP)
@@ -878,9 +937,9 @@ def main():
         has_cut = removed[r0:r1].any()
         if not has_cut and (r1 - r0) <= max_h:
             continue
-        free = np.flatnonzero(~removed[r0:r1]) + r0     # silence that is not a removed word
+        free = np.flatnonzero(~removed[r0:r1]) + r0  # silence that is not a removed word
         k = min(len(free), pause_h)
-        keep = set(free[:k // 2].tolist() + free[len(free) - (k - k // 2):].tolist()) if k else set()
+        keep = set(free[: k // 2].tolist() + free[len(free) - (k - k // 2) :].tolist()) if k else set()
         seg = reason[r0:r1]
         newly = np.flatnonzero(seg == 0) + r0
         newly = np.array([i for i in newly if i not in keep], dtype=int)
@@ -918,14 +977,17 @@ def main():
                 idx = [k for k, w in enumerate(words) if w["spk"] == p["short"]]
                 toks_ = [tok(words[k]["w"]) for k in idx]
                 for k in range(len(toks_) - len(want) + 1):
-                    if toks_[k:k + len(want)] == want:
+                    if toks_[k : k + len(want)] == want:
                         hits.append((idx[k], idx[k + len(want) - 1]))
             if not hits:
                 die(f"{what}: {phrase!r} is not in the transcript (check transcript/transcript.txt)")
             if len(hits) > 1:
                 if near is None:
-                    die(f"{what}: {phrase!r} is said {len(hits)} times, at "
-                        + ", ".join(hms(words[h[0]]["t0"]) for h in hits) + "; quote more of it, or add t0")
+                    die(
+                        f"{what}: {phrase!r} is said {len(hits)} times, at "
+                        + ", ".join(hms(words[h[0]]["t0"]) for h in hits)
+                        + "; quote more of it, or add t0"
+                    )
                 hits.sort(key=lambda h: abs(words[h[0]]["t0"] - near))
             return hits[0]
 
@@ -949,17 +1011,28 @@ def main():
                     _, i_af = find_quote(c["after"], c.get("t0"), f"chapter {c['title']!r} end of the previous")
                     w_af = words[i_af]
                     if w_af["t1"] >= w_at["t0"]:
-                        die(f"chapter {c['title']!r}: 'after' {c['after']!r} ({hms(w_af['t1'])}) "
-                            f"is not before 'at' {c['at']!r} ({hms(w_at['t0'])})")
+                        die(
+                            f"chapter {c['title']!r}: 'after' {c['after']!r} ({hms(w_af['t1'])}) "
+                            f"is not before 'at' {c['at']!r} ({hms(w_at['t0'])})"
+                        )
                     lo = w_af["t1"] + 0.1
                 else:
-                    prev_w = max((w for w in words if w is not w_at and w["t1"] <= w_at["t0"] + 0.02),
-                                 key=lambda w: w["t1"], default=None)
+                    prev_w = max(
+                        (w for w in words if w is not w_at and w["t1"] <= w_at["t0"] + 0.02),
+                        key=lambda w: w["t1"],
+                        default=None,
+                    )
                     lo = (prev_w["t1"] + 0.08) if prev_w else head
                 hi = w_at["t0"] - 0.05
                 anchor = w_af if c.get("after") else None
-                chatter = [w for w in words if w is not w_at and w is not anchor
-                           and w["t0"] > (anchor["t0"] if anchor else lo - 0.1) and w["t1"] <= w_at["t0"] + 0.02]
+                chatter = [
+                    w
+                    for w in words
+                    if w is not w_at
+                    and w is not anchor
+                    and w["t0"] > (anchor["t0"] if anchor else lo - 0.1)
+                    and w["t1"] <= w_at["t0"] + 0.02
+                ]
                 if chatter:
                     # the seam opens just after the anchor and closes just
                     # before the section starts; the chatter is inside it
@@ -976,12 +1049,20 @@ def main():
                     protected[i0:i1] = False
                     reason[i0:i1] = 4
                 card = c.get("card", True) is not False
-                chapters.append({"title": c["title"], "t0": round(w_at["t0"], 3), "card": card,
-                                 "seam": (round(s0, 3), round(s1, 3))})
-                print(f"  chapter {c['title']!r}: starts at {c['at']!r} ({hms(w_at['t0'])}); "
-                      f"{'card' if card else 'marker'} in the seam {hms(s0)} - {hms(s1)}"
-                      + (f", dropping {s1 - s0:.2f}s after {c['after']!r}" if c.get("after") else "")
-                      + (": " + " ".join(w["w"] for w in chatter) if chatter else ""))
+                chapters.append(
+                    {
+                        "title": c["title"],
+                        "t0": round(w_at["t0"], 3),
+                        "card": card,
+                        "seam": (round(s0, 3), round(s1, 3)),
+                    }
+                )
+                print(
+                    f"  chapter {c['title']!r}: starts at {c['at']!r} ({hms(w_at['t0'])}); "
+                    f"{'card' if card else 'marker'} in the seam {hms(s0)} - {hms(s1)}"
+                    + (f", dropping {s1 - s0:.2f}s after {c['after']!r}" if c.get("after") else "")
+                    + (": " + " ".join(w["w"] for w in chatter) if chatter else "")
+                )
                 continue
             if c.get("card") is False:
                 chapters.append({"title": c["title"], "t0": c["t0"], "card": False})
@@ -989,42 +1070,48 @@ def main():
             if c.get("exact"):
                 # the editor said here: the quietest moment within 0.3s of it
                 x = snap_quiet(env, c["t0"], -0.3, 0.3)
-                chapters.append({"title": c["title"], "t0": c["t0"], "card": True,
-                                 "seam": (round(x - 0.01, 3), round(x + 0.01, 3))})
+                chapters.append(
+                    {"title": c["title"], "t0": c["t0"], "card": True, "seam": (round(x - 0.01, 3), round(x + 0.01, 3))}
+                )
                 print(f"  chapter '{c['title']}' at {hms(c['t0'])}: card exactly there ({hms(x)})")
                 continue
             spot = place_chapter(c["t0"], kw, window_after=a.chapter_window)
             if spot:
                 chapters.append({"title": c["title"], "t0": c["t0"], "card": True, "seam": spot})
-                print(f"  chapter '{c['title']}' at {hms(c['t0'])}: card in the seam "
-                      f"{hms(spot[0])} - {hms(spot[1])} ({spot[1] - spot[0]:.2f}s)")
+                print(
+                    f"  chapter '{c['title']}' at {hms(c['t0'])}: card in the seam "
+                    f"{hms(spot[0])} - {hms(spot[1])} ({spot[1] - spot[0]:.2f}s)"
+                )
             else:
                 chapters.append({"title": c["title"], "t0": c["t0"], "card": False})
-                print(f"  chapter '{c['title']}' at {hms(c['t0'])}: no seam within "
-                      f"{a.chapter_window}s, marker only")
+                print(f"  chapter '{c['title']}' at {hms(c['t0'])}: no seam within {a.chapter_window}s, marker only")
 
     if a.debug:
         t_a, t_b = a.debug
         print(f"  debug {t_a:.2f}-{t_b:.2f}: t  reason prot silent dB")
         for t_ in np.arange(t_a, t_b, 0.01):
             i = int(t_ / HOP)
-            print(f"    {t_:7.2f}  {REASON.get(int(reason[i]), '-') if reason[i] else '-':<10} "
-                  f"{'P' if protected[i] else '.'}   {'s' if silent[i] else '.'}   {env[i]:5.0f}")
+            print(
+                f"    {t_:7.2f}  {REASON.get(int(reason[i]), '-') if reason[i] else '-':<10} "
+                f"{'P' if protected[i] else '.'}   {'s' if silent[i] else '.'}   {env[i]:5.0f}"
+            )
 
     # ── items ─────────────────────────────────────────────────────────────
-    items = [{"type": "src", "t0": round(r0 * HOP, 3), "t1": round(r1 * HOP, 3)}
-             for r0, r1 in runs(~removed)]
+    items = [{"type": "src", "t0": round(r0 * HOP, 3), "t1": round(r1 * HOP, 3)} for r0, r1 in runs(~removed)]
     for c in chapters:
         if not c.get("card"):
             continue
         g0, g1 = c["seam"]
         mid = snap_quiet(env, (g0 + g1) / 2, -(g1 - g0) / 2 + 0.02, (g1 - g0) / 2 - 0.02)
-        card = {"type": "card", "name": None, "number": None, "title": c["title"],
-                "dur": a.card_dur}
+        card = {"type": "card", "name": None, "number": None, "title": c["title"], "dur": a.card_dur}
         placed = False
         for k in range(len(items) - 1):
-            if items[k]["type"] == "src" and items[k + 1]["type"] == "src" \
-                    and items[k]["t1"] <= g1 + 0.1 and items[k + 1]["t0"] >= g0 - 0.1:
+            if (
+                items[k]["type"] == "src"
+                and items[k + 1]["type"] == "src"
+                and items[k]["t1"] <= g1 + 0.1
+                and items[k + 1]["t0"] >= g0 - 0.1
+            ):
                 items.insert(k + 1, card)
                 placed = True
                 break
@@ -1033,7 +1120,7 @@ def main():
                 if it["type"] == "src" and it["t0"] < mid < it["t1"]:
                     left = {"type": "src", "t0": it["t0"], "t1": round(mid, 3)}
                     right = {"type": "src", "t0": round(mid, 3), "t1": it["t1"]}
-                    items[k:k + 1] = [left, card, right]
+                    items[k : k + 1] = [left, card, right]
                     placed = True
                     break
         if not placed:
@@ -1076,42 +1163,82 @@ def main():
     for i, c in enumerate(out_chapters, 1):
         c["number"] = i
 
-    removed_list = [{"t0": round(r0 * HOP, 3), "t1": round(r1 * HOP, 3),
-                     "why": REASON.get(int(np.bincount(reason[r0:r1]).argmax()) or 3, "pause")}
-                    for r0, r1 in runs(removed) if r0 >= H and r1 <= T]
-    joins = np.array([env[max(0, int(tt / HOP) - 1):int(tt / HOP) + 2].mean()
-                      for it in items if it["type"] == "src" for tt in (it["t0"], it["t1"])])
-    stats = {"joins": len(joins), "joins_median_db": round(float(np.median(joins)), 1),
-             "joins_loud": int((joins > thr + 8).sum()),
-             "fillers": removed_words.get(1, 0), "stammers": removed_words.get(2, 0),
-             "fillers_found": sum(1 for i, why in drop.items() if why == 1 and i in kept),
-             "stammers_found": sum(1 for i, why in drop.items() if why == 2 and i in kept),
-             "pauses": n_pauses, "skipped": len(skipped), "manual": len(manual),
-             "erm": erm_stats, "verbatim": filler_how, "gap_sound": n_gap,
-             "threshold_db": round(thr, 1),
-             "speech_level_db": round(speech_level, 1), "noise_db": round(noise, 1)}
-    edl = {"slug": a.slug, "head": round(head, 3), "tail": round(tail, 3),
-           "how": {"head": how_head, "tail": how_tail},
-           "params": {"pad": a.pad, "max_pause": a.max_pause, "pause": a.pause,
-                      "fillers": a.fillers, "stammers": a.stammers, "clean_ms": a.clean_ms,
-                      "card_dur": a.card_dur},
-           "items": items, "duration": duration, "chapters": out_chapters,
-           "removed": removed_list,
-           "removed_seconds": round(sum(r["t1"] - r["t0"] for r in removed_list), 3),
-           "source_seconds": round(tail - head, 3), "stats": stats}
+    removed_list = [
+        {
+            "t0": round(r0 * HOP, 3),
+            "t1": round(r1 * HOP, 3),
+            "why": REASON.get(int(np.bincount(reason[r0:r1]).argmax()) or 3, "pause"),
+        }
+        for r0, r1 in runs(removed)
+        if r0 >= H and r1 <= T
+    ]
+    joins = np.array(
+        [
+            env[max(0, int(tt / HOP) - 1) : int(tt / HOP) + 2].mean()
+            for it in items
+            if it["type"] == "src"
+            for tt in (it["t0"], it["t1"])
+        ]
+    )
+    stats = {
+        "joins": len(joins),
+        "joins_median_db": round(float(np.median(joins)), 1),
+        "joins_loud": int((joins > thr + 8).sum()),
+        "fillers": removed_words.get(1, 0),
+        "stammers": removed_words.get(2, 0),
+        "fillers_found": sum(1 for i, why in drop.items() if why == 1 and i in kept),
+        "stammers_found": sum(1 for i, why in drop.items() if why == 2 and i in kept),
+        "pauses": n_pauses,
+        "skipped": len(skipped),
+        "manual": len(manual),
+        "erm": erm_stats,
+        "verbatim": filler_how,
+        "gap_sound": n_gap,
+        "threshold_db": round(thr, 1),
+        "speech_level_db": round(speech_level, 1),
+        "noise_db": round(noise, 1),
+    }
+    edl = {
+        "slug": a.slug,
+        "head": round(head, 3),
+        "tail": round(tail, 3),
+        "how": {"head": how_head, "tail": how_tail},
+        "params": {
+            "pad": a.pad,
+            "max_pause": a.max_pause,
+            "pause": a.pause,
+            "fillers": a.fillers,
+            "stammers": a.stammers,
+            "clean_ms": a.clean_ms,
+            "card_dur": a.card_dur,
+        },
+        "items": items,
+        "duration": duration,
+        "chapters": out_chapters,
+        "removed": removed_list,
+        "removed_seconds": round(sum(r["t1"] - r["t0"] for r in removed_list), 3),
+        "source_seconds": round(tail - head, 3),
+        "stats": stats,
+    }
     save_json(edl_path, edl)
 
     print(f"{edl_path.relative_to(ROOT) if edl_path.is_relative_to(ROOT) else edl_path}")
     print(f"  head {hms(head)} ({how_head})   tail {hms(tail)} ({how_tail})")
-    print(f"  speech {speech_level:.0f} dB, noise {noise:.0f} dB, silence below {thr:.0f} dB; "
-          + ", ".join(f"{k} sounds above {v:.0f}" for k, v in loud_spk.items()))
+    print(
+        f"  speech {speech_level:.0f} dB, noise {noise:.0f} dB, silence below {thr:.0f} dB; "
+        + ", ".join(f"{k} sounds above {v:.0f}" for k, v in loud_spk.items())
+    )
     n_erm = sum(v for k, v in erm_stats.items() if k in ("gap", "in", "long")) + filler_how.get("cut", 0)
-    print(f"  {tail - head:.1f}s of source -> {duration:.1f}s: {stats['fillers']} fillers, "
-          f"{n_erm} more from erm, {stats['stammers']} stammers, {stats['pauses']} pauses; "
-          f"{edl['removed_seconds']:.1f}s removed in {len(removed_list)} cuts; "
-          f"{sum(1 for it in items if it['type'] == 'src')} stretches kept")
-    print(f"  joins: {stats['joins']}, median {stats['joins_median_db']} dB, "
-          f"{stats['joins_loud']} on sound rather than silence")
+    print(
+        f"  {tail - head:.1f}s of source -> {duration:.1f}s: {stats['fillers']} fillers, "
+        f"{n_erm} more from erm, {stats['stammers']} stammers, {stats['pauses']} pauses; "
+        f"{edl['removed_seconds']:.1f}s removed in {len(removed_list)} cuts; "
+        f"{sum(1 for it in items if it['type'] == 'src')} stretches kept"
+    )
+    print(
+        f"  joins: {stats['joins']}, median {stats['joins_median_db']} dB, "
+        f"{stats['joins_loud']} on sound rather than silence"
+    )
     for t0_, w_, why_, because in skipped:
         print(f"  left alone: {why_} '{w_}' at {hms(t0_)}, {because}")
     for c in out_chapters:

@@ -113,8 +113,7 @@ def main():
             with Image.open(path) as probe:
                 w, h = probe.size
             side = min(w, h)
-            box = ((w - side) // 2, (h - side) // 2,
-                   (w - side) // 2 + side, (h - side) // 2 + side)
+            box = ((w - side) // 2, (h - side) // 2, (w - side) // 2 + side, (h - side) // 2 + side)
             print(f"  {name}: no --crop given, using centre square {box}")
         build(name, path, box, sharpen, colour)
 

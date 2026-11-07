@@ -87,6 +87,7 @@ def released(as_of, only=()):
 
 # ─── Apple Podcasts ──────────────────────────────────────────────────────────
 
+
 def apple_show(url):
     """(store, show id) from the show's Apple link."""
     m = re.search(r"podcasts\.apple\.com/(?:([a-z]{2})/)?.*?id(\d+)", url)
@@ -112,6 +113,7 @@ def apple_link(results, guid, store):
 
 # ─── Spotify ─────────────────────────────────────────────────────────────────
 
+
 def spotify_show(url):
     m = re.search(r"open\.spotify\.com/show/([A-Za-z0-9]+)", url)
     return m.group(1) if m else None
@@ -120,8 +122,11 @@ def spotify_show(url):
 def spotify_token(env):
     """Client credentials: the public catalogue and nothing of any user."""
     basic = base64.b64encode(f"{env['SPOTIFY_CLIENT_ID']}:{env['SPOTIFY_CLIENT_SECRET']}".encode()).decode()
-    d = get_json(SPOTIFY_TOKEN, data=b"grant_type=client_credentials",
-                 headers={"Authorization": "Basic " + basic, "Content-Type": "application/x-www-form-urlencoded"})
+    d = get_json(
+        SPOTIFY_TOKEN,
+        data=b"grant_type=client_credentials",
+        headers={"Authorization": "Basic " + basic, "Content-Type": "application/x-www-form-urlencoded"},
+    )
     return d["access_token"]
 
 
@@ -143,16 +148,24 @@ def spotify_link(items, title, release):
     if len(same) > 1:
         same = [i for i in same if i.get("release_date") == release]
     if len(same) == 1:
-        return (same[0].get("external_urls") or {}).get("spotify") or f"https://open.spotify.com/episode/{same[0]['id']}"
+        return (same[0].get("external_urls") or {}).get(
+            "spotify"
+        ) or f"https://open.spotify.com/episode/{same[0]['id']}"
     return None
 
 
 # ─── YouTube ─────────────────────────────────────────────────────────────────
 
+
 def youtube_token(env):
-    data = urllib.parse.urlencode({
-        "client_id": env["YOUTUBE_CLIENT_ID"], "client_secret": env["YOUTUBE_CLIENT_SECRET"],
-        "refresh_token": env["YOUTUBE_REFRESH_TOKEN"], "grant_type": "refresh_token"}).encode()
+    data = urllib.parse.urlencode(
+        {
+            "client_id": env["YOUTUBE_CLIENT_ID"],
+            "client_secret": env["YOUTUBE_CLIENT_SECRET"],
+            "refresh_token": env["YOUTUBE_REFRESH_TOKEN"],
+            "grant_type": "refresh_token",
+        }
+    ).encode()
     return get_json(YT_TOKEN, data=data, headers={"Content-Type": "application/x-www-form-urlencoded"})["access_token"]
 
 
@@ -171,9 +184,14 @@ def youtube_uploads(token):
         for it in d.get("items", []):
             sn = it.get("snippet") or {}
             if (sn.get("resourceId") or {}).get("kind") == "youtube#video":
-                out.append({"id": sn["resourceId"]["videoId"], "title": sn.get("title") or "",
-                            "description": sn.get("description") or "",
-                            "public": (it.get("status") or {}).get("privacyStatus") == "public"})
+                out.append(
+                    {
+                        "id": sn["resourceId"]["videoId"],
+                        "title": sn.get("title") or "",
+                        "description": sn.get("description") or "",
+                        "public": (it.get("status") or {}).get("privacyStatus") == "public",
+                    }
+                )
         page = d.get("nextPageToken")
         if not page:
             return out
@@ -206,6 +224,7 @@ def youtube_links(videos, e, yt_title, clips):
 
 # ─── The run ─────────────────────────────────────────────────────────────────
 
+
 def sources(show, env, log=print):
     """name → a function of (the release's episode record, the release) giving
     what was found: a link or None for a directory in show.json; for
@@ -214,12 +233,16 @@ def sources(show, env, log=print):
     if all(env.get(k) for k in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")):
         try:
             videos = youtube_uploads(youtube_token(env))
-            out["YouTube"] = lambda e, r: youtube_links(videos, e, (r.get("youtube") or {}).get("title"), r.get("clips") or [])
+            out["YouTube"] = lambda e, r: youtube_links(
+                videos, e, (r.get("youtube") or {}).get("title"), r.get("clips") or []
+            )
         except (urllib.error.URLError, ValueError, KeyError, IndexError) as err:
             log(f"  YouTube: not asked, {err}")
     else:
-        log("  YouTube: skipped, YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN not set "
-            "(op run --env-file=tools/directories.env)")
+        log(
+            "  YouTube: skipped, YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN not set "
+            "(op run --env-file=tools/directories.env)"
+        )
     dirs = show.get("directories", {})
     if dirs.get("Apple Podcasts"):
         store, show_id = apple_show(dirs["Apple Podcasts"])
@@ -237,8 +260,10 @@ def sources(show, env, log=print):
             except (urllib.error.URLError, ValueError, KeyError) as err:
                 log(f"  Spotify: not asked, {err}")
         else:
-            log("  Spotify: skipped, SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET not set "
-                "(op run --env-file=tools/directories.env, once the app exists)")
+            log(
+                "  Spotify: skipped, SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET not set "
+                "(op run --env-file=tools/directories.env, once the app exists)"
+            )
     return out
 
 
@@ -246,8 +271,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slugs", nargs="*", help="episodes to ask for (default: every released one)")
     ap.add_argument("--refresh", action="store_true", help="ask again for links an episode already has")
-    ap.add_argument("--as-of", default=dt.datetime.now(LONDON).date().isoformat(),
-                    help="the day (default today, London); an episode is asked for once released")
+    ap.add_argument(
+        "--as-of",
+        default=dt.datetime.now(LONDON).date().isoformat(),
+        help="the day (default today, London); an episode is asked for once released",
+    )
     a = ap.parse_args()
     eps = released(a.as_of, set(a.slugs))
     if not eps:
@@ -273,8 +301,10 @@ def main():
                 clips = {**(yt.get("clips") or {}), **got.get("clips", {})}
                 if clips != (yt.get("clips") or {}):
                     yt["clips"], wrote = clips, True
-                said.append(f"YouTube: episode {'found' if got.get('url') else 'kept' if yt.get('url') else 'not public yet'}, "
-                            f"Shorts {len(yt.get('clips') or {})} of {len(r.get('clips') or [])} public")
+                said.append(
+                    f"YouTube: episode {'found' if got.get('url') else 'kept' if yt.get('url') else 'not public yet'}, "
+                    f"Shorts {len(yt.get('clips') or {})} of {len(r.get('clips') or [])} public"
+                )
                 continue
             if name in dirs and not a.refresh:
                 said.append(f"{name}: kept")

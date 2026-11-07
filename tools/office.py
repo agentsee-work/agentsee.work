@@ -47,7 +47,7 @@ def minted(s3, bucket):
     pages = s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix="episodes/", Delimiter="/")
     for page in pages:
         for cp in page.get("CommonPrefixes", []):
-            slug = cp["Prefix"][len("episodes/"):].rstrip("/")
+            slug = cp["Prefix"][len("episodes/") :].rstrip("/")
             r, _ = get_json(s3, bucket, f"episodes/{slug}/out/release.json")
             n = ((r or {}).get("episode") or {}).get("number")
             if n not in (None, ""):
@@ -106,13 +106,16 @@ def seed_removals(d, guests):
     have = {r.get("phrase") for r in rems if r.get("phrase")}
     added = []
     for g in guests:
-        for rnd in ((g["notes"] or {}).get("rounds") or []):
+        for rnd in (g["notes"] or {}).get("rounds") or []:
             for note in rnd.get("notes") or []:
                 cut = note.get("remove") or {}
                 phrase = cut.get("phrase")
                 if not phrase or not note.get("confirmed") or phrase in have:
                     continue
-                entry = {"phrase": phrase, "why": f"{g['name']}, review round {rnd.get('n')}: {(note.get('text') or '')[:120]}"}
+                entry = {
+                    "phrase": phrase,
+                    "why": f"{g['name']}, review round {rnd.get('n')}: {(note.get('text') or '')[:120]}",
+                }
                 if cut.get("near") is not None:
                     entry["near"] = cut["near"]
                 rems.append(entry)
@@ -132,7 +135,7 @@ def vetoed_clips(d, guests):
     clips = load_json(path)
     vetoed = set()
     for g in guests:
-        for v in (((g["approval"] or {}).get("clips") or {}).get("vetoed") or []):
+        for v in ((g["approval"] or {}).get("clips") or {}).get("vetoed") or []:
             vetoed.add(str(v))
     if not vetoed:
         return clips, []
@@ -168,13 +171,17 @@ def notes_cmd(a, d, cfg, guests):
         print(f"notes.guests: added {', '.join(added)}")
     phrases = seed_removals(d, guests)
     for g in guests:
-        rounds = ((g["notes"] or {}).get("rounds") or [])
+        rounds = (g["notes"] or {}).get("rounds") or []
         n_notes = sum(len(r.get("notes") or []) for r in rounds)
-        print(f"{g['name']}: {len(rounds)} round(s) of notes, {n_notes} note(s)"
-              + (f"; approved round {(g['approval'].get('review') or {}).get('round')}" if g["approval"] else ""))
+        print(
+            f"{g['name']}: {len(rounds)} round(s) of notes, {n_notes} note(s)"
+            + (f"; approved round {(g['approval'].get('review') or {}).get('round')}" if g["approval"] else "")
+        )
     if phrases:
-        print(f"removals.json: {len(phrases)} cut(s) added. Re-cut (`episode.py run {a.slug} --from cut`), "
-              "then `episode.py review` so the guest sees it")
+        print(
+            f"removals.json: {len(phrases)} cut(s) added. Re-cut (`episode.py run {a.slug} --from cut`), "
+            "then `episode.py review` so the guest sees it"
+        )
     else:
         print("removals.json: nothing new")
     return 0
@@ -187,8 +194,10 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
     known = {g["name"] for g in guests} | {g["guest"].get("name") for g in guests}
     for g in (cfg.get("notes") or {}).get("guests") or []:
         if g.get("name") not in known:
-            why.append(f"{g.get('name')} is in notes.guests with no record in the office: "
-                       'episode.json "guests" names nobody by that name')
+            why.append(
+                f"{g.get('name')} is in notes.guests with no record in the office: "
+                'episode.json "guests" names nobody by that name'
+            )
     waived = None
     if why:
         for w in why:
@@ -199,8 +208,10 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
         print("  waived with --despite-guests")
     for g in guests:
         if g["approval"]:
-            print(f"  guest: {g['name']} approved round {(g['approval'].get('review') or {}).get('round')} "
-                  f"at {str(g['approval'].get('at', ''))[:16]}")
+            print(
+                f"  guest: {g['name']} approved round {(g['approval'].get('review') or {}).get('round')} "
+                f"at {str(g['approval'].get('at', ''))[:16]}"
+            )
     for h in (hosts or {}).get("approvals") or []:
         print(f"  host: {h.get('host')} approved round {(hosts or {}).get('round')} at {str(h.get('at', ''))[:16]}")
 
@@ -208,9 +219,16 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
     n = choose_number(cfg, taken, a.number)
     had = cfg.get("number")
     cfg["number"] = str(n)
-    print(f"  episode {n}" + (f", was {had}" if had not in (None, "") and str(had) != str(n) else
-                             "" if had not in (None, "") else ", minted"
-                             + (f" (taken: {', '.join(str(k) for k in sorted(taken))})" if taken else "")))
+    print(
+        f"  episode {n}"
+        + (
+            f", was {had}"
+            if had not in (None, "") and str(had) != str(n)
+            else ""
+            if had not in (None, "")
+            else ", minted" + (f" (taken: {', '.join(str(k) for k in sorted(taken))})" if taken else "")
+        )
+    )
     added = fill_guests(cfg, guests)
     if added:
         print(f"  notes.guests: added {', '.join(added)}")
@@ -231,8 +249,10 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
     rendered = (rel.get("episode") or {}).get("number")
     if str(rendered) != str(n) or dropped:
         if a.no_render and not dropped:
-            die(f"the render carries number {rendered!r}, not {n}: drop --no-render, or "
-                f"`episode.py run {a.slug} --from cards` first")
+            die(
+                f"the render carries number {rendered!r}, not {n}: drop --no-render, or "
+                f"`episode.py run {a.slug} --from cards` first"
+            )
         print(f"── the numbered render: episode.py run {a.slug} --from cards", flush=True)
         rc = subprocess.call([str(TOOLS / "episode.py"), "run", a.slug, "--from", "cards"])
         if rc:
@@ -247,27 +267,45 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
         for w in rel["warnings"]:
             print(f"  warning: {w}")
         die("the release has warnings: fix the cause, or pass --despite-warnings")
-    by = a.by or subprocess.run(["git", "config", "user.name"], capture_output=True,
-                                text=True).stdout.strip() or os.environ.get("USER", "?")
-    approved = {"by": by, "at": dt.datetime.now().isoformat(timespec="seconds"),
-                "release": cfg["release"], "number": str(n),
-                "review": (review_record(d) or {}).get("round"),
-                "guests": [{"id": g["id"], "name": g["name"], "approval": f"guests/{g['id']}/approval.json",
-                            "sha256": g["approval_sha256"], "at": (g["approval"] or {}).get("at"),
-                            "round": ((g["approval"] or {}).get("review") or {}).get("round")}
-                           for g in guests],
-                "files": {k: v["sha256"] for k, v in rel["files"].items()}}
+    by = (
+        a.by
+        or subprocess.run(["git", "config", "user.name"], capture_output=True, text=True).stdout.strip()
+        or os.environ.get("USER", "?")
+    )
+    approved = {
+        "by": by,
+        "at": dt.datetime.now().isoformat(timespec="seconds"),
+        "release": cfg["release"],
+        "number": str(n),
+        "review": (review_record(d) or {}).get("round"),
+        "guests": [
+            {
+                "id": g["id"],
+                "name": g["name"],
+                "approval": f"guests/{g['id']}/approval.json",
+                "sha256": g["approval_sha256"],
+                "at": (g["approval"] or {}).get("at"),
+                "round": ((g["approval"] or {}).get("review") or {}).get("round"),
+            }
+            for g in guests
+        ],
+        "files": {k: v["sha256"] for k, v in rel["files"].items()},
+    }
     if hosts:
-        approved["hosts"] = [{"host": h.get("host"), "at": h.get("at"), "who": h.get("who")}
-                             for h in hosts.get("approvals") or []]
+        approved["hosts"] = [
+            {"host": h.get("host"), "at": h.get("at"), "who": h.get("who")} for h in hosts.get("approvals") or []
+        ]
     if waived:
         approved["waived"] = waived
     cfg["approved"] = approved
     save_json(d / "episode.json", cfg)
     who = "; ".join(f"{g['name']} ({g['id']})" for g in guests)
-    print(f"approved by {by}, release {cfg['release']}, episode {n}, {len(rel['files'])} files recorded"
-          + (f", with the approval of {who}" if guests and not waived else "")
-          + (" (guest records waived)" if waived else ""), flush=True)
+    print(
+        f"approved by {by}, release {cfg['release']}, episode {n}, {len(rel['files'])} files recorded"
+        + (f", with the approval of {who}" if guests and not waived else "")
+        + (" (guest records waived)" if waived else ""),
+        flush=True,
+    )
     # release.json carries the approval too, as it always has.
     return subprocess.call([str(TOOLS / "release.py"), a.slug, "--no-art"])
 
@@ -282,13 +320,22 @@ def main():
     ok.add_argument("--release", help="YYYY-MM-DD the episode goes out; default today")
     ok.add_argument("--by", help="who approved it; default the git user")
     ok.add_argument("--number", help="this number rather than the next free one, when plans changed")
-    ok.add_argument("--no-render", action="store_true",
-                    help="the render already carries the number; do not run cards, assemble, clips and release")
+    ok.add_argument(
+        "--no-render",
+        action="store_true",
+        help="the render already carries the number; do not run cards, assemble, clips and release",
+    )
     ok.add_argument("--despite-warnings", action="store_true", help="approve although the release has warnings")
-    ok.add_argument("--despite-guests", action="store_true",
-                    help="approve although a guest's record does not clear it; the record says so")
-    ok.add_argument("--dry-run", action="store_true",
-                    help="the gate, the number, the clips that would go; nothing written, nothing rendered")
+    ok.add_argument(
+        "--despite-guests",
+        action="store_true",
+        help="approve although a guest's record does not clear it; the record says so",
+    )
+    ok.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="the gate, the number, the clips that would go; nothing written, nothing rendered",
+    )
     a = ap.parse_args()
     sys.stdout.reconfigure(line_buffering=True)
     boto3 = boto(__file__)

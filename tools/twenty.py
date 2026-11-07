@@ -127,7 +127,9 @@ def main():
         print(f"wrote {p.relative_to(ROOT)}")
     if not stale:
         print("nothing to do")
-    print(f"prompt: {len(prompt)} characters, {len(encoded(prompt))} in a link; the launcher is {len(encoded(LAUNCHER))}")
+    print(
+        f"prompt: {len(prompt)} characters, {len(encoded(prompt))} in a link; the launcher is {len(encoded(LAUNCHER))}"
+    )
 
 
 if __name__ == "__main__":
