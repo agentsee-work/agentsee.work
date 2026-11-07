@@ -38,16 +38,8 @@ import shutil
 import subprocess
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from banner import ROOT, THEMES  # noqa: E402
-from eye import (
-    AXES,
-    EXPRESSIONS,
-    REST,
-    font_b64,  # noqa: E402
-    mark_css,
-    mark_svg,
-)
+from banner import ROOT, THEMES
+from eye import AXES, EXPRESSIONS, REST, font_b64, mark_css, mark_svg
 from eye import axes as eye_axes
 
 MAX_GRID = 8000   # px per side; Chrome will go further, but not happily

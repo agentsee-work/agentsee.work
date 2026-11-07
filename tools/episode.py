@@ -59,8 +59,7 @@ import shutil
 import subprocess
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import EPISODES, ROOT, die, load_json, save_json  # noqa: E402
+from eplib import EPISODES, ROOT, die, load_json, save_json
 
 TOOLS = pathlib.Path(__file__).resolve().parent
 STAGES = ["ingest", "transcribe", "fillers", "align", "cut", "cards", "assemble", "clips", "release"]

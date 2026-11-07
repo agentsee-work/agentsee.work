@@ -33,8 +33,7 @@ import pathlib
 import re
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import ROOT, caption_cues, die, ep_dir, hms, load_json, save_json, write_srt  # noqa: E402
+from eplib import ROOT, caption_cues, die, ep_dir, hms, load_json, save_json, write_srt
 
 VENV = ROOT / "build" / "venv-transcribe" / "bin" / "python"
 

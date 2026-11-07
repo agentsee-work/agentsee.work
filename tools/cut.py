@@ -44,8 +44,7 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import (  # noqa: E402
+from eplib import (
     ENV_HOP,
     RATE,
     ROOT,

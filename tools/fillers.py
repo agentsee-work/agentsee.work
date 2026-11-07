@@ -29,12 +29,10 @@ erm lives in its own venv, like transcription:
 import argparse
 import json
 import os
-import pathlib
 import subprocess
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import ROOT, die, ep_dir, load_json  # noqa: E402
+from eplib import ROOT, die, ep_dir, load_json
 
 VENV = ROOT / "build" / "venv-erm"
 

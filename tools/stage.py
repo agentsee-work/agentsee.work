@@ -50,9 +50,8 @@ import sys
 import threading
 import time
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import ROOT, die, ep_dir, load_json, save_json  # noqa: E402
-from release import MIME  # noqa: E402
+from eplib import ROOT, die, ep_dir, load_json, save_json
+from release import MIME
 
 VENV = ROOT / "build" / "venv-stage" / "bin" / "python"
 EDIT = ["episode.json", "manifest.json", "chapters.json", "clips.json", "removals.json",

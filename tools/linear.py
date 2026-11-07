@@ -25,7 +25,6 @@ next refresh would fail.
 import argparse
 import json
 import os
-import pathlib
 import re
 import sys
 import urllib.error
@@ -33,9 +32,8 @@ import urllib.parse
 import urllib.request
 import webbrowser
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from consent import Catch, listen, post_form, wait  # noqa: E402
-from eplib import die  # noqa: E402
+from consent import Catch, listen, post_form, wait
+from eplib import die
 
 AUTH_URL = "https://linear.app/oauth/authorize"
 TOKEN_URL = "https://api.linear.app/oauth/token"

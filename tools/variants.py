@@ -29,8 +29,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import ROOT, die, ep_dir, load_json, save_json  # noqa: E402
+from eplib import ROOT, die, ep_dir, load_json, save_json
 
 TOOLS = pathlib.Path(__file__).resolve().parent
 
