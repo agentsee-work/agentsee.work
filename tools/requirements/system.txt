@@ -1,0 +1,24 @@
+# The system Python: what the pipeline itself imports (cut.py, assemble.py,
+# cards.py, clips.py and the rest), and what soundfile needs. Not a venv, and
+# not a full freeze, since the system Python holds everything else apt put there.
+#
+# This one is a record more than a lock. All but soundfile came from apt, so
+# they move with Ubuntu's updates, and the packages Ubuntu built are not the
+# same files as the wheels these lines fetch from PyPI:
+#
+#     sudo apt install python3-numpy python3-scipy python3-pil python3-fonttools python3-cffi python3-pycparser python3-typing-extensions
+#
+# soundfile came from pip, for the user: apt's python3-soundfile is older (0.13.1).
+# Compare a machine against this file when something renders differently.
+#
+# Read on 7 Nov 2026 from the workstation the approved episodes were made on:
+# Python 3.14.4 on Ubuntu 26.04, Linux x86_64 (glibc 2.43).
+
+cffi==2.0.0
+fonttools==4.61.1
+numpy==2.3.5
+pillow==12.1.1
+pycparser==3.0
+scipy==1.16.3
+soundfile==0.14.0
+typing_extensions==4.15.0

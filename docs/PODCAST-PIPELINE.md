@@ -616,13 +616,23 @@ woff2. `clips.py` instances it once, at a reading weight, into `build/fonts/`.
 
 ## Operating it
 
+Each venv is rebuilt from its pinned file in `tools/requirements/`: a full
+`pip freeze` of the venv the approved episodes were made in, on Python 3.14.4
+and Ubuntu 26.04, Linux x86_64. Each file's header says what was asked for.
+`system.txt` records what the system Python had; most of that is apt's, so it
+is a record to compare against rather than a lock. To move a version, change
+the venv on purpose, run an episode through it, and freeze it back over the
+file, keeping the header.
+
 ```sh
-python3 -m venv build/venv-erm            # Whisper with fillers kept, and erm's acoustic passes
-build/venv-erm/bin/pip install erm "av<16" nvidia-cublas-cu12 nvidia-cudnn-cu12
+python3 -m venv build/venv-erm            # Whisper with fillers kept, erm's acoustic passes, align's CPU fallback
+build/venv-erm/bin/pip install -r tools/requirements/erm.txt
 python3 -m venv build/venv-align          # the forced aligner, GPU build of torch
-build/venv-align/bin/pip install torch transformers
+build/venv-align/bin/pip install -r tools/requirements/align.txt
 python3 -m venv build/venv-transcribe     # only needed without erm
-build/venv-transcribe/bin/pip install faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12
+build/venv-transcribe/bin/pip install -r tools/requirements/transcribe.txt
+python3 -m venv build/venv-stage          # boto3, for staging
+build/venv-stage/bin/pip install -r tools/requirements/stage.txt
 
 ./tools/episode.py new ep1 ~/Downloads/timeline.zip \
     --title "Running our own mail server, on purpose" \

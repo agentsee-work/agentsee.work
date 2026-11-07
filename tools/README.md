@@ -160,8 +160,8 @@ Each stage is its own tool with its own options; the ones worth knowing:
 ```
 
 The pipeline needs numpy, scipy, soundfile, Pillow and fontTools in the
-system Python, plus ffmpeg and headless Chrome. Staging needs boto3 in
-`build/venv-stage` (`python3 -m venv build/venv-stage && build/venv-stage/bin/pip install boto3`)
+system Python (the versions are in `requirements/system.txt`), plus ffmpeg and headless Chrome. Staging needs boto3 in
+`build/venv-stage` (`python3 -m venv build/venv-stage && build/venv-stage/bin/pip install -r tools/requirements/stage.txt`)
 and the 1Password CLI. Two files in the episode folder steer the cut by hand, when a rule is not the
 answer: `chapters.json` (`[{title, at: "first words of the section", after:
 "last words of the one before"}]`, quoted from the transcript, with `card:
@@ -171,15 +171,17 @@ old seam-finder and `exact: true` cuts right there) and `removals.json` (`[{phra
 "take that bit out" and "leave that alone" notes from a review.
 
 Transcription and erm each run in their
-own venv, because their CUDA wheels do not belong in the system Python:
+own venv, because their CUDA wheels do not belong in the system Python. Each
+is rebuilt from a pinned file in `requirements/`, a full freeze whose header
+says what was asked for and what it was frozen on:
 
 ```sh
 python3 -m venv build/venv-transcribe
-build/venv-transcribe/bin/pip install faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12
+build/venv-transcribe/bin/pip install -r tools/requirements/transcribe.txt
 python3 -m venv build/venv-erm
-build/venv-erm/bin/pip install erm "av<16" nvidia-cublas-cu12 nvidia-cudnn-cu12
+build/venv-erm/bin/pip install -r tools/requirements/erm.txt
 python3 -m venv build/venv-align
-build/venv-align/bin/pip install torch transformers     # the CUDA build; align.py runs here
+build/venv-align/bin/pip install -r tools/requirements/align.txt     # the CUDA build; align.py runs here
 ```
 
 `cues.py` targets −16 LUFS for cues that play alone and −30 for anything with

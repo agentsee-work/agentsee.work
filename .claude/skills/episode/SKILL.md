@@ -25,7 +25,7 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    aligned verbatim words into the transcript) → cut → cards → assemble, with clips alongside
    assemble when `clips.json` exists, then release. Fillers need `build/venv-erm`, align `build/venv-align`
    (GPU torch; falls back to venv-erm's CPU build), and only without erm does the plain
-   transcription (`build/venv-transcribe`) run. See the doc for the three venvs.
+   transcription (`build/venv-transcribe`) run. See the doc for the venvs and their pinned files.
 3. **Choose the chapters by reading the transcript.** This is a judgement, not
    a rule: read `build/episodes/<slug>/transcript/transcript.txt` end to end,
    decide where each section genuinely begins (the sentence that opens the new
