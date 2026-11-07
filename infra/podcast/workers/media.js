@@ -6,8 +6,8 @@
  *
  * What it does with a request, in order: GET and HEAD only; the path is the
  * object key; conditional and range headers go to R2 as they are, and come
- * back as 304, 206 or 416 the way a web server would answer them; the
- * object's own headers (content type, cache control, from the upload) are
+ * back as 304, 206 or 416 the way a web server would answer them; R2 failing
+ * is a 503 with Retry-After; the object's own headers (content type, cache control, from the upload) are
  * passed on, with an ETag, Last-Modified, Accept-Ranges and an open CORS
  * grant, because everything here is public. Nothing is cached by this
  * script: R2 reads are a fraction of a cent per thousand and every request
@@ -71,6 +71,15 @@ function span(range, size) {
   return [first, last];
 }
 
+/** Whether R2 had cause to refuse this Range header: no span of the file answers it. */
+function refused(range, size) {
+  if (!range) return false;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+  if (!m) return true;
+  if (m[1] === "") return m[2] === "" || +m[2] === 0;
+  return +m[1] >= size || (m[2] !== "" && +m[2] < +m[1]);
+}
+
 function keyOf(url) {
   let path;
   try {
@@ -131,10 +140,24 @@ export default {
         : await env.MEDIA.get(key, { range: request.headers, onlyIf: request.headers });
     } catch (e) {
       // R2 refuses a range that starts past the end; answer as a server would.
-      const meta = await env.MEDIA.head(key);
+      // Anything else that throws is R2 failing, which a 416 would tell a
+      // player is its own fault: a 503 tells it to come back.
+      const unavailable = () => {
+        point.status = 503;
+        return log(plain(503, "storage unavailable", { "Retry-After": "30" }));
+      };
+      let meta;
+      try {
+        meta = await env.MEDIA.head(key);
+      } catch {
+        return unavailable();
+      }
       if (!meta) {
         point.status = 404;
         return log(plain(404, "not found"));
+      }
+      if (method !== "GET" || !refused(request.headers.get("Range"), meta.size)) {
+        return unavailable();
       }
       point.status = 416;
       point.size = meta.size;
