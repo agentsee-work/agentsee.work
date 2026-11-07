@@ -57,6 +57,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from eplib import (  # noqa: E402
     ROOT,
     cap_first,
+    capitalised_inside,
     caption_cues,
     caption_words,
     die,
@@ -177,8 +178,19 @@ def transcript_files(out, mapped, names, show_name):
     cues = caption_cues(mapped, max_chars=90, max_lines=2, max_dur=8.0, gap=1.0)
     vtt = ["WEBVTT", "", f"NOTE {show_name} transcript, one speaker per cue", ""]
     segs = []
+    last = None
+    names_seen = capitalised_inside(mapped)
     for cue in cues:
-        text = cap_first(" ".join(w["w"] for w in cue))
+        # A new speaker opens with a capital. A cue that only wraps the same
+        # speaker's sentence does not: the site runs their cues together, and
+        # tidy_words has already capitalised a word that follows a stop. A
+        # name Whisper wrote in lower case here keeps the capital it gets
+        # elsewhere in the episode.
+        text = " ".join(w["w"] for w in cue)
+        first = re.sub(r"^[^\w]+|[^\w']+$", "", cue[0]["w"]).lower()
+        if cue[0].get("spk") != last or first in names_seen:
+            text = cap_first(text)
+        last = cue[0].get("spk")
         spk = names.get(cue[0].get("spk"), cue[0].get("spk", ""))
         t0, t1 = cue[0]["t0"], cue[-1]["t1"]
         vtt += [f"{hms(t0)} --> {hms(t1)}", f"<v {esc_vtt(spk)}>{esc_vtt(text)}", ""]
