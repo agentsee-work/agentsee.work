@@ -192,9 +192,9 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
     waived = None
     if why:
         for w in why:
-            print(f"  guest: {w}")
+            print(f"  gate: {w}")
         if not a.despite_guests:
-            die("the guests' records do not clear this episode; --despite-guests waives that, and the record says so")
+            die("the office's records do not clear this episode; --despite-guests waives that, and the record says so")
         waived = why
         print("  waived with --despite-guests")
     for g in guests:
