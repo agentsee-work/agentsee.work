@@ -22,7 +22,7 @@ export default {
     const recipients = (env.RECIPIENTS || '')
       .split(',')
       .map((s) => s.trim())
-      .filter(Boolean;
+      .filter(Boolean);
 
     if (recipients.length === 0) {
       // Better to bounce loudly than to accept mail and drop it on the floor.
