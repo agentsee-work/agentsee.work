@@ -73,6 +73,7 @@ def get_json(url, authorization, fatal=True):
 
 class Catch(http.server.BaseHTTPRequestHandler):
     """One request: the platform's redirect back to the loopback, carrying the code."""
+
     who = "The platform"
     path = "/"
     state = None

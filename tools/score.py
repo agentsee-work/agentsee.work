@@ -38,23 +38,44 @@ CARRIED = ("divisions", "key", "time", "clef", "transpose", "staff-details")
 
 # Tone-colour and playing-technique marks persist until cancelled, so an
 # excerpt starting after one has to inherit it — same problem as dynamics.
-TECHNIQUE = {"sul tasto", "tasto", "dolce", "sul ponticello", "sul pont.",
-             "ponticello", "pont.", "pont", "metallico", "metal.",
-             "pizz.", "pizzicato", "arco", "con sordino", "senza sordino"}
-CANCEL = {"ord.", "ordinario", "modo ordinario", "nat.", "naturale", "natural",
-          "normale", "pos. nat.", "sonido natural"}
+TECHNIQUE = {
+    "sul tasto",
+    "tasto",
+    "dolce",
+    "sul ponticello",
+    "sul pont.",
+    "ponticello",
+    "pont.",
+    "pont",
+    "metallico",
+    "metal.",
+    "pizz.",
+    "pizzicato",
+    "arco",
+    "con sordino",
+    "senza sordino",
+}
+CANCEL = {
+    "ord.",
+    "ordinario",
+    "modo ordinario",
+    "nat.",
+    "naturale",
+    "natural",
+    "normale",
+    "pos. nat.",
+    "sonido natural",
+}
 
 # Rest durations in quarter notes, longest first — used to pad a truncated bar.
-REST_TYPES = (("whole", 4), ("half", 2), ("quarter", 1),
-              ("eighth", .5), ("16th", .25), ("32nd", .125))
+REST_TYPES = (("whole", 4), ("half", 2), ("quarter", 1), ("eighth", 0.5), ("16th", 0.25), ("32nd", 0.125))
 
 
 def load(path):
     """Parse .mxl or .musicxml. An .mxl is a zip; container.xml names the score."""
     if str(path).endswith(".mxl"):
         with zipfile.ZipFile(path) as z:
-            name = next(n for n in z.namelist()
-                        if n.endswith(".xml") and "META-INF" not in n)
+            name = next(n for n in z.namelist() if n.endswith(".xml") and "META-INF" not in n)
             return ET.fromstring(z.read(name))
     return ET.parse(path).getroot()
 
@@ -89,8 +110,7 @@ def classify(direction):
     """What kind of persistent state this direction sets, if any."""
     if direction.find(".//dynamics") is not None:
         return "dynamics"
-    if direction.find(".//metronome") is not None or \
-       direction.find("sound[@tempo]") is not None:
+    if direction.find(".//metronome") is not None or direction.find("sound[@tempo]") is not None:
         return "tempo"
     words = " ".join(w.text or "" for w in direction.iter("words")).strip().lower()
     if words in CANCEL:
@@ -146,7 +166,7 @@ def truncate_bar(measure, beat, div, beats, beat_type):
     drop, straddler = [], None
 
     for n in measure.findall("note"):
-        if n.find("chord") is None:      # a chord's members share a start
+        if n.find("chord") is None:  # a chord's members share a start
             start = pos
             pos += int(n.findtext("duration") or 0)
         if start >= limit:
@@ -158,20 +178,23 @@ def truncate_bar(measure, beat, div, beats, beat_type):
         measure.remove(n)
 
     if straddler is not None:
-        kept = limit - sum(int(x.findtext("duration") or 0)
-                           for x in measure.findall("note")
-                           if x is not straddler and x.find("chord") is None)
+        kept = limit - sum(
+            int(x.findtext("duration") or 0)
+            for x in measure.findall("note")
+            if x is not straddler and x.find("chord") is None
+        )
         name = single_type(kept, div)
         if name:
             straddler.find("duration").text = str(int(kept))
             straddler.find("type").text = name
         else:
-            print(f"  note: the cut at beat {beat} falls inside a note that "
-                  f"can't be shortened to a plain duration; left it long",
-                  file=sys.stderr)
+            print(
+                f"  note: the cut at beat {beat} falls inside a note that "
+                f"can't be shortened to a plain duration; left it long",
+                file=sys.stderr,
+            )
 
-    used = sum(int(n.findtext("duration") or 0)
-               for n in measure.findall("note") if n.find("chord") is None)
+    used = sum(int(n.findtext("duration") or 0) for n in measure.findall("note") if n.find("chord") is None)
     for name, ticks in rests_for(max(0, bar_ticks - used), div):
         r = ET.SubElement(measure, "note")
         ET.SubElement(r, "rest")
@@ -208,9 +231,12 @@ def excerpt(root, first, last, keep_parts=None, truncate_beat=None, title=None):
         else:
             wanted.append(sp.get("id"))
     if keep_parts and not wanted:
-        sys.exit(f"no part matched {keep_parts}; the score has: " + ", ".join(
-            (sp.findtext("part-name") or "?").strip()
-            for sp in root.find("part-list").findall("score-part")))
+        sys.exit(
+            f"no part matched {keep_parts}; the score has: "
+            + ", ".join(
+                (sp.findtext("part-name") or "?").strip() for sp in root.find("part-list").findall("score-part")
+            )
+        )
 
     for part in list(out.findall("part")):
         if part.get("id") not in wanted:
@@ -236,13 +262,12 @@ def excerpt(root, first, last, keep_parts=None, truncate_beat=None, title=None):
                 elif kind == "technique":
                     technique = copy.deepcopy(d)
                 elif kind == "cancel":
-                    technique = None          # back to ordinario; nothing to carry
-        for m in part.findall("measure"):    # divisions may only appear later
+                    technique = None  # back to ordinario; nothing to carry
+        for m in part.findall("measure"):  # divisions may only appear later
             if m.findtext(".//divisions"):
                 div = int(m.findtext(".//divisions"))
 
-        kept = [m for m in part.findall("measure")
-                if first <= int(m.get("number")) <= last]
+        kept = [m for m in part.findall("measure") if first <= int(m.get("number")) <= last]
         for m in list(part.findall("measure")):
             part.remove(m)
         for i, m in enumerate(kept):
@@ -259,9 +284,9 @@ def excerpt(root, first, last, keep_parts=None, truncate_beat=None, title=None):
             if tag in state and attrs.find(tag) is None:
                 attrs.append(state[tag])
         if any(classify(d) == "tempo" for d in kept[0].findall("direction")):
-            tempo_placed = True               # this part already states it
+            tempo_placed = True  # this part already states it
         elif tempo is not None and not tempo_placed:
-            kept[0].insert(0, tempo)          # once only, or both staves show it
+            kept[0].insert(0, tempo)  # once only, or both staves show it
             tempo_placed = True
         if technique is not None and classify_first(kept[0]) != "technique":
             kept[0].insert(1, technique)
@@ -275,17 +300,19 @@ def excerpt(root, first, last, keep_parts=None, truncate_beat=None, title=None):
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src", help=".mxl or .musicxml")
     ap.add_argument("out", help=".musicxml to write")
-    ap.add_argument("--bars", required=True, metavar="FIRST-LAST",
-                    help="inclusive bar range, e.g. 5-7, or a single bar, 18")
-    ap.add_argument("--parts", metavar="NAMES",
-                    help="comma-separated part names to keep; default is all")
-    ap.add_argument("--truncate", type=float, metavar="BEAT",
-                    help="keep only up to this beat of the last bar, padding "
-                         "the rest with rests")
+    ap.add_argument(
+        "--bars", required=True, metavar="FIRST-LAST", help="inclusive bar range, e.g. 5-7, or a single bar, 18"
+    )
+    ap.add_argument("--parts", metavar="NAMES", help="comma-separated part names to keep; default is all")
+    ap.add_argument(
+        "--truncate",
+        type=float,
+        metavar="BEAT",
+        help="keep only up to this beat of the last bar, padding the rest with rests",
+    )
     ap.add_argument("--title", help="rewrite the work title on the excerpt")
     a = ap.parse_args()
 
@@ -296,21 +323,21 @@ def main():
     if last < first:
         sys.exit(f"--bars {a.bars}: the range runs backwards")
     root = load(a.src)
-    ET.ElementTree(excerpt(root, first, last,
-                           a.parts.split(",") if a.parts else None,
-                           a.truncate, a.title)).write(
-        a.out, encoding="UTF-8", xml_declaration=True)
+    ET.ElementTree(excerpt(root, first, last, a.parts.split(",") if a.parts else None, a.truncate, a.title)).write(
+        a.out, encoding="UTF-8", xml_declaration=True
+    )
 
     beats, beat_type = metre_of(root)
     tempo = tempo_of(root)
     bars = last - first + 1
-    length = (bars - (1 - a.truncate / beats if a.truncate else 0)) \
-        * beats * (4 / beat_type) * 60 / (tempo or 120)
-    print(f"{a.out}: bars {first}-{last} ({bars} bar{'s' * (bars > 1)}, "
-          f"~{length:.1f}s at {tempo or 120:.0f}"
-          f"{'' if tempo else ' — assumed, the score has no tempo marking'})"
-          + (f", cut at beat {a.truncate}" if a.truncate else "")
-          + (f", {a.parts} only" if a.parts else ""))
+    length = (bars - (1 - a.truncate / beats if a.truncate else 0)) * beats * (4 / beat_type) * 60 / (tempo or 120)
+    print(
+        f"{a.out}: bars {first}-{last} ({bars} bar{'s' * (bars > 1)}, "
+        f"~{length:.1f}s at {tempo or 120:.0f}"
+        f"{'' if tempo else ' — assumed, the score has no tempo marking'})"
+        + (f", cut at beat {a.truncate}" if a.truncate else "")
+        + (f", {a.parts} only" if a.parts else "")
+    )
 
 
 if __name__ == "__main__":

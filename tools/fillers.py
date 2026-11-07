@@ -40,8 +40,7 @@ SEEDED_ERM = "import ctranslate2, sys; from erm.cli import main; ctranslate2.set
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slug")
     ap.add_argument("--only", help="one participant's short name")
     ap.add_argument("--model", default="large-v3")
@@ -65,9 +64,19 @@ def main():
 
     def one(p):
         out = out_dir / f"{p['short']}.json"
-        cmd = [str(VENV / "bin" / "python"), "-c", SEEDED_ERM, str(d / p["audio"]["file"]),
-               "--dry-run", "--json", str(out),
-               "--model", a.model, "--gap-min-ms", str(a.gap_min_ms)]
+        cmd = [
+            str(VENV / "bin" / "python"),
+            "-c",
+            SEEDED_ERM,
+            str(d / p["audio"]["file"]),
+            "--dry-run",
+            "--json",
+            str(out),
+            "--model",
+            a.model,
+            "--gap-min-ms",
+            str(a.gap_min_ms),
+        ]
         if a.no_gaps:
             cmd.append("--no-detect-gaps")
         if a.no_pitch:
@@ -78,8 +87,13 @@ def main():
         # erm's own transcript, with the fillers as words: the better source
         # for where an um is and where the words either side of it are
         words_out = out_dir / f"{p['short']}.words.json"
-        cmd2 = [str(VENV / "bin" / "python"), str(ROOT / "tools" / "verbatim_words.py"),
-                str(d / p["audio"]["file"]), a.model, str(words_out)]
+        cmd2 = [
+            str(VENV / "bin" / "python"),
+            str(ROOT / "tools" / "verbatim_words.py"),
+            str(d / p["audio"]["file"]),
+            a.model,
+            str(words_out),
+        ]
         if a.no_fill:
             cmd2.append("--no-fill")
         r2 = subprocess.run(cmd2, env=env, capture_output=True, text=True)
@@ -90,17 +104,27 @@ def main():
         cuts = load_json(out)["cuts"]
         kinds = {}
         for c in cuts:
-            k = ("gap" if c["word"].startswith("<gap") else "in" if c["word"].startswith("<in:")
-                 else "long" if c["word"].startswith("<long:") else "word")
+            k = (
+                "gap"
+                if c["word"].startswith("<gap")
+                else "in"
+                if c["word"].startswith("<in:")
+                else "long"
+                if c["word"].startswith("<long:")
+                else "word"
+            )
             kinds[k] = kinds.get(k, 0) + 1
         secs = sum(c["end"] - c["start"] for c in cuts)
-        return (f"  {p['short']:<8} {len(vw)} verbatim words ({summary['holes']} sounds with no word, "
-                f"{summary['filled']} words recovered{': ' + summary['filled_words'] if summary['filled'] else ''}), "
-                f"{len(cuts)} cuts, {secs:.1f}s  {kinds}")
+        return (
+            f"  {p['short']:<8} {len(vw)} verbatim words ({summary['holes']} sounds with no word, "
+            f"{summary['filled']} words recovered{': ' + summary['filled_words'] if summary['filled'] else ''}), "
+            f"{len(cuts)} cuts, {secs:.1f}s  {kinds}"
+        )
 
     # both tracks at once: two large-v3 instances fit on an 11 GB card, and
     # the pass is the slowest in the pipeline
     from concurrent.futures import ThreadPoolExecutor
+
     parts = [p for p in m["participants"] if not a.only or p["short"] == a.only]
     with ThreadPoolExecutor(max_workers=max(1, a.jobs)) as ex:
         for line in ex.map(one, parts):

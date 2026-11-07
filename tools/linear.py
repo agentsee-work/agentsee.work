@@ -55,7 +55,9 @@ def viewer(access):
     """Who the token acts as, from Linear; None if it would not say."""
     body = json.dumps({"query": "{ viewer { id name } }"}).encode()
     req = urllib.request.Request(
-        API, data=body, method="POST",
+        API,
+        data=body,
+        method="POST",
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {access}"},
     )
     try:
@@ -69,12 +71,25 @@ def viewer(access):
 def auth(a):
     cid, secret = client()
     server, redirect = listen("Linear", a.port, CALLBACK)
-    url = AUTH_URL + "?" + urllib.parse.urlencode({
-        "client_id": cid, "redirect_uri": redirect, "response_type": "code",
-        "scope": ",".join(SCOPES), "state": Catch.state, "actor": "app", "prompt": "consent",
-    })
-    print(f"Listening on {redirect} for Linear's redirect. That exact URL has to be the "
-          f"application's callback URL, or Linear will refuse.")
+    url = (
+        AUTH_URL
+        + "?"
+        + urllib.parse.urlencode(
+            {
+                "client_id": cid,
+                "redirect_uri": redirect,
+                "response_type": "code",
+                "scope": ",".join(SCOPES),
+                "state": Catch.state,
+                "actor": "app",
+                "prompt": "consent",
+            }
+        )
+    )
+    print(
+        f"Listening on {redirect} for Linear's redirect. That exact URL has to be the "
+        f"application's callback URL, or Linear will refuse."
+    )
     print("Approve as yourself, a workspace admin; with actor=app the token acts as AgentSee Engine, not as you.")
     if a.no_browser or not webbrowser.open(url):
         print("Open this in a browser on this machine:\n")
@@ -86,10 +101,16 @@ def auth(a):
             die("you cancelled on the consent page")
         die(f"Linear's redirect carried an error: {err}")
 
-    tok = post_form(TOKEN_URL, {
-        "code": result["code"], "redirect_uri": redirect, "client_id": cid,
-        "client_secret": secret, "grant_type": "authorization_code",
-    })
+    tok = post_form(
+        TOKEN_URL,
+        {
+            "code": result["code"],
+            "redirect_uri": redirect,
+            "client_id": cid,
+            "client_secret": secret,
+            "grant_type": "authorization_code",
+        },
+    )
     refresh = tok.get("refresh_token")
     if not refresh:
         die("Linear returned no refresh token; the engine needs one. Check the application's settings and run again")
@@ -107,7 +128,7 @@ def auth(a):
         if who.get("name") != "AgentSee Engine":
             print("  warning: that is not the application. Was actor=app on the consent page's URL?")
     print("\nFile this in 1Password, Engineering vault, as an API Credential named")
-    print("\"Linear podcast token\": credential = the token below, username = AgentSee Engine.")
+    print('"Linear podcast token": credential = the token below, username = AgentSee Engine.')
     print("The engine retires it on first use and writes the replacement to the same")
     print("item. It is shown once and written nowhere here; close this terminal afterwards.\n")
     print(refresh)
@@ -118,12 +139,18 @@ def auth(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("auth", help="the consent once in a browser, as the application; print the refresh token to file")
+    p = sub.add_parser(
+        "auth", help="the consent once in a browser, as the application; print the refresh token to file"
+    )
     p.add_argument("--no-browser", action="store_true", help="print the URL instead of opening it")
     p.add_argument("--timeout", type=int, default=300, help="seconds to wait for the redirect")
-    p.add_argument("--port", type=int, default=PORT,
-                   help=f"the loopback port; http://127.0.0.1:PORT{CALLBACK} must be the application's "
-                        f"callback URL (default {PORT})")
+    p.add_argument(
+        "--port",
+        type=int,
+        default=PORT,
+        help=f"the loopback port; http://127.0.0.1:PORT{CALLBACK} must be the application's "
+        f"callback URL (default {PORT})",
+    )
     p.set_defaults(fn=auth)
     a = ap.parse_args()
     return a.fn(a)

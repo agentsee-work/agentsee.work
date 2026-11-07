@@ -77,9 +77,14 @@ def read_xml(path):
     seq = root.find("sequence")
     fps = int(seq.find("rate/timebase").text)
     sc = seq.find("media/video/format/samplecharacteristics")
-    info = {"fps": fps, "frames": int(seq.find("duration").text),
-            "width": int(sc.find("width").text), "height": int(sc.find("height").text),
-            "clips": {}, "chapters": []}
+    info = {
+        "fps": fps,
+        "frames": int(seq.find("duration").text),
+        "width": int(sc.find("width").text),
+        "height": int(sc.find("height").text),
+        "clips": {},
+        "chapters": [],
+    }
     for kind in ("video", "audio"):
         for track in seq.findall(f"media/{kind}/track"):
             for c in track.findall("clipitem"):
@@ -103,16 +108,18 @@ def read_xml(path):
                         entry["layout"] = {
                             "scale": float(p["scale"].find("value").text),
                             "centre": float(p["center"].find("value/horiz").text),
-                            "crop": [float(p[k].find("value").text)
-                                     for k in ("leftcrop", "rightcrop", "topcrop", "bottomcrop")],
+                            "crop": [
+                                float(p[k].find("value").text)
+                                for k in ("leftcrop", "rightcrop", "topcrop", "bottomcrop")
+                            ],
                         }
-                    except (KeyError, AttributeError):
+                    except KeyError, AttributeError:
                         pass
     for m in seq.findall("marker"):
         if (m.findtext("type") or "").lower() == "chapter":
-            info["chapters"].append({"title": m.findtext("name"),
-                                     "t0": int(m.findtext("in")) / fps,
-                                     "t1": int(m.findtext("out")) / fps})
+            info["chapters"].append(
+                {"title": m.findtext("name"), "t0": int(m.findtext("in")) / fps, "t1": int(m.findtext("out")) / fps}
+            )
     return info
 
 
@@ -168,8 +175,10 @@ def participants(source, xml):
                 rel = [align_at(p["edit"], s) - align_at(p0["edit"], s) for s in shared]
                 drift = max(drift, max(rel) - min(rel))
         if drift > 0.001:
-            NOTES.append(f"the tracks' relative offsets vary by {drift:.3f}s across the "
-                         f"timeline's cuts; read at sequence {s_ref:.3f}s")
+            NOTES.append(
+                f"the tracks' relative offsets vary by {drift:.3f}s across the "
+                f"timeline's cuts; read at sequence {s_ref:.3f}s"
+            )
     base = min(p["offset"] for p in out)
     for p in out:
         p["offset"] = round(p["offset"] - base, 4)
@@ -202,17 +211,18 @@ def kept_agree(parts, fps):
             i = bisect.bisect_left(ref, x - tol)
             hit += i < len(ref) and ref[i] <= x + tol
         if hit < 0.8 * len(edges):
-            out.append(f"{short}: Riverside's kept stretches do not line up with {kept[0][0]}'s "
-                       f"({hit} of {len(edges)} edges within a frame): the track offsets are suspect")
+            out.append(
+                f"{short}: Riverside's kept stretches do not line up with {kept[0][0]}'s "
+                f"({hit} of {len(edges)} edges within a frame): the track offsets are suspect"
+            )
     return out
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slug")
     ap.add_argument("package", nargs="?", help="Riverside timeline zip, or a folder of tracks")
-    ap.add_argument("--names", default="", help='id-prefix=name pairs, comma separated')
+    ap.add_argument("--names", default="", help="id-prefix=name pairs, comma separated")
     ap.add_argument("--show", action="store_true", help="print the manifest and stop")
     ap.add_argument("--force", action="store_true", help="re-unpack over an existing source/")
     a = ap.parse_args()
@@ -226,8 +236,10 @@ def main():
         m = load_json(manifest_path)
         print(f"{a.slug}: {m['duration']:.2f}s  {m['fps']} fps  {len(m['participants'])} participants")
         for p in m["participants"]:
-            print(f"  {p['short']:<8} {p['name']:<18} offset {p['offset']:+.3f}s  "
-                  f"{p['video']['width']}x{p['video']['height']}  audio {p['audio']['rate']} Hz")
+            print(
+                f"  {p['short']:<8} {p['name']:<18} offset {p['offset']:+.3f}s  "
+                f"{p['video']['width']}x{p['video']['height']}  audio {p['audio']['rate']} Hz"
+            )
         for c in m["chapters"]:
             print(f"  chapter {c['t0']:8.2f}s  {c['title']}")
         return 0
@@ -236,8 +248,7 @@ def main():
         die("a package (zip or folder) is needed unless --show")
     if src.exists() and any(src.iterdir()) and not a.force:
         print(f"{src.relative_to(ROOT)} already unpacked; reading it (use --force to replace)")
-        package = (load_json(manifest_path).get("package") if manifest_path.exists()
-                   else pathlib.Path(a.package).name)
+        package = load_json(manifest_path).get("package") if manifest_path.exists() else pathlib.Path(a.package).name
     else:
         if src.exists():
             shutil.rmtree(src)
@@ -268,38 +279,64 @@ def main():
     for p in found:
         name = next((v for k, v in names.items() if p["id"].startswith(k)), None)
         if not name:
-            warnings.append(f"no name for {p['id']} — pass --names {handle(p['id'])}=\"Full Name\"")
+            warnings.append(f'no name for {p["id"]} — pass --names {handle(p["id"])}="Full Name"')
             name = handle(p["id"])
         short = re.sub(r"[^a-z0-9]", "", name.split()[0].lower())
-        entry = {"id": p["id"], "name": name, "short": short, "offset": p["offset"],
-                 "layout": p["layout"]}
+        entry = {"id": p["id"], "name": name, "short": short, "offset": p["offset"], "layout": p["layout"]}
         if p.get("edit") and len(p["edit"]) > 1:
             # Riverside's own cut, kept for the record and not applied: the
             # pipeline cuts from the raw track. Stretches of the raw track
             # that its edit kept, in this episode's time.
             kept = [(round(i_ + p["offset"], 3), round(o_ + p["offset"], 3)) for _, i_, o_ in p["edit"]]
-            entry["riverside_edit"] = {"clips": len(kept), "kept_seconds": round(sum(b - a for a, b in kept), 1),
-                                       "kept": kept}
+            entry["riverside_edit"] = {
+                "clips": len(kept),
+                "kept_seconds": round(sum(b - a for a, b in kept), 1),
+                "kept": kept,
+            }
         if "audio" in p:
             info = ffprobe(src / p["audio"])
             au = info["audio"]
             path = p["audio"]
             if au["rate"] != RATE:
                 out = src / (pathlib.Path(p["audio"]).stem + f"-{RATE}.wav")
-                run(["ffmpeg", "-nostdin", "-y", "-i", src / p["audio"], "-ar", RATE,
-                     "-resampler", "soxr", "-precision", "28", "-c:a", "pcm_s24le", out])
-                warnings.append(f"{short}: audio was {au['rate']} Hz, resampled to {RATE} "
-                                f"-> {out.name}")
+                run(
+                    [
+                        "ffmpeg",
+                        "-nostdin",
+                        "-y",
+                        "-i",
+                        src / p["audio"],
+                        "-ar",
+                        RATE,
+                        "-resampler",
+                        "soxr",
+                        "-precision",
+                        "28",
+                        "-c:a",
+                        "pcm_s24le",
+                        out,
+                    ]
+                )
+                warnings.append(f"{short}: audio was {au['rate']} Hz, resampled to {RATE} -> {out.name}")
                 path, info = out.name, ffprobe(out)
                 au = info["audio"]
-            entry["audio"] = {"file": f"source/{path}", "duration": info["duration"],
-                              "rate": au["rate"], "channels": au["channels"]}
+            entry["audio"] = {
+                "file": f"source/{path}",
+                "duration": info["duration"],
+                "rate": au["rate"],
+                "channels": au["channels"],
+            }
         if "video" in p:
             info = ffprobe(src / p["video"])
             v = info["video"]
-            entry["video"] = {"file": f"source/{p['video']}", "duration": info["duration"],
-                              "width": v["width"], "height": v["height"], "fps": v["fps"],
-                              "has_audio": info["audio"] is not None}
+            entry["video"] = {
+                "file": f"source/{p['video']}",
+                "duration": info["duration"],
+                "width": v["width"],
+                "height": v["height"],
+                "fps": v["fps"],
+                "has_audio": info["audio"] is not None,
+            }
             if not v["cfr"]:
                 warnings.append(f"{short}: video is not constant frame rate")
             if xml and abs(v["fps"] - xml["fps"]) > 1e-3:
@@ -331,12 +368,15 @@ def main():
                     return i_ + (t - st) + first["offset"]
             return None
 
-        chapters = [{**c, "t0": round(to_src(c["t0"]) or 0.0, 3), "t1": round(to_src(c["t1"]) or duration, 3)}
-                    for c in chapters]
+        chapters = [
+            {**c, "t0": round(to_src(c["t0"]) or 0.0, 3), "t1": round(to_src(c["t1"]) or duration, 3)} for c in chapters
+        ]
     manifest = {
-        "slug": a.slug, "package": package,
+        "slug": a.slug,
+        "package": package,
         "xml": f"source/{xml_path.name}" if xml_path else None,
-        "fps": fps, "duration": round(duration, 4),
+        "fps": fps,
+        "duration": round(duration, 4),
         "sequence": {"width": xml["width"], "height": xml["height"]} if xml else None,
         "participants": parts,
         "chapters": chapters,
@@ -349,10 +389,12 @@ def main():
     for p in parts:
         v = p.get("video", {})
         au = p.get("audio", {})
-        print(f"  {p['short']:<8} {p['name']:<18} offset {p['offset']:+.3f}s  "
-              f"{v.get('width')}x{v.get('height')} {v.get('fps')}fps  "
-              f"audio {au.get('rate')} Hz {au.get('duration', 0):.2f}s  "
-              f"layout {p['layout']}")
+        print(
+            f"  {p['short']:<8} {p['name']:<18} offset {p['offset']:+.3f}s  "
+            f"{v.get('width')}x{v.get('height')} {v.get('fps')}fps  "
+            f"audio {au.get('rate')} Hz {au.get('duration', 0):.2f}s  "
+            f"layout {p['layout']}"
+        )
     for c in manifest["chapters"]:
         print(f"  chapter {c['t0']:8.2f}s  {c['title']}")
     for w in warnings:

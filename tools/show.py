@@ -41,14 +41,14 @@ SITE = "agentsee.work"
 # `basis` is the height the type scale is derived from, so a 3000px cover and a
 # 720p thumbnail get proportionate furniture rather than the same pixel sizes.
 ASSETS = {
-    "cover":     (3000, 3000, 1400, "attentive", "Podcast cover. Square, must read at 55px."),
-    "titlecard": (1920, 1080,  620, "curious",   "Episode title, top of show."),
-    "chapter":   (1920, 1080,  620, "curious",   "Chapter card, between segments."),
-    "standby":   (1920, 1080,  620, "asleep",    "'Starting soon' holding card."),
-    "endcard":   (1920, 1080,  620, "closed",    "Sign-off."),
-    "thumbnail": (1280,  720,  520, "sceptical", "YouTube. Read as a small rectangle in a feed."),
-    "episodeart": (3000, 3000, 1400, "curious",  "Per-episode artwork for the directories. Square, beside the cover."),
-    "clip":      (1080, 1920,  560, "attentive", "9:16 plate. Two stacked panels, captions below."),
+    "cover": (3000, 3000, 1400, "attentive", "Podcast cover. Square, must read at 55px."),
+    "titlecard": (1920, 1080, 620, "curious", "Episode title, top of show."),
+    "chapter": (1920, 1080, 620, "curious", "Chapter card, between segments."),
+    "standby": (1920, 1080, 620, "asleep", "'Starting soon' holding card."),
+    "endcard": (1920, 1080, 620, "closed", "Sign-off."),
+    "thumbnail": (1280, 720, 520, "sceptical", "YouTube. Read as a small rectangle in a feed."),
+    "episodeart": (3000, 3000, 1400, "curious", "Per-episode artwork for the directories. Square, beside the cover."),
+    "clip": (1080, 1920, 560, "attentive", "9:16 plate. Two stacked panels, captions below."),
 }
 
 # Where the clip plate's zones are, in pixels of the 1080x1920 frame. clips.py
@@ -95,9 +95,17 @@ def page(name, theme, w, h, basis, expr, layout, body):
     t = THEMES[theme]
     u = basis / 500
     return PAGE.format(
-        name=name, font=font_b64(), w=w, h=h, mark_css=mark_css(t),
-        layout=layout, body=body, glowblur=round(34 * u),
-        rule3=max(2, round(3 * u)), **t)
+        name=name,
+        font=font_b64(),
+        w=w,
+        h=h,
+        mark_css=mark_css(t),
+        layout=layout,
+        body=body,
+        glowblur=round(34 * u),
+        rule3=max(2, round(3 * u)),
+        **t,
+    )
 
 
 def _mark(expr, extra=""):
@@ -106,8 +114,7 @@ def _mark(expr, extra=""):
     differs."""
     if isinstance(expr, dict):
         a = expr
-        vars_ = (f"--iris-x:{a['ix']:.3f}; --iris-y:{a['iy']:.3f}; "
-                 f"--pupil-s:{a['ps']:.4f}; --glint-s:{a['gl']:.3f};")
+        vars_ = f"--iris-x:{a['ix']:.3f}; --iris-y:{a['iy']:.3f}; --pupil-s:{a['ps']:.4f}; --glint-s:{a['gl']:.3f};"
         svg = mark_svg(a["lt"], a["lb"], a["tilt"], a["hat"])
     else:
         vars_, svg = expr_vars(expr), expr_mark(expr)
@@ -121,20 +128,21 @@ def _esc(s):
 # ─────────────────────────────────────────────────────────────────────────────
 # Layouts. Each returns (css, html).
 
+
 def lay_cover(u, expr, **kw):
     """Square. Everything that is not the mark is a bet that the listener is
     looking at it larger than 55px, so there is very little of it."""
     css = f"""
 body {{ display: grid; place-items: center; }}
 .stack {{ display: flex; flex-direction: column; align-items: center;
-          gap: {round(38*u)}px; position: relative; }}
+          gap: {round(38 * u)}px; position: relative; }}
 /* Sized off the 55px proof, not the 3000px render. At list size the mark
    carries it and the wordmark is the first thing to go illegible, so both
    run larger than they would if this were only ever seen full size. */
-.mark {{ --mark-w: {round(640*u)}px; }}
-.wordmark {{ font-size: {round(212*u)}px; }}
-.rule {{ width: {round(760*u)}px; }}
-.strip {{ font-size: {round(30*u)}px; }}
+.mark {{ --mark-w: {round(640 * u)}px; }}
+.wordmark {{ font-size: {round(212 * u)}px; }}
+.rule {{ width: {round(760 * u)}px; }}
+.strip {{ font-size: {round(30 * u)}px; }}
 """
     body = f"""<div class="stack">
   {_mark(expr)}
@@ -151,24 +159,24 @@ def lay_titlecard(u, expr, title="", hosts=HOSTS, email=EMAIL, number="", **kw):
     card is the one frame a clip of the show is guaranteed to carry."""
     css = f"""
 body {{ display: flex; flex-direction: column; justify-content: center;
-        padding: {round(120*u)}px {round(140*u)}px; }}
-.head {{ display: flex; align-items: center; gap: {round(34*u)}px;
-         margin-bottom: {round(46*u)}px; }}
-.mark {{ --mark-w: {round(150*u)}px; }}
-.wordmark {{ font-size: {round(76*u)}px; }}
-.number {{ font-size: {round(24*u)}px; margin-bottom: {round(18*u)}px; }}
-.title {{ font-size: {round(108*u)}px; font-weight: 300; line-height: 1.1;
+        padding: {round(120 * u)}px {round(140 * u)}px; }}
+.head {{ display: flex; align-items: center; gap: {round(34 * u)}px;
+         margin-bottom: {round(46 * u)}px; }}
+.mark {{ --mark-w: {round(150 * u)}px; }}
+.wordmark {{ font-size: {round(76 * u)}px; }}
+.number {{ font-size: {round(24 * u)}px; margin-bottom: {round(18 * u)}px; }}
+.title {{ font-size: {round(108 * u)}px; font-weight: 300; line-height: 1.1;
           letter-spacing: -.02em; max-width: 88%; }}
-.hosts {{ font-size: {round(44*u)}px; margin-top: {round(26*u)}px; }}
-.rule {{ width: {round(300*u)}px; margin: {round(44*u)}px 0 {round(32*u)}px; }}
-.strip {{ font-size: {round(25*u)}px; line-height: 1; }}
-.strip + .strip {{ margin-top: {round(22*u)}px; }}
+.hosts {{ font-size: {round(44 * u)}px; margin-top: {round(26 * u)}px; }}
+.rule {{ width: {round(300 * u)}px; margin: {round(44 * u)}px 0 {round(32 * u)}px; }}
+.strip {{ font-size: {round(25 * u)}px; line-height: 1; }}
+.strip + .strip {{ margin-top: {round(22 * u)}px; }}
 """
     number_html = f'<p class="strip number"><b>Episode {_esc(str(number))}</b></p>' if number != "" else ""
     hosts_html = f'<p class="hosts">{_esc(hosts)}</p>' if hosts else ""
     body = f"""<div class="head">{_mark(expr)}<p class="wordmark">AgentSee</p></div>
 {number_html}
-<p class="title">{_esc(title) or 'Episode title goes here'}</p>
+<p class="title">{_esc(title) or "Episode title goes here"}</p>
 {hosts_html}
 <div class="rule hair"></div>
 <p class="strip">Two people building in public</p>
@@ -182,18 +190,21 @@ def lay_chapter(u, expr, title="", number="", **kw):
     css = f"""
 body {{ display: grid; place-items: center; }}
 .stack {{ display: flex; flex-direction: column; align-items: center;
-          gap: {round(30*u)}px; text-align: center; padding: 0 {round(140*u)}px; }}
-.mark {{ --mark-w: {round(170*u)}px; margin-bottom: {round(10*u)}px; }}
-.number {{ font-size: {round(24*u)}px; }}
-.title {{ font-size: {round(86*u)}px; font-weight: 300; line-height: 1.12;
+          gap: {round(30 * u)}px; text-align: center; padding: 0 {round(140 * u)}px; }}
+.mark {{ --mark-w: {round(170 * u)}px; margin-bottom: {round(10 * u)}px; }}
+.number {{ font-size: {round(24 * u)}px; }}
+.title {{ font-size: {round(86 * u)}px; font-weight: 300; line-height: 1.12;
           letter-spacing: -.018em; max-width: 1500px; }}
 """
-    number_html = (f'<p class="strip number"><b>Chapter {_esc(str(number))}</b></p>'
-                   if number != "" else '<p class="strip number"><b>Chapter</b></p>')
+    number_html = (
+        f'<p class="strip number"><b>Chapter {_esc(str(number))}</b></p>'
+        if number != ""
+        else '<p class="strip number"><b>Chapter</b></p>'
+    )
     body = f"""<div class="stack">
   {_mark(expr)}
   {number_html}
-  <p class="title">{_esc(title) or 'Chapter title goes here'}</p>
+  <p class="title">{_esc(title) or "Chapter title goes here"}</p>
 </div>"""
     return css, body
 
@@ -202,10 +213,10 @@ def lay_standby(u, expr, title="Starting soon", **kw):
     css = f"""
 body {{ display: grid; place-items: center; }}
 .stack {{ display: flex; flex-direction: column; align-items: center;
-          gap: {round(40*u)}px; }}
-.mark {{ --mark-w: {round(300*u)}px; }}
-.title {{ font-size: {round(92*u)}px; font-weight: 300; letter-spacing: -.015em; }}
-.strip {{ font-size: {round(26*u)}px; }}
+          gap: {round(40 * u)}px; }}
+.mark {{ --mark-w: {round(300 * u)}px; }}
+.title {{ font-size: {round(92 * u)}px; font-weight: 300; letter-spacing: -.015em; }}
+.strip {{ font-size: {round(26 * u)}px; }}
 """
     body = f"""<div class="stack">
   {_mark(expr)}
@@ -219,11 +230,11 @@ def lay_endcard(u, expr, title="", email=EMAIL, **kw):
     css = f"""
 body {{ display: grid; place-items: center; }}
 .stack {{ display: flex; flex-direction: column; align-items: center;
-          gap: {round(38*u)}px; }}
-.mark {{ --mark-w: {round(280*u)}px; }}
-.wordmark {{ font-size: {round(96*u)}px; }}
-.rule {{ width: {round(420*u)}px; }}
-.strip {{ font-size: {round(27*u)}px; line-height: 2; text-align: center; }}
+          gap: {round(38 * u)}px; }}
+.mark {{ --mark-w: {round(280 * u)}px; }}
+.wordmark {{ font-size: {round(96 * u)}px; }}
+.rule {{ width: {round(420 * u)}px; }}
+.strip {{ font-size: {round(27 * u)}px; line-height: 2; text-align: center; }}
 """
     body = f"""<div class="stack">
   {_mark(expr)}
@@ -238,16 +249,16 @@ def lay_thumbnail(u, expr, title="", **kw):
     """A feed draws this about 360px wide. Few words, large, high contrast."""
     css = f"""
 body {{ display: flex; flex-direction: column; justify-content: space-between;
-        padding: {round(72*u)}px {round(82*u)}px; }}
-.title {{ font-size: {round(118*u)}px; font-weight: 600; line-height: 1.04;
+        padding: {round(72 * u)}px {round(82 * u)}px; }}
+.title {{ font-size: {round(118 * u)}px; font-weight: 600; line-height: 1.04;
           letter-spacing: -.028em; max-width: 78%; }}
-.foot {{ display: flex; align-items: center; gap: {round(26*u)}px; }}
-.mark {{ --mark-w: {round(132*u)}px; }}
-.wordmark {{ font-size: {round(58*u)}px; }}
+.foot {{ display: flex; align-items: center; gap: {round(26 * u)}px; }}
+.mark {{ --mark-w: {round(132 * u)}px; }}
+.wordmark {{ font-size: {round(58 * u)}px; }}
 .spacer {{ flex: 1; }}
-.strip {{ font-size: {round(24*u)}px; }}
+.strip {{ font-size: {round(24 * u)}px; }}
 """
-    body = f"""<p class="title">{_esc(title) or 'Three words max'}</p>
+    body = f"""<p class="title">{_esc(title) or "Three words max"}</p>
 <div class="foot">
   {_mark(expr)}
   <p class="wordmark">AgentSee</p>
@@ -270,17 +281,17 @@ def lay_clip(u, expr, title="", email=EMAIL, **kw):
     z = CLIP_ZONES
     css = f"""
 body {{ display: flex; flex-direction: column; align-items: center; }}
-.top {{ height: {z['head'][1]}px; display: flex; align-items: center;
-        justify-content: center; gap: {round(22*u)}px; }}
-.mark {{ --mark-w: {round(118*u)}px; }}
-.wordmark {{ font-size: {round(54*u)}px; }}
+.top {{ height: {z["head"][1]}px; display: flex; align-items: center;
+        justify-content: center; gap: {round(22 * u)}px; }}
+.mark {{ --mark-w: {round(118 * u)}px; }}
+.wordmark {{ font-size: {round(54 * u)}px; }}
 /* paper_2 against paper is nearly invisible in noir, which is right for the
    plate and useless as a guide. The hairlines mark where the panels land. */
-.band {{ width: 100%; height: {z['band'][1] - z['band'][0]}px; background: {{paper_2}};
+.band {{ width: 100%; height: {z["band"][1] - z["band"][0]}px; background: {{paper_2}};
          border-top: 1px solid {{hair}}; border-bottom: 1px solid {{hair}}; }}
-.captions {{ height: {z['captions'][1] - z['captions'][0]}px; }}
+.captions {{ height: {z["captions"][1] - z["captions"][0]}px; }}
 .foot {{ flex: 1; display: flex; align-items: center; justify-content: center; }}
-.strip {{ font-size: {round(22*u)}px; }}
+.strip {{ font-size: {round(22 * u)}px; }}
 """
     body = f"""<div class="top">{_mark(expr)}<p class="wordmark">AgentSee</p></div>
 <div class="band"></div>
@@ -297,12 +308,12 @@ def lay_episodeart(u, expr, title="", number="", **kw):
     css = f"""
 body {{ display: grid; place-items: center; }}
 .stack {{ display: flex; flex-direction: column; align-items: center; text-align: center;
-          gap: {round(28*u)}px; padding: 0 {round(110*u)}px; position: relative; }}
-.mark {{ --mark-w: {round(300*u)}px; }}
-.wordmark {{ font-size: {round(100*u)}px; }}
-.rule {{ width: {round(520*u)}px; margin: {round(8*u)}px 0; }}
-.number {{ font-size: {round(30*u)}px; }}
-.title {{ font-size: {round(100*u)}px; font-weight: 300; line-height: 1.1;
+          gap: {round(28 * u)}px; padding: 0 {round(110 * u)}px; position: relative; }}
+.mark {{ --mark-w: {round(300 * u)}px; }}
+.wordmark {{ font-size: {round(100 * u)}px; }}
+.rule {{ width: {round(520 * u)}px; margin: {round(8 * u)}px 0; }}
+.number {{ font-size: {round(30 * u)}px; }}
+.title {{ font-size: {round(100 * u)}px; font-weight: 300; line-height: 1.1;
           letter-spacing: -.02em; max-width: 94%; }}
 """
     number_html = f'<p class="strip number"><b>Episode {_esc(str(number))}</b></p>' if number != "" else ""
@@ -311,15 +322,20 @@ body {{ display: grid; place-items: center; }}
   <p class="wordmark">AgentSee</p>
   <div class="rule"></div>
   {number_html}
-  <p class="title">{_esc(title) or 'Episode title goes here'}</p>
+  <p class="title">{_esc(title) or "Episode title goes here"}</p>
 </div>"""
     return css, body
 
 
 LAYOUTS = {
-    "cover": lay_cover, "titlecard": lay_titlecard, "chapter": lay_chapter,
-    "standby": lay_standby, "endcard": lay_endcard, "thumbnail": lay_thumbnail,
-    "clip": lay_clip, "episodeart": lay_episodeart,
+    "cover": lay_cover,
+    "titlecard": lay_titlecard,
+    "chapter": lay_chapter,
+    "standby": lay_standby,
+    "endcard": lay_endcard,
+    "thumbnail": lay_thumbnail,
+    "clip": lay_clip,
+    "episodeart": lay_episodeart,
 }
 
 
@@ -347,6 +363,7 @@ def proof(cover_path, theme):
     works at 3000px and dies at 55px is the normal failure, and the only way
     to know is to look at 55px."""
     from PIL import Image
+
     t = THEMES[theme]
     src = Image.open(cover_path).convert("RGB")
     sizes = [55, 120, 300, 600]
@@ -368,6 +385,7 @@ def sheet(theme, title):
     set or not at all — one at a time you lose track of whether they look like
     each other."""
     from PIL import Image
+
     t = THEMES[theme]
     cell, pad, gap = 520, 54, 44
     imgs = []
@@ -382,8 +400,7 @@ def sheet(theme, title):
     rows = (len(imgs) + cols - 1) // cols
     cw = cell + gap
     ch = cell + gap + 30
-    out_im = Image.new("RGB", (pad * 2 + cols * cw - gap, pad * 2 + rows * ch - gap),
-                       t["paper_2"])
+    out_im = Image.new("RGB", (pad * 2 + cols * cw - gap, pad * 2 + rows * ch - gap), t["paper_2"])
     for i, (name, im) in enumerate(imgs):
         cx = pad + (i % cols) * cw + (cell - im.width) // 2
         cy = pad + (i // cols) * ch + (cell - im.height) // 2
@@ -394,8 +411,7 @@ def sheet(theme, title):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("asset", nargs="?", choices=sorted(ASSETS))
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--sheet", action="store_true", help="contact sheet of what is rendered")

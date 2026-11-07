@@ -21,6 +21,7 @@ loaded over file:// as cross-origin and silently substitutes a fallback — the
 output looks fine, just not in our typeface, which is the kind of wrong that
 survives review.
 """
+
 import argparse
 import base64
 import pathlib
@@ -41,12 +42,12 @@ OUTDIR = ROOT / "public/assets/brand"
 # safe area on a phone. LinkedIn has the opposite problem — at 191px tall,
 # height-scaled type is technically correct and too small to read.
 PRESETS = {
-    "bluesky":  (1500, 500,  500, "3:1. Avatar overlaps bottom-left."),
-    "x":        (1500, 500,  500, "3:1. Avatar overlaps bottom-left."),
-    "linkedin": (1128, 191,  300, "5.9:1. Very letterboxed — mark only."),
-    "youtube":  (2560, 1440, 790, "16:9, but only the centre 1235x338 is safe everywhere."),
-    "mastodon": (1500, 500,  500, "3:1 header, same as Bluesky. 2MB ceiling."),
-    "twitch":   (1200, 480,  480, "5:2 profile banner. Avatar sits over the left."),
+    "bluesky": (1500, 500, 500, "3:1. Avatar overlaps bottom-left."),
+    "x": (1500, 500, 500, "3:1. Avatar overlaps bottom-left."),
+    "linkedin": (1128, 191, 300, "5.9:1. Very letterboxed — mark only."),
+    "youtube": (2560, 1440, 790, "16:9, but only the centre 1235x338 is safe everywhere."),
+    "mastodon": (1500, 500, 500, "3:1 header, same as Bluesky. 2MB ceiling."),
+    "twitch": (1200, 480, 480, "5:2 profile banner. Avatar sits over the left."),
     "twitch-offline": (1920, 1080, 850, "The offline video player screen. Never animated."),
 }
 # No `og` preset on purpose. assets/og.png is a different composition — masthead,
@@ -58,30 +59,50 @@ PRESETS = {
 # is brutal — 1235x338 out of 2560x1440, under 12% of the area. The others are
 # our own margin against responsive cropping rather than documented guarantees.
 SAFE = {
-    "bluesky":  (1400, 420),
-    "x":        (1400, 420),
+    "bluesky": (1400, 420),
+    "x": (1400, 420),
     "linkedin": (980, 165),
-    "youtube":  (1235, 338),
+    "youtube": (1235, 338),
     "mastodon": (1400, 420),
-    "twitch":   (1080, 400),
+    "twitch": (1080, 400),
     "twitch-offline": (1600, 900),
 }
 
 THEMES = {
     "noir": dict(
-        paper="#0a0a0b", paper_2="#131211", ink="#efe9e0", ink_2="#a89e91",
-        ink_3="#6a625a", rule="#efe9e0", hair="#2b2722", signal="#e0923f",
-        wash="rgba(224,146,63,.09)", glow="rgba(224,146,63,.34)",
+        paper="#0a0a0b",
+        paper_2="#131211",
+        ink="#efe9e0",
+        ink_2="#a89e91",
+        ink_3="#6a625a",
+        rule="#efe9e0",
+        hair="#2b2722",
+        signal="#e0923f",
+        wash="rgba(224,146,63,.09)",
+        glow="rgba(224,146,63,.34)",
         # Pinned, not swapped — see the note beside .pupil in styles.css.
         # The lid joins them: it is a lit surface, so it takes the light end of
         # the palette in both themes and its margin takes the dark end.
-        pupil="#0a0a0b", glint="#efe9e0", lid="#efe9e0", lid_edge="#0a0a0b",
+        pupil="#0a0a0b",
+        glint="#efe9e0",
+        lid="#efe9e0",
+        lid_edge="#0a0a0b",
     ),
     "newsprint": dict(
-        paper="#f7f3ea", paper_2="#efe9dc", ink="#1a1712", ink_2="#4a4238",
-        ink_3="#7d7365", rule="#1a1712", hair="#cfc4b0", signal="#a8431d",
-        wash="rgba(168,67,29,.07)", glow="transparent",
-        pupil="#1a1712", glint="#f7f3ea", lid="#f7f3ea", lid_edge="#1a1712",
+        paper="#f7f3ea",
+        paper_2="#efe9dc",
+        ink="#1a1712",
+        ink_2="#4a4238",
+        ink_3="#7d7365",
+        rule="#1a1712",
+        hair="#cfc4b0",
+        signal="#a8431d",
+        wash="rgba(168,67,29,.07)",
+        glow="transparent",
+        pupil="#1a1712",
+        glint="#f7f3ea",
+        lid="#f7f3ea",
+        lid_edge="#1a1712",
     ),
 }
 
@@ -168,6 +189,7 @@ body::before {{
 
 def _mark():
     from eye import mark_svg
+
     return mark_svg()
 
 
@@ -182,17 +204,25 @@ def build(preset, theme, minimal=False):
 
     return PAGE.format(
         font=base64.b64encode(FONT.read_bytes()).decode(),
-        w=w, h=h, mark_svg=_mark(),
+        w=w,
+        h=h,
+        mark_svg=_mark(),
         wordmark='<p class="wordmark">AgentSee</p>',
-        rule_el='' if tight else '<div class="rule"></div>',
-        hair_el='' if tight else '<div class="rule hair"></div>',
-        strip_el='' if tight else
-            '<p class="strip">Two people building in public'
-            ' &nbsp;·&nbsp; <b>agentsee.work</b></p>',
-        mark=round(128 * u), word=round(96 * u), markgap=round(28 * u),
-        gap=round(22 * u), rulew=round(660 * u), strip=round(19 * u),
-        glowblur=round(34 * u), lift=0 if tight else round(6 * u),
-        **t)
+        rule_el="" if tight else '<div class="rule"></div>',
+        hair_el="" if tight else '<div class="rule hair"></div>',
+        strip_el=""
+        if tight
+        else '<p class="strip">Two people building in public &nbsp;·&nbsp; <b>agentsee.work</b></p>',
+        mark=round(128 * u),
+        word=round(96 * u),
+        markgap=round(28 * u),
+        gap=round(22 * u),
+        rulew=round(660 * u),
+        strip=round(19 * u),
+        glowblur=round(34 * u),
+        lift=0 if tight else round(6 * u),
+        **t,
+    )
 
 
 def check_safe(path, preset):
@@ -204,6 +234,7 @@ def check_safe(path, preset):
     of everything that is not background, and compare it to the guaranteed area.
     """
     from PIL import Image, ImageChops
+
     im = Image.open(path).convert("RGB")
     w, h = im.size
     # The radial spotlight is a real gradient, so "not background" has to mean
@@ -218,18 +249,17 @@ def check_safe(path, preset):
     sx0, sy0 = (w - sw) // 2, (h - sh) // 2
     sx1, sy1 = sx0 + sw, sy0 + sh
     ok = box[0] >= sx0 and box[1] >= sy0 and box[2] <= sx1 and box[3] <= sy1
-    detail = (f"content {box[2]-box[0]}x{box[3]-box[1]} at ({box[0]},{box[1]}) "
-              f"vs safe {sw}x{sh} at ({sx0},{sy0})")
+    detail = f"content {box[2] - box[0]}x{box[3] - box[1]} at ({box[0]},{box[1]}) vs safe {sw}x{sh} at ({sx0},{sy0})"
     if not ok:
         over = []
         if box[0] < sx0:
-            over.append(f"left by {sx0-box[0]}px")
+            over.append(f"left by {sx0 - box[0]}px")
         if box[1] < sy0:
-            over.append(f"top by {sy0-box[1]}px")
+            over.append(f"top by {sy0 - box[1]}px")
         if box[2] > sx1:
-            over.append(f"right by {box[2]-sx1}px")
+            over.append(f"right by {box[2] - sx1}px")
         if box[3] > sy1:
-            over.append(f"bottom by {box[3]-sy1}px")
+            over.append(f"bottom by {box[3] - sy1}px")
         detail += " — overflows " + ", ".join(over)
     return ok, detail
 
@@ -240,17 +270,25 @@ def render(html, out, w, h):
         src = f.name
     try:
         subprocess.run(
-            ["google-chrome", "--headless=new", "--disable-gpu", "--hide-scrollbars",
-             "--force-device-scale-factor=1", f"--window-size={w},{h}",
-             f"--screenshot={out}", f"file://{src}"],
-            check=True, capture_output=True)
+            [
+                "google-chrome",
+                "--headless=new",
+                "--disable-gpu",
+                "--hide-scrollbars",
+                "--force-device-scale-factor=1",
+                f"--window-size={w},{h}",
+                f"--screenshot={out}",
+                f"file://{src}",
+            ],
+            check=True,
+            capture_output=True,
+        )
     finally:
         pathlib.Path(src).unlink(missing_ok=True)
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("preset", nargs="?", choices=sorted(PRESETS))
     ap.add_argument("--newsprint", action="store_true", help="light theme (default is noir)")
     ap.add_argument("--minimal", action="store_true", help="mark and wordmark only")
