@@ -1,0 +1,74 @@
+name: Workers
+
+# The Cloudflare Workers are plain JavaScript with no package.json, and they
+# ship outside CI: tofu for infra/podcast/workers, wrangler for workers/. So
+# this is the one look they get first. Every Worker file must parse, and the
+# edge tests run against their fakes, with no network and no credentials.
+#
+# On its own, not in check.yml: a green tick there deploys the engine, and a
+# Worker must neither hold that up nor set it off. The paths filter keeps this
+# to changes under the two Worker directories (or this file), so do not make
+# it a required check: a pull request that touches neither would wait for ever.
+
+on:
+  pull_request:
+    paths:
+      - workers/**
+      - infra/podcast/workers/**
+      - .github/workflows/workers.yml
+  push:
+    branches: [main]
+    paths:
+      - workers/**
+      - infra/podcast/workers/**
+      - .github/workflows/workers.yml
+  workflow_dispatch:
+
+# A newer push supersedes the run for the older one. Nothing here deploys, so
+# that holds on main too.
+concurrency:
+  group: workers-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  workers:
+    name: Worker syntax and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # The major line, as check.yml pins Python's minor. Node only parses
+          # and fakes here; Cloudflare's runtime is the one that serves.
+          node-version: "24"
+
+      - name: Every Worker parses as a module
+        # Over stdin, on purpose. `node --check file.js` with no package.json
+        # reads the file as CommonJS, and on meeting an `export` it stops and
+        # exits 0 without parsing the rest, so a broken Worker passes (Node
+        # 20, 22 and 24 alike). --input-type=module parses what Cloudflare does.
+        run: |
+          files=$(git ls-files -- 'workers/*.js' 'workers/*.mjs' 'infra/podcast/workers/*.js' 'infra/podcast/workers/*.mjs')
+          if [ -z "$files" ]; then
+            echo "::error::No Worker files found. If they moved, change the paths here."
+            exit 1
+          fi
+          status=0
+          for f in $files; do
+            echo "$f"
+            if ! node --input-type=module --check < "$f"; then
+              echo "::error file=$f::$f does not parse."
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: The edge tests
+        # Fakes for R2, KV, Analytics Engine and fetch (the file's own header).
+        # It does not import workers/email-fanout, which only the step above sees.
+        run: node infra/podcast/workers/test.mjs
