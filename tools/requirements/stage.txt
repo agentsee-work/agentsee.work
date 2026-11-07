@@ -1,0 +1,17 @@
+# build/venv-stage: boto3, for staging to R2 (stage.py).
+#
+# Asked for: boto3. The rest came with it.
+#
+# Frozen on 7 Nov 2026 from the venv the approved episodes were made in, with
+# `pip freeze`: Python 3.14.4 on Ubuntu 26.04, Linux x86_64 (glibc 2.43).
+# Every line is the lock, not only what was asked for. The wheels are CPython
+# 3.14 on Linux x86_64; another Python or platform may not resolve them.
+# Rebuild: python3 -m venv build/venv-stage && build/venv-stage/bin/pip install -r tools/requirements/stage.txt
+
+boto3==1.43.112
+botocore==1.43.112
+jmespath==1.1.0
+python-dateutil==2.9.0.post0
+s3transfer==0.19.2
+six==1.17.0
+urllib3==2.8.0
