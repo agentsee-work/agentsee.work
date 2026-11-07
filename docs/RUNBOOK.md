@@ -122,7 +122,8 @@ cd workers/email-fanout && npx wrangler secret put RECIPIENTS
 Every address in it must already be a *verified* destination on the account or
 forwarding to it silently does nothing. Redeploy the Worker with
 `npx wrangler deploy` from that directory; it is not covered by the site's
-deploy workflow.
+deploy workflow. CI checks that it parses (`.github/workflows/workers.yml`),
+but it has no tests, and nothing deploys it for you.
 
 **`wrangler pages deploy <dir>` publishes everything in that directory.** It
 has no exclude flag, and Pages ignores `.assetsignore` — tested, the files

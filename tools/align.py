@@ -22,10 +22,9 @@ boundaries from the audio — and cut.py prefers it when it exists.
 Runs in build/venv-align, a venv of its own with the GPU build of torch:
 
     python3 -m venv build/venv-align
-    build/venv-align/bin/pip install torch transformers
+    build/venv-align/bin/pip install -r tools/requirements/align.txt
 
-On Linux a plain `pip install torch` is the CUDA build. The CPU build in
-build/venv-erm is the fallback, at about ten times the time.
+The CPU build in build/venv-erm is the fallback, at about ten times the time.
 """
 
 import argparse
@@ -37,9 +36,8 @@ import sys
 
 from eplib import ROOT, die, ep_dir, load_json, save_json
 
-# a venv of its own with the GPU build of torch (`pip install torch transformers`
-# gets the CUDA build on Linux); the CPU build in venv-erm is the fallback,
-# at about ten times the time
+# a venv of its own with the GPU build of torch; the CPU build in venv-erm is
+# the fallback, at about ten times the time
 VENVS = [ROOT / "build" / "venv-align" / "bin" / "python",
          ROOT / "build" / "venv-erm" / "bin" / "python"]
 MODEL = "facebook/wav2vec2-base-960h"

@@ -21,7 +21,7 @@ detections for sound outside any word.
 erm lives in its own venv, like transcription:
 
     python3 -m venv build/venv-erm
-    build/venv-erm/bin/pip install erm "av<16" nvidia-cublas-cu12 nvidia-cudnn-cu12
+    build/venv-erm/bin/pip install -r tools/requirements/erm.txt
 
 (`av<16`: faster-whisper's decoder still passes an argument PyAV 16 dropped.)
 """

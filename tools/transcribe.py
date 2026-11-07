@@ -22,7 +22,7 @@ Runs faster-whisper. It lives in its own venv because its CUDA wheels do not
 belong in the system Python:
 
     python3 -m venv build/venv-transcribe
-    build/venv-transcribe/bin/pip install faster-whisper nvidia-cublas-cu12 nvidia-cudnn-cu12
+    build/venv-transcribe/bin/pip install -r tools/requirements/transcribe.txt
 
 The script re-executes itself under that venv if it finds one.
 """

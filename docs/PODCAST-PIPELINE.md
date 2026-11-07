@@ -335,8 +335,11 @@ runs in seconds, and is safe to re-run.
   episode page. The cues follow the caption rule with a longer line: never
   across a speaker change or a long pause, closed at a sentence end. The
   words are tidied for a reader, as `transcript.txt` now is: fillers out,
-  "i" capitalised, a capital at the start and after a stop. The times are
-  not touched.
+  "i" capitalised, a capital at the start and after a stop, and a filler's
+  stop kept only when the same speaker said both. A cue opens with a capital
+  only for a new speaker or a word the transcript capitalises mid-sentence
+  elsewhere, because the site runs a speaker's cues together and a cue that
+  merely wraps a sentence must not show a capital. The times are not touched.
 - **A guid, minted once and kept in `episode.json`.** Every directory keys
   an episode on it; a guid that changes is a duplicate episode in every
   listener's app, so it is never derived from the title or the date.
@@ -547,6 +550,20 @@ itself transcribed as speech on line one — and hotwords alone cost a third,
 with a different third each run. The clean decode is stable at 1,431 words.
 Spelling is fixed afterwards, deterministically, by `fixes` in episode.json,
 which loses nothing and is diffable.
+
+**The words change from run to run, on the same venv.** Six runs of fillers
+and align on episode 0 gave one host's track five different results, 967 to
+970 words, and the other's byte-identical every time (7 November 2026; cause
+not investigated). So running fillers again can change the transcript, the
+captions and a clip, as it did there, though the episode's own audio and video
+came out byte-identical across those full runs. To re-render, start at
+`--from cut` or later, which keeps the words.
+
+**Approval holds the deliverables to their hashes.** Anything that changes one
+afterwards, a re-run of fillers or a change to the release's text, makes
+`stage` refuse with "the deliverables are not the ones approved". It fails
+safe, but the files in `out/` are already overwritten by then, so do not re-run
+an approved episode unless it is going to be approved again.
 
 **The pipeline's own `pkill` matched the shell that ran it.** A background
 command that kills "transcribe.py ep0" and then starts transcribe.py ep0 kills

@@ -152,6 +152,12 @@ and `ruff format --check`; the rules are in `ruff.toml`). A failing test or a
 lint error is a red tick. Deploying is separate and does not wait for it: the
 site is `public/`, which neither check looks at.
 
+A change under `workers/` or `infra/podcast/workers/` also runs
+`.github/workflows/workers.yml`: every Worker must parse as a module, and the
+edge tests run against their fakes. It is separate from `check.yml` because a
+green tick there deploys the engine. Do not make it a required check, since a
+pull request that touches no Worker would wait for ever.
+
 ## Deploying
 
 **Pushing to `main` publishes the site, when the push touched it.** The site is
