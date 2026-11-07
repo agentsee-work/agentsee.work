@@ -26,6 +26,8 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    assemble when `clips.json` exists, then release. Fillers need `build/venv-erm`, align `build/venv-align`
    (GPU torch; falls back to venv-erm's CPU build), and only without erm does the plain
    transcription (`build/venv-transcribe`) run. See the doc for the venvs and their pinned files.
+   Run from the top once. Fillers does not give the same words twice, so a re-render starts at
+   `--from cut` or later, which keeps them.
 3. **Choose the chapters by reading the transcript.** This is a judgement, not
    a rule: read `build/episodes/<slug>/transcript/transcript.txt` end to end,
    decide where each section genuinely begins (the sentence that opens the new
@@ -60,7 +62,8 @@ Output goes to `build/episodes/<slug>/` and is never committed.
 7. **Clips.** `./tools/clips.py <slug> --propose 8`, read the candidates and
    the transcript, choose 3 to 5 passages that stand alone (a claim and a
    reason, ending on a line), write `clips.json`, run `./tools/clips.py <slug>`.
-   Look at each clip's poster PNG. A clip's `title` is also the first line of
+   Look at each clip's poster PNG; the JPEG beside it is the Reel's cover on
+   Instagram. A clip's `title` is also the first line of
    its social post; give it a `hook` when the post should open differently.
 8. **Write the notes, then release.** Put a `notes` block in `episode.json`,
    from the transcript: `summary` (two or three sentences in the show's
@@ -106,3 +109,6 @@ Output goes to `build/episodes/<slug>/` and is never committed.
   write is `build/episodes/<slug>/chapters.json` (titles and quoted words).
 - The episode's `guid` in `episode.json` is minted once by release.py. Never
   change or remove it: directories key the episode on it.
+- Do not re-run an approved episode (`run`, `release`, `approve`) unless the user
+  means to approve it again. A changed deliverable makes `stage` refuse, and by
+  then `out/` is already overwritten.

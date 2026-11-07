@@ -45,7 +45,6 @@ ignore = [
 
 [format]
 # The engine is formatted. The media pipeline in tools/ is not yet: running
-# the formatter over it is a 7,000-line diff that wants its own PR, after the
-# open work on those files lands (AGE-97 and AGE-98 touch them anyway).
-# Delete this exclusion then.
+# the formatter over it is a 7,000-line diff that wants its own PR, and that PR
+# deletes this exclusion.
 exclude = ["tools/**"]

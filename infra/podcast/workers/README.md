@@ -10,6 +10,9 @@ links.js   agentsee.work/p/*       looks a short id up in KV, logs the click, 30
 test.mjs   node infra/podcast/workers/test.mjs   both, under Node, no dependencies
 ```
 
+CI runs those tests and parses both Workers on any change here
+(`.github/workflows/workers.yml`). It checks them and does not deploy them.
+
 Neither Worker sets a cookie, loads anything, or writes the network address.
 Both hash it the same way: HMAC-SHA256 under a key that lives only in the
 Workers' bindings and the vault, over the UTC date and the address, cut to

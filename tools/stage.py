@@ -77,7 +77,10 @@ def boto(script=__file__):
         if VENV.exists() and pathlib.Path(sys.prefix).resolve() != venv.resolve():
             sys.stdout.flush()
             os.execv(str(VENV), [str(VENV), str(script), *sys.argv[1:]])
-        die("boto3 is missing: python3 -m venv build/venv-stage && build/venv-stage/bin/pip install boto3")
+        die(
+            "boto3 is missing: python3 -m venv build/venv-stage && "
+            "build/venv-stage/bin/pip install -r tools/requirements/stage.txt"
+        )
     import boto3
     return boto3
 
