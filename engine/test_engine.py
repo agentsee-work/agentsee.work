@@ -12,6 +12,7 @@ import base64
 import datetime as dt
 import hashlib
 import http.server
+import importlib.util
 import io
 import json
 import os
@@ -5162,6 +5163,103 @@ class EngineTest(unittest.TestCase):
         self.assertIn("nobody posted the card", why)
         self.assertEqual(plan.skip_backlog(c, ["threads", "instagram"], who="tester"), [], "nothing twice")
         self.assertEqual(plan.skip_backlog(c, ["instagram"], before="2026-10-01", dry_run=True), [], "before the day")
+
+
+class TidyTest(unittest.TestCase):
+    """The tidy a transcript goes through (AGE-72), on made-up words: no episode data here."""
+
+    @classmethod
+    def setUpClass(cls):
+        # By file: engine/ has a release.py of its own. Its eplib is on the path from ingest.
+        tools = pathlib.Path(__file__).resolve().parent.parent / "tools"
+        spec = importlib.util.spec_from_file_location("tools_release", tools / "release.py")
+        cls.release = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.release)
+        cls.tidy = staticmethod(sys.modules["eplib"].tidy_words)
+
+    @staticmethod
+    def said(text, spk="a", start=0.0, pause_before=()):
+        """The words of a line, a third of a second each, with a long pause before any word index named."""
+        words, t = [], start
+        for i, w in enumerate(text.split()):
+            if i in pause_before:
+                t += 1.5
+            words.append({"w": w, "t0": round(t, 3), "t1": round(t + 0.3, 3), "spk": spk})
+            t += 0.33
+        return words
+
+    def text(self, words):
+        return " ".join(w["w"] for w in self.tidy(words))
+
+    def published(self, words):
+        """What the site shows: the cues of transcript.json, run together."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp)
+            self.release.transcript_files(out, self.tidy(words), {"a": "A", "b": "B"}, "Show")
+            return [s["body"] for s in json.loads((out / "transcript.json").read_text())["segments"]]
+
+    def test_a_wrapped_cue_keeps_its_case(self):
+        """The issue's five: each sat at the start of a cue, and the cue took a capital of its own."""
+        for line, pause in (
+            ("people are at the moment. But we want to", 4),
+            ("my background is sort of started off", 4),
+            ("the software development sector for over a decade", 3),
+            ("my own startup called GrayDrive where", 3),
+            ("really there because that was me", 2),
+        ):
+            bodies = self.published(self.said(line, pause_before=(pause,)))
+            self.assertEqual(len(bodies), 2, "the pause closes a cue")
+            self.assertEqual(" ".join(bodies), line[0].upper() + line[1:])
+
+    def test_a_new_speaker_opens_with_a_capital(self):
+        words = self.said("that was it", spk="a") + self.said("and then we left", spk="b", start=2.0)
+        self.assertEqual(self.published(words), ["That was it", "And then we left"])
+
+    def test_a_name_at_a_cue_start_keeps_its_capital(self):
+        """Whisper wrote it in lower case here and with its capital elsewhere; the cue's capital was right."""
+        words = self.said("I am working with james on this with James", pause_before=(4,))
+        self.assertEqual(self.published(words), ["I am working with", "James on this with James"])
+
+    def test_another_speakers_stop_is_not_carried(self):
+        """Someone's "mm-hmm." under a sentence, at any gap: the speaker runs on."""
+        for gap in (0.05, 1.4):
+            before = self.said("at the", spk="a")
+            filler = [{"w": "Mm.", "t0": 0.7, "t1": 0.9, "spk": "b"}]
+            after = self.said("moment we", spk="a", start=before[-1]["t1"] + gap)
+            self.assertEqual(self.text(before + filler + after), "At the moment we")
+
+    def test_a_real_break_after_a_filler_keeps_its_stop_and_capital(self):
+        words = self.said("that was done um. so then we left")
+        self.assertEqual(self.text(words), "That was done. So then we left")
+
+    def test_a_kept_stop_keeps_its_capital(self):
+        self.assertEqual(self.text(self.said("we left. then it rained")), "We left. Then it rained")
+
+    def test_whispers_capital_on_a_common_word_goes(self):
+        self.assertEqual(self.text(self.said("and And so So, because Because")), "And and so so, because because")
+        self.assertEqual(
+            self.text(self.said("it was SO good")), "It was SO good", "all capitals are not a sentence start"
+        )
+
+    def test_a_new_speakers_common_word_keeps_its_capital(self):
+        words = self.said("well then", spk="a") + self.said("So we did", spk="b", start=1.0)
+        self.assertEqual(self.text(words), "Well then So we did")
+
+    def test_proper_nouns_survive(self):
+        line = "we use Claude and Riverside at GradeDrive with Linear and Python in London on Monday for AI"
+        self.assertEqual(self.text(self.said(line)), line[0].upper() + line[1:])
+        self.assertEqual(self.published(self.said(line, pause_before=(4,)))[-1].split()[0], "Riverside")
+
+    def test_i_is_capitalised(self):
+        self.assertEqual(self.text(self.said("so i think i've seen it")), "So I think I've seen it")
+
+    def test_times_and_words_stand(self):
+        words = self.said("that was um. done uh with And it") + [{"w": "Mm.", "t0": 9.0, "t1": 9.1, "spk": "b"}]
+        given = json.loads(json.dumps(words))
+        got = self.tidy(words)
+        self.assertEqual(words, given, "a pure function of its input")
+        kept = [w for w in given if w["w"].strip(".") not in ("um", "uh", "Mm")]
+        self.assertEqual([(w["t0"], w["t1"], w["spk"]) for w in got], [(w["t0"], w["t1"], w["spk"]) for w in kept])
 
 
 if __name__ == "__main__":

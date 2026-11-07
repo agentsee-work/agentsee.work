@@ -319,6 +319,13 @@ def map_words(edl, words, shift=0.0):
 # ── captions ──────────────────────────────────────────────────────────────────
 
 CAPTION_FILLERS = {"um", "uh", "er", "erm", "ah", "hmm", "mm", "mhm", "huh"}
+# Whisper capitalises a word where it heard a sentence start and printed no
+# stop. A closed class only: never a word that could be a name or a product.
+# Lower-casing whatever also occurs in lower case elsewhere in the episode
+# would take the capital off Claude, Chrome and James, which the transcripts
+# also spell in lower case.
+NEVER_NAMES = {"and", "but", "or", "so", "because", "if", "then", "that", "that's", "it", "it's", "you", "you're",
+               "we", "we're", "they", "they're", "someone", "like", "yeah", "okay"}
 
 
 def cap_first(text):
@@ -331,14 +338,17 @@ def cap_first(text):
 
 def tidy_words(words):
     """Words as a reader expects them, for a transcript rather than a cut:
-    fillers out (a stop a dropped "um." carried moves to the word before),
-    "i" capitalised, a capital at the start and after a stop. Times are
-    untouched; the audio is what it is."""
+    fillers out, "i" capitalised, a capital at the start and after a stop, and
+    none on one of NEVER_NAMES in the middle of a speaker's sentence. A dropped
+    "um." hands its stop to the word before only if the same person said both:
+    a stop on the other track's "mm-hmm." does not end this speaker's sentence.
+    Times are untouched; the audio is what it is."""
     out = []
     for w in words:
         bare = re.sub(r"^[^\w]+|[^\w']+$", "", w["w"]).lower()
         if not bare or bare in CAPTION_FILLERS:
-            if out and re.search(r"[.?!]$", w["w"]) and not re.search(r"[.?!]$", out[-1]["w"]):
+            if (out and w.get("spk") == out[-1].get("spk") and re.search(r"[.?!]$", w["w"])
+                    and not re.search(r"[.?!]$", out[-1]["w"])):
                 out[-1] = {**out[-1], "w": out[-1]["w"].rstrip(",;:") + w["w"][-1]}
             continue
         out.append(dict(w))
@@ -346,8 +356,23 @@ def tidy_words(words):
         t = re.sub(r"\bi\b", "I", w["w"])
         if i == 0 or re.search(r"[.?!]$", out[i - 1]["w"]):
             t = cap_first(t)
+        elif w.get("spk") == out[i - 1].get("spk"):
+            bare = re.sub(r"^[^\w]+|[^\w']+$", "", t)
+            if bare.lower() in NEVER_NAMES and bare[1:] == bare[1:].lower():
+                t = t.replace(bare[0], bare[0].lower(), 1)
         w["w"] = t
     return out
+
+
+def capitalised_inside(words):
+    """The words, in lower case, that tidied words spell with a capital in the
+    middle of a speaker's sentence: as near as the transcript comes to knowing its names."""
+    found = set()
+    for before, w in zip(words, words[1:]):
+        bare = re.sub(r"^[^\w]+|[^\w']+$", "", w["w"])
+        if bare[:1].isupper() and before.get("spk") == w.get("spk") and not re.search(r"[.?!]$", before["w"]):
+            found.add(bare.lower())
+    return found
 
 
 def caption_words(words):
