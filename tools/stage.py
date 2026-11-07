@@ -388,8 +388,8 @@ def main():
         why = unapproved(guests, d, cfg, hosts_of(cfg, s3, buckets["archive"]))
         if why:
             for w in why:
-                print(f"  guest: {w}")
-            die("the guests have not approved this render: it stays off the media host")
+                print(f"  gate: {w}")
+            die("the office's records do not clear this render: it stays off the media host")
 
     hashes = {k: v["sha256"] for k, v in rel["files"].items()}
     put = skipped = 0
