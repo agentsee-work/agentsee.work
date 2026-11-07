@@ -3,6 +3,10 @@
    and the office's list of steps. */
 
 main.see { padding-top: 1.6rem; }
+/* A link in the office is underlined twice, the text's line and a border under it: James's choice, because it reads as
+   something to do while staying part of the sentence. Not a button, which has a border of its own. */
+main.see a:not(.button) { border-bottom: 1px solid var(--underline); transition: color .18s, border-color .18s; }
+main.see a:not(.button):hover { border-color: var(--signal); }
 main.see .lead .kicker { font-family: var(--mono); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 .4rem; }
 .door { max-width: 26rem; }
 .door input[type=email], .door input[type=text] { font-size: 1.1rem; }
