@@ -35,9 +35,8 @@ import pathlib
 import subprocess
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import EPISODES, die, ep_dir, load_json, save_json  # noqa: E402
-from stage import boto, connect, get_json, guests_of, hosts_of, review_record, unapproved  # noqa: E402
+from eplib import EPISODES, die, ep_dir, load_json, save_json
+from stage import boto, connect, get_json, guests_of, hosts_of, review_record, unapproved
 
 TOOLS = pathlib.Path(__file__).resolve().parent
 

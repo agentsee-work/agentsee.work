@@ -47,8 +47,7 @@ import sys
 import numpy as np
 import soundfile as sf
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import (  # noqa: E402
+from eplib import (
     CUES,
     RATE,
     ROOT,
@@ -356,7 +355,6 @@ def mp3(d, wav, meta, cfg, chapters_path, qc):
 
 
 def chapter_cards(d, edl, theme):
-    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
     from cards import static
     made = []
     for it in edl["items"]:

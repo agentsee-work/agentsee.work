@@ -48,13 +48,11 @@ import argparse
 import datetime as dt
 import hashlib
 import html
-import pathlib
 import re
 import sys
 import uuid
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import (  # noqa: E402
+from eplib import (
     ROOT,
     cap_first,
     caption_cues,

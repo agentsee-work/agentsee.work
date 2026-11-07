@@ -34,8 +34,7 @@ import base64
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from banner import FONT, OUTDIR, ROOT, THEMES, render  # noqa: E402
+from banner import FONT, OUTDIR, ROOT, THEMES, render
 
 # The axes an expression can move, and where each rests. Expressions below
 # name only what they change, so a glance down the table shows what each one is

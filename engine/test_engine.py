@@ -30,27 +30,19 @@ import urllib.parse
 import urllib.request
 import zlib
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import archive  # noqa: E402
-import collect  # noqa: E402
-import deploy  # noqa: E402
-import guests  # noqa: E402
-import ingest  # noqa: E402
-import ledger  # noqa: E402
-import linear  # noqa: E402
-import mail  # noqa: E402
-import plan  # noqa: E402
-import publish  # noqa: E402
-import vault  # noqa: E402
-import web  # noqa: E402
-from publish import (
-    bluesky,  # noqa: E402
-    instagram,  # noqa: E402
-    mastodon,  # noqa: E402
-    threads,  # noqa: E402
-    x,  # noqa: E402
-    youtube,  # noqa: E402
-)
+import archive
+import collect
+import deploy
+import guests
+import ingest
+import ledger
+import linear
+import mail
+import plan
+import publish
+import vault
+import web
+from publish import bluesky, instagram, mastodon, threads, x, youtube
 
 DAY0 = (dt.date.today() + dt.timedelta(days=10)).isoformat()
 DAY1 = (dt.date.today() + dt.timedelta(days=11)).isoformat()
@@ -2870,9 +2862,9 @@ class EngineTest(unittest.TestCase):
 
     def test_20_entry(self):
         """engine.py as the box runs it, in a fresh interpreter, reaching a
-        module that tools/ also has a file called: ingest puts tools/ on the
-        path for eplib, and it must come after engine/, or tools/linear.py is
-        the bridge (which it was, for a morning)."""
+        module that tools/ also has a file called: tools/ must stay off the
+        engine's path, or tools/linear.py is the bridge (which it was, for a
+        morning)."""
         env = {k: v for k, v in os.environ.items() if not k.startswith("LINEAR_")}
         entry = pathlib.Path(__file__).resolve().parent / "engine.py"
         r = subprocess.run(

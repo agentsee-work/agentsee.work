@@ -35,8 +35,7 @@ import re
 import subprocess
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from eplib import ROOT, die, ep_dir, load_json, save_json  # noqa: E402
+from eplib import ROOT, die, ep_dir, load_json, save_json
 
 # a venv of its own with the GPU build of torch (`pip install torch transformers`
 # gets the CUDA build on Linux); the CPU build in venv-erm is the fallback,

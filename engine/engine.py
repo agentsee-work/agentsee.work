@@ -22,12 +22,10 @@ import os
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-
-import ingest  # noqa: E402
-import ledger  # noqa: E402
-import plan  # noqa: E402
-import publish  # noqa: E402
+import ingest
+import ledger
+import plan
+import publish
 
 
 def who():

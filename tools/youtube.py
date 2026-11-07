@@ -22,14 +22,12 @@ without registering it. A refresh token from a consent screen still in
 
 import argparse
 import os
-import pathlib
 import sys
 import urllib.parse
 import webbrowser
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from consent import Catch, get_json, listen, pkce, post_form, wait  # noqa: E402
-from eplib import die  # noqa: E402
+from consent import Catch, get_json, listen, pkce, post_form, wait
+from eplib import die
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"

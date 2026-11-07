@@ -43,7 +43,6 @@ import base64
 import hashlib
 import hmac
 import os
-import pathlib
 import re
 import secrets
 import sys
@@ -51,9 +50,8 @@ import time
 import urllib.parse
 import webbrowser
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from consent import Catch, basic, get_json, listen, pkce, post_form, wait  # noqa: E402
-from eplib import die  # noqa: E402
+from consent import Catch, basic, get_json, listen, pkce, post_form, wait
+from eplib import die
 
 AUTH_URL = "https://x.com/i/oauth2/authorize"
 TOKEN_URL = "https://api.x.com/2/oauth2/token"

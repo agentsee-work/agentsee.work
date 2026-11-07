@@ -25,14 +25,12 @@ tracks mixed at -14 LUFS, which is what the platforms normalise to.
 """
 
 import argparse
-import pathlib
 import re
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from assemble import frame_plan  # noqa: E402
-from banner import THEMES, render  # noqa: E402
-from eplib import (  # noqa: E402
+from assemble import frame_plan
+from banner import THEMES, render
+from eplib import (
     RATE,
     ROOT,
     caption_cues,
@@ -54,7 +52,7 @@ from eplib import (  # noqa: E402
     video_codec,
     wrap_two,
 )
-from show import CLIP_ZONES, build  # noqa: E402
+from show import CLIP_ZONES, build
 
 FONT_DIR = ROOT / "build" / "fonts"
 FONT_SRC = ROOT / "public" / "fonts" / "newsreader-latin.woff2"
