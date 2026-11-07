@@ -5170,12 +5170,22 @@ class TidyTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # By file: engine/ has a release.py of its own. Its eplib is on the path from ingest.
+        # By file: engine/ has a release.py of its own, and tools/ is not on the engine's path.
+        # eplib goes in sys.modules for as long as release.py's `from eplib import` needs it.
         tools = pathlib.Path(__file__).resolve().parent.parent / "tools"
-        spec = importlib.util.spec_from_file_location("tools_release", tools / "release.py")
-        cls.release = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cls.release)
-        cls.tidy = staticmethod(sys.modules["eplib"].tidy_words)
+
+        def load(file, name):
+            spec = importlib.util.spec_from_file_location(name, tools / file)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[name] = module
+            spec.loader.exec_module(module)
+            return module
+
+        eplib = load("eplib.py", "eplib")
+        cls.addClassCleanup(sys.modules.pop, "eplib", None)
+        cls.release = load("release.py", "tools_release")
+        cls.addClassCleanup(sys.modules.pop, "tools_release", None)
+        cls.tidy = staticmethod(eplib.tidy_words)
 
     @staticmethod
     def said(text, spk="a", start=0.0, pause_before=()):
