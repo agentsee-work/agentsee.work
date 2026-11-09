@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Twenty questions before you build — AgentSee Podcast, episode 3</title>
+<meta name="description" content="James and Abrar go through the twenty questions before you build, a group of four at a time: the idea, the care a domain needs, the conditions it runs in, its shape, and who owns it once it exists. Code is a byproduct now, so the questions are where the thinking goes; a regulator changes the build and keeping up with one is work of its own; scale that never arrives slows you down and scale that does sets fire to things; offline is the requirement that arrives at the eleventh hour; and somebody has to be able to restore the backup. It ends with the brief, the things they insist on for every build, and a flood of CVEs.">
+<link rel="canonical" href="https://agentsee.work/podcast/ep3/">
+<link rel="alternate" type="application/rss+xml" title="AgentSee Podcast" href="/podcast/feed.xml">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://agentsee.work/podcast/ep3/">
+<meta property="og:title" content="Twenty questions before you build — AgentSee Podcast, episode 3">
+<meta property="og:description" content="James and Abrar go through the twenty questions before you build, a group of four at a time: the idea, the care a domain needs, the conditions it runs in, its shape, and who owns it once it exists. Code is a byproduct now, so the questions are where the thinking goes; a regulator changes the build and keeping up with one is work of its own; scale that never arrives slows you down and scale that does sets fire to things; offline is the requirement that arrives at the eleventh hour; and somebody has to be able to restore the backup. It ends with the brief, the things they insist on for every build, and a flood of CVEs.">
+<meta property="og:image" content="https://agentsee.work/podcast/ep3/art.jpg">
+<meta property="og:image:width" content="1400">
+<meta property="og:image:height" content="1400">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/podcast/ep3/art.jpg">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "PodcastEpisode", "url": "https://agentsee.work/podcast/ep3/", "name": "Twenty questions before you build", "datePublished": "2026-11-10", "description": "James and Abrar go through the twenty questions before you build, a group of four at a time: the idea, the care a domain needs, the conditions it runs in, its shape, and who owns it once it exists. Code is a byproduct now, so the questions are where the thinking goes; a regulator changes the build and keeping up with one is work of its own; scale that never arrives slows you down and scale that does sets fire to things; offline is the requirement that arrives at the eleventh hour; and somebody has to be able to restore the backup. It ends with the brief, the things they insist on for every build, and a flood of CVEs.", "duration": "PT37M9S", "image": "https://agentsee.work/podcast/ep3/art.jpg", "associatedMedia": {"@type": "MediaObject", "contentUrl": "https://media.agentsee.work/podcast/ep3/episode.mp3", "encodingFormat": "audio/mpeg"}, "partOfSeries": {"@type": "PodcastSeries", "name": "AgentSee Podcast", "url": "https://agentsee.work/podcast/", "webFeed": "https://agentsee.work/podcast/feed.xml"}, "author": [{"@type": "Person", "name": "James Hartt", "url": "https://www.linkedin.com/in/james-hartt-78519132/"}, {"@type": "Person", "name": "Abrar Mahmood", "url": "https://www.linkedin.com/in/abrar-m-339b61386/"}], "episodeNumber": 3}</script>
+</head>
+<body>
+
+<a class="skip" href="#opening">Skip to content</a>
+<header class="masthead">
+  <nav class="ear" aria-label="Listen to the podcast">
+    <a class="ear-label" href="/podcast/">Listen</a>
+    <a href="https://podcasts.apple.com/gb/podcast/agentsee-podcast/id6824580895">Apple Podcasts</a>
+    <a href="https://open.spotify.com/show/0YjxzDGgoCzjvEykcUAfPr">Spotify</a>
+    <a href="https://www.youtube.com/@agentseework">YouTube</a>
+    <a href="/podcast/feed.xml">RSS</a>
+  </nav>
+  <a class="nameplate home" href="/" aria-label="AgentSee, the front page">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+  </a>
+  <nav class="ear" aria-label="Follow AgentSee">
+    <span class="ear-label">Follow</span>
+    <a href="https://www.linkedin.com/company/agentseework">LinkedIn</a>
+    <a href="https://x.com/agentseework">X</a>
+    <a href="https://bsky.app/profile/agentsee.work">Bluesky</a>
+    <a href="https://mastodon.social/@agentseework">Mastodon</a>
+    <a href="https://www.instagram.com/agentsee.work/">Instagram</a>
+  </nav>
+</header>
+<div class="dateline">
+  <span class="edge">AgentSee Podcast</span>
+  <span class="mid">Episode 3 &middot; 10 November 2026</span>
+  <span class="edge">37 min 9 s &middot; Free, obviously</span>
+</div>
+
+<main>
+
+  <article class="lead" id="opening">
+    <h1>Twenty questions before you build</h1>
+    <p class="deck">James and Abrar go through the twenty questions before you build, a group of four at a time: the idea, the care a domain needs, the conditions it runs in, its shape, and who owns it once it exists. Code is a byproduct now, so the questions are where the thinking goes; a regulator changes the build and keeping up with one is work of its own; scale that never arrives slows you down and scale that does sets fire to things; offline is the requirement that arrives at the eleventh hour; and somebody has to be able to restore the backup. It ends with the brief, the things they insist on for every build, and a flood of CVEs.</p>
+  </article>
+
+  <figure class="plate">
+    <audio controls preload="none" data-player src="https://media.agentsee.work/podcast/ep3/episode.mp3"></audio>
+    <figcaption>Episode 3, 37:09. Chapters and the transcript below seek the player.</figcaption>
+    <p class="links listen">
+      <a href="https://podcasts.apple.com/gb/podcast/agentsee-podcast/id6824580895">Listen on Apple Podcasts</a>
+      <a href="https://open.spotify.com/show/0YjxzDGgoCzjvEykcUAfPr">Listen on Spotify</a>
+      <a href="https://media.agentsee.work/podcast/ep3/episode.mp3" download>Download the mp3</a>
+      <a href="/podcast/feed.xml">RSS feed</a>
+    </p>
+  </figure>
+
+  <section class="section" id="chapters">
+    <p class="kicker">01 — Chapters</p>
+    <ol class="chapters">
+      <li><a href="#t=0" data-t="0">00:00</a><span>A toy from the playground, and twenty questions</span></li>
+      <li><a href="#t=119" data-t="119">01:59</a><span>Where it came from: code as a byproduct</span></li>
+      <li><a href="#t=216" data-t="216">03:36</a><span>The idea: what should it do, and for whom</span></li>
+      <li><a href="#t=419" data-t="419">06:59</a><span>Care needed: the regulator, and keeping up with it</span></li>
+      <li><a href="#t=695" data-t="695">11:36</a><span>Running conditions: the busiest day, uptime, platforms</span></li>
+      <li><a href="#t=961" data-t="961">16:01</a><span>Offline, the requirement that arrives at the eleventh hour</span></li>
+      <li><a href="#t=1237" data-t="1237">20:38</a><span>Shape: AI inside it, how often it changes, what must never happen</span></li>
+      <li><a href="#t=1504" data-t="1504">25:04</a><span>What an offline flow looks like: pen and paper</span></li>
+      <li><a href="#t=1596" data-t="1596">26:36</a><span>Owning it: worth it, signed off, and looked after by whom</span></li>
+      <li><a href="#t=1857" data-t="1857">30:57</a><span>The brief, and what we always insist on</span></li>
+      <li><a href="#t=1935" data-t="1935">32:16</a><span>Security: a flood of CVEs, and vibe-coded targets</span></li>
+      <li><a href="#t=2035" data-t="2035">33:55</a><span>A small team that can do what a giant one could</span></li>
+      <li><a href="#t=2154" data-t="2154">35:54</a><span>Wrap: a bit of whimsy, and guests from here on</span></li>
+      <li><a href="#t=2211" data-t="2211">36:52</a><span>Outro</span></li>
+    </ol>
+  </section>
+
+  <section class="section" id="notes">
+    <p class="kicker">02 — Show notes</p>
+    <div class="notes">
+      <h3>Mentioned</h3>
+      <ul>
+        <li><a href="https://agentsee.work/issues/07-twenty">Issue No. 7: Twenty questions, and the one that counted was the twenty-first</a></li>
+        <li><a href="https://agentsee.work/twenty-questions/">The twenty questions, to run in your own assistant</a></li>
+        <li><a href="https://github.com/agentsee-work/agentsee.work/blob/main/.claude/skills/twenty-questions/SKILL.md">The skill file itself, in the open</a></li>
+        <li><a href="https://www.cve.org">CVE, the vulnerability catalogue the flood lands in</a></li>
+      </ul>
+      <h3>Of the questions on the site, this one touches</h3>
+      <ul>
+        <li><a href="/#premise">1.</a> If writing the code is no longer the expensive part, what is the client actually buying?</li>
+        <li><a href="/#premise">3.</a> What is a product manager when the specification is executable?</li>
+        <li><a href="/#premise">4.</a> Who is accountable for a system that nobody typed?</li>
+        <li><a href="/#premise">5.</a> How do you run acceptance testing on something produced faster than a person can read it?</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="moments">
+    <p class="kicker">03 — Moments</p>
+    <p class="aside">The stretches that went out as clips. Each one seeks the player.</p>
+    <ol class="chapters">
+      <li><a href="#t=127" data-t="127">02:07</a><span>The code is a byproduct now</span></li>
+      <li><a href="#t=723" data-t="723">12:03</a><span>Scale that never arrived, and scale that did</span></li>
+      <li><a href="#t=963" data-t="963">16:04</a><span>Offline, the requirement that arrives at the eleventh hour</span></li>
+      <li><a href="#t=1544" data-t="1544">25:45</a><span>What does it look like to do this on pen and paper?</span></li>
+      <li><a href="#t=1954" data-t="1954">32:35</a><span>A Y2K-level event: every product scrambling to plug the holes</span></li>
+    </ol>
+  </section>
+
+  <section class="section" id="people">
+    <p class="kicker">04 — On this episode</p>
+    <div class="people">
+      <article class="person">
+        <div class="byline">
+          <img class="portrait" src="/assets/james-hartt.jpg" alt="" width="256" height="256" loading="lazy" decoding="async">
+          <div>
+            <h3>James Hartt</h3>
+            <p class="role">Host</p>
+          </div>
+        </div>
+        <div class="body"><p>Lead software engineer, agentic engineering. Hove.</p>
+          <p class="links"><a href="https://www.linkedin.com/in/james-hartt-78519132/">LinkedIn</a></p>
+        </div>
+      </article>
+      <article class="person">
+        <div class="byline">
+          <img class="portrait" src="/assets/abrar-mahmood.jpg" alt="" width="256" height="256" loading="lazy" decoding="async">
+          <div>
+            <h3>Abrar Mahmood</h3>
+            <p class="role">Host</p>
+          </div>
+        </div>
+        <div class="body"><p>Software architect; co-founder of GradeDrive. London.</p>
+          <p class="links"><a href="https://www.linkedin.com/in/abrar-m-339b61386/">LinkedIn</a></p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" id="transcript">
+    <p class="kicker">05 — Transcript</p>
+    <details class="transcript">
+      <summary>Read the transcript: 200 turns, 6,196 words</summary>
+      <p class="turn"><a class="at" href="#t=6" data-t="6">00:06</a><b class="who">Abrar Mahmood</b> Hello and welcome to the AgentSee podcast. I am Abrar and we have.</p>
+      <p class="turn"><a class="at" href="#t=11" data-t="11">00:11</a><b class="who">James Hartt</b> James, hi.</p>
+      <p class="turn"><a class="at" href="#t=12" data-t="12">00:12</a><b class="who">Abrar Mahmood</b> Hello. And today we&#x27;re going to be talking about the questions before you build. I&#x27;ll go over to you, James, now.</p>
+      <p class="turn"><a class="at" href="#t=20" data-t="20">00:20</a><b class="who">James Hartt</b> Yeah, so this kind of, comes out of, basically the millennial toy of the playground of the sort of early 2000s or maybe even Late 90s of the little sort of circular ball with the else marquee LCD screen that asked you Questions to see if it could guess what your what you were thinking about it could have been like an object or a or I don&#x27;t think it Was always an object I don&#x27;t know</p>
+      <p class="turn"><a class="at" href="#t=45" data-t="45">00:45</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=45" data-t="45">00:45</a><b class="who">James Hartt</b> Anyway software you could say at the end of the the day becomes an object that you can somewhat hold so that&#x27;s basically What we&#x27;ve tried to do is come up with you won&#x27;t necessarily have to answer every questions but if you did Then it would have a pretty good idea certainly a frontier agent frontier LLM front would figure out Exactly what kind of software project product you would want So yeah that&#x27;s kind of where where it came from and the questions are built on both of Mine and Abrar&#x27;s experience. We&#x27;ve got a number of sections with four questions in each of them. And we&#x27;re gonna go through all of them and figure out why, yeah, Why we think if you do answer all of these questions, you&#x27;re setting up the initial conditions for a good successful software product. And you can do that. Yeah it&#x27;s something that I think maybe some people that are not technical might miss And then if you do end up making the wrong decision then it can really come back to bite you later on down the line So yeah let&#x27;s carry on</p>
+      <p class="turn"><a class="at" href="#t=122" data-t="122">02:02</a><b class="who">Abrar Mahmood</b> So perhaps we can go into Where it came from so I think in terms of my ideas I&#x27;ve been working with businesses That have been vibing their own workflows quite a bit and of course as we know we&#x27;re now in a place where engineering and the Actual grunt work of it isn&#x27;t necessarily the bottleneck like that&#x27;s almost it&#x27;s almost like for me I see it as the code being a bit Almost like a byproduct</p>
+      <p class="turn"><a class="at" href="#t=151" data-t="151">02:31</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=151" data-t="151">02:31</a><b class="who">Abrar Mahmood</b> So I think that I&#x27;ve spoken about this previously but like we&#x27;ve had like the area the error of like compiled code which We Kind of seeing like code as it&#x27;s written by agents at the moment as almost like compiled code but a bit more Readable and like</p>
+      <p class="turn"><a class="at" href="#t=170" data-t="170">02:50</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=170" data-t="170">02:50</a><b class="who">Abrar Mahmood</b> We don&#x27;t always like read it line for line and write it line for line but we do look at it when we see relevant so going back a step I Think it&#x27;s now more important than ever to ask the correct questions to start with and I think that&#x27;s kind of where our experience sort comes into this Going into the questions so that&#x27;s kind of like where I find it fits in really well and I know there&#x27;s other tools out There and that do a similar sort of thing that I&#x27;ve personally worked with a few of them but I think the ones that we have are Very applicable to where we are taking AgentSee and so I think yeah it will be really good to start going into The different sort of areas that we ask our questions on So I think we&#x27;ll start with the idea</p>
+      <p class="turn"><a class="at" href="#t=222" data-t="222">03:42</a><b class="who">James Hartt</b> Mm-hmm.</p>
+      <p class="turn"><a class="at" href="#t=222" data-t="222">03:42</a><b class="who">Abrar Mahmood</b> And so do you want to go into that a little bit</p>
+      <p class="turn"><a class="at" href="#t=225" data-t="225">03:45</a><b class="who">James Hartt</b> Yeah so I think that this is the question that really can only be answered by a client it&#x27;s something That yeah what should it do like it&#x27;s kind of rough it will immediately touch the potential industry Like or sector or whatever you want to like yeah there&#x27;s lots of whys and you might put in an example or Something it&#x27;s that there&#x27;ll be the most personal questions and there&#x27;ll be the ones that have probably Occupy your mind the most as someone either that&#x27;s non-technical or even is technical you&#x27;re thinking about yeah the problems Of your given sector so yeah four separate questions that kind of does it like live alongside an Existing workflow that&#x27;s very important to know like is it brand new like obviously there&#x27;s a term called legacy like will there Be sort of legacy code or like APIs that needs to work with also think again things that you might want to consider of Like has it been built before and was it a success or did it peter out or did it just spectacularly fail those are sort of Things that you do need to contend with and they&#x27;re actually the things that certainly research agents are absolutely brilliant at Figuring out what has already been made So yeah it really just comes down to the idea whether it will like it&#x27;s this whole tool is meant to it&#x27;s not meant to Get in the way it&#x27;s meant to sort of support and encourage the idea rather than sort of say no because everything&#x27;s possible in Software and everything is becoming more possible with sort of agent workflows so yeah the idea is this obviously it&#x27;s the first thing that you need to start Talking about</p>
+      <p class="turn"><a class="at" href="#t=333" data-t="333">05:33</a><b class="who">Abrar Mahmood</b> I think I think the other thing that&#x27;s really important is we&#x27;re starting with the idea and I think that&#x27;s a really good place to Start because now that it&#x27;s more easier than ever to build software with agents like the temptation is often to just Go in and start knocking something but I think like starting with the idea is a really good way because it kind of it kind of gives you a time To reflect on what the problem is that you&#x27;re actually trying to solve so like coming back to like the implement well the coding Not being the bottleneck it kind of like reduces the barrier to entry to build something</p>
+      <p class="turn"><a class="at" href="#t=370" data-t="370">06:10</a><b class="who">James Hartt</b> Absolutely.</p>
+      <p class="turn"><a class="at" href="#t=371" data-t="371">06:11</a><b class="who">Abrar Mahmood</b> But actually what you&#x27;re building like is it solving the problem that you are actually intending to solve and thinking About it from this point to start with is definitely a really good place to start because yeah like just don&#x27;t want to go in and start building something and realize Actually this doesn&#x27;t really solve the problem</p>
+      <p class="turn"><a class="at" href="#t=389" data-t="389">06:29</a><b class="who">James Hartt</b> No.</p>
+      <p class="turn"><a class="at" href="#t=390" data-t="390">06:30</a><b class="who">Abrar Mahmood</b> That we intended to solve so we&#x27;ve just gone in and we&#x27;ve created a database and we&#x27;ve just like written Some APIs but does it actually solve the problem I think that&#x27;s I think that&#x27;s something that I&#x27;ve personally experienced in the Past so I personally also start with the idea first as well and I think it&#x27;s definitely the way go so that&#x27;s Yeah that&#x27;s really important to make sure you&#x27;ve got nailed down before you start going going forward So the next one is that is sort of a care needed around the domain and the idea so perhaps we can go into that A little bit</p>
+      <p class="turn"><a class="at" href="#t=430" data-t="430">07:10</a><b class="who">James Hartt</b> Yeah absolutely I mean hopefully the idea has narrowed a lot of that down and in fact an agent if you said oh I want to make A heavily regulated health tech idea it and I want to launch in the UK like you&#x27;re going to be you already know some of the Names like the national clinical excellence or whatever lots of the different regulators that might exist and procure NHS procurement and stuff like that you&#x27;re gonna have to possibly contend with and that obviously comes with the highest form Of care that&#x27;s required and every single feature will have to be reviewed to make sure that patient data is not not being Leaked or and loggings like redacting things correctly and yeah a lot a lot more care and attention needs to be spent whereas if you&#x27;re Not working in that or tangentially I don&#x27;t know something to do with fitness like fitness would be a lot less like it&#x27;s important it&#x27;s health Data you don&#x27;t want it to be leaked but it&#x27;s not someone it&#x27;s not it&#x27;s not going to ruin someone&#x27;s life if it gets if it gets leaked</p>
+      <p class="turn"><a class="at" href="#t=493" data-t="493">08:13</a><b class="who">Abrar Mahmood</b> Yeah. I think it&#x27;s also worth mentioning that for particular domains, for example, in health or even in finance or In any of the other domains, there may be particular regulations around the data which aren&#x27;t necessarily making the data more Secure from a technical perspective, but it might make it there might be particular regulations in order to comply with How data is like data retention policies So like perhaps for example if the data needs to be anonymized within like days of it being recorded for that particular domain Like these are the kind of things that we need to think about to start with to ensure that we comply with this going So that&#x27;s a really good reason To go into this as well.</p>
+      <p class="turn"><a class="at" href="#t=540" data-t="540">09:00</a><b class="who">James Hartt</b> You&#x27;ve got ISO standards for this kind of stuff and different like compliance things that there&#x27;s lots of SaaS products for that we could Use them you could again I feel like quite a lot of it could be handled by agents like on our side it&#x27;s that it&#x27;s that Kind of diligentness that you could really just chuck a load of tokens at to kind of just kind of make sure that Someone&#x27;s always looking at this like Because in the old world, things got missed because</p>
+      <p class="turn"><a class="at" href="#t=568" data-t="568">09:28</a><b class="who">Abrar Mahmood</b> Yes. Yes.</p>
+      <p class="turn"><a class="at" href="#t=570" data-t="570">09:30</a><b class="who">James Hartt</b> Of human inattentiveness rather than Something that can just be Pointed out. And that&#x27;s their sole goal to look at every single diff that comes through and say, oh, is there something that Needs to change based on a given standard that it can always load in?</p>
+      <p class="turn"><a class="at" href="#t=590" data-t="590">09:50</a><b class="who">Abrar Mahmood</b> Yep.</p>
+      <p class="turn"><a class="at" href="#t=590" data-t="590">09:50</a><b class="who">James Hartt</b> So so yeah and that it kind of like that&#x27;s the rest of the section like the care needed it&#x27;s it follows on from the Idea really nicely yeah again personal it&#x27;s really just around personal information potentially and money and yeah if Anything&#x27;s involving children like that&#x27;s obviously a an extra like level of sort of safeguarding stuff that you need to consider Lots of other data stuff and it is really the most it&#x27;s the stuff that requires the most diligent attention</p>
+      <p class="turn"><a class="at" href="#t=622" data-t="622">10:22</a><b class="who">Abrar Mahmood</b> I think</p>
+      <p class="turn"><a class="at" href="#t=623" data-t="623">10:23</a><b class="who">James Hartt</b> So</p>
+      <p class="turn"><a class="at" href="#t=623" data-t="623">10:23</a><b class="who">Abrar Mahmood</b> The other thing is that it&#x27;s one thing complying with it but like these standards and regulations change</p>
+      <p class="turn"><a class="at" href="#t=630" data-t="630">10:30</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=631" data-t="631">10:31</a><b class="who">Abrar Mahmood</b> So keeping up to speed with it is an overhead in itself as well so like if we like if we need to Be considering regulations like keeping up to speed with it and making sure we are adapting that going forwards and if anything That doesn&#x27;t comply with new regulations we need to ensure that we&#x27;ve got our existing Implementation brought up to that so that&#x27;s another thing that of course that we need to be taking into Consideration quite seriously</p>
+      <p class="turn"><a class="at" href="#t=661" data-t="661">11:01</a><b class="who">James Hartt</b> Yeah and it&#x27;s something that only this these kind of models can really like offer in a in a like as These kind of models of developing software can offer it&#x27;s just a yeah a huge step up in potential Quality if you&#x27;re constantly asking the question on every single change something that you just wouldn&#x27;t be able to do anyway yeah so I think I Think we&#x27;ve covered that roughly like</p>
+      <p class="turn"><a class="at" href="#t=688" data-t="688">11:28</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=688" data-t="688">11:28</a><b class="who">James Hartt</b> Yeah it&#x27;s something that would be client by by client always Idea by idea</p>
+      <p class="turn"><a class="at" href="#t=698" data-t="698">11:38</a><b class="who">Abrar Mahmood</b> So the next section is the running conditions.</p>
+      <p class="turn"><a class="at" href="#t=701" data-t="701">11:41</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=702" data-t="702">11:42</a><b class="who">Abrar Mahmood</b> So what that looks like and the sort of questions that we might want to ask in terms of when it&#x27;s running, what</p>
+      <p class="turn"><a class="at" href="#t=709" data-t="709">11:49</a><b class="who">James Hartt</b> Yes</p>
+      <p class="turn"><a class="at" href="#t=710" data-t="710">11:50</a><b class="who">Abrar Mahmood</b> Sort of constraints do we need to work Okay.</p>
+      <p class="turn"><a class="at" href="#t=712" data-t="712">11:52</a><b class="who">James Hartt</b> So this again it&#x27;s kind of informs us for infrastructure decisions but also architectural decisions Like in our like I&#x27;ve in my career I&#x27;ve seen examples where scale was built for but it never arrived and Then that made I guess they need to somewhat needlessly made it hard to iterate whereas if you Don&#x27;t build for the scale and the scale arrives then you often have A lot firefighting and distractions that result in again you sort of moving at a snail&#x27;s pace potentially on Other priorities when they come at the same time so it&#x27;s yeah it&#x27;s sort of asking what does your busiest day look like and for some clients it Could be this is an internal tool we&#x27;ll never see more than a handful of people using it at the same time to social media virality Which obviously requires you to think like every single feature needs to be thought of could this hit scale Do we have load testing for it like can we simulate the load because sometimes you can play is even an absurd to simulate the Load or it&#x27;s not a real test So yeah it&#x27;s kind of like running conditions are something that if you get wrong at the outset you can have some major Headaches and I&#x27;d and you have to make some sort of big potential changes and that would again sort of slow you down so Yeah and also uptime as well so the scale and uptime like if you want the highest scale and the highest uptime you&#x27;re talking about sort of sort Of insane levels of architecture you really do need to test whether you need that and make sure that you do because again it will require Much more much more care and attention than their sort of simple app would and then yeah the platforms as well that we run on you can have Any platform like from a sort of I I certainly with these tools I feel so confident in building front end for any platform like it could even I would go far as Saying like I&#x27;d be very comfortable making say mods for a video game which was probably way outside of my comfort zone like just Because the agents they join the gaps like you know exactly what you want but you can join the gaps but having said that I think there are some Interesting decisions that you certainly have to make like say if you&#x27;re doing a mobile app your most people want them on all the Popular platforms but</p>
+      <p class="turn"><a class="at" href="#t=861" data-t="861">14:21</a><b class="who">Abrar Mahmood</b> Yeah,</p>
+      <p class="turn"><a class="at" href="#t=862" data-t="862">14:22</a><b class="who">James Hartt</b> I think</p>
+      <p class="turn"><a class="at" href="#t=862" data-t="862">14:22</a><b class="who">Abrar Mahmood</b> Why wouldn&#x27;t you, right?</p>
+      <p class="turn"><a class="at" href="#t=863" data-t="863">14:23</a><b class="who">James Hartt</b> Yeah exactly but you would you can certainly make some more interesting and subtle decisions today where you could Mainly develop or say develop for an iOS app and then every single diff that happens you send off an agent it&#x27;s like Repeat this work but for Android and that would be enough of a prompt to then have two native apps that means you could get all the benefit of native Apps with basically next to none of the overhead like you still have the sort of some sort of testing overhead but like These apps app platforms are not so different that you couldn&#x27;t work in A really nice workflow like that could get you all the benefits for none of the real drawbacks that</p>
+      <p class="turn"><a class="at" href="#t=905" data-t="905">15:05</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=905" data-t="905">15:05</a><b class="who">James Hartt</b> Used to exist and yeah things like do you need to support accessibility do you need language support do you need a full Offline mode like that&#x27;s something that you really need to decide up front because if you&#x27;re trying to hammer in later it gets quite it can get quite Messy</p>
+      <p class="turn"><a class="at" href="#t=922" data-t="922">15:22</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=924" data-t="924">15:24</a><b class="who">James Hartt</b> And then yeah sort of integrations like what do you see it integrating with existing software like Sas products like do you expect to put inference out there as in like LLM inference out there do you expect People to have the ability to call expensive APIs potentially expensive APIs and how do you protect yourself so Yeah like think that. Roughly anything that I think I&#x27;ve missed there Abrar</p>
+      <p class="turn"><a class="at" href="#t=955" data-t="955">15:55</a><b class="who">Abrar Mahmood</b> I&#x27;ll tell you you&#x27;ve covered it but I do have like some personal experiences which I think are definitely worth pointing out A big one is of course offline functionality so</p>
+      <p class="turn"><a class="at" href="#t=967" data-t="967">16:07</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=967" data-t="967">16:07</a><b class="who">Abrar Mahmood</b> I&#x27;ve had I&#x27;ve had a number of projects where I&#x27;ve of course when we were working at the agency previously as well as Some more recent personal experience where offline has been a requirement that would come in At the eleventh hour</p>
+      <p class="turn"><a class="at" href="#t=985" data-t="985">16:25</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=985" data-t="985">16:25</a><b class="who">Abrar Mahmood</b> And of course Especially when working on mobile apps you kind of need to architect the entire thing to work offline</p>
+      <p class="turn"><a class="at" href="#t=994" data-t="994">16:34</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=994" data-t="994">16:34</a><b class="who">Abrar Mahmood</b> So I think like with our sort of setup of having our questions I think like offline functionality is definitely a real big One that is going to completely shape the way the application or</p>
+      <p class="turn"><a class="at" href="#t=1006" data-t="1006">16:46</a><b class="who">James Hartt</b> Because</p>
+      <p class="turn"><a class="at" href="#t=1006" data-t="1006">16:46</a><b class="who">Abrar Mahmood</b> The</p>
+      <p class="turn"><a class="at" href="#t=1006" data-t="1006">16:46</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1006" data-t="1006">16:46</a><b class="who">Abrar Mahmood</b> PWA</p>
+      <p class="turn"><a class="at" href="#t=1006" data-t="1006">16:46</a><b class="who">James Hartt</b> You</p>
+      <p class="turn"><a class="at" href="#t=1006" data-t="1006">16:46</a><b class="who">Abrar Mahmood</b> Or</p>
+      <p class="turn"><a class="at" href="#t=1006" data-t="1006">16:46</a><b class="who">James Hartt</b> Sync</p>
+      <p class="turn"><a class="at" href="#t=1006" data-t="1006">16:46</a><b class="who">Abrar Mahmood</b> Whatever is</p>
+      <p class="turn"><a class="at" href="#t=1007" data-t="1007">16:47</a><b class="who">James Hartt</b> You&#x27;ve got</p>
+      <p class="turn"><a class="at" href="#t=1007" data-t="1007">16:47</a><b class="who">Abrar Mahmood</b> Built</p>
+      <p class="turn"><a class="at" href="#t=1008" data-t="1008">16:48</a><b class="who">James Hartt</b> To sync stuff conflicts like yes it&#x27;s a</p>
+      <p class="turn"><a class="at" href="#t=1012" data-t="1012">16:52</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1012" data-t="1012">16:52</a><b class="who">James Hartt</b> You&#x27;ve got to decide like every app might be different in how they decide how their offline and functionality works</p>
+      <p class="turn"><a class="at" href="#t=1018" data-t="1018">16:58</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1019" data-t="1019">16:59</a><b class="who">James Hartt</b> So and that&#x27;s often not a technical decision it&#x27;s a product and yeah client decision</p>
+      <p class="turn"><a class="at" href="#t=1025" data-t="1025">17:05</a><b class="who">Abrar Mahmood</b> Yeah,</p>
+      <p class="turn"><a class="at" href="#t=1025" data-t="1025">17:05</a><b class="who">James Hartt</b> So yeah</p>
+      <p class="turn"><a class="at" href="#t=1027" data-t="1027">17:07</a><b class="who">Abrar Mahmood</b> I think also from a testing perspective, I think offline functionality is something where it can look like It&#x27;s working, but then because you&#x27;ve got so many edge cases, you&#x27;ve really got to test for every edge case to ensure it&#x27;s truly working.</p>
+      <p class="turn"><a class="at" href="#t=1042" data-t="1042">17:22</a><b class="who">James Hartt</b> Yeah And</p>
+      <p class="turn"><a class="at" href="#t=1044" data-t="1044">17:24</a><b class="who">Abrar Mahmood</b> And,</p>
+      <p class="turn"><a class="at" href="#t=1044" data-t="1044">17:24</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1044" data-t="1044">17:24</a><b class="who">Abrar Mahmood</b> Like...</p>
+      <p class="turn"><a class="at" href="#t=1044" data-t="1044">17:24</a><b class="who">James Hartt</b> Automating automated testing offline mode is always a spoof right like because</p>
+      <p class="turn"><a class="at" href="#t=1050" data-t="1050">17:30</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1051" data-t="1051">17:31</a><b class="who">James Hartt</b> You&#x27;ve got to be connected to To a device somehow or like</p>
+      <p class="turn"><a class="at" href="#t=1056" data-t="1056">17:36</a><b class="who">Abrar Mahmood</b> Yes.</p>
+      <p class="turn"><a class="at" href="#t=1056" data-t="1056">17:36</a><b class="who">James Hartt</b> Or yeah it&#x27;s gonna it&#x27;s gonna you&#x27;re gonna have some level of like not a true test and then yeah</p>
+      <p class="turn"><a class="at" href="#t=1061" data-t="1061">17:41</a><b class="who">Abrar Mahmood</b> And</p>
+      <p class="turn"><a class="at" href="#t=1061" data-t="1061">17:41</a><b class="who">James Hartt</b> Offline</p>
+      <p class="turn"><a class="at" href="#t=1061" data-t="1061">17:41</a><b class="who">Abrar Mahmood</b> Even</p>
+      <p class="turn"><a class="at" href="#t=1062" data-t="1062">17:42</a><b class="who">James Hartt</b> Mode essentially always has to be truly tested offline But yes</p>
+      <p class="turn"><a class="at" href="#t=1068" data-t="1068">17:48</a><b class="who">Abrar Mahmood</b> Just put testing for that. Bad network connectivity if it&#x27;s</p>
+      <p class="turn"><a class="at" href="#t=1071" data-t="1071">17:51</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1071" data-t="1071">17:51</a><b class="who">Abrar Mahmood</b> Not truly offline that&#x27;s another thing which</p>
+      <p class="turn"><a class="at" href="#t=1073" data-t="1073">17:53</a><b class="who">James Hartt</b> And</p>
+      <p class="turn"><a class="at" href="#t=1073" data-t="1073">17:53</a><b class="who">Abrar Mahmood</b> Can be a little bit tricky as well</p>
+      <p class="turn"><a class="at" href="#t=1075" data-t="1075">17:55</a><b class="who">James Hartt</b> Even yes even simulating bad network conditions</p>
+      <p class="turn"><a class="at" href="#t=1078" data-t="1078">17:58</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1078" data-t="1078">17:58</a><b class="who">James Hartt</b> Is tough it never really behaves like a shoddy of 4G connection</p>
+      <p class="turn"><a class="at" href="#t=1085" data-t="1085">18:05</a><b class="who">Abrar Mahmood</b> No</p>
+      <p class="turn"><a class="at" href="#t=1086" data-t="1086">18:06</a><b class="who">James Hartt</b> So</p>
+      <p class="turn"><a class="at" href="#t=1086" data-t="1086">18:06</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1087" data-t="1087">18:07</a><b class="who">James Hartt</b> Sorry.</p>
+      <p class="turn"><a class="at" href="#t=1087" data-t="1087">18:07</a><b class="who">Abrar Mahmood</b> You often end up with just slow network requests which isn&#x27;t really the same thing is it Yeah no I think that&#x27;s yeah I think that&#x27;s good I think that&#x27;s definitely what we want to be covering in terms of the running conditions And like I guess like someone who&#x27;s got some technical experience with the cloud like in terms of scale like why not just put it On like serverless compute that automatically scales like there&#x27;s reasons to not do that as well so</p>
+      <p class="turn"><a class="at" href="#t=1114" data-t="1114">18:34</a><b class="who">James Hartt</b> Well yeah I&#x27;ve seen horizontal scaling go horribly wrong and it&#x27;s not yeah if you&#x27;ve not got your checks and Balances then</p>
+      <p class="turn"><a class="at" href="#t=1123" data-t="1123">18:43</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1124" data-t="1124">18:44</a><b class="who">James Hartt</b> You end up with a absolutely ginormous cloud bill</p>
+      <p class="turn"><a class="at" href="#t=1127" data-t="1127">18:47</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1127" data-t="1127">18:47</a><b class="who">James Hartt</b> So</p>
+      <p class="turn"><a class="at" href="#t=1128" data-t="1128">18:48</a><b class="who">Abrar Mahmood</b> Yep</p>
+      <p class="turn"><a class="at" href="#t=1129" data-t="1129">18:49</a><b class="who">James Hartt</b> You don&#x27;t want those happening especially to yeah you don&#x27;t you just don&#x27;t want those things happening so you need to nail these things down and then If you are you can you can answer these in any sort of way it&#x27;s like we could see viral of social media load but we&#x27;d prefer it to sit Everyone behind a queue or</p>
+      <p class="turn"><a class="at" href="#t=1147" data-t="1147">19:07</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1147" data-t="1147">19:07</a><b class="who">James Hartt</b> We&#x27;d prefer it to or all of these paths that will get hit by behind the queue and then you can have like pretty modest infrastructure To serve all those people but then again there are some use cases that That you still need a huge amount of vertical and horizontal like capacity like it&#x27;s just yeah unavoidable so yeah It really comes down to your idea and where you want to take it</p>
+      <p class="turn"><a class="at" href="#t=1172" data-t="1172">19:32</a><b class="who">Abrar Mahmood</b> I think I think also in terms of like some of your suggestions there so like one of the things that you mentioned was we do want to support Viral scale but have everyone sit behind the pew like I think some of our customers might not necessarily know that&#x27;s an option so I think one of the really good Things about our questions is that they are non-technical so if like for us like that&#x27;s kind of like an Example of where our expertise can come in to offer these suggestions of how we can solve these problems so like we don&#x27;t need everyone To know like that is an option so yeah I think that&#x27;s a good thing to point out</p>
+      <p class="turn"><a class="at" href="#t=1210" data-t="1210">20:10</a><b class="who">James Hartt</b> I think yeah when you can sort of like we&#x27;re going to update these questions as people use it and as we Get some feedback and as we use it ourselves like future episode will will be us using these questions to see if it results in a In a better output for a an actual idea and yeah the all these the shapes of each of these sections really sort of Really sort of dissect an app and what it should do</p>
+      <p class="turn"><a class="at" href="#t=1240" data-t="1240">20:40</a><b class="who">Abrar Mahmood</b> So the next area is essentially the shape</p>
+      <p class="turn"><a class="at" href="#t=1244" data-t="1244">20:44</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1246" data-t="1246">20:46</a><b class="who">Abrar Mahmood</b> Of the Thing we are looking to build. So, do you want to go into that, so that in terms of what it talks to?</p>
+      <p class="turn"><a class="at" href="#t=1253" data-t="1253">20:53</a><b class="who">James Hartt</b> So obviously we&#x27;re at the entire point of AgentSee is that the agents like competitively note I very much doubt Anyone in the next few years will not be writing most of their code with agents but having said that if there are Bits of the app that like someone really needs to know intimately then you need to like that needs to be Outlined and then again that sort of harks back to like potentially regulated industries and certain things like that but like we Would obviously like you&#x27;re working with us because we expect AI to respond to your Your wants and needs on the product so Yes we would be heavily saying yes it should be drafting and generating a bunch of the code for example all of the code But could it like be involved like will LLMs be involved in the product itself is that a good idea are you Using the right tool for the right problem like yes ChatGPT and Claude and someone can do all of these amazing tasks but they Sure as hell can like spend your wallet so we need to sort of check the shape of your like of the AI usage like other things Of like how often do you want updates to the app like will it change a lot after you launch it like some people will Know that this is just an internal tool and it just needs to do this and it needs to stay secure and get updated very rarely Or when a CVE comes in a sort of critical do you know what&#x27;s it what&#x27;s the CVE stand for it&#x27;s critical something Like</p>
+      <p class="turn"><a class="at" href="#t=1354" data-t="1354">22:34</a><b class="who">Abrar Mahmood</b> Critical,</p>
+      <p class="turn"><a class="at" href="#t=1356" data-t="1356">22:36</a><b class="who">James Hartt</b> Vulnerability something</p>
+      <p class="turn"><a class="at" href="#t=1357" data-t="1357">22:37</a><b class="who">Abrar Mahmood</b> Yeah, that was</p>
+      <p class="turn"><a class="at" href="#t=1358" data-t="1358">22:38</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1358" data-t="1358">22:38</a><b class="who">Abrar Mahmood</b> It, yeah.</p>
+      <p class="turn"><a class="at" href="#t=1359" data-t="1359">22:39</a><b class="who">James Hartt</b> And yeah so things like that again these are brilliant for agents to monitor so that no one&#x27;s really putting in that effort they just look at the Dependency list see what&#x27;s going on and then and then change it and patch it so that those are the sort of things that we will that will be offered Without even thought but like do you feel like you will have to make constant feature updates to satisfy A market like that&#x27;s the sort of question that we&#x27;re like wondering like and that&#x27;s down to the idea that&#x27;s down to the Industry that&#x27;s yeah we just it&#x27;s something that will sort of shape the app and then yeah things about and some of these questions once we&#x27;re Getting to them they could be answered quite easily by a previous question so if it sounds like we&#x27;re repeating yourself it&#x27;s because possibly are but like what&#x27;s The absolute worst thing that could happen with your app and for every app that would be a different thing it could be that it goes down when People are in the office it could be that personal data is leaked you could select them all and say I absolutely do not want any of these things To happen At all ever and yeah we can we can make some fairly strong assurances in on the outset that won&#x27;t Happen that you&#x27;ll have sort of protections around those things happening and then finally yeah sort of infrastructure costs like some people will have a An operational budget an opex of a given amount and they can&#x27;t stray from that and yeah if you&#x27;ve got a really simple internal tool you can Be talking about pennies a month and you could be going up to hundreds tens of thousands if you&#x27;re using some expensive APIs out there That still need to be part of the product like I can think of sort of anything to do with location is very expensive for example like if You&#x27;re wanting to use sort of Google APIs for they&#x27;re always very expensive because they&#x27;ve invested the time in all The those silly cars driving around and photographing everything and listening to everyone&#x27;s Wi-Fi so Like</p>
+      <p class="turn"><a class="at" href="#t=1480" data-t="1480">24:40</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1481" data-t="1481">24:41</a><b class="who">James Hartt</b> You yeah those are the sort of things that you can capture reasonably easily up front so that there aren&#x27;t any shocks and it&#x27;s just Useful to know so yeah I think that&#x27;s kind of like roughly like these are really getting into the weeds like with this tool may Not even answer this like ask you this question because you might have might have figured out it</p>
+      <p class="turn"><a class="at" href="#t=1501" data-t="1501">25:01</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1502" data-t="1502">25:02</a><b class="who">James Hartt</b> Might have figured out already what the answer three is.</p>
+      <p class="turn"><a class="at" href="#t=1506" data-t="1506">25:06</a><b class="who">Abrar Mahmood</b> I think these are good prompts so when working with AgentSee it gives us the information we need to help you Build a product that will actually work sustainably so an example of that is like if we&#x27;re Building a product and it&#x27;s of course an online product What does a offline flow actually look like and that&#x27;s something we can help our customers with so like god forbid the App is offline for a period of time and it is an absolutely critical workflow but it could even be as simple as Where our customers where our customers intend usage of the application the Wi-Fi drops out or there&#x27;s a power cut now what does an offline Flow for whatever it is you&#x27;re doing look like so I think like that&#x27;s something that I&#x27;ve actually been quite inspired by at Amazon So Amazon. Are quite big on making sure their online tools have an offline equivalent so if their systems go offline for Whatever reason like what does it look like to do this on pen and paper so I think that&#x27;s like a really big thing to ensure that you can continue with Trading and business or whatever it is that you are doing and I think that these sorts of questions can help us figure out what that Is and I think that having these ideas again is kind of where our expertise come in rather than just going off to an agent and knocking Something out</p>
+      <p class="turn"><a class="at" href="#t=1593" data-t="1593">26:33</a><b class="who">James Hartt</b> Yes,</p>
+      <p class="turn"><a class="at" href="#t=1593" data-t="1593">26:33</a><b class="who">Abrar Mahmood</b> So I think that&#x27;s really important as well So the next section is the reality so should we talk a little bit about that</p>
+      <p class="turn"><a class="at" href="#t=1603" data-t="1603">26:43</a><b class="who">James Hartt</b> Yeah I think I think it&#x27;s this is sort of a this is really if it this tool hasn&#x27;t really nailed down absolutely everything but maybe there&#x27;s a couple In there it&#x27;s really like Like it&#x27;s kind of How do you measure success of something? Like it could be, yeah, like how you know That the effort was worth it For this app. And again, for an internal tool, that could be very easy to quantify. But for a sort consumer Product, it could be a bit difficult to know in advance what success looks like. Like again, spend As well. So, like what&#x27;s your, like, if you do know your budget, like, you will sort of welcome to tell us, or you can, you can Sort of, give us a range of, like of what you feel comfortable to talk about. And yeah, like, sort yeah, for the Minimum viable product and then the very finished like not a lot more to do I guess it would sort of cover the like Yeah what&#x27;s that like and then also sign off as well like do you have a team that needs to confer To figure out oh is this what we want or is it a single person or is it no one like it like we&#x27;re Getting into that software realm where if you are if you like reasonably have described something you can Be pretty sure it&#x27;s going to make what you want or at least a very good approximation that needs tweaks rather than Full rewrites so it&#x27;s I guess it&#x27;s these are some fairly vague questions at the end of it and then Also yeah ongoing maintenance</p>
+      <p class="turn"><a class="at" href="#t=1709" data-t="1709">28:29</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1709" data-t="1709">28:29</a><b class="who">James Hartt</b> So if you have a semi -technical person or someone that their role could be like restoring from a backup Or running a script or again getting an agent to run some of the assets that have already been created for the app and then Trying that first and then if it if it all goes to pop then you do come to us to figure it out like is there someone that can be the Sort of first port of call for like someone and that may be a no and it may then fall to us to figure that out for you and again Agent like there are a lot of agent workflows that can be execute now to Self-heal a system when certain things happen well so again how happy you are to rely Upon that depends on your idea depends on your industry depends on all of the previous questions and like yeah that it&#x27;s It sort of rounds off the questions and figures out like your appetite for owning the app when it&#x27;s completed</p>
+      <p class="turn"><a class="at" href="#t=1772" data-t="1772">29:32</a><b class="who">Abrar Mahmood</b> Yeah I suppose the other thing is because agents as you said are quite good at self-healing maybe it&#x27;s even We work with someone who&#x27;s completely non-technical and part of what we&#x27;re doing needs us to help whoever We&#x27;re working with in order to deal with these situations like I know of course like it&#x27;s quite easy to go to Go to your agent and say oh it&#x27;s broken fix</p>
+      <p class="turn"><a class="at" href="#t=1799" data-t="1799">29:59</a><b class="who">James Hartt</b> Yeah,</p>
+      <p class="turn"><a class="at" href="#t=1799" data-t="1799">29:59</a><b class="who">Abrar Mahmood</b> It</p>
+      <p class="turn"><a class="at" href="#t=1800" data-t="1800">30:00</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1801" data-t="1801">30:01</a><b class="who">Abrar Mahmood</b> And more often I guess like as the agents get better it&#x27;s going to get better at fixing it which is which is really interesting as well but I think Like perhaps it&#x27;s a little bit more more than that we need to do to work with our customers to say okay so We&#x27;ve got a problem with the data what does it look like to actually restore this and I think like part of what I&#x27;ve done personally is try To get to a point where the documentation we have in our code base is very good for agents to read So when you do go to your original and say there&#x27;s a problem I need fix it knows where everything is and it&#x27;s laid out in a sensible way so It can go and figure out how do a database restore and promote restored database for example so that&#x27;s yeah that&#x27;s a really big thing as Well that I think I&#x27;ve done quite a bit of past which has which is just getting better and better as the as the agents improve really</p>
+      <p class="turn"><a class="at" href="#t=1860" data-t="1860">31:00</a><b class="who">James Hartt</b> Once you&#x27;re done with this like this tool if you&#x27;ve used one of the frontier models anything I mean this should behave just fine on Opus Or Fable or like all of the yeah ChatGPT products it should it should do it reasonably well you Should come out with a brief and the brief would will obviously encourage you to send it to us like via email or you can reach out on the socials And like basically have a chat about your idea and see if it&#x27;s right for us right for you and yeah there&#x27;s Certain things that we would always do Like for every single product like yeah things that keep us sane as developers you would always be able to walk away With your code there would be a bunch of there would always be automated tests of some Variety automated review Like there would be a tracker that either you use that we integrate with or we use and you&#x27;ll have full access to and yeah we try and Keep everything in plain words and come to an agreement and retainers and things that you need to really support a full software Product and everything hopefully like yeah above board and you&#x27;re happy with and know exactly how things would proceed</p>
+      <p class="turn"><a class="at" href="#t=1938" data-t="1938">32:18</a><b class="who">Abrar Mahmood</b> I think the other thing to just highlight it&#x27;s now becoming more important than ever to be on top of security</p>
+      <p class="turn"><a class="at" href="#t=1945" data-t="1945">32:25</a><b class="who">James Hartt</b> Seed</p>
+      <p class="turn"><a class="at" href="#t=1945" data-t="1945">32:25</a><b class="who">Abrar Mahmood</b> Like</p>
+      <p class="turn"><a class="at" href="#t=1945" data-t="1945">32:25</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1946" data-t="1946">32:26</a><b class="who">Abrar Mahmood</b> Now I think these days like literally every other day you see something on X or whatever</p>
+      <p class="turn"><a class="at" href="#t=1952" data-t="1952">32:32</a><b class="who">James Hartt</b> Mean we&#x27;ve had</p>
+      <p class="turn"><a class="at" href="#t=1952" data-t="1952">32:32</a><b class="who">Abrar Mahmood</b> Or whatever&#x27;s being hacked</p>
+      <p class="turn"><a class="at" href="#t=1953" data-t="1953">32:33</a><b class="who">James Hartt</b> I think we&#x27;ve</p>
+      <p class="turn"><a class="at" href="#t=1954" data-t="1954">32:34</a><b class="who">Abrar Mahmood</b> And</p>
+      <p class="turn"><a class="at" href="#t=1954" data-t="1954">32:34</a><b class="who">James Hartt</b> Had what is it, 50% of all CVEs ever created in the last three months</p>
+      <p class="turn"><a class="at" href="#t=1960" data-t="1960">32:40</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1960" data-t="1960">32:40</a><b class="who">James Hartt</b> Is because</p>
+      <p class="turn"><a class="at" href="#t=1961" data-t="1961">32:41</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=1961" data-t="1961">32:41</a><b class="who">James Hartt</b> Of just the sheer like it&#x27;s a flood and this is going to be a theme of the next two years I would say it&#x27;s a Y2K level event Where like every single software product that is out there is scrambling to plug up all the holes that can</p>
+      <p class="turn"><a class="at" href="#t=1975" data-t="1975">32:55</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=1975" data-t="1975">32:55</a><b class="who">James Hartt</b> Now</p>
+      <p class="turn"><a class="at" href="#t=1976" data-t="1976">32:56</a><b class="who">Abrar Mahmood</b> Yeah,</p>
+      <p class="turn"><a class="at" href="#t=1976" data-t="1976">32:56</a><b class="who">James Hartt</b> Be revealed by agents so</p>
+      <p class="turn"><a class="at" href="#t=1979" data-t="1979">32:59</a><b class="who">Abrar Mahmood</b> And</p>
+      <p class="turn"><a class="at" href="#t=1979" data-t="1979">32:59</a><b class="who">James Hartt</b> You</p>
+      <p class="turn"><a class="at" href="#t=1979" data-t="1979">32:59</a><b class="who">Abrar Mahmood</b> I</p>
+      <p class="turn"><a class="at" href="#t=1979" data-t="1979">32:59</a><b class="who">James Hartt</b> Best</p>
+      <p class="turn"><a class="at" href="#t=1979" data-t="1979">32:59</a><b class="who">Abrar Mahmood</b> Think</p>
+      <p class="turn"><a class="at" href="#t=1979" data-t="1979">32:59</a><b class="who">James Hartt</b> Believe</p>
+      <p class="turn"><a class="at" href="#t=1979" data-t="1979">32:59</a><b class="who">Abrar Mahmood</b> There&#x27;s also,</p>
+      <p class="turn"><a class="at" href="#t=1979" data-t="1979">32:59</a><b class="who">James Hartt</b> We&#x27;ll be</p>
+      <p class="turn"><a class="at" href="#t=1980" data-t="1980">33:00</a><b class="who">Abrar Mahmood</b> Sorry.</p>
+      <p class="turn"><a class="at" href="#t=1980" data-t="1980">33:00</a><b class="who">James Hartt</b> Making sure that yeah if a CVE rolls in then it&#x27;s patched very quickly and automated like and it all Goes out very quickly so</p>
+      <p class="turn"><a class="at" href="#t=1990" data-t="1990">33:10</a><b class="who">Abrar Mahmood</b> I think there&#x27;s also given the frequency of the attacks there&#x27;s also a lot more Targets because there&#x27;s so much that&#x27;s vibe coded out there</p>
+      <p class="turn"><a class="at" href="#t=2001" data-t="2001">33:21</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=2002" data-t="2002">33:22</a><b class="who">Abrar Mahmood</b> Without the technical experience backing it to ensure best security practices are put in place</p>
+      <p class="turn"><a class="at" href="#t=2009" data-t="2009">33:29</a><b class="who">James Hartt</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2009" data-t="2009">33:29</a><b class="who">Abrar Mahmood</b> And I think of course like we don&#x27;t really like I think like at an agency we don&#x27;t really talk about that too much typically Traditionally but that is something that you get when you have experienced software engineers working with agents To build like there is a level of security in place that ensures that we have we have our best chances of Not falling into these situations.</p>
+      <p class="turn"><a class="at" href="#t=2034" data-t="2034">33:54</a><b class="who">James Hartt</b> And These are all things that we&#x27;re setting up on our own open source stuff so</p>
+      <p class="turn"><a class="at" href="#t=2042" data-t="2042">34:02</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2042" data-t="2042">34:02</a><b class="who">James Hartt</b> There&#x27;s there&#x27;s evidence that we&#x27;re actually doing it to our own products so yeah it&#x27;s all like that&#x27;s the thing that I Enjoy the most about all of these new workflows is that a small team can do things that an Absolutely giant team was capable of like that sorry in the old world only a giant team was capable of that Obviously moved at a glacial pace so it&#x27;s yeah it&#x27;s the beauty of these tools yes they&#x27;ve taken as they&#x27;ve taken An amount from the sort of enjoyment of software engineer but they&#x27;ve also given a bunch back because you can as a small nimble team you Can do you can achieve some frankly insane stuff like</p>
+      <p class="turn"><a class="at" href="#t=2087" data-t="2087">34:47</a><b class="who">Abrar Mahmood</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=2088" data-t="2088">34:48</a><b class="who">James Hartt</b> Then insane levels of quality and diligence that everyone&#x27;s going to need in the years coming So</p>
+      <p class="turn"><a class="at" href="#t=2096" data-t="2096">34:56</a><b class="who">Abrar Mahmood</b> Yeah I think yeah I think just to that point as well like Working with a massive with a massive company also has its costs as well whereas working with a smaller team like us you Get you get the experience of software best practices and product best practices without having the Overhead of a massive engineering team so you can scale you can scale that up with your agents quite well but of course in Terms of costs like this</p>
+      <p class="turn"><a class="at" href="#t=2126" data-t="2126">35:26</a><b class="who">James Hartt</b> All</p>
+      <p class="turn"><a class="at" href="#t=2127" data-t="2127">35:27</a><b class="who">Abrar Mahmood</b> We&#x27;re not paying for a massive for a massive skyscraper</p>
+      <p class="turn"><a class="at" href="#t=2131" data-t="2131">35:31</a><b class="who">James Hartt</b> Yeah absolutely and yeah we&#x27;re constantly going to be working on these workflows and figuring out the best way to Interact with clients and if a client can make changes with agents like they&#x27;re going to be near free like And we&#x27;re going to find out ways to work in that workflow so that we can yeah best support best support clients</p>
+      <p class="turn"><a class="at" href="#t=2157" data-t="2157">35:57</a><b class="who">Abrar Mahmood</b> Anything else or</p>
+      <p class="turn"><a class="at" href="#t=2158" data-t="2158">35:58</a><b class="who">James Hartt</b> No I think</p>
+      <p class="turn"><a class="at" href="#t=2159" data-t="2159">35:59</a><b class="who">Abrar Mahmood</b> Should</p>
+      <p class="turn"><a class="at" href="#t=2159" data-t="2159">35:59</a><b class="who">James Hartt</b> I think</p>
+      <p class="turn"><a class="at" href="#t=2159" data-t="2159">35:59</a><b class="who">Abrar Mahmood</b> We?</p>
+      <p class="turn"><a class="at" href="#t=2159" data-t="2159">35:59</a><b class="who">James Hartt</b> That&#x27;s pretty good and yeah I&#x27;ve enjoyed chatting about our little questions it&#x27;s a nice whimsical way of defining Software</p>
+      <p class="turn"><a class="at" href="#t=2168" data-t="2168">36:08</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2168" data-t="2168">36:08</a><b class="who">James Hartt</b> And who doesn&#x27;t need a bit of whimsy in these trying times</p>
+      <p class="turn"><a class="at" href="#t=2171" data-t="2171">36:11</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2171" data-t="2171">36:11</a><b class="who">James Hartt</b> So</p>
+      <p class="turn"><a class="at" href="#t=2172" data-t="2172">36:12</a><b class="who">Abrar Mahmood</b> Yeah.</p>
+      <p class="turn"><a class="at" href="#t=2173" data-t="2173">36:13</a><b class="who">James Hartt</b> Yeah</p>
+      <p class="turn"><a class="at" href="#t=2174" data-t="2174">36:14</a><b class="who">Abrar Mahmood</b> Cool. Well, thank you very much, everyone, for listening in today. In the next few episodes we will be going in A bit more detail and perhaps even trying out an example of the questions so we&#x27;re looking forward to seeing you there thank you very Much</p>
+      <p class="turn"><a class="at" href="#t=2190" data-t="2190">36:30</a><b class="who">James Hartt</b> Absolutely</p>
+      <p class="turn"><a class="at" href="#t=2190" data-t="2190">36:30</a><b class="who">Abrar Mahmood</b> And see you</p>
+      <p class="turn"><a class="at" href="#t=2191" data-t="2191">36:31</a><b class="who">James Hartt</b> And</p>
+      <p class="turn"><a class="at" href="#t=2191" data-t="2191">36:31</a><b class="who">Abrar Mahmood</b> Next time</p>
+      <p class="turn"><a class="at" href="#t=2191" data-t="2191">36:31</a><b class="who">James Hartt</b> And yeah we&#x27;re gonna also be inviting on guests starting from sort of when this episode airs so or hope to hope to get on some people Either potential clients or people that run agencies themselves and yeah really looking forward to just having a chat with people and yeah Should be fun</p>
+      <p class="turn"><a class="at" href="#t=2208" data-t="2208">36:48</a><b class="who">Abrar Mahmood</b> Thank you very much, bye</p>
+      <p class="turn"><a class="at" href="#t=2210" data-t="2210">36:50</a><b class="who">James Hartt</b> All</p>
+      <p class="turn"><a class="at" href="#t=2210" data-t="2210">36:50</a><b class="who">Abrar Mahmood</b> Bye!</p>
+      <p class="turn"><a class="at" href="#t=2210" data-t="2210">36:50</a><b class="who">James Hartt</b> Right cheers bye</p>
+    </details>
+  </section>
+
+  <section class="section" id="contact">
+    <p class="kicker">06 — Classifieds</p>
+    <h2>Everything below reaches both of us directly. No sequence, no drip, no CRM.</h2>
+
+    <div class="classifieds">
+
+      <a class="ad" href="/twenty-questions/">
+        <span class="ad-head">Public notice</span>
+        <span class="ad-title">Twenty questions before you build</span>
+        <span class="ad-body">
+          Like the toy that guessed what you were thinking, but for software.
+          Think of something, answer twenty questions in your own assistant, and
+          it guesses what it should be, writes the brief, and asks who is going
+          to run it. Sometimes the answer is you.
+        </span>
+        <span class="ad-cue">Start &rarr;</span>
+      </a>
+
+      <a class="ad" href="mailto:show@agentsee.work?subject=AgentSee%3A%20Come%20on%20the%20show">
+        <span class="ad-head">Wanted</span>
+        <span class="ad-title">Come on the show</span>
+        <span class="ad-body">
+          People who have run an agency, bought from one, or been chewed up by one.
+          Especially if your experience contradicts ours.
+        </span>
+        <span class="ad-cue">Pitch yourself &rarr;</span>
+      </a>
+
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20Follow%20the%20build">
+        <span class="ad-head">Subscriptions</span>
+        <span class="ad-title">Follow the build</span>
+        <span class="ad-body">
+          Streams, episodes, and what we get wrong. Low volume, no marketing, and
+          we'll tell you when it stops being interesting.
+        </span>
+        <span class="ad-cue">Get the updates &rarr;</span>
+      </a>
+
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20You%27re%20wrong">
+        <span class="ad-head">Corrections</span>
+        <span class="ad-title">Tell us we're wrong</span>
+        <span class="ad-body">
+          If you think the premise is nonsense, we would much rather hear it now than
+          in two years. The strongest disagreement gets a whole episode.
+        </span>
+        <span class="ad-cue">Take the swing &rarr;</span>
+      </a>
+
+      <a class="ad" href="mailto:hello@agentsee.work?subject=AgentSee%3A%20Build%20and%20run">
+        <span class="ad-head">Situations vacant</span>
+        <span class="ad-title">Build it with us, then let us run it</span>
+        <span class="ad-body">
+          Operational software for a business that needs it working next year, not
+          just finished. Built with you in the room, then run by us on a monthly
+          retainer. You'll hear what we charge before you hear a pitch; the twenty
+          questions are the way in.
+        </span>
+        <span class="ad-cue">Start the conversation &rarr;</span>
+      </a>
+
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee Podcast &middot; Episode 3</span>
+    <span>Released 10 November 2026</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <nav class="links social" aria-label="AgentSee elsewhere">
+    <!-- rel="me" is load-bearing: Mastodon verifies a profile link by looking for
+         a reciprocal one here. Without it the field shows unverified. -->
+    <a href="/podcast/">Podcast</a>
+    <a href="/twenty-questions/">Twenty questions</a>
+    <a rel="me" href="https://mastodon.social/@agentseework">Mastodon</a>
+    <a href="https://bsky.app/profile/agentsee.work">Bluesky</a>
+    <a href="https://www.youtube.com/@agentseework">YouTube</a>
+    <a href="https://www.twitch.tv/agentseework">Twitch</a>
+    <a href="https://www.instagram.com/agentsee.work/">Instagram</a>
+    <a href="https://x.com/agentseework">X</a>
+    <a href="https://www.linkedin.com/company/agentseework">LinkedIn</a>
+  </nav>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here, and in the <a href="/privacy/">privacy notice</a>.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+<script src="/assets/player.js" defer></script>
+</body>
+</html>
