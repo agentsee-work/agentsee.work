@@ -2,26 +2,40 @@
 """
 Take a recording in from Riverside and write down what it is.
 
+    ./tools/ingest.py ep4 ~/Downloads/ep4                 # a folder of track downloads
+    ./tools/ingest.py ep4 ~/Downloads/ep4 --names jane_doe="Jane Doe" --order abrar,jane,james
     ./tools/ingest.py ep0 ~/Downloads/timeline.zip \
         --names 6ac4c0cd="James Hartt",6ac4c0ce="Abrar Mahmood"
-    ./tools/ingest.py ep0 path/to/folder --names ...     # loose per-track files
     ./tools/ingest.py ep0 --show                          # what was recorded
 
-Riverside's timeline export is a ZIP: one WAV and one video-only MP4 per
-participant, plus a Premiere-style XML that says where each starts on the
-shared timeline, how Riverside laid them out, and the chapters it guessed.
-This unpacks that into build/episodes/<slug>/source/ and reduces it to one
-manifest.json that every later stage reads, so nothing downstream has to
-parse XML or guess which file is whom.
+The package is a folder of the tracks Riverside lets every plan download,
+two files a person: their Aligned video (a CFR MP4 with their own audio
+inside, padded at the front if they joined late) and their Raw audio (the
+WAV). Nothing in a folder says where a WAV belongs on the shared timeline,
+so it is measured: the WAV is found inside its own video's audio, which is
+the same recording behind the same padding. The video sits at zero, the WAV
+where it was found. Left to right is the show's seats (tools/show.json), or
+--order.
 
-Names are not in the package — the files are named by opaque ids — so they
-are given here, matched by id prefix, and written into the manifest once.
+Riverside's timeline export, a ZIP with a Premiere-style XML that says where
+each track starts, how it laid them out and the chapters it guessed, went
+behind the Business plan in November 2026. It is still read, for the
+episodes made from one.
+
+Either way the package is unpacked into build/episodes/<slug>/source/ and
+reduced to one manifest.json that every later stage reads, so nothing
+downstream has to parse XML or guess which file is whom.
+
+Names are matched by id prefix and written into the manifest once. A folder's
+files begin with the name each person typed at Riverside's door, so the hosts
+are recognised from tools/show.json and only a guest needs --names. A
+timeline's files are named by opaque ids, and every name is given.
 
 What it checks, because each has bitten or will:
   - every audio track is 48 kHz, or is resampled to it (soxr) and said so
   - every video track is constant frame rate at the sequence's rate
   - audio and video durations agree per participant
-  - offsets came from the XML, not from an assumption of zero
+  - offsets were measured or read from the XML, not assumed to be zero
 """
 
 import argparse
@@ -29,11 +43,19 @@ import bisect
 import pathlib
 import re
 import shutil
+import statistics
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 import zipfile
 
-from eplib import EPISODES, RATE, ROOT, die, ffprobe, load_json, need, run, save_json
+from eplib import EPISODES, RATE, ROOT, die, ffprobe, load_json, need, run, save_json, video_offset
+
+SHOW = ROOT / "tools" / "show.json"
+MEDIA = {".wav", ".mp4", ".mov", ".m4a", ".mp3", ".xml"}
+# Placing a WAV in its video's audio: the whole file at COARSE Hz finds the place, a minute at FINE Hz settles
+# it, and a match counts when it stands SURE times above the next best. The real ones stand thirty to a hundred.
+COARSE, FINE, SURE = 4000, 16000, 8.0
 
 
 def parse_names(s):
@@ -58,9 +80,13 @@ def unpack(src, dest):
                     shutil.copyfileobj(f, g)
         return src.name
     if src.is_dir():
-        for p in src.iterdir():
-            if p.is_file():
-                shutil.copy2(p, dest / p.name)
+        # flattened like the zip: a browser saves the tracks side by side, a fetch keeps a folder a file
+        found = sorted(p for p in src.rglob("*") if p.is_file() and p.suffix.lower() in MEDIA)
+        twice = sorted({p.name for p in found if sum(1 for o in found if o.name == p.name) > 1})
+        if twice:
+            die(f"{src} holds more than one file called {', '.join(twice)}")
+        for p in found:
+            shutil.copy2(p, dest / p.name)
         return src.name
     die(f"{src} is neither a zip nor a folder")
 
@@ -126,6 +152,177 @@ def read_xml(path):
 NOTES = []
 
 
+def loose(source):
+    """A folder of track downloads, each WAV paired with its video by the name Riverside gives a person's files.
+
+    Riverside keeps a person's files in a folder of their own, <name>-<id>, and serves the video as
+    <name>-<id>-CFR.mp4 and the WAV as <name>-<id>.wav. A browser saves the video under that name but the WAV as
+    riverside_<name>_raw-audio_<studio>_<n>.wav, which shares only the name the person typed at the door."""
+    ids = {}
+    files = sorted(p for p in source.iterdir() if p.suffix.lower() in (".wav", ".mp4", ".mov"))
+    for p in files:
+        if p.suffix.lower() != ".wav":
+            ids.setdefault(re.sub(r"-CFR$", "", p.stem, flags=re.I), {})["video"] = p.name
+    for p in files:
+        if p.suffix.lower() != ".wav" or p.stem.endswith(f"-{RATE}"):  # the latter is ingest's own resampled copy
+            continue
+        key = p.stem
+        m = re.match(r"riverside_(.+?)_raw-audio_", p.name, re.I)
+        if m and key not in ids:
+            mine = [k for k in ids if k.lower().startswith(m.group(1).lower() + "-")]
+            if len(mine) > 1:
+                die(f"{p.name} could be the audio of {' or '.join(mine)}: rename it to one of those, .wav")
+            key = mine[0] if mine else m.group(1)
+        if "audio" in ids.get(key, {}):
+            die(f"two WAVs for {key}: {ids[key]['audio']} and {p.name}")
+        ids.setdefault(key, {})["audio"] = p.name
+    return ids
+
+
+def host_called(pid):
+    """The host a loose track belongs to, by the name they typed at Riverside's door: the files are
+    <that name>-<id>, and a host types their full name or their first."""
+    said = re.sub(r"-[0-9a-f]{8}(-[0-9a-f]+)+$", "", pid.lower())
+    said = re.sub(r"[^a-z0-9]+", " ", said).strip()
+    for person in load_json(SHOW).get("people", {}).values():
+        full = re.sub(r"[^a-z0-9]+", " ", person["name"].lower()).strip()
+        if said in (full, full.split()[0]):
+            return person["name"]
+    return None
+
+
+def pcm(path, rate):
+    """A file's audio as mono floats at `rate`, sample k at time k / rate: the whole of it, decoded from the
+    top, with silence where the stream starts late. A seek into a file's padding is not to be trusted to land
+    where it was asked, and a stretch cut that way once came back two seconds short."""
+    import numpy as np
+
+    cmd = ["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-vn", "-ac", "1"]
+    r = subprocess.run([*cmd, "-af", f"aresample={rate}:async=1:first_pts=0", "-f", "f32le", "-"], capture_output=True)
+    if r.returncode != 0:
+        die("ffmpeg failed:\n" + r.stderr.decode("utf-8", "replace")[-1500:])
+    return np.frombuffer(r.stdout, dtype=np.float32)
+
+
+def lag_of(track, ref, rate):
+    """How many seconds into `ref` the start of `track` sits, and how far that answer stands above the next
+    best. Cross-correlation with the phase transform: every frequency votes alike, so the peak is a sample
+    wide even between a WAV and the AAC copy of it inside a video."""
+    import numpy as np
+
+    n = 1 << (len(track) + len(ref)).bit_length()
+    x = np.fft.rfft(ref, n) * np.conj(np.fft.rfft(track, n))
+    cc = np.fft.irfft(x / (np.abs(x) + 1e-12), n)
+    k = int(np.argmax(cc))
+    peak = float(cc[k])
+    cc[max(0, k - 50) : k + 50] = 0
+    return (k if k < n // 2 else k - n) / rate, peak / (float(np.abs(cc).max()) or 1e-12)
+
+
+def place(wav, video):
+    """Where a WAV sits in its own video's audio, and what the answer rests on.
+
+    The whole file at a low rate finds the place wherever it is: a guest who joined at minute forty is forty
+    minutes in. Three one-minute windows at a higher rate, near the start, the middle and the end, then settle
+    it to a fraction of a millisecond and say whether it holds across the file. The two are one recording, so a
+    place that moves means they are not what they are taken for."""
+    coarse, peak = lag_of(pcm(wav, COARSE), pcm(video, COARSE), COARSE)
+    fine = []
+    if peak >= SURE:
+        track, ref = pcm(wav, FINE), pcm(video, FINE)
+        for at in (0.1, 0.5, 0.9):
+            t = max(0, int(at * len(track)) - 30 * FINE)
+            r0 = max(0, t + int((coarse - 2) * FINE))
+            a, b = track[t : t + 60 * FINE], ref[r0 : r0 + 64 * FINE]
+            if min(len(a), len(b)) < FINE:
+                continue
+            lag, sure = lag_of(a, b, FINE)
+            if sure >= SURE:
+                fine.append((r0 - t) / FINE + lag)
+    return {
+        "lag": statistics.median(fine) if fine else coarse,
+        "peak": peak,
+        "windows": len(fine),
+        "spread": max(fine) - min(fine) if fine else 0.0,
+    }
+
+
+def settle(d, parts):
+    """Loose tracks come with no timeline, so each WAV is placed by the audio inside its own video. An aligned
+    video starts at the shared zero, behind black if the person joined late, and carries the same recording as
+    the WAV behind the same wait: where the WAV is found in it is where the WAV belongs. The video stays at
+    zero. What could not be measured is said, and stays at zero as an assumption."""
+    notes = []
+    for p in parts:
+        if "audio" not in p or "video" not in p:
+            notes.append(f"{p['short']}: one file, nothing to place it against: offset assumed 0")
+            continue
+        if not p["video"]["has_audio"]:
+            notes.append(f"{p['short']}: the video has no audio inside to place the WAV against: offset assumed 0")
+            continue
+        found = place(d / p["audio"]["file"], d / p["video"]["file"])
+        if found["peak"] < SURE:
+            notes.append(
+                f"{p['short']}: the WAV was not found in its video's audio (the best match stands x{found['peak']:.1f} "
+                "above the rest): offset assumed 0. Are the two files the same person's?"
+            )
+            continue
+        lag = 0.0 if abs(found["lag"]) < 0.001 else found["lag"]
+        p["offset"], p["video"]["offset"] = round(lag, 4), 0.0
+        p["placed"] = {
+            "by": "the audio inside its video",
+            "peak": round(found["peak"], 1),
+            "windows": found["windows"],
+            "spread_ms": round(found["spread"] * 1000, 2),
+        }
+        if found["spread"] > 0.005:
+            notes.append(
+                f"{p['short']}: the WAV's place in its video moves by {found['spread'] * 1000:.1f} ms across the "
+                "file: they are not one recording"
+            )
+    base = min([p["offset"] for p in parts] + [p["video"]["offset"] for p in parts if "offset" in p.get("video", {})])
+    for p in parts:
+        p["offset"] = round(p["offset"] - base, 4)
+        if "offset" in p.get("video", {}):
+            p["video"]["offset"] = round(p["video"]["offset"] - base, 4)
+    for p in parts:
+        if "audio" in p and "video" in p:
+            gap = abs(p["offset"] + p["audio"]["duration"] - video_offset(p) - p["video"]["duration"])
+            if gap > 0.5:
+                notes.append(f"{p['short']}: once the WAV is placed, audio and video end {gap:.2f}s apart")
+    lengths = [p["video"]["duration"] for p in parts if "video" in p]
+    if lengths and max(lengths) - min(lengths) > 1.0:
+        notes.append(
+            f"the videos differ in length by {max(lengths) - min(lengths):.1f}s: fine if someone left early. If "
+            "someone joined late, theirs must be the Aligned video download, which carries the wait as black; "
+            "a Raw video would put them at the start"
+        )
+    return notes
+
+
+def seat(parts, order):
+    """Left to right, for tracks no timeline laid out: --order, or the show's seats (tools/show.json) with the
+    guest as the focus of the picture: in the middle when the hosts are both there, on the right of a host
+    alone. Written as the centre a timeline's layout gave, which is all the picture reads."""
+    if order:
+        row = []
+        for w in (x.strip() for x in order.split(",") if x.strip()):
+            hit = [p for p in parts if p["short"] == w or p["id"].startswith(w)]
+            if len(hit) != 1 or hit[0] in row:
+                die(f"--order {order}: '{w}' is not one track of {', '.join(p['short'] for p in parts)}")
+            row.append(hit[0])
+        if len(row) != len(parts):
+            die(f"--order {order} leaves out {', '.join(p['short'] for p in parts if p not in row)}")
+    else:
+        seats = load_json(SHOW).get("seats") or []
+        hosts = sorted((p for p in parts if p["short"] in seats), key=lambda p: seats.index(p["short"]))
+        guests = [p for p in parts if p["short"] not in seats]
+        half = len(hosts) // 2 if len(hosts) > 1 else len(hosts)
+        row = hosts[:half] + guests + hosts[half:]
+    for i, p in enumerate(row):
+        p["layout"] = {"centre": round((i + 0.5) / len(row) - 0.5, 4)}
+
+
 def participants(source, xml):
     """Pair each audio file with its video by shared id."""
     ids = {}
@@ -134,11 +331,7 @@ def participants(source, xml):
         if m:
             ids.setdefault(m.group(1), {})[m.group(2).lower()] = p.name
     if not ids:
-        # loose downloads: riverside_<name>_... .wav / .mp4 — pair by stem
-        for p in source.iterdir():
-            if p.suffix.lower() in (".wav", ".mp4", ".mov"):
-                kind = "audio" if p.suffix.lower() == ".wav" else "video"
-                ids.setdefault(p.stem, {})[kind] = p.name
+        ids = loose(source)
     out = []
     for pid, files in sorted(ids.items()):
         clip, edit = {}, None
@@ -223,6 +416,9 @@ def main():
     ap.add_argument("slug")
     ap.add_argument("package", nargs="?", help="Riverside timeline zip, or a folder of tracks")
     ap.add_argument("--names", default="", help="id-prefix=name pairs, comma separated")
+    ap.add_argument(
+        "--order", help="left to right, for a folder of tracks: first names or id prefixes, comma separated"
+    )
     ap.add_argument("--show", action="store_true", help="print the manifest and stop")
     ap.add_argument("--force", action="store_true", help="re-unpack over an existing source/")
     a = ap.parse_args()
@@ -257,7 +453,7 @@ def main():
     xml_path = next(iter(sorted(src.glob("*.xml"))), None)
     xml = read_xml(xml_path) if xml_path else None
     if not xml:
-        print("no timeline XML in the package: offsets assumed 0, no chapters, no layout")
+        print("no timeline XML: loose tracks, each WAV placed by the audio inside its own video")
 
     names = parse_names(a.names)
     if manifest_path.exists() and not names:
@@ -278,6 +474,8 @@ def main():
     parts, warnings = [], list(NOTES)
     for p in found:
         name = next((v for k, v in names.items() if p["id"].startswith(k)), None)
+        if not name and not xml:
+            name = host_called(p["id"])
         if not name:
             warnings.append(f'no name for {p["id"]} — pass --names {handle(p["id"])}="Full Name"')
             name = handle(p["id"])
@@ -341,7 +539,7 @@ def main():
                 warnings.append(f"{short}: video is not constant frame rate")
             if xml and abs(v["fps"] - xml["fps"]) > 1e-3:
                 warnings.append(f"{short}: video is {v['fps']} fps, sequence is {xml['fps']}")
-        if "audio" in entry and "video" in entry:
+        if xml and "audio" in entry and "video" in entry:
             gap = abs(entry["audio"]["duration"] - entry["video"]["duration"])
             if gap > 0.5:
                 warnings.append(f"{short}: audio and video durations differ by {gap:.2f}s")
@@ -349,6 +547,15 @@ def main():
 
     if not parts:
         die(f"no tracks found in {src}")
+    shorts = [p["short"] for p in parts]
+    if len(set(shorts)) < len(shorts):
+        die(
+            f"two tracks are both '{next(x for x in shorts if shorts.count(x) > 1)}': "
+            "give each a name of its own with --names"
+        )
+    if not xml:
+        warnings += settle(d, parts)
+        seat(parts, a.order)
 
     fps = xml["fps"] if xml else parts[0].get("video", {}).get("fps", 24)
     warnings += kept_agree(parts, fps)
@@ -375,6 +582,8 @@ def main():
         "slug": a.slug,
         "package": package,
         "xml": f"source/{xml_path.name}" if xml_path else None,
+        # what came from Riverside, as it came: the archive keeps these when there is no zip to keep
+        "tracks": sorted(f"source/{p[k]}" for p in found for k in ("audio", "video") if k in p),
         "fps": fps,
         "duration": round(duration, 4),
         "sequence": {"width": xml["width"], "height": xml["height"]} if xml else None,
@@ -395,6 +604,12 @@ def main():
             f"audio {au.get('rate')} Hz {au.get('duration', 0):.2f}s  "
             f"layout {p['layout']}"
         )
+        if "placed" in p:
+            pl = p["placed"]
+            print(
+                f"           placed by {pl['by']}: x{pl['peak']:.0f} above the next best, {pl['windows']} windows "
+                f"within {pl['spread_ms']} ms; the video at {v['offset']:+.3f}s"
+            )
     for c in manifest["chapters"]:
         print(f"  chapter {c['t0']:8.2f}s  {c['title']}")
     for w in warnings:

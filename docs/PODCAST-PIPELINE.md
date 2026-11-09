@@ -11,11 +11,11 @@ recordings. Nothing published yet.
 ## The shape
 
 ```
-  Riverside  ──(one download: Export all → Timeline, Premiere Pro)──►  timeline.zip
+  Riverside  ──(two downloads a person: Aligned video, Raw audio)──►  a folder of tracks
       │
       ▼
-  tools/ingest.py      unpack, read the XML, write manifest.json
-      │                   who is on which track, their offsets, Riverside's layout and chapters
+  tools/ingest.py      unpack, place each WAV in its own video's audio, write manifest.json
+      │                   who is on which track, their offsets, who sits where
       ▼
   tools/transcribe.py  faster-whisper on the GPU, one pass per track
       │                   words.json — every word, timed, with its speaker known for free
@@ -41,9 +41,17 @@ recipe is the repo; the episode is not.
 ## What Riverside is for
 
 Recording, and nothing after it. It records each person locally, so the
-tracks are clean and start together, and its timeline export packages them
-with an XML that states the offsets and the chapters it guessed. That package
-is the only thing the pipeline takes from Riverside.
+tracks are clean, and every plan lets each person's tracks be downloaded: an
+Aligned video (a constant-frame-rate MP4 with their own audio inside, padded
+at the front if they joined late) and the Raw audio (the WAV). A folder of
+those, two files a person, is the only thing the pipeline takes from
+Riverside.
+
+Until November 2026 the package was Riverside's timeline export: one ZIP of
+the same tracks with an XML that stated the offsets and the chapters it
+guessed. Riverside then kept that export for its Business plan. Ingest still
+reads one, which is how episodes 0 to 3 were made, and what is said below
+about the XML is about those.
 
 What it does not give, and why the pipeline does these itself:
 
@@ -69,9 +77,21 @@ What it does not give, and why the pipeline does these itself:
   1.5 s late for a whole episode. Ingest now reads every track's alignment
   (clip start less in-point) at one sequence time they all cover, and warns
   if that reading differs between the cuts they share.
+- **No timeline, so no stated offsets.** Nothing in a folder of tracks says
+  where a WAV belongs on the shared timeline, so ingest measures it. The WAV
+  is found inside its own aligned video's audio, which is the same recording
+  behind the same padding, by cross-correlation: over the whole file, then
+  in three one-minute windows that have to agree. The video sits at zero and
+  the WAV where it was found. On episode 4 both WAVs sat at 0.00 ms in all
+  three windows. What a folder cannot give is the frame or two by which the
+  XML sometimes started one track after another (two frames on episode 0,
+  none on episodes 2 and 3), which is far inside the delay of the call
+  itself. It has to be the *Aligned* video, not the Raw one: for someone who
+  joined late only the aligned file carries the wait, and a raw one would
+  put them at the start. Ingest warns when the videos differ in length.
 - **No programmatic download.** The API is Business-only and on request, the
   MCP returns no file links, and the terms forbid automating the button. The
-  download is the one manual step and it is one click.
+  download is the one manual step: two clicks a person.
 
 ## The opening, stated once
 
@@ -537,6 +557,12 @@ so there is no bleed to correlate. The XML's offsets are the alignment, and
 ingest records them rather than assuming zero — on episode 0 one track starts
 two frames late, on episode 1 three.
 
+**The aligned MP4s downloaded one by one do have it.** A person's Aligned
+video carries their own audio (AAC, mono), and that is what lets ingest place
+the WAV against it now that there is no XML (What Riverside is for, above).
+The audio is decoded once from the top and windowed in memory: a seek into a
+file's padding is not to be trusted to land where it was asked.
+
 **720p.** Both cameras recorded at 1280x720, which is a studio setting as
 much as a camera limit. The two-up upscales each panel by half to fill
 1080p, as Riverside's own layout does. The clips do not upscale at all: two
@@ -655,9 +681,9 @@ build/venv-transcribe/bin/pip install -r tools/requirements/transcribe.txt
 python3 -m venv build/venv-stage          # boto3, for staging
 build/venv-stage/bin/pip install -r tools/requirements/stage.txt
 
-./tools/episode.py new ep1 ~/Downloads/timeline.zip \
-    --title "Running our own mail server, on purpose" \
-    --names 6ac4c0cd="James Hartt",6ac4c0ce="Abrar Mahmood"   # --guest <id> per guest; no number: approve mints it
+./tools/episode.py new ep1 ~/Downloads/ep1 \
+    --title "Running our own mail server, on purpose"   # a folder of track downloads; --guest <id> and --names
+                                                        # <file prefix>="Full Name" per guest; approve mints the number
 ./tools/episode.py run ep1
 ./tools/cut.py ep1 --show                  # read the edit before trusting it
 ./tools/clips.py ep1 --propose 8           # then write clips.json, and

@@ -40,6 +40,11 @@
       "line": "Software architect; co-founder of GradeDrive. London."
     }
   },
+  "seats": [
+    "abrar",
+    "james"
+  ],
+  "seats_note": "Left to right in the picture, as episodes 1 to 3 had it from Riverside's layout. Ingest sits a folder of tracks by this. A guest is the focus: in the middle when both hosts are there, on the right of a host alone. Ingest's --order says otherwise for one episode.",
   "questions_from": "public/index.html",
   "youtube": {
     "title": "{title} | {show}, episode {number}",

@@ -50,6 +50,7 @@ from eplib import (
     speech_intervals,
     sub_edl,
     video_codec,
+    video_offset,
     wrap_two,
 )
 from show import CLIP_ZONES, build
@@ -243,7 +244,7 @@ def render_clip(d, m, words, bus, clip, idx, args, theme, plate, fontdir, edl):
         # trim — forty minutes of 1080p for a clip near the end — and that,
         # not the encode, was the clip's time. The seek lands half a frame
         # early so the first frame decoded is exactly the one counted on.
-        first = min(max(0, round((it["t0"] - p["offset"]) * m["fps"])) for it in local["items"])
+        first = min(max(0, round((it["t0"] - video_offset(p)) * m["fps"])) for it in local["items"])
         skip = max(0, first - m["fps"])
         cmd += ["-ss", f"{(skip - 0.5) / m['fps']:.6f}" if skip else "0", "-i", d / p["video"]["file"]]
         w, h = p["video"]["width"], p["video"]["height"]
@@ -251,7 +252,7 @@ def render_clip(d, m, words, bus, clip, idx, args, theme, plate, fontdir, edl):
         ch = min(h, int(w * ph / pw))
         pieces = []
         for k, (it, nf) in enumerate(zip(local["items"], plan)):
-            sf_ = max(0, round((it["t0"] - p["offset"]) * m["fps"])) - skip
+            sf_ = max(0, round((it["t0"] - video_offset(p)) * m["fps"])) - skip
             filt.append(f"[{i + 1}:v]trim=start_frame={sf_}:end_frame={sf_ + nf},setpts=PTS-STARTPTS[q{i}_{k}]")
             pieces.append(f"[q{i}_{k}]")
         src = f"[q{i}_0]" if len(pieces) == 1 else f"[j{i}]"
