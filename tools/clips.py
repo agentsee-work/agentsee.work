@@ -33,6 +33,7 @@ from banner import THEMES, render
 from eplib import (
     RATE,
     ROOT,
+    aac_under,
     caption_cues,
     caption_words,
     cut_with_crossfades,
@@ -269,15 +270,17 @@ def render_clip(d, m, words, bus, clip, idx, args, theme, plate, fontdir, edl):
         filt.append(f"{prev}[v{i}]overlay=0:{band[0] + i * ph}:shortest=1[o{i}]")
         prev = f"[o{i}]"
     filt.append(f"{prev}ass={ass}:fontsdir={fontdir}[v]")
-    cmd += ["-i", tmp_n]
-    filt.append(f"[{n + 1}:a]aformat=channel_layouts=stereo[a]")
+    # the audio is encoded first, on its own, so its true peak can be measured and held (eplib.aac_under)
+    tmp_m = d / "mix" / f"clip-{idx:02d}.m4a"
+    aac_under(tmp_n, tmp_m, -1.0, bitrate="160k", stereo=True)
+    cmd += ["-i", tmp_m]
     cmd += [
         "-filter_complex",
         ";".join(filt),
         "-map",
         "[v]",
         "-map",
-        "[a]",
+        f"{n + 1}:a",
         "-r",
         str(m["fps"]),
         "-t",
@@ -286,17 +289,14 @@ def render_clip(d, m, words, bus, clip, idx, args, theme, plate, fontdir, edl):
         "-pix_fmt",
         "yuv420p",
         "-c:a",
-        "aac",
-        "-b:a",
-        "160k",
-        "-ar",
-        str(RATE),
+        "copy",
         "-movflags",
         "+faststart",
         out,
     ]
     run(cmd)
     tmp_n.unlink(missing_ok=True)
+    tmp_m.unlink(missing_ok=True)
     got = measure(out, args.target)
     # The poster: one frame as a PNG for the site, and the same frame as a JPEG (quality ~90), which is the
     # only kind Instagram takes for a Reel's cover (engine/publish/instagram.py).
