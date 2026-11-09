@@ -110,6 +110,23 @@ def apply_fixes(words, fixes):
     return out
 
 
+def fitted(words):
+    """The aligned words, with any the aligner could not place fitted between the words either side. It
+    places letters; align.py spells numbers out for it, but a word in another script, or whatever else it has
+    no letters for, comes back unplaced with Whisper's rough times, and the merge used to drop every one: a
+    number said aloud was missing from the transcript and the captions. A token with nothing to read in it (a
+    dash, an ellipsis) is still dropped."""
+    out = []
+    for i, w in enumerate(words):
+        if w.get("aligned"):
+            out.append(w)
+        elif re.search(r"\w", w["w"]):
+            lo = out[-1]["t1"] if out else w["t0"]
+            hi = next((x["t0"] for x in words[i + 1 :] if x.get("aligned")), w["t1"])
+            out.append({**w, "t0": lo, "t1": max(hi, lo + 0.02)})
+    return out
+
+
 HALLUCINATIONS = re.compile(r"^(thank you\.?|thanks for watching\.?|you\.?|\.+)$", re.I)
 
 
@@ -270,7 +287,7 @@ def main():
             # second early around fillers; the aligner's are within a frame
             # or two. Sentences are cut at punctuation or a second's gap.
             aligned_src = True
-            aw = [w for w in load_json(fa)["words"] if w.get("aligned") and w["w"].strip() and not w.get("ghost")]
+            aw = fitted([w for w in load_json(fa)["words"] if w["w"].strip() and not w.get("ghost")])
             cur = []
             for w in aw:
                 words.append(
