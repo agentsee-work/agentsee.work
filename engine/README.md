@@ -309,8 +309,10 @@ from, listens by day), Guests (who is invited onto the podcast and how far
 each has come: an invitation is made here in two steps, the name and an
 address, then the guest's Linear issue, found in the podcast's project by
 the name and offered closest first, or made there with its angle, or
-typed, or left for later; sent by email when an address is known,
-withdrawn, reissued; each of which the issue is told), Health (the ledger, the worker, the last
+typed, or left for later; emailed as it is made when an address was
+given, and again from the guest's page on request; without an address
+the link is pasted by hand; withdrawn, reissued; each of which the issue
+is told), Health (the ledger, the worker, the last
 snapshot and collection, counts, which adapters can see their credentials,
 the last mail that did not go, whether guest sessions survive a restart).
 

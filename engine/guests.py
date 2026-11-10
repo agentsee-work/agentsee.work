@@ -1020,8 +1020,8 @@ def guests_page(c, csrf, msg=None):
         '<div><label for="address">Email address, if known</label><input type="email" id="address" name="address"></div>'
         '<div><button type="submit" class="signal">Find their issue</button></div></div></form>'
         "<p class=\"muted\">The next page finds the guest's issue in the podcast's project by their name, or makes one. "
-        "A link carries an id, not a secret. Without an address, the first address that passes a code "
-        "claims it; with one, no other address can. Send it from the guest's page, or paste the link yourself.</p>"
+        "A link carries an id, not a secret. With an address, the invitation is emailed as it is made, and no other "
+        "address can claim it. Without one, paste the link yourself; the first address that passes a code claims it.</p>"
     )
     body = (
         '<article class="lead"><h1>Guests</h1><p class="deck">Who has been invited onto the podcast, and how far '
@@ -1086,7 +1086,8 @@ def find_page(c, env, csrf, name, address):
         '<div class="choices">' + "".join(choices) + "</div>"
         '<div class="row"><div><label for="other">Or its identifier</label><input type="text" id="other" name="other" '
         'placeholder="AGE-73" pattern="[A-Za-z]{2,6}-[0-9]{1,6}"></div>'
-        '<div><button type="submit" class="signal">Make the invitation</button></div></div></form>'
+        f'<div><button type="submit" class="signal">{"Make the invitation and email it" if address else "Make the invitation"}'
+        "</button></div></div></form>"
     )
     body = (
         f'<article class="lead"><h1>{esc(name)}</h1><p class="deck">Which issue is theirs? {deck} '
@@ -1147,7 +1148,12 @@ def guest_page(c, gid, csrf, msg=None, who=None):
         acts.append(button(f"/guests/{gid}/reissue", "Reissue, with a new link", csrf, "signal"))
     else:
         if g["address"]:
-            acts.append(button(f"/guests/{gid}/send", "Send the invitation by email", csrf, "signal"))
+            again = c.execute(
+                "SELECT 1 FROM event WHERE guest=? AND what='mail:sent' AND detail LIKE '%\"subject\": \"invitation\"%'",
+                (gid,),
+            ).fetchone()
+            label = "Send the invitation again by email" if again else "Send the invitation by email"
+            acts.append(button(f"/guests/{gid}/send", label, csrf, "signal"))
         acts.append(button(f"/guests/{gid}/reissue", "New link, every session ended", csrf))
         acts.append(button(f"/guests/{gid}/revoke", "Withdraw", csrf, confirm=True))
     sessions = c.execute("SELECT * FROM session WHERE guest=? ORDER BY created_at DESC", (gid,)).fetchall()
