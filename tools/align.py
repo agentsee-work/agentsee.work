@@ -69,10 +69,52 @@ def decode(path):
     return np.frombuffer(raw, dtype=np.float32)
 
 
+ONES = (
+    "ZERO ONE TWO THREE FOUR FIVE SIX SEVEN EIGHT NINE TEN ELEVEN TWELVE THIRTEEN FOURTEEN FIFTEEN SIXTEEN "
+    "SEVENTEEN EIGHTEEN NINETEEN"
+).split()
+TENS = "- - TWENTY THIRTY FORTY FIFTY SIXTY SEVENTY EIGHTY NINETY".split()
+SIGNS = {"%": " PERCENT ", "&": " AND ", "+": " PLUS ", "$": " DOLLARS ", "£": " POUNDS ", "€": " EUROS "}
+
+
+def said(n):
+    """A whole number as a British speaker says it: 12 TWELVE, 150 ONE HUNDRED AND FIFTY, 4000 FOUR THOUSAND."""
+    if n < 20:
+        return ONES[n]
+    if n < 100:
+        return TENS[n // 10] + ("" if n % 10 == 0 else " " + ONES[n % 10])
+    for size, name in ((1_000_000, "MILLION"), (1000, "THOUSAND"), (100, "HUNDRED")):
+        if n >= size:
+            rest = n % size
+            return said(n // size) + " " + name + ("" if not rest else (" AND " if rest < 100 else " ") + said(rest))
+
+
+def spoken(digits):
+    """A run of digits as it is said. Four digits from 1100 to 1999 and from 2010 to 2099 are read in pairs, as a
+    year is and as most counts that size are: 2016 is TWENTY SIXTEEN, 1984 NINETEEN EIGHTY FOUR, 1500 FIFTEEN
+    HUNDRED. A leading zero, or more digits than a count has, is read out digit by digit."""
+    n = int(digits)
+    if digits.startswith("0") and len(digits) > 1 or len(digits) > 9:
+        return " ".join(ONES[int(c)] for c in digits)
+    if len(digits) == 4 and (1100 <= n <= 1999 or 2010 <= n <= 2099):
+        tail = n % 100
+        return said(n // 100) + " " + ("HUNDRED" if not tail else ("OH " if tail < 10 else "") + said(tail))
+    return said(n)
+
+
 def clean(word):
-    """The model knows A-Z and apostrophe. 'agentsee.work' -> 'agenteework'
-    is wrong but harmless: it is still aligned to the same sound."""
-    return re.sub(r"[^A-Z']", "", word.upper())
+    """The model knows A-Z and apostrophe, so a number is spelled the way it is said: '12' is TWELVE, '2016'
+    TWENTY SIXTEEN, '50%' FIFTY PERCENT, 'i7' I SEVEN. Left as digits it has no letters, cannot be placed, and
+    its sound is handed to the words either side; the merge then dropped it, which is how "a 12-inch MacBook"
+    became "a -inch MacBook" and episode 3 lost its "50%". An inexact spelling is harmless, as 'agentsee.work'
+    -> 'agentseework' is: it is still aligned to the same sound."""
+    w = re.sub(r"(?<=\d),(?=\d{3})", "", word.upper())
+    w = re.sub(r"([$£€])(\d[\d.]*)", r"\2\1", w)  # "$50" is said fifty dollars
+    w = re.sub(r"(\d+)\.(\d+)", lambda m: f" {spoken(m[1])} POINT {' '.join(ONES[int(c)] for c in m[2])} ", w)
+    w = re.sub(r"\d+", lambda m: f" {spoken(m[0])} ", w)
+    for sign, name in SIGNS.items():
+        w = w.replace(sign, name)
+    return re.sub(r"[^A-Z']", "", w)
 
 
 HOP, RF = 320, 400  # wav2vec2-base: one frame per 320 samples, 400 in view
