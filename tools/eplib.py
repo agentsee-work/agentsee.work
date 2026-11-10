@@ -239,6 +239,99 @@ def normalise(src, dst, target=-16.0, tp=-1.0, limiter=False, compress=False):
     return measure(dst, target, tp)
 
 
+def peaks_over(path, level):
+    """The moments at which a file's true peak is over `level` dBFS: [(seconds, dBFS)]. A peak between two
+    samples is higher than either, so the samples within 3 dB of the level are found first and the sound around
+    each is read at four times the rate, the way a true-peak meter reads it. (Having ffmpeg read a whole episode
+    at 192 kHz took a minute and a half; this takes a few seconds.)"""
+    import numpy as np
+
+    info = ffprobe(path)["audio"]
+    r = subprocess.run(
+        ["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-vn", "-f", "f32le", "-"], capture_output=True
+    )
+    if r.returncode != 0:
+        die("ffmpeg failed:\n" + r.stderr.decode("utf-8", "replace")[-1500:])
+    x = np.frombuffer(r.stdout, dtype=np.float32).reshape(-1, info["channels"])
+    near, step = 10 ** ((level - 3) / 20), 10 * info["rate"]
+    loud = [k + np.flatnonzero(np.abs(x[k : k + step]).max(axis=1) > near) for k in range(0, len(x), step)]
+    out, done = [], -1
+    for i in map(int, np.concatenate(loud or [[]])):
+        if i < done:
+            continue
+        a = max(0, i - 128)
+        seg = x[a : a + 512].astype(np.float64)
+        up = np.abs(np.fft.irfft(np.fft.rfft(seg, axis=0), 4 * len(seg), axis=0) * 4).max(axis=1)
+        mid = up[4 * 64 : 4 * (len(seg) - 64)]  # the ends of a stretch read this way ring
+        if len(mid) and 20 * np.log10(mid.max()) > level:
+            out.append(((a + 64 + int(mid.argmax()) / 4) / info["rate"], float(20 * np.log10(mid.max()))))
+        done = a + len(seg) - 64
+    return out
+
+
+def dipped(src, dst, dips, flat=0.02, ramp=0.02):
+    """A copy of a wav, lowered around each moment in `dips` ({seconds: dB}): the whole dip for `flat` either
+    side of it, then a raised cosine back to nothing over `ramp`, so the dip has no edge to hear."""
+    import numpy as np
+    import soundfile as sf
+
+    with sf.SoundFile(str(src)) as f, sf.SoundFile(str(dst), "w", f.samplerate, f.channels, f.subtype) as g:
+        pos = 0
+        for block in f.blocks(blocksize=f.samplerate, dtype="float64", always_2d=True):
+            t = (pos + np.arange(len(block))) / f.samplerate
+            down = np.zeros(len(block))
+            for at, db in dips.items():
+                if t[0] - 1 < at < t[-1] + 1:
+                    w = np.clip((flat + ramp - np.abs(t - at)) / ramp, 0.0, 1.0)
+                    down = np.maximum(down, db * (0.5 - 0.5 * np.cos(np.pi * w)))
+            g.write(block * (10 ** (-down / 20))[:, None])
+            pos += len(block)
+
+
+def aac_under(wav, out, ceiling=-1.0, bitrate="192k", stereo=False, tries=5):
+    """The audio for an mp4: the wav as AAC, its true peak held under the ceiling as read after the encode.
+    Returns the dips it took to get there ({seconds: dB}), which is nearly always none.
+
+    The mix is limited 2.5 dB under the ceiling because an encoder overshoots (normalise), and for speech that
+    is room enough: the videos of episodes 2 and 3 measured -3.4 and -3.1 dBTP. A click is another matter. On
+    episode 4 one sharp sound on a microphone left the encoder 4.4 dB above where it went in, at +1.0 dBTP, in a
+    mix that measured -3.5. So the encode is read back, and where it is over, the wav is dipped by the excess and
+    a little more, for a few hundredths of a second at that moment only, and encoded again. It aims a fifth of a
+    dB under, since two true-peak meters differ by about that."""
+    out = pathlib.Path(out)
+
+    def encode(src):
+        run(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-y",
+                "-i",
+                src,
+                *(["-ac", "2"] if stereo else []),
+                "-c:a",
+                "aac",
+                "-b:a",
+                bitrate,
+                out,
+            ]
+        )
+
+    encode(wav)
+    dips, tmp = {}, out.with_suffix(".dipped.wav")
+    for _ in range(tries):
+        over = peaks_over(out, ceiling - 0.2)
+        if not over:
+            break
+        for t, db in over:
+            near = next((k for k in dips if abs(k - t) < 0.03), round(t, 3))
+            dips[near] = dips.get(near, 0.0) + db - ceiling + 0.7
+        dipped(wav, tmp, dips)
+        encode(tmp)
+    tmp.unlink(missing_ok=True)
+    return dips
+
+
 _GPU_ENCODER = None
 
 

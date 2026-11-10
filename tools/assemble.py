@@ -51,6 +51,7 @@ from eplib import (
     CUES,
     RATE,
     ROOT,
+    aac_under,
     cap_first,
     caption_cues,
     cut_with_crossfades,
@@ -504,11 +505,12 @@ def frame_plan(items, fps):
     return plan
 
 
-def episode_video(d, edl, twoup, wav, timings, chapters_path, args, m, out=None, limit=None):
+def episode_video(d, edl, twoup, audio, timings, chapters_path, args, m, out=None, limit=None):
     """The whole picture in one encode: the kept stretches of the two-up
     trimmed frame-exact and joined, chapter cards held for their length,
-    the title and end cards faded in and out, the mixed audio and the
-    chapter marks muxed in. It used to be two encodes — the joined
+    the title and end cards faded in and out, the mixed audio (encoded
+    already, and held under the ceiling: aac_under) and the chapter marks
+    muxed in. It used to be two encodes — the joined
     stretches to an intermediate file, then that file between the cards —
     and the intermediate took a minute and a half on every render to be
     thrown away."""
@@ -523,7 +525,7 @@ def episode_video(d, edl, twoup, wav, timings, chapters_path, args, m, out=None,
     if limit:
         total = min(total, limit)  # a bounded render, for checks
     pad = OUTRO_GAP + XF_END
-    cmd = ["ffmpeg", "-nostdin", "-y", "-i", title, "-i", end, "-i", wav, "-i", chapters_path]
+    cmd = ["ffmpeg", "-nostdin", "-y", "-i", title, "-i", end, "-i", audio, "-i", chapters_path]
     filt, labels = [], []
     k = 4
     plan = frame_plan(edl["items"], fps)
@@ -594,9 +596,7 @@ def episode_video(d, edl, twoup, wav, timings, chapters_path, args, m, out=None,
         "-r",
         str(fps),
         "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
+        "copy",
         "-movflags",
         "+faststart",
         "-t",
@@ -846,7 +846,14 @@ def main():
         twoup = two_up(d, m, a)
         print(f"  {twoup.relative_to(ROOT)}")
         (d / "mix" / "cut.mp4").unlink(missing_ok=True)
-        video = episode_video(d, edl, twoup, wav, timings, chapters_path, a, m)
+        dips = aac_under(wav, d / "mix" / "episode.m4a", a.tp)
+        qc["episode_mp4_dips"] = [{"t": t, "db": round(db, 1)} for t, db in sorted(dips.items())]
+        if dips:
+            print(
+                f"  the encoder overshot {a.tp} dBTP: the video's audio dipped "
+                + ", ".join(f"{db:.1f} dB at {hms(t, frac=False)}" for t, db in sorted(dips.items()))
+            )
+        video = episode_video(d, edl, twoup, d / "mix" / "episode.m4a", timings, chapters_path, a, m)
         qc["episode_mp4"] = measure(video)
         qc["episode_mp4_duration"] = float(
             run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", video]).stdout.strip()
