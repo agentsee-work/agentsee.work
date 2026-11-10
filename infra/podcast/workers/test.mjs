@@ -155,6 +155,36 @@ assert.equal(bucket.calls[bucket.calls.length - 1][2], null, "second get must ca
 assert.equal(res.status, 206);
 console.log("options, 416 and If-Range ok");
 
+// 15. R2 failing is a 503, not the listener's fault: the get alone, then the head too
+class Failing extends Bucket {
+  constructor(headFails) { super(); this.headFails = headFails; }
+  async get() { throw new Error("We encountered an internal error. Please try again."); }
+  async head(k) { if (this.headFails) throw new Error("internal"); return super.head(k); }
+}
+for (const headFails of [false, true]) {
+  const down = { ...env, MEDIA: new Failing(headFails) };
+  for (const headers of [H, { ...H, Range: "bytes=0-99" }, { ...H, Range: "bytes=-100" }, { ...H, Range: "bytes=999-" }]) {
+    ({ res, point } = await call(media, down, M, { headers }));
+    assert.equal(res.status, 503, JSON.stringify(headers));
+    assert.equal(res.headers.get("retry-after"), "30");
+    assert.equal(res.headers.get("cache-control"), "no-store");
+    assert.deepEqual(point.doubles.slice(0, 2), [503, 0]);
+  }
+}
+({ res } = await call(media, { ...env, MEDIA: new Failing(true) }, M, { method: "HEAD", headers: H }));
+assert.equal(res.status, 503);
+// What R2 refuses is still a 416, with the head answering: past the end, a span
+// backwards, an empty suffix, a form it does not take. A missing file is a 404.
+const refusing = { ...env, MEDIA: new Failing(false) };
+for (const Range of ["bytes=1000-", "bytes=5000-6000", "bytes=50-10", "bytes=-0", "bytes=0-1,5-9", "nonsense"]) {
+  ({ res, point } = await call(media, refusing, M, { headers: { ...H, Range } }));
+  assert.equal(res.status, 416, Range);
+  assert.equal(res.headers.get("content-range"), "bytes */1000");
+}
+({ res } = await call(media, refusing, "https://media.agentsee.work/podcast/ep1/nothing.mp3", { headers: H }));
+assert.equal(res.status, 404);
+console.log("R2 failing ok");
+
 // 15. the user agent is cut, 16. an encoded key, 17. a long UA and a bad referer
 ({ point } = await call(media, env, M, { headers: { "User-Agent": "u".repeat(900), Referer: "not a url" } }));
 assert.equal(point.blobs[2].length, 400); assert.equal(point.blobs[5], "");

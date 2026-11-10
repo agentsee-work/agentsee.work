@@ -34,7 +34,7 @@ more. The privacy notice on the site promises exactly this.
 | `blob7` | the `Range` header as sent, first 64 characters |
 | `blob8` | the content type served |
 | `blob9` | the Cloudflare colo that answered |
-| `double1` | status: 200, 206, 304, 404, 412, 416 |
+| `double1` | status: 200, 206, 304, 404, 412, 416, 503 |
 | `double2` | bytes the response carries: the size for 200, the span for 206, 0 otherwise |
 | `double3` | first byte of the span, or -1 |
 | `double4` | last byte of the span, or -1 |
