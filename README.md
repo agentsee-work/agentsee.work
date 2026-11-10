@@ -43,6 +43,9 @@ public/                       ← the only thing that gets deployed
   404.html                    Issue No. 404, never printed
   robots.txt / sitemap.xml    so crawlers get those, not the homepage
   apple-touch-icon.png        iOS home screen; from assets/brand/
+  favicon.ico                 the mark at 16, 32 and 48 px, cut from assets/brand/avatar-newsprint.png.
+                              For search engines, which want an icon they can fetch: browsers
+                              still draw the inline SVG. Only the front page links it.
   _headers                    Cloudflare Pages security + cache headers
   assets/styles.css           the whole stylesheet
   assets/eye.js               pointer tracking, saccades, day counter

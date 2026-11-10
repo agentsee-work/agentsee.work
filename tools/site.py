@@ -593,13 +593,36 @@ def show_page(due, later, parts, show, hosts):
     # The directories that have accepted the show, as links, from show.json
     # itself (not the release's copy): a directory is added when it answers,
     # with no re-release.
-    listed = "".join(f'\n      <a href="{esc(u)}">{esc(n)}</a>' for n, u in load(SHOW).get("directories", {}).items())
+    directories = load(SHOW).get("directories", {})
+    listed = "".join(f'\n      <a href="{esc(u)}">{esc(n)}</a>' for n, u in directories.items())
+    # The show as one thing: its page here, its feed, and the same show in each
+    # directory, so a search engine can tell the listings and the site apart
+    # from every other "AgentSee".
+    ld = {
+        "@context": "https://schema.org",
+        "@type": "PodcastSeries",
+        "name": show["name"],
+        "url": f"{show['site']}/podcast/",
+        "description": desc["paragraph"],
+        "webFeed": show["feed_url"],
+        "image": f"{show['site']}{COVER}",
+        "inLanguage": "en-GB",
+        "author": [
+            {"@type": "Person", "name": p["name"], **({"url": p["href"]} if p.get("href") else {})} for p in hosts
+        ],
+        "publisher": {"@type": "Organization", "name": "AgentSee", "url": f"{show['site']}/"},
+    }
+    if directories:
+        ld["sameAs"] = list(directories.values())
     page = head(
         f"{show['name']} — {desc['line']}",
         desc["paragraph"],
         f"{show['site']}/podcast/",
         f"{show['site']}{COVER}",
         (3000, 3000),
+        '<script type="application/ld+json">'
+        + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/")
+        + "</script>\n",
     )
     page += parts["masthead"]
     page += dateline("The podcast", so_far, "Audio &middot; Free, obviously")
