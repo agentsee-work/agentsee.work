@@ -706,7 +706,10 @@ a.issue {
 }
 a.issue:hover .issue-title { color: var(--signal); }
 
+/* An issue's trail: the previous issue, the register, anything it belongs
+   with, the next issue. Wraps as whole links on a phone. */
 .backlink-row { margin-top: clamp(1.6rem, 3vw, 2.4rem); }
+.backlink-row.trail { display: flex; flex-wrap: wrap; gap: .9rem 1.8rem; }
 
 /* ── media plates ───────────────────────────────────────────────────────
    A video or an audio player set the way a newspaper sets a photograph:
