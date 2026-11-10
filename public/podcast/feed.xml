@@ -30,6 +30,43 @@
     <podcast:person role="host" href="https://www.linkedin.com/in/james-hartt-78519132/" img="https://agentsee.work/assets/james-hartt.jpg">James Hartt</podcast:person>
     <podcast:person role="host" href="https://www.linkedin.com/in/abrar-m-339b61386/" img="https://agentsee.work/assets/abrar-mahmood.jpg">Abrar Mahmood</podcast:person>
     <item>
+      <title>Twenty questions before you build</title>
+      <itunes:title>Twenty questions before you build</itunes:title>
+      <link>https://agentsee.work/podcast/ep3/</link>
+      <guid isPermaLink="false">c37364fb-beb9-4990-b009-389e6671dee8</guid>
+      <pubDate>Tue, 10 Nov 2026 06:00:00 +0000</pubDate>
+      <description><![CDATA[<p>James and Abrar go through the twenty questions before you build, a group of four at a time: the idea, the care a domain needs, the conditions it runs in, its shape, and who owns it once it exists. Code is a byproduct now, so the questions are where the thinking goes; a regulator changes the build and keeping up with one is work of its own; scale that never arrives slows you down and scale that does sets fire to things; offline is the requirement that arrives at the eleventh hour; and somebody has to be able to restore the backup. It ends with the brief, the things they insist on for every build, and a flood of CVEs.</p>
+<p>Chapters:</p><ul><li>00:00 A toy from the playground, and twenty questions</li><li>01:59 Where it came from: code as a byproduct</li><li>03:36 The idea: what should it do, and for whom</li><li>06:59 Care needed: the regulator, and keeping up with it</li><li>11:35 Running conditions: the busiest day, uptime, platforms</li><li>16:01 Offline, the requirement that arrives at the eleventh hour</li><li>20:37 Shape: AI inside it, how often it changes, what must never happen</li><li>25:04 What an offline flow looks like: pen and paper</li><li>26:36 Owning it: worth it, signed off, and looked after by whom</li><li>30:57 The brief, and what we always insist on</li><li>32:15 Security: a flood of CVEs, and vibe-coded targets</li><li>33:55 A small team that can do what a giant one could</li><li>35:54 Wrap: a bit of whimsy, and guests from here on</li><li>36:51 Outro</li></ul>
+<p>Mentioned:</p><ul><li><a href="https://agentsee.work/issues/07-twenty">Issue No. 7: Twenty questions, and the one that counted was the twenty-first</a></li><li><a href="https://agentsee.work/twenty-questions/">The twenty questions, to run in your own assistant</a></li><li><a href="https://github.com/agentsee-work/agentsee.work/blob/main/.claude/skills/twenty-questions/SKILL.md">The skill file itself, in the open</a></li><li><a href="https://www.cve.org">CVE, the vulnerability catalogue the flood lands in</a></li></ul>
+<p>Of the questions on the site, this one touches:</p><ul><li>1. If writing the code is no longer the expensive part, what is the client actually buying?</li><li>3. What is a product manager when the specification is executable?</li><li>4. Who is accountable for a system that nobody typed?</li><li>5. How do you run acceptance testing on something produced faster than a person can read it?</li></ul>
+<p>AgentSee is two people building a company in public, with agents doing the work.</p>
+<p><a href="https://agentsee.work">https://agentsee.work</a>  ·  hello@agentsee.work</p>
+<p>Subscribe: <a href="https://agentsee.work/podcast/feed.xml">https://agentsee.work/podcast/feed.xml</a></p>]]></description>
+      <content:encoded><![CDATA[<p>James and Abrar go through the twenty questions before you build, a group of four at a time: the idea, the care a domain needs, the conditions it runs in, its shape, and who owns it once it exists. Code is a byproduct now, so the questions are where the thinking goes; a regulator changes the build and keeping up with one is work of its own; scale that never arrives slows you down and scale that does sets fire to things; offline is the requirement that arrives at the eleventh hour; and somebody has to be able to restore the backup. It ends with the brief, the things they insist on for every build, and a flood of CVEs.</p>
+<p>Chapters:</p><ul><li>00:00 A toy from the playground, and twenty questions</li><li>01:59 Where it came from: code as a byproduct</li><li>03:36 The idea: what should it do, and for whom</li><li>06:59 Care needed: the regulator, and keeping up with it</li><li>11:35 Running conditions: the busiest day, uptime, platforms</li><li>16:01 Offline, the requirement that arrives at the eleventh hour</li><li>20:37 Shape: AI inside it, how often it changes, what must never happen</li><li>25:04 What an offline flow looks like: pen and paper</li><li>26:36 Owning it: worth it, signed off, and looked after by whom</li><li>30:57 The brief, and what we always insist on</li><li>32:15 Security: a flood of CVEs, and vibe-coded targets</li><li>33:55 A small team that can do what a giant one could</li><li>35:54 Wrap: a bit of whimsy, and guests from here on</li><li>36:51 Outro</li></ul>
+<p>Mentioned:</p><ul><li><a href="https://agentsee.work/issues/07-twenty">Issue No. 7: Twenty questions, and the one that counted was the twenty-first</a></li><li><a href="https://agentsee.work/twenty-questions/">The twenty questions, to run in your own assistant</a></li><li><a href="https://github.com/agentsee-work/agentsee.work/blob/main/.claude/skills/twenty-questions/SKILL.md">The skill file itself, in the open</a></li><li><a href="https://www.cve.org">CVE, the vulnerability catalogue the flood lands in</a></li></ul>
+<p>Of the questions on the site, this one touches:</p><ul><li>1. If writing the code is no longer the expensive part, what is the client actually buying?</li><li>3. What is a product manager when the specification is executable?</li><li>4. Who is accountable for a system that nobody typed?</li><li>5. How do you run acceptance testing on something produced faster than a person can read it?</li></ul>
+<p>AgentSee is two people building a company in public, with agents doing the work.</p>
+<p><a href="https://agentsee.work">https://agentsee.work</a>  ·  hello@agentsee.work</p>
+<p>Subscribe: <a href="https://agentsee.work/podcast/feed.xml">https://agentsee.work/podcast/feed.xml</a></p>]]></content:encoded>
+      <enclosure url="https://media.agentsee.work/podcast/ep3/episode.mp3" length="53623182" type="audio/mpeg"/>
+      <itunes:duration>2229</itunes:duration>
+      <itunes:episode>3</itunes:episode>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:image href="https://media.agentsee.work/podcast/ep3/episode-art.jpg"/>
+      <podcast:transcript url="https://media.agentsee.work/podcast/ep3/transcript.vtt" type="text/vtt" language="en"/>
+      <podcast:transcript url="https://media.agentsee.work/podcast/ep3/transcript.json" type="application/json" language="en"/>
+      <podcast:chapters url="https://media.agentsee.work/podcast/ep3/chapters.json" type="application/json+chapters"/>
+      <podcast:person role="host" href="https://www.linkedin.com/in/james-hartt-78519132/" img="https://agentsee.work/assets/james-hartt.jpg">James Hartt</podcast:person>
+      <podcast:person role="host" href="https://www.linkedin.com/in/abrar-m-339b61386/" img="https://agentsee.work/assets/abrar-mahmood.jpg">Abrar Mahmood</podcast:person>
+      <podcast:soundbite startTime="127.394" duration="23.9">The code is a byproduct now</podcast:soundbite>
+      <podcast:soundbite startTime="723.240" duration="27.8">Scale that never arrived, and scale that did</podcast:soundbite>
+      <podcast:soundbite startTime="963.904" duration="30.0">Offline, the requirement that arrives at the eleventh hour</podcast:soundbite>
+      <podcast:soundbite startTime="1544.836" duration="34.8">What does it look like to do this on pen and paper?</podcast:soundbite>
+      <podcast:soundbite startTime="1954.652" duration="24.3">A Y2K-level event: every product scrambling to plug the holes</podcast:soundbite>
+    </item>
+    <item>
       <title>Vibe coding, and the rise of the product engineer</title>
       <itunes:title>Vibe coding, and the rise of the product engineer</itunes:title>
       <link>https://agentsee.work/podcast/ep2/</link>
