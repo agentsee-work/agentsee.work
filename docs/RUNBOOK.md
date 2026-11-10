@@ -41,8 +41,9 @@ Scope it to the `agentsee.work` zone, not "all zones".
 **The Email Routing scopes are gone** — the service was disabled at cutover on
 14 September 2026, so there are no rules or addresses left to manage. The
 OpenTofu token in [CREDENTIALS.md](CREDENTIALS.md) is narrower still: `DNS —
-Edit` on this zone and nothing else, which is why it could not read the routing
-rules when we went looking for them. That was the token behaving correctly.
+Edit` on this zone and, since 10 November 2026, `Single Redirect — Edit` for the
+www redirect in `infra/redirect.tf`. That narrowness is why it could not read
+the routing rules when we went looking for them: the token behaving correctly.
 
 **Record the expiry date here whenever the token is rolled, and put a reminder
 somewhere you'll see it.** Deploys depend on this token, and an expired one
