@@ -306,7 +306,24 @@ def feed(eps, show, hosts):
 
 
 # ─── the pages ───────────────────────────────────────────────────────────────
-def head(title, description, url, image, image_size, extra=""):
+def brief(text, limit=160):
+    """A summary cut down to what a search result shows: whole sentences while
+    they fit, and failing that the first one cut at a word."""
+    out = ""
+    for sentence in re.split(r"(?<=[.?!])\s+", text.strip()):
+        if len(out) + len(sentence) + 1 > limit:
+            break
+        out = f"{out} {sentence}".strip()
+    if out:
+        return out
+    return text[:limit].rsplit(" ", 1)[0].rstrip(",;:") + "…"
+
+
+def head(title, description, url, image, image_size, extra="", shared=None):
+    """`title` and `description` are what a search engine is given. `shared`,
+    a (title, description) pair, is what the card of a shared link shows when
+    that should say more; without it the card says the same."""
+    og_title, og_description = shared or (title, description)
     return f"""<!doctype html>
 <html lang="en-GB">
 <head>
@@ -319,8 +336,8 @@ def head(title, description, url, image, image_size, extra=""):
 
 <meta property="og:type" content="website">
 <meta property="og:url" content="{esc(url)}">
-<meta property="og:title" content="{esc(title)}">
-<meta property="og:description" content="{esc(description)}">
+<meta property="og:title" content="{esc(og_title)}">
+<meta property="og:description" content="{esc(og_description)}">
 <meta property="og:image" content="{esc(image)}">
 <meta property="og:image:width" content="{image_size[0]}">
 <meta property="og:image:height" content="{image_size[1]}">
@@ -488,13 +505,15 @@ def episode_page(r, s, d, parts, show):
     lines = {p["name"]: p.get("line") for p in load(SHOW)["people"].values() if p.get("line")}
     lines.update({g.get("name"): g.get("line") for g in (r["notes"].get("guests") or []) if g.get("name")})
 
+    page_title = f"{title} — {show['name']}, episode {n}"
     page = head(
-        f"{title} — {show['name']}, episode {n}",
-        ep["summary"],
+        page_title,
+        brief(ep["summary"]),
         url,
         f"https://agentsee.work{art_rel}",
         (1400, 1400),
         extra,
+        shared=(page_title, ep["summary"]),
     )
     counter = iter(range(1, 20))
 
@@ -614,15 +633,20 @@ def show_page(due, later, parts, show, hosts):
     }
     if directories:
         ld["sameAs"] = list(directories.values())
+    # What a search result shows is show.json's "page", written to fit one; a
+    # shared link's card keeps the show's own line and paragraph.
+    full = (f"{show['name']} — {desc['line']}", desc["paragraph"])
+    found = load(SHOW).get("page", {})
     page = head(
-        f"{show['name']} — {desc['line']}",
-        desc["paragraph"],
+        found.get("title", full[0]),
+        found.get("description", full[1]),
         f"{show['site']}/podcast/",
         f"{show['site']}{COVER}",
         (3000, 3000),
         '<script type="application/ld+json">'
         + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/")
         + "</script>\n",
+        shared=full,
     )
     page += parts["masthead"]
     page += dateline("The podcast", so_far, "Audio &middot; Free, obviously")
