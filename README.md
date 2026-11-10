@@ -20,8 +20,14 @@ publish gets a number and a date so it can be held against us later.
 - **Day 1 is 18 August 2026**, the day the domain was registered. That epoch
   lives in `public/assets/eye.js` and nowhere else.
 
-When there is a second issue, it becomes its own page under `/issues/`, keeps
-the same masthead and dateline, and gets a row in the register here.
+A later issue is its own page under `/issues/`, keeps the same masthead and
+dateline, and gets a row in the register in two places: the front page and
+`/issues/` (`public/issues/index.html`, which also lists it in its JSON-LD).
+Each issue page carries its date three times, and they must agree: the
+`article:published_time` meta, the `Article` JSON-LD beside it, and the
+`<time>` in the colophon. Its last row links the previous issue, the register,
+whatever it belongs with (its episode), and the next issue once that exists,
+so publishing No. N also means adding the "next" link to No. N−1.
 
 ## What's here
 
@@ -33,11 +39,13 @@ Worker source from the marketing site.
 ```
 public/                       ← the only thing that gets deployed
   index.html                  the whole page
+  issues/index.html           the register on a page of its own, newest first
   issues/02-mail.html         Issue No. 2 — the mail build, and what it cost
   issues/03-mark.html         Issue No. 3 — animating the mark, and a renderer that lied
   issues/04-music.html        Issue No. 4 — the theme music, and six tools wrong in silence
   issues/05-podcast.html      Issue No. 5 — the first episode cut by script, and the um that stayed
   issues/06-publishing.html   Issue No. 6 — everything after the render, and the token the vault would not take
+  issues/07-twenty.html       Issue No. 7 — the twenty questions, and why the ending changed
   twenty-questions/           the questions to answer before building, in any assistant;
                               the page and SKILL.md are written by tools/twenty.py
   404.html                    Issue No. 404, never printed
