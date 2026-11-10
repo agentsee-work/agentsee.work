@@ -1022,7 +1022,14 @@ class App(BaseHTTPRequestHandler):
                     )
                 except ValueError as e:
                     return self.redirect("/guests?" + urllib.parse.urlencode({"msg": str(e)}))
-                return self.redirect(f"/guests/{g['id']}?" + urllib.parse.urlencode({"msg": "Invitation made"}))
+                msg = "Invitation made"
+                if g["address"]:  # with an address the invitation is emailed now; a mail failure keeps the guest
+                    try:
+                        guests.act(c, g, "send", who)
+                        msg = f"Invitation made and emailed to {g['address']}"
+                    except ValueError as e:
+                        msg = f"Invitation made. {e}; send it from here once mail is back"
+                return self.redirect(f"/guests/{g['id']}?" + urllib.parse.urlencode({"msg": msg}))
             m = re.fullmatch(r"/guests/([0-9a-f]{8})/(send|revoke|reissue|accept|decline|cancel)", path)
             if m:
                 g = guests.guest(c, m.group(1))
