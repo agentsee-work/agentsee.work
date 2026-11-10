@@ -1,6 +1,6 @@
 ---
 name: episode
-description: Turn a Riverside recording of the AgentSee podcast into the published deliverables (mp3, mp4, captions, chapters, clips) with tools/episode.py. Use when the user has a new timeline.zip from Riverside, asks to assemble, cut, re-render or clip an episode, or asks what state an episode is in.
+description: Turn a Riverside recording of the AgentSee podcast into the published deliverables (mp3, mp4, captions, chapters, clips) with tools/episode.py. Use when the user has new track downloads from Riverside, asks to assemble, cut, re-render or clip an episode, or asks what state an episode is in.
 ---
 
 # Producing an episode
@@ -10,17 +10,25 @@ Output goes to `build/episodes/<slug>/` and is never committed.
 
 ## Steps
 
-1. **Ingest.** The user downloads the Riverside package (Export all → Premiere
-   Pro → Export → Timeline). Then:
-   `./tools/episode.py new <slug> <zip> --title "..." --names <id>=<Full Name>,... --guest <id>`
+1. **Ingest.** The user downloads each person's tracks from Riverside into
+   one folder: under the recording's Tracks, Download → **Aligned video** and
+   Download → **Raw audio**, for every person. (The timeline export the
+   pipeline used to take is Business-plan only since November 2026; ingest
+   still reads a `timeline.zip`.) Then:
+   `./tools/episode.py new <slug> <folder> --title "..." --guest <id>`
    with `--guest` once per guest, their id from the engine's Guests screen
    (the hosts' own episodes name none). No `--number`: an episode has no
    number until it is approved, so the render a guest reviews carries none.
-   Track ids are the file prefixes inside the zip; if the names are not known,
-   run ingest without them, look at a frame from each video, and ask. Read
-   ingest's warnings: if it says Riverside's kept stretches do not line up
-   across tracks, the offsets are wrong and nothing downstream is worth
-   running until they are right (episode 1 had one voice 1.5 s late).
+   The files begin with the name each person typed at Riverside's door: the
+   hosts are recognised from `tools/show.json`, and anyone else takes
+   `--names <file prefix>="Full Name"`. Left to right is the show's seats with
+   a guest as the focus (in the middle of three, on the right of a host alone);
+   `--order` says otherwise. Read ingest's output: each WAV should be "placed
+   by the audio inside its video" with three windows agreeing. A warning that
+   a WAV was not found, that its place moves, or that the videos differ in
+   length means the offsets are suspect, and nothing downstream is worth
+   running until they are right (episode 1 had one voice 1.5 s late). It must
+   be the *Aligned* video: a Raw one puts a late joiner at the start.
 2. **Run.** `./tools/episode.py run <slug>` does fillers → align (which also merges the
    aligned verbatim words into the transcript) → cut → cards → assemble, with clips alongside
    assemble when `clips.json` exists, then release. Fillers need `build/venv-erm`, align `build/venv-align`

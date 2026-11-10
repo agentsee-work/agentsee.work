@@ -2,9 +2,8 @@
 """
 One episode, start to finish.
 
-    ./tools/episode.py new ep4 ~/Downloads/timeline.zip --guest k3v9x2 \\
-        --title "What a regulator wants to see" \\
-        --names 6ac4c0cd="James Hartt",6ac4c0ce="Abrar Mahmood",9b1f22aa="Ada Lovelace"
+    ./tools/episode.py new ep4 ~/Downloads/ep4 --guest k3v9x2 \\
+        --title "What a regulator wants to see" --names ada_lovelace="Ada Lovelace"
     ./tools/episode.py run ep4                 # everything after ingest
     ./tools/episode.py run ep4 --from cut      # re-run from a stage
     ./tools/episode.py run ep4 --only assemble --fast
@@ -70,7 +69,8 @@ STAGES = ["ingest", "transcribe", "fillers", "align", "cut", "cards", "assemble"
 def stage_cmd(stage, slug, cfg, extra):
     d = EPISODES / slug
     if stage == "ingest":
-        return [TOOLS / "ingest.py", slug, cfg["package"], "--names", cfg["names"], *extra]
+        order = ["--order", cfg["order"]] if cfg.get("order") else []
+        return [TOOLS / "ingest.py", slug, cfg["package"], "--names", cfg.get("names", ""), *order, *extra]
     erm = (EPISODES.parent / "venv-erm" / "bin" / "erm").exists()
     if stage == "transcribe":
         # with erm the verbatim transcript, aligned, is the transcript, and
@@ -129,7 +129,8 @@ def main():
         metavar="ID",
         help="a guest's id from the engine's Guests screen; once per guest",
     )
-    n.add_argument("--names", required=True, help="id-prefix=name pairs")
+    n.add_argument("--names", default="", help="id-prefix=name pairs; a folder of tracks names the hosts itself")
+    n.add_argument("--order", help="left to right, for a folder of tracks; default the show's seats around the guest")
     n.add_argument("--thumb", help="thumbnail words, three max; default is the title")
     n.add_argument("--hosts", help="credits line; default is the show's hosts")
     n.add_argument("--date", help="YYYY-MM-DD, default today")
@@ -195,6 +196,7 @@ def main():
             "date": a.date or dt.date.today().isoformat(),
             "package": str(pathlib.Path(a.package).expanduser().resolve()),
             "names": a.names,
+            "order": a.order,
         }
         cfg = {k: v for k, v in cfg.items() if v is not None}
         save_json(d / "episode.json", cfg)

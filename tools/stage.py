@@ -14,7 +14,8 @@ deliverable. The media bucket is public at media.agentsee.work and holds
 what the feed, the episode page and the platforms fetch. The publisher reads
 release.json from the archive, so the workstation can be off.
 
-  archive  sources/<slug>/riverside-timeline.zip
+  archive  sources/<slug>/riverside-timeline.zip   the package, when it was a timeline
+           sources/<slug>/tracks/<file>            each track as it came, when it was a folder of them
            episodes/<slug>/edit/{episode,manifest,chapters,clips,removals,edl,words}.json
            episodes/<slug>/review/**        the render a guest reviews, unnumbered; review.json
                                             says which round it is and what changed
@@ -312,10 +313,19 @@ def plan(d, cfg, warn, review=False):
     out = d / "out"
     items = []
     pkg = pathlib.Path(cfg.get("package") or "/nonexistent")
+    manifest = load_json(d / "manifest.json") if (d / "manifest.json").exists() else {}
+    tracks = [d / t for t in manifest.get("tracks") or []]
     if review:
         pass  # the source waits for the final
     elif pkg.is_file():
         items.append(("archive", f"sources/{cfg['slug']}/riverside-timeline.zip", pkg, "application/zip"))
+    elif tracks and all(t.is_file() for t in tracks):
+        # a folder of tracks has no zip to keep; source/ holds each one as it came (ingest lists them)
+        for t in tracks:
+            ctype = MIME.get(
+                t.suffix.lower(), "audio/wav" if t.suffix.lower() == ".wav" else "application/octet-stream"
+            )
+            items.append(("archive", f"sources/{cfg['slug']}/tracks/{t.name}", t, ctype))
     else:
         warn(f"the Riverside package is not at {pkg}: the archive will have no source")
     for name in EDIT:

@@ -69,6 +69,7 @@ from eplib import (
     speech_intervals,
     tidy_words,
     video_codec,
+    video_offset,
     write_srt,
 )
 
@@ -267,7 +268,7 @@ def twoup_signature(m, args):
                 p["short"],
                 p["video"]["file"],
                 p["video"]["duration"],
-                p["offset"],
+                video_offset(p),
                 (p.get("layout") or {}).get("centre", 0),
             ]
             for p in m["participants"]
@@ -467,7 +468,7 @@ def two_up(d, m, args):
         cw = min(w, int(h * pw / ph))
         ch = min(h, int(w * ph / pw))
         filt.append(
-            f"[{i}:v]tpad=start_duration={p['offset']},"
+            f"[{i}:v]tpad=start_duration={video_offset(p)},"
             f"crop={cw}:{ch}:(iw-{cw})/2:(ih-{ch})/2,"
             f"scale={pw}:{ph}:flags=lanczos,setsar=1,fps={m['fps']}[p{i}]"
         )

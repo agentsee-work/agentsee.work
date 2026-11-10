@@ -20,7 +20,7 @@ The podcast pipeline, one tool per stage, driven by `episode.py`:
 | | |
 |---|---|
 | `episode.py` | One episode start to finish: `new` writes episode.json and ingests, `run` does the rest; `review`, `notes`, `approve` and `stage` take it through the guest's office to the media host. |
-| `ingest.py` | A Riverside timeline package → `manifest.json`: who is on which track, offsets, layout, chapters. |
+| `ingest.py` | A folder of Riverside track downloads (or an old timeline package) → `manifest.json`: who is on which track, each WAV placed by its own video's audio, who sits where. |
 | `transcribe.py` | faster-whisper per track, on the GPU: every word timed, speaker known. |
 | `fillers.py` | erm per track: a verbatim transcript with every um as a timed token, and its acoustic cut list. Feeds `cut.py`. |
 | `verbatim_words.py` | Run by `fillers.py` inside venv-erm: the verbatim transcript, then a second look at any speech-level sound it has no word for. |
@@ -124,9 +124,8 @@ candidate cycle, then cuts from the cleanest one.
 An episode, from the Riverside download to the deliverables:
 
 ```sh
-./tools/episode.py new ep4 ~/Downloads/timeline.zip --guest k3v9x2 \
-    --title "What a regulator wants to see" \
-    --names 6ac4c0cd="James Hartt",6ac4c0ce="Abrar Mahmood",9b1f22aa="Ada Lovelace"
+./tools/episode.py new ep4 ~/Downloads/ep4 --guest k3v9x2 \
+    --title "What a regulator wants to see" --names ada_lovelace="Ada Lovelace"
 ./tools/episode.py run ep4                 # transcribe, cut, cards, assemble; no number yet
 ./tools/episode.py run ep1 --from assemble # after changing the edit
 ./tools/episode.py status ep1

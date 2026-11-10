@@ -307,6 +307,13 @@ def video_codec(fast=False, cpu=False, final=True):
     return ["-c:v", "libx264", "-preset", "slow" if final else "fast", "-crf", "18" if final else "14"]
 
 
+def video_offset(p):
+    """Where a participant's video file starts on the episode's timeline. A track from a timeline shares
+    one offset between its WAV and its video. An aligned video from a folder of tracks carries its own wait
+    as black, so it starts at zero while the WAV starts where it was found in it (ingest.py)."""
+    return p["video"].get("offset", p["offset"])
+
+
 def hms(t, frac=True):
     t = max(0.0, float(t))
     h, rem = divmod(t, 3600)
