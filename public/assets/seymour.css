@@ -1,0 +1,434 @@
+/* ─────────────────────────────────────────────────────────────
+   AgentSee — Seymour's room (/seymour/)
+
+   The stage is the viewport and Seymour is most of it. The board
+   sits at the right on a wide screen and folds to a tab at the
+   edge; on a phone it is a sheet at the bottom that opens from a
+   handle. One attribute on the body, data-board, says which.
+
+   styles.css is loaded first for the tokens, the type and the
+   mark's own fills; this file only sets the room, and the parts
+   of the mark the show's eye has and the masthead's has not: the
+   lids, the hat as an angle, the pupil and the glint as scales.
+   seymour.js drives those from eight numbers (tools/eye.py).
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  --board-w: 26rem;
+  --handle-h: 3rem;
+  /* The lid is a lit surface and its margin is drawn in line, so like the
+     pupil and the glint they are pinned to the light and dark ends of
+     whichever palette is running (tools/banner.py, THEMES). */
+  --lid-fill: var(--paper);
+  --lid-line: var(--ink);
+  --pupil: var(--ink);
+  --glint: var(--paper);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --lid-fill: var(--ink); --lid-line: var(--paper); --pupil: var(--paper); --glint: var(--ink); }
+}
+
+/* The board's light switch overrides the system, for a screen share that
+   has to be one or the other whatever the hour. The tokens are styles.css's
+   own, repeated so the switch beats its media query by specificity. */
+:root[data-theme="newsprint"] {
+  color-scheme: light;
+  --paper: #f7f3ea; --paper-2: #efe9dc; --ink: #1a1712; --ink-2: #4a4238; --ink-3: #7d7365;
+  --rule: #1a1712; --hair: #cfc4b0; --signal: #a8431d; --wash: rgba(168, 67, 29, .07); --glow: transparent;
+  --lid-fill: var(--paper); --lid-line: var(--ink); --pupil: var(--ink); --glint: var(--paper);
+}
+:root[data-theme="noir"] {
+  color-scheme: dark;
+  --paper: #0a0a0b; --paper-2: #131211; --ink: #efe9e0; --ink-2: #a89e91; --ink-3: #6a625a;
+  --rule: #efe9e0; --hair: #2b2722; --signal: #e0923f; --wash: rgba(224, 146, 63, .09); --glow: rgba(224, 146, 63, .34);
+  --lid-fill: var(--ink); --lid-line: var(--paper); --pupil: var(--paper); --glint: var(--ink);
+}
+
+/* ═══════════════  THE ROOM  ═══════════════ */
+
+html, body.room { height: 100%; }
+body.room {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+body.room::before { background: radial-gradient(ellipse 60% 50% at 50% 40%, var(--wash), transparent 72%); }
+
+.topline {
+  position: fixed;
+  top: 0; left: 0; right: var(--board-w);
+  z-index: 3;
+  display: flex;
+  align-items: baseline;
+  gap: 1rem 1.4rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.4rem;
+  font-family: var(--mono);
+  font-size: .74rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  transition: opacity .4s ease, right .4s ease;
+}
+.topline a.home { color: var(--ink); text-decoration: none; }
+.topline a.home:hover { color: var(--signal); }
+.topline h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  text-transform: none;
+  color: var(--ink);
+  line-height: 1;
+}
+.topline .standfirst { margin: 0; flex: 1 1 14rem; }
+.topline .fold { margin-left: auto; }
+
+/* Buttons in the room's own register: small mono, a hairline, the signal on
+   press. The board's pads are these with a key in the corner. */
+.room button {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: .74rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--hair);
+  border-radius: 2px;
+  padding: .5rem .7rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.room button:hover { border-color: var(--ink-3); }
+.room button[aria-pressed="true"] { background: var(--signal); border-color: var(--signal); color: var(--paper); }
+.room kbd {
+  font-family: var(--mono);
+  font-size: .64rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-3);
+  border: 1px solid var(--hair);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 0 .3em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.room button[aria-pressed="true"] kbd { color: var(--paper); border-color: color-mix(in srgb, var(--paper) 55%, transparent); }
+
+/* ═══════════════  THE STAGE  ═══════════════ */
+
+.stage {
+  position: fixed;
+  inset: 0;
+  right: var(--board-w);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 1.2rem;
+  padding: 4.5rem 1.4rem 2rem;
+  transition: right .4s ease;
+}
+/* Seymour fills what the board leaves: the smaller of the stage's width and
+   the height, with the caption's room taken off. */
+.stage .mark {
+  --w: min(calc(100vw - var(--board-w) - 8rem), 68vh);
+  --mark-w: var(--w);
+  --pad: calc(var(--w) * .28);
+  position: relative;
+  width: var(--w);
+  cursor: default;
+  filter: none;
+  padding: var(--pad);
+  box-sizing: content-box;
+  margin: calc(-1 * var(--pad));
+}
+/* His glow after dark is a gradient behind the drawing, not the masthead's
+   drop shadow: WebKit ends a drop shadow in a hard line a couple of blur
+   radii out, which an iPhone showed (AGE-113). A gradient has no edge, and
+   fades to nothing inside the padding the mark wears for it. */
+.stage .mark::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(closest-side at 50% 54%, var(--glow), transparent);
+}
+
+/* The show's eye, not the masthead's: no resting blink by stylesheet (the
+   lids blink), no iris transition (the script moves it every frame), the
+   hat turning about its crown rather than tipping from its brim. */
+.room .eye { animation: none; transition: none; transform: none; }
+.room .iris { transition: none; transform: translate(calc(var(--iris-x, 0) * 1px), calc(var(--iris-y, 0) * 1px)); }
+.room .hat { transform: rotate(calc(var(--hat, 0) * 1deg)); transform-origin: 120px 100px; transition: none; }
+.room .pupil { fill: var(--pupil); transform-box: fill-box; transform-origin: center; transform: scale(var(--pupil-s, 1)); }
+.room .glint { fill: var(--glint); transform-box: fill-box; transform-origin: center; transform: scale(var(--glint-s, 1)); }
+.room .lid-fill { fill: var(--lid-fill); }
+/* The lid's margin: the same non-scaling stroke as the outline at .68 of its
+   weight, fading in over the first sliver of travel so an open eye is the
+   masthead's eye to the pixel (tools/eye.py, mark_css). */
+.room .lid-edge {
+  fill: none;
+  stroke: var(--lid-line);
+  stroke-linecap: round;
+  stroke-width: calc(var(--mark-w) * .025 * .68);
+  opacity: clamp(0, calc(var(--lid, 0) * 40), 1);
+}
+
+.caption {
+  margin: 0;
+  max-width: 34rem;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: .78rem;
+  letter-spacing: .06em;
+  color: var(--ink-3);
+  line-height: 1.5;
+  text-wrap: balance;
+  transition: opacity .3s ease;
+}
+.caption b {
+  display: block;
+  color: var(--signal);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  margin-bottom: .3em;
+}
+.caption:empty, .caption.off { opacity: 0; }
+
+/* The eight numbers under him, live. */
+.numbers {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .3rem 1.1rem;
+  font-family: var(--mono);
+  font-size: .8rem;
+  letter-spacing: .04em;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.numbers i { font-style: normal; color: var(--ink-3); margin-right: .35em; }
+.numbers b { font-weight: 400; color: var(--ink); min-width: 3.2em; display: inline-block; }
+.numbers[hidden] { display: none; }
+
+/* ═══════════════  THE BOARD  ═══════════════ */
+
+.board {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: var(--board-w);
+  z-index: 4;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: var(--paper-2);
+  border-left: var(--hairline);
+  padding: 1.1rem 1.2rem 2rem;
+  transition: transform .4s ease, visibility 0s linear 0s;
+}
+.board h2 {
+  font-family: var(--mono);
+  font-size: .7rem;
+  font-weight: 400;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 1.4rem 0 .6rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+.board h2 small { font-size: .62rem; letter-spacing: .08em; text-transform: none; color: var(--ink-3); }
+.board .bank:first-of-type h2 { margin-top: .4rem; }
+.board p { font-size: .9rem; line-height: 1.5; color: var(--ink-2); margin: .3rem 0 .7rem; }
+.board a { color: inherit; text-decoration-color: var(--underline); text-underline-offset: .15em; }
+.board a:hover { color: var(--signal); }
+.board .handle { display: none; }
+
+.pads {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .4rem;
+}
+.pad {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .3rem;
+  min-height: 2.9rem;
+  padding: .5rem .5rem .5rem .6rem;
+  text-align: left;
+  overflow: hidden;
+  background: var(--paper);
+  transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+.pad .pad-name { font-size: .68rem; letter-spacing: .06em; overflow-wrap: anywhere; }
+.pad kbd { flex: none; }
+/* a chain on the way: the pad breathes until it lands */
+.pad.playing { animation: breathe 1.1s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.25); } }
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  align-items: center;
+}
+.row button { flex: 1 1 auto; }
+
+.state {
+  font-family: var(--mono);
+  font-size: .74rem;
+  letter-spacing: .06em;
+  color: var(--ink-3);
+  margin: .5rem 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.state.on { color: var(--signal); }
+
+/* the eight sliders */
+.axis {
+  display: grid;
+  grid-template-columns: 5.2rem 1fr 3.2rem;
+  align-items: center;
+  gap: .6rem;
+  margin: .25rem 0;
+  font-family: var(--mono);
+  font-size: .72rem;
+  letter-spacing: .06em;
+  color: var(--ink-2);
+}
+.axis .axis-name { color: var(--ink); }
+.axis .axis-name small { display: block; color: var(--ink-3); font-size: .62rem; letter-spacing: .04em; text-transform: none; }
+.axis input[type="range"] { width: 100%; margin: 0; accent-color: var(--signal); }
+.axis output { text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.options { display: grid; gap: .35rem; margin: .8rem 0 0; }
+.options label {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-family: var(--mono);
+  font-size: .72rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.options input { accent-color: var(--signal); margin: 0; }
+.options kbd { margin-left: auto; }
+
+.board .fine {
+  margin: 1.6rem 0 0;
+  padding-top: .8rem;
+  border-top: var(--hairline);
+  font-size: .8rem;
+  color: var(--ink-3);
+}
+.board .fine a { color: inherit; text-decoration-color: var(--underline); }
+
+/* the tab at the edge once the board has folded */
+.tab {
+  position: fixed;
+  right: 0; top: 50%;
+  z-index: 4;
+  transform: translateY(-50%) translateX(calc(100% + 1px));
+  writing-mode: vertical-rl;
+  padding: .9rem .4rem;
+  border-right: 0;
+  border-radius: 2px 0 0 2px;
+  background: var(--paper-2);
+  opacity: 0;
+  transition: transform .4s ease, opacity .4s ease;
+}
+
+/* ── folded: the tab alone, and Seymour has the room ── */
+body[data-board="hidden"] .board { transform: translateX(100%); visibility: hidden; transition: transform .4s ease, visibility 0s linear .4s; }
+body[data-board="hidden"] .stage { right: 0; }
+body[data-board="hidden"] .stage .mark { --w: min(84vw, 72vh); }
+body[data-board="hidden"] .topline { right: 0; opacity: 0; pointer-events: none; }
+body[data-board="hidden"] .topline:hover, body[data-board="hidden"] .topline:focus-within { opacity: 1; pointer-events: auto; }
+body[data-board="hidden"] .tab { transform: translateY(-50%); opacity: 1; }
+
+/* ═══════════════  A PHONE: THE SHEET  ═══════════════ */
+
+@media (max-width: 59.99em) {
+  :root { --board-w: 0px; }
+  .room kbd, .board h2 small { display: none; }
+  .topline { right: 0; padding: .9rem 1rem; gap: .5rem 1rem; }
+  .topline .standfirst { display: none; }
+  .topline .fold { display: none; }
+  .stage { right: 0; padding: 4rem 1rem calc(var(--handle-h) + 1.5rem); }
+  .stage .mark { --w: min(78vw, 46vh); }
+  .numbers { font-size: .7rem; gap: .2rem .7rem; }
+  .tab { display: none; }
+
+  .board {
+    top: auto;
+    left: 0;
+    width: auto;
+    max-height: 62vh;
+    max-height: 62dvh;
+    border-left: 0;
+    border-top: var(--hairline);
+    border-radius: 14px 14px 0 0;
+    padding: 0 1rem calc(1.4rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, .18);
+    transform: none;
+    visibility: visible;
+    transition: transform .35s ease;
+  }
+  .board .handle {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 -1rem;
+    padding: 0 1rem;
+    background: var(--paper-2);
+  }
+  .board .handle button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .6rem;
+    width: 100%;
+    height: var(--handle-h);
+    border: 0;
+    border-bottom: var(--hairline);
+    border-radius: 0;
+    color: var(--ink-2);
+  }
+  .board .handle button::before {
+    content: "";
+    width: 2.4rem;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--hair);
+  }
+  /* collapsed: the handle shows above the fold, the rest waits below. Open,
+     the sheet takes the lower six tenths and Seymour moves up to stay in
+     view, smaller, without his caption. */
+  body:not([data-board="open"]) .board { transform: translateY(calc(100% - var(--handle-h))); overflow: hidden; }
+  body[data-board="open"] .stage { padding-bottom: calc(1rem + 62vh); padding-bottom: calc(1rem + 62dvh); }
+  body[data-board="open"] .stage .mark { --w: min(56vw, 24vh); }
+  body[data-board="open"] .caption { display: none; }
+  body[data-board="hidden"] .topline { opacity: 1; pointer-events: auto; }
+  body[data-board="hidden"] .stage .mark { --w: min(78vw, 46vh); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board, .stage, .topline, .tab, .pad, .caption { transition: none; }
+  .pad.playing { animation: none; }
+}
