@@ -491,7 +491,16 @@ the archive (`episodes/<slug>/out/transcript.txt`) into the data dir once,
 so the office can tell a guest when their idea is an episode the show has
 already made, and steer them off it unless they can add to it. How many it
 reads in full is `transcripts` in the config; the health page says how
-many it knows.
+many it knows. It also reads the hosts' page on the guest: the title and
+description of their Linear issue, fetched when the guest sits down and
+again once an hour at most, and kept on the guest row (`notes`,
+`notes_at`) so a Linear outage changes nothing the guest sees. The page
+goes in the small uncached block with the guest's name, as background: the
+skill's "What the hosts noted" has the office open exactly as it would
+without it, skip what it already answers, carry its caveats into Traps,
+and never quote it; the guest decides what the episode is about. The file
+a guest takes to their own assistant carries no page, since it was
+written for the hosts.
 
 The Claude API over urllib, like every other platform here: the key is
 `ANTHROPIC_API_KEY` (the vault item "Anthropic podcast key", a service

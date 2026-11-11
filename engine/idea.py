@@ -7,7 +7,12 @@ is the one source: the system prompt the engine runs, and the file a guest
 takes to their own assistant instead. The office knows the episodes so far
 from the ledger (the summary, the chapters, the questions touched) and
 reads the latest transcripts in full from the archive, so it can steer a
-guest off a repeat unless they can add to it.
+guest off a repeat unless they can add to it. It also reads the hosts' page
+on the guest (their Linear issue's title and description, kept on the guest
+row for an hour at a time so Linear being down changes nothing), as
+background and never as a plan: the guest decides what the episode is
+about, and the skill says how the page is held. The file a guest takes to
+their own assistant carries no page: it was written for the hosts.
 
 The Claude API over urllib, like every other platform here: the key from
 the vault (ANTHROPIC_API_KEY, the item "Anthropic podcast key"), the model
@@ -48,6 +53,7 @@ TIMEOUT = 180
 MAX_SAY = 4000  # characters in one message from the guest
 MAX_BRIEF = 20000
 MAX_HEADSHOT = 6_000_000
+NOTES_FOR = 3600  # seconds a copy of the hosts' page on a guest serves before the office asks Linear again
 START = "(The guest has sat down in the office. Begin.)"
 IMAGE = {b"\xff\xd8\xff": ("image/jpeg", "jpg"), b"\x89PNG\r\n\x1a\n": ("image/png", "png")}
 _locks, _guard = {}, threading.Lock()  # one reply at a time per guest
@@ -181,9 +187,34 @@ def skill_text(c=None, eps=None):
     return text.replace("<!-- questions -->", qs).replace("<!-- episodes -->", episodes_md(eps)).strip() + "\n"
 
 
-def system_prompt(c, g, client=None):
+def notes(c, g, env=None):
+    """The hosts' page on this guest: their Linear issue's title and description, read from Linear when the
+    copy on the guest is older than NOTES_FOR or there is none, and kept on the guest, so a Linear outage
+    changes nothing the guest sees. None without an issue, or when nothing has ever been read."""
+    if not g["issue"]:
+        return None
+    kept, at = g["notes"], g["notes_at"]
+    fresh = False
+    if kept and at:
+        try:
+            fresh = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(at)).total_seconds() < NOTES_FOR
+        except ValueError:
+            fresh = False
+    if fresh or env is None or not linear.ready(env):
+        return kept
+    try:
+        i = linear.notes(env, g["issue"])
+    except linear.LinearError:
+        return kept
+    text = f"{i['identifier']}: {i['title']}\n\n{(i.get('description') or '').strip()}".strip()
+    c.execute("UPDATE guest SET notes=?, notes_at=? WHERE id=?", (text, ledger.now(), g["id"]))
+    return text
+
+
+def system_prompt(c, g, client=None, env=None):
     """Two system blocks: the skill with the episodes and the transcripts, cached for an hour because it is
-    the same for every guest and most of the tokens; then this guest, small and uncached."""
+    the same for every guest and most of the tokens; then this guest, small and uncached, with the hosts'
+    page on them when there is one."""
     eps = episodes(c)
     body = skill_text(c, eps)
     tx, n = transcripts_md(eps, int(settings()["transcripts"]), client)
@@ -201,6 +232,15 @@ def system_prompt(c, g, client=None):
         'beginning "# Run-sheet draft:", exactly as above; the office saves it and sends it to James and Abrar, and '
         "says so to the guest. You have no tools and no memory beyond this conversation.\n"
     )
+    page = notes(c, g, env)
+    if page:
+        guest += (
+            "\n## The hosts' page on this guest\n\n"
+            'Written by James and Abrar for themselves, before the invitation went out; hold it as "What the hosts '
+            'noted" says. It is background. The guest decides what the episode is about.\n\n' + page.strip() + "\n"
+        )
+    else:
+        guest += "\nThe hosts have no page on this guest that the office can read; nothing is missing.\n"
     return [
         {"type": "text", "text": body, "cache_control": {"type": "ephemeral", "ttl": "1h"}},
         {"type": "text", "text": guest},
@@ -357,7 +397,7 @@ def reply(c, g, env, text=None, on_delta=lambda s: None, start=False):
             if len(text) > MAX_SAY:
                 raise IdeaError(f"That is over {MAX_SAY} characters; a shorter message, please.")
             add_turn(c, gid, "guest", text)
-        system, history = system_prompt(c, g), conversation(c, gid)
+        system, history = system_prompt(c, g, env=env), conversation(c, gid)
         out, usage, stop, model = request(env, system, history, on_delta)
         for _ in range(int(settings().get("continuations", 2))):
             if stop != "max_tokens" or not out.strip():

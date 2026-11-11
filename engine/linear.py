@@ -52,6 +52,7 @@ Q_ISSUES = (
     "title: { containsIgnoreCase: $text } }) { nodes { id identifier title url state { name } } } }"
 )
 Q_DOCUMENTS = "query Documents($id: String!) { issue(id: $id) { documents { nodes { id title content } } } }"
+Q_NOTES = "query Notes($id: String!) { issue(id: $id) { id identifier title description } }"
 Q_TEAM = "query Team($key: String!) { teams(filter: { key: { eq: $key } }) { nodes { id } } }"
 Q_PROJECT = "query Project($name: String!) { projects(filter: { name: { eq: $name } }) { nodes { id } } }"
 Q_LABELS = (
@@ -223,6 +224,14 @@ def documents(env, key):
     if not i:
         raise LinearError(f"issue {key}: Linear has no such issue")
     return i["documents"]["nodes"]
+
+
+def notes(env, key):
+    """An issue's title and description: the hosts' page on a guest, which the office reads (idea.py)."""
+    i = query(env, "Notes", Q_NOTES, {"id": key})["issue"]
+    if not i:
+        raise LinearError(f"issue {key}: Linear has no such issue")
+    return i
 
 
 def search(env, text, project=None):
