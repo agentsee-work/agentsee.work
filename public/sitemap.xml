@@ -35,6 +35,9 @@
   <url>
     <loc>https://agentsee.work/twenty-questions/</loc>
   </url>
+  <url>
+    <loc>https://agentsee.work/seymour/</loc>
+  </url>
   <!-- podcast: written by tools/site.py -->
   <url>
     <loc>https://agentsee.work/podcast/</loc>

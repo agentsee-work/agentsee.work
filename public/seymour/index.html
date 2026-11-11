@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Seymour, the eye in the fedora, and every face he can pull — AgentSee</title>
+<meta name="description" content="Meet Seymour, the eye on every AgentSee page. Twenty-two poses and eighteen chains on a soundboard, the eight numbers under each one as sliders, and the theme's walking bass for him to play.">
+<link rel="canonical" href="https://agentsee.work/seymour/">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://agentsee.work/seymour/">
+<meta property="og:title" content="Seymour, the eye in the fedora">
+<meta property="og:description" content="The AgentSee mark, on his own for once: twenty-two poses, eighteen chains, eight sliders, and a walking bass to play.">
+<meta property="og:image" content="https://agentsee.work/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/assets/og.png">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+<link rel="stylesheet" href="/assets/seymour.css">
+</head>
+<body class="room">
+
+<a class="skip" href="#board">Skip to the board</a>
+
+<header class="topline" id="topline">
+  <a class="home" href="/">&larr; AgentSee</a>
+  <h1>Seymour</h1>
+  <p class="standfirst">The eye on every page, on his own for once. Press a pad, or the key on it.</p>
+  <button type="button" class="fold" id="fold" aria-controls="board" aria-expanded="true">Hide the board <kbd>B</kbd></button>
+</header>
+
+<main class="stage" id="stage" aria-label="Seymour">
+  <!-- The show's mark (tools/eye.py, mark_svg), at rest: the masthead's eye
+       with two lids inside the clip. Without script he stays like this. -->
+  <div class="mark" id="seymour">
+    <svg viewBox="0 0 240 210" role="img" aria-label="Seymour: an eye wearing a fedora">
+      <defs><clipPath id="eyeclip">
+        <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </clipPath></defs>
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+      <g class="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+          <g class="lid lid-top">
+            <path class="lid-fill" d="M44 142C72 104.00 168 104.00 196 142 L196 -60 L44 -60 Z"/>
+            <path class="lid-edge" vector-effect="non-scaling-stroke" d="M44 142C72 104.00 168 104.00 196 142"/>
+          </g>
+          <g class="lid lid-bottom">
+            <path class="lid-fill" d="M44 142C72 178.00 168 178.00 196 142 L196 340 L44 340 Z"/>
+            <path class="lid-edge" vector-effect="non-scaling-stroke" d="M44 142C72 178.00 168 178.00 196 142"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="caption" id="caption" aria-live="polite"><b id="caption-name">attentive</b><span id="caption-note">Default. Lower thirds, wordmark lockups.</span></p>
+  <p class="numbers" id="numbers" hidden></p>
+</main>
+
+<aside class="board" id="board" aria-label="Seymour's board">
+  <div class="handle"><button type="button" id="handle" aria-controls="board" aria-expanded="false">Seymour's board</button></div>
+
+  <section class="bank" id="poses">
+    <h2>Poses <small>one key each</small></h2>
+    <div class="pads" id="pose-pads"></div>
+  </section>
+
+  <section class="bank" id="chains">
+    <h2>Chains <small>shift and a key</small></h2>
+    <div class="pads" id="chain-pads"></div>
+  </section>
+
+  <section class="bank" id="music">
+    <h2>The theme <small>he plays the bass</small></h2>
+    <p>James's walking bass, four to the bar at 132, from <a href="/issues/04-music">Issue No.&nbsp;4</a>. The fades take four bars each way.</p>
+    <div class="row">
+      <button type="button" id="play" aria-pressed="false">Fade in <kbd>space</kbd></button>
+      <button type="button" id="stop">Stop</button>
+    </div>
+    <p class="state" id="music-state">Not playing.</p>
+  </section>
+
+  <section class="bank" id="light">
+    <h2>Light</h2>
+    <div class="row" id="themes">
+      <button type="button" data-theme="newsprint" aria-pressed="false">Newsprint <kbd>1</kbd></button>
+      <button type="button" data-theme="noir" aria-pressed="false">Noir <kbd>2</kbd></button>
+      <button type="button" data-theme="" aria-pressed="true">As the system has it <kbd>3</kbd></button>
+    </div>
+  </section>
+
+  <section class="bank" id="workshop">
+    <h2>The eight numbers <small><a href="/issues/03-mark">Issue No.&nbsp;3</a></small></h2>
+    <p>Every pose is these. Drag one and he is yours.</p>
+    <div id="sliders"></div>
+    <div class="row">
+      <button type="button" id="rest">Rest</button>
+      <button type="button" id="copy">Copy the numbers</button>
+    </div>
+    <div class="options">
+      <label><input type="checkbox" id="opt-numbers"> Show them under him <kbd>N</kbd></label>
+      <label><input type="checkbox" id="opt-track" checked> Follow the pointer <kbd>V</kbd></label>
+      <label><input type="checkbox" id="opt-blink"> Blink through changes</label>
+      <label><input type="checkbox" id="opt-loop"> Loop chains</label>
+      <label><input type="checkbox" id="opt-caption" checked> Caption</label>
+    </div>
+  </section>
+
+  <noscript><p>Seymour needs script to play. Without it he is here at rest, which is also him.</p></noscript>
+
+  <p class="fine">Printed by nobody. This page loads only what it serves itself; the theme, 800&nbsp;KB, is fetched once you first touch the board. Nothing is stored. The poses and chains are the show's own, from the <a href="https://github.com/agentsee-work/agentsee.work/tree/main/tools">tools in the repository</a>.</p>
+</aside>
+
+<button type="button" class="tab" id="tab" aria-controls="board" aria-expanded="false">The board <kbd>B</kbd></button>
+
+<script src="/assets/seymour-data.js" defer></script>
+<script src="/assets/seymour.js" defer></script>
+</body>
+</html>
