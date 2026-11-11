@@ -36,7 +36,7 @@ holds the tooling, not the score.
 | `02-outro` / `-dark` | 17.6s / 19.4s | close, diminuendo |
 | `04-button` | 5.0s | transition |
 | `theme-light` | 50.3s | the whole piece |
-| `bed-loop` / `bed-dark-loop` | 3.64s | under speech, loops forever |
+| `bed-loop` / `bed-dark-loop` | 3.64s | under speech, loops forever; `bed-loop` is also the bass on `/seymour/` |
 
 Foreground cues sit at **-16 LUFS**, beds at **-30**. The gap is the point: set
 by ear per episode it drifts, and a bed that buries the dialogue one week and

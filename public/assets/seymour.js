@@ -14,14 +14,15 @@
    of whatever pose he is in, and wanders when the pointer rests. He
    blinks on his own, and when the page is clicked. The sliders set
    the eight numbers by hand; the hash carries a pose or the
-   numbers, so a link opens on a face. The theme's walking bass
-   plays through a gain that fades over four bars each way, and he
-   plays it: the iris walks the line, the hat nods on two and four.
+   numbers, so a link opens on a face. The theme's walking bass, on
+   its own, loops through a gain that fades over four bars each way,
+   and he plays it: the iris walks the line, the hat nods on two and
+   four.
 
    Reduced motion: poses are set, not played; chains land at once;
    no blinks, no wander, the bass only steps. No dependencies, no
-   network but the page's own theme once the board is touched, no
-   storage.
+   network but the page's own bass loop once the board is touched,
+   no storage.
    ───────────────────────────────────────────────────────────── */
 
 (function () {
@@ -633,32 +634,41 @@
     return !!(pose || mine);
   }
 
-  /* ── the theme, and him playing it ─────────────────────────── */
+  /* ── the bass, and him playing it ──────────────────────────── */
 
-  // James's walking bass (public/assets/score/theme-light.musicxml, P2):
-  // one note a beat, 132 to the minute, two bars repeated thirteen times.
-  // MIDI, sounding. The mp3 starts on bar one within a frame.
-  var BPM = 132, SPB = 60 / BPM, BARS = 26;
-  var BASS = [40, 39, 38, 37, 31, 37, 43, 38];
+  // James's walking bass (public/assets/score/theme-light.musicxml, P2),
+  // on its own: one note a beat, 132 to the minute, two bars that go round.
+  // /media/audio/bass-loop.wav is the show's bed cue (tools/README.md): the
+  // two bars, cut to join without a seam, 174,545 samples at 48 kHz, which
+  // is two bars at 132 to within a sample. Decoded and looped in Web Audio
+  // it joins sample for sample, so the bass goes on until it is faded out,
+  // and where he is in the bar is read from the clock it plays by. A media
+  // element's loop attribute gaps at the join; that is why not <audio>.
+  var BPM = 132, SPB = 60 / BPM;
+  var BASS = [40, 39, 38, 37, 31, 37, 43, 38];  // MIDI, sounding
   var FADE = 16 * SPB;  // four bars, in seconds
+  var LOOP = '/media/audio/bass-loop.wav';
 
-  var audio = document.createElement('audio');
-  audio.src = '/media/audio/theme.mp3';
-  audio.preload = 'none';
   var actx = null, gainNode = null;
+  var source = null, startAt = 0;  // the loop playing now, and its start on the context's clock
+  var bytes = null, buffer = null, decoding = false, loadFailed = false, waiting = [];
   var music = { state: 'off', t0: 0, g0: 0, stop: null };
+  var presses = 0;  // so a fade-in's callback knows it is still the latest press
   var playBtn = document.getElementById('play');
   var stopBtn = document.getElementById('stop');
   var stateEl = document.getElementById('music-state');
   var fetched = false;
 
-  // the first touch of the board fetches the theme, so a fade-in later does
-  // not wait on the network
+  // the first touch of the board fetches the loop, so a fade-in later does
+  // not wait on the network; it is decoded once there is a context to play it
   function touched() {
     if (fetched) return;
     fetched = true;
-    audio.preload = 'auto';
-    try { audio.load(); } catch (e) { /* then it loads on play */ }
+    if (!window.fetch) { loadFailed = true; return; }
+    fetch(LOOP).then(function (r) {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.arrayBuffer();
+    }).then(function (b) { bytes = b; settle(); }, function () { loadFailed = true; settle(); });
   }
 
   function ensureAudio() {
@@ -667,19 +677,52 @@
     if (!AC) return;
     try {
       actx = new AC();
-      var src = actx.createMediaElementSource(audio);
       gainNode = actx.createGain();
       gainNode.gain.value = 0;
-      src.connect(gainNode);
       gainNode.connect(actx.destination);
     } catch (e) { actx = null; gainNode = null; }
   }
 
-  function playing() { return music.state !== 'off' && !audio.paused; }
+  // calls back with the decoded loop: now if it is in hand, else once it is
+  function whenReady(ok, fail) {
+    waiting.push([ok, fail]);
+    settle();
+  }
+  function settle() {
+    if (!waiting.length || !actx) return;
+    if (buffer || loadFailed) {
+      var w = waiting; waiting = [];
+      w.forEach(function (p) { if (buffer) p[0](buffer); else p[1](); });
+      return;
+    }
+    if (!bytes || decoding) return;
+    decoding = true;
+    var b = bytes; bytes = null;  // decoding may detach the buffer
+    actx.decodeAudioData(b, function (buf) { buffer = buf; decoding = false; settle(); },
+      function () { loadFailed = true; decoding = false; settle(); });
+  }
+
+  function startLoop(buf) {
+    source = actx.createBufferSource();
+    source.buffer = buf;
+    source.loop = true;
+    source.connect(gainNode);
+    startAt = actx.currentTime + 0.02;
+    source.start(startAt);
+  }
+
+  // seconds into the loop's own time, what is sounding now
+  function pos() {
+    if (!source) return 0;
+    var t = actx.currentTime - startAt - (actx.outputLatency || actx.baseLatency || 0);
+    return t > 0 ? t : 0;
+  }
+
+  function playing() { return music.state !== 'off' && source !== null; }
   function fading() { return music.state === 'in' || music.state === 'out'; }
 
   // The fade is a square law, in by x squared and out by its mirror, which is
-  // ffmpeg's afade curve=qua: production can lay the clean master under the
+  // ffmpeg's afade curve=qua: production can lay the clean cue under the
   // screen recording with the same fade he performed. The gain is kept here
   // as well as scheduled, since reading an AudioParam mid-curve is not the
   // same everywhere.
@@ -688,13 +731,12 @@
   }
   function gainNow() {
     if (music.state === 'on') return 1;
-    if (music.state === 'off') return 0;
+    if (music.state === 'off' || !source) return 0;
     var x = clamp((performance.now() - music.t0) / 1000 / FADE, 0, 1);
     return music.state === 'in' ? shape(music.g0, 1, x) : shape(music.g0, 0, x);
   }
 
   function ramp(from, to) {
-    if (!gainNode) return;
     var g = gainNode.gain, t = actx.currentTime;
     if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t); else g.cancelScheduledValues(t);
     g.setValueAtTime(from, t);
@@ -706,22 +748,29 @@
   function fadeIn() {
     touched();
     ensureAudio();
+    if (!actx) { stateEl.textContent = 'This browser has no Web Audio, so no bass.'; return; }
     clearTimeout(music.stop);
-    var g0 = gainNow();
+    var g0 = gainNow();  // nought, unless a fade-out is being caught
+    var press = ++presses;
     music.state = 'in'; music.t0 = performance.now(); music.g0 = g0;
-    ramp(g0, 1);
-    if (!gainNode) { try { audio.volume = g0; } catch (e) { /* iOS keeps its own */ } }
-    if (audio.paused || audio.ended) {
-      try { audio.currentTime = 0; } catch (e) { /* not yet loaded; it starts at the top anyway */ }
-      var p = audio.play();
-      if (p && p.catch) p.catch(function () { music.state = 'off'; musicUI(); });
-    }
-    music.stop = setTimeout(function () { if (music.state === 'in') { music.state = 'on'; musicUI(); } }, FADE * 1000);
     musicUI();
     kick();
+    whenReady(function (buf) {
+      if (music.state !== 'in' || press !== presses) return;  // changed his mind while it loaded
+      if (!source) startLoop(buf);
+      music.t0 = performance.now();  // the fade is counted from the sound, not the press
+      ramp(g0, 1);
+      music.stop = setTimeout(function () { if (music.state === 'in') { music.state = 'on'; musicUI(); } }, FADE * 1000);
+      musicUI();
+    }, function () {
+      music.state = 'off';
+      musicUI();
+      stateEl.textContent = 'The bass would not load.';
+    });
   }
 
   function fadeOut() {
+    if (!source) { stopMusic(); return; }  // pressed again before the loop arrived
     clearTimeout(music.stop);
     var g0 = gainNow();
     music.state = 'out'; music.t0 = performance.now(); music.g0 = g0;
@@ -733,9 +782,14 @@
   function stopMusic() {
     clearTimeout(music.stop);
     music.state = 'off';
-    audio.pause();
-    try { audio.currentTime = 0; } catch (e) { /* fine */ }
-    if (gainNode) { var g = gainNode.gain, t = actx.currentTime; if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t); else g.cancelScheduledValues(t); g.setValueAtTime(0, t); }
+    if (source) {
+      // a short ramp before the stop, so the button does not click
+      var g = gainNode.gain, t = actx.currentTime, s = source;
+      if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t); else g.cancelScheduledValues(t);
+      g.setTargetAtTime(0, t, 0.01);
+      try { s.stop(t + 0.06); } catch (e) { /* already stopped */ }
+      source = null;
+    }
     if (last && opt.track) track(last.x, last.y); else { gazeTo.x = 0; gazeTo.y = 0; }
     musicUI();
     kick();
@@ -747,8 +801,6 @@
   }
   playBtn.addEventListener('click', function (e) { toggleMusic(); if (e.detail) playBtn.blur(); });
   if (stopBtn) stopBtn.addEventListener('click', function (e) { stopMusic(); if (e.detail) stopBtn.blur(); });
-  audio.addEventListener('ended', stopMusic);
-  audio.addEventListener('error', function () { if (music.state !== 'off') { stopMusic(); stateEl.textContent = 'The theme would not load.'; } });
 
   var lastBar = -1;
   function musicUI() {
@@ -759,23 +811,31 @@
     lastBar = -1;
     barUI();
   }
+  // "Fading in · bar 2 of 4" counts the fade's own bars from the press, so
+  // he knows how long is left; "Playing · bar 14" counts from the top.
   function barUI() {
     var st = music.state;
     if (st === 'off') { stateEl.textContent = 'Not playing.'; return; }
-    var bar = clamp(Math.floor(audio.currentTime / SPB / 4) + 1, 1, BARS);
+    if (!source) { stateEl.textContent = 'Fading in · fetching the bass'; lastBar = -1; return; }
+    var bar, text;
+    if (st === 'on') {
+      bar = Math.floor(pos() / SPB / 4) + 1;
+      text = 'Playing · bar ' + bar;
+    } else {
+      bar = clamp(Math.floor((performance.now() - music.t0) / 1000 / SPB / 4) + 1, 1, 4);
+      text = (st === 'in' ? 'Fading in · bar ' : 'Fading out · bar ') + bar + ' of 4';
+    }
     if (bar === lastBar) return;
     lastBar = bar;
-    stateEl.textContent = (st === 'in' ? 'Fading in · ' : st === 'out' ? 'Fading out · ' : '') + 'bar ' + bar + ' of ' + BARS;
+    stateEl.textContent = text;
   }
 
   // Him playing: the iris walks the line, low notes left and down, high ones
   // right; the pupil tightens on each attack; the hat nods on two and four.
   var bassTo = { x: 0, y: 0 };
   function bassGaze(a, now) {
-    var t = audio.currentTime - (actx && actx.outputLatency ? actx.outputLatency : 0);
+    var t = pos();
     var beat = Math.floor(t / SPB), ph = t / SPB - beat;
-    if (beat < 0) beat = 0;
-    if (beat >= BARS * 4) { beat = BARS * 4 - 1; ph = 1; }
     var midi = BASS[beat % BASS.length];
     bassTo.x = (midi - 37) * 2.0;
     bassTo.y = 1.5 + (37 - midi) * 0.4;
@@ -783,10 +843,6 @@
       var pluck = 1 - smooth(ph / 0.18);
       a.ps *= 1 - 0.10 * pluck;
       if (beat % 4 === 1 || beat % 4 === 3) a.hat -= 2.2 * (1 - smooth(ph / 0.5));
-    }
-    if (audio.volume !== undefined && !gainNode) {
-      // no Web Audio: the element's own volume, stepped each frame
-      try { audio.volume = gainNow(); } catch (e) { /* iOS keeps its own */ }
     }
     barUI();
     return bassTo;
