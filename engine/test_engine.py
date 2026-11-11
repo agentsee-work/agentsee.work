@@ -1126,6 +1126,9 @@ class FakeLinear:
             return {
                 "issue": self.issues.get(v["id"]) or next((i for i in self.issues.values() if i["id"] == v["id"]), None)
             }
+        if op == "Notes":
+            i = self.issues.get(v["id"])
+            return {"issue": {k: i.get(k) for k in ("id", "identifier", "title", "description")} if i else None}
         if op == "Issues":
             hits = [i for i in self.issues.values() if v["text"].lower() in i["title"].lower()]
             return {"issues": {"nodes": [{**i, "state": {"name": "Backlog"}} for i in hits]}}
@@ -3336,6 +3339,43 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(len(FakeR2.state["requests"]), n, "then read from the data dir")
         self.assertEqual(idea.known(c), (1, 1))
 
+        # ── the hosts' page on the guest: the issue, read once an hour, kept, never in the cached block ──
+        self.assertIn("## What the hosts noted", prompt[0]["text"], "how the page is held is in the skill")
+        self.assertIn("no page on this guest that the office can read", prompt[1]["text"], "nothing read yet")
+        fake.issues["AGE-73"]["description"] = (
+            "## Who they are\n\nWrote the first program.\n\n## Caveats\n\nNever name the Analytical Engine's backer."
+        )
+        prompt = idea.system_prompt(c, guests.guest(c, gid), env=env)
+        self.assertEqual(fake.calls.count("Notes"), 1)
+        self.assertIn("## The hosts' page on this guest", prompt[1]["text"])
+        self.assertIn(
+            "AGE-73: Ada Lovelace, on engines\n\n## Who they are\n\nWrote the first program.", prompt[1]["text"]
+        )
+        self.assertIn("Never name the Analytical Engine's backer.", prompt[1]["text"])
+        self.assertIn("The guest decides what the episode is about.", prompt[1]["text"])
+        self.assertNotIn("Wrote the first program", prompt[0]["text"], "the cached block is the same for every guest")
+        self.assertNotIn("no page on this guest", prompt[1]["text"])
+        g = guests.guest(c, gid)
+        self.assertTrue(g["notes"].startswith("AGE-73: Ada Lovelace, on engines"))
+        self.assertTrue(g["notes_at"])
+        idea.system_prompt(c, guests.guest(c, gid), env=env)
+        self.assertEqual(fake.calls.count("Notes"), 1, "within the hour the copy serves")
+        stale = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=2)).replace(microsecond=0).isoformat()
+        c.execute("UPDATE guest SET notes_at=? WHERE id=?", (stale, gid))
+        fake.issues["AGE-73"]["description"] += "\n\nConfirm the dates."
+        fake.fail = 500
+        prompt = idea.system_prompt(c, guests.guest(c, gid), env=env)
+        self.assertIn("Wrote the first program", prompt[1]["text"], "Linear down: the copy serves")
+        self.assertNotIn("Confirm the dates", prompt[1]["text"])
+        self.assertEqual(guests.guest(c, gid)["notes_at"], stale, "and is not called fresh")
+        prompt = idea.system_prompt(c, guests.guest(c, gid), env=env)
+        self.assertIn("Confirm the dates.", prompt[1]["text"], "Linear back: read again")
+        self.assertNotEqual(guests.guest(c, gid)["notes_at"], stale)
+        self.assertNotIn("Confirm the dates", idea.skill_text(c), "the file a guest takes away carries no page")
+        bob = guests.guest(c, c.execute("SELECT id FROM guest WHERE name='Bob Builder'").fetchone()[0])
+        self.assertIsNone(idea.notes(c, bob, env), "no issue, no page")
+        self.assertEqual(fake.calls.count("Notes"), 2, "the refused call is not counted; Bob's is never made")
+
         web.STATE["ledger"] = str(self.db)
         srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -3392,6 +3432,8 @@ class EngineTest(unittest.TestCase):
         st, h, body = req("GET", "/idea/skill.md", host=SEE, cookies=ada)
         self.assertEqual((st, h["Content-Type"]), (200, "text/markdown; charset=utf-8"))
         self.assertIn("1. If writing the code", body)
+        self.assertIn("## What the hosts noted", body)
+        self.assertNotIn("Wrote the first program", body, "the hosts' page stays in the office")
         self.assertEqual((req("GET", "/office.js", host=SEE)[0], req("GET", "/chat.js", host=SEE)[0]), (200, 404))
         import pages
 
@@ -3418,6 +3460,7 @@ class EngineTest(unittest.TestCase):
         self.assertIn("The idea, before we record", payload["system"][0]["text"])
         self.assertIn("Nine is about nine things", payload["system"][0]["text"])
         self.assertIn("with Ada Lovelace", payload["system"][1]["text"])
+        self.assertIn("Wrote the first program.", payload["system"][1]["text"], "the page, from the copy kept")
         self.assertEqual(payload["messages"], [{"role": "user", "content": idea.START}])
         self.assertNotIn("tools", payload)
         self.assertNotIn("thinking", payload)
