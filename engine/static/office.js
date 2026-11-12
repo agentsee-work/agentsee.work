@@ -2,8 +2,10 @@
 // with fetch and the section it belongs to comes back as the server renders
 // it and is put in place, with the word beside the button; nothing reloads
 // and nothing jumps. The conversation's form (data-say) streams the office's
-// reply as server-sent events, shown as it is written. Without script, or if
-// a request fails, every form posts as a form and the page comes back whole.
+// reply as server-sent events, shown as it is written; if the line drops, or
+// the page comes up while a reply is still being written, the script asks
+// /idea/live after it every few seconds and puts it in place when it lands.
+// Without script, every form posts as a form and the page comes back whole.
 (function () {
   "use strict";
   if (!window.fetch || !window.FormData || !window.TextDecoder || !window.ReadableStream) return;
@@ -25,6 +27,29 @@
     var area = root.querySelector("form[data-say] textarea");
     if (area) { grow(area); area.focus(); }
     fade(root);
+    if (root.querySelector("[data-writing]")) poll();  // the page came up mid-reply: ask after it
+  }
+
+  var asking = false, landed = null;
+  function poll(then) {  // a reply is being written (the page said so, or the stream broke): ask every few seconds,
+    // and put the sections in place when it has landed; the box comes back open with them
+    if (then) landed = then;
+    if (asking) return;
+    asking = true;
+    setTimeout(function () {
+      fetch("/idea/live", { credentials: "same-origin", headers: { "Accept": "application/json" } }).then(function (r) {
+        if (!r.ok) throw new Error("no answer");
+        return r.json();
+      }).then(function (j) {
+        asking = false;
+        if (j.go) { window.location.href = j.go; return; }
+        if (j.writing) { poll(); return; }
+        (j.sections || []).forEach(function (s) { swap(s.id, s.html); });
+        var then = landed;
+        landed = null;
+        if (then) then();
+      }).catch(function () { asking = false; poll(); });
+    }, 3000);
   }
 
   function swap(id, html) {  // the section as the server now renders it, in place of the old one
@@ -91,6 +116,10 @@
     return d;
   }
 
+  function same(a, b) {  // the guest's words, as typed and as the page renders them back
+    return a.replace(/\s+/g, " ").trim() === b.replace(/\s+/g, " ").trim();
+  }
+
   function talk(form) {  // the conversation: the reply streamed into the log as it is written
     var sect = form.closest("section") || document;
     var log = sect.querySelector("[data-log]");
@@ -98,12 +127,66 @@
     var mine = area ? area.value.trim() : "";
     if (!log || (area && !mine)) return;
     var data = new URLSearchParams(new FormData(form)).toString();
-    if (mine) add(log, "guest", "<p></p>").querySelector("p").textContent = mine;
-    var agent = add(log, "agent", '<p class="writing"><span></span><span></span><span></span></p>');
-    var p = agent.querySelector("p");
-    var text = "", sections = [];
+    var bubble = mine ? add(log, "guest", "<p></p>") : null;
+    if (bubble) bubble.querySelector("p").textContent = mine;
+    var agent = add(log, "agent", '<p class="writing"><span></span><span></span><span></span></p><p class="muted patience"></p>');
+    var p = agent.querySelector("p"), patience = agent.querySelector(".patience");
+    var text = "", settled = false;
     busy(form, true);
     if (area) { area.value = ""; grow(area); area.disabled = true; }
+    // Words while nothing has come yet: a cold start reads the episodes before a word, and a run-sheet is a page.
+    var waits = [
+      setTimeout(function () { patience.textContent = "The office is reading the episodes first; a moment."; }, 8000),
+      setTimeout(function () { patience.textContent = "Still at it. A run-sheet is a page, and takes a minute or so."; }, 30000)
+    ];
+
+    function release() {  // the box, back to the guest
+      busy(form, false);
+      if (area) { area.disabled = false; area.focus(); }
+    }
+    function finish(j) {  // done: the turn whole, the sections it changed in place, the box back; the stream's
+      // close is not waited for, so the mail the office may send after is not waited for either
+      settled = true;
+      waits.forEach(clearTimeout);
+      var t = document.createElement("template");
+      t.innerHTML = j.html;  // the turn as the server renders it, in place of the one written live
+      var whole = t.content.firstElementChild;
+      if (whole) { agent.replaceWith(whole); agent = whole; }
+      var sections = j.sections || [];
+      sections.forEach(function (s) { swap(s.id, s.html); });
+      if (sections.some(function (s) { return s.id === "conversation"; })) return;  // the box came back with it
+      release();
+      agent.scrollIntoView({ block: "end", behavior: "smooth" });
+    }
+    function refused(j) {  // fail: the sentence; the words back in the box when the office did not keep them
+      settled = true;
+      waits.forEach(clearTimeout);
+      agent.innerHTML = '<p class="honesty"><b></b></p>';
+      agent.querySelector("b").textContent = j.m;
+      if (!j.kept && bubble) bubble.remove();
+      if (j.writing) {  // an earlier reply is still being written: its arrival brings the box back, the words in it
+        poll(function () {
+          var fresh = document.querySelector("#conversation form[data-say] textarea");
+          if (fresh && !j.kept && mine) { fresh.value = mine; grow(fresh); }
+        });
+        return;
+      }
+      if (!j.kept && area && mine) { area.value = mine; grow(area); }
+      release();
+    }
+    function lost() {  // the stream broke, or closed without a word: the office is most likely still writing, and
+      // keeps the reply whether or not anyone is listening, so ask after it rather than start again
+      if (settled) return;
+      settled = true;
+      waits.forEach(clearTimeout);
+      if (!patience.parentNode) agent.appendChild(patience);
+      patience.textContent = "The line dropped. The office is finishing its reply; it appears here when it has.";
+      poll(function () {  // landed; if what was said never reached the office, it goes back in the box
+        var turns = document.querySelectorAll("#conversation .turn.guest"), last = turns[turns.length - 1];
+        var fresh = document.querySelector("#conversation form[data-say] textarea");
+        if (mine && fresh && !(last && same(last.textContent, mine))) { fresh.value = mine; grow(fresh); }
+      });
+    }
 
     function handle(chunk) {
       var ev = "message", d = "";
@@ -111,12 +194,12 @@
         if (l.indexOf("event:") === 0) ev = l.slice(6).trim();
         else if (l.indexOf("data:") === 0) d += l.slice(5).trim();
       });
-      if (!d) return;
+      if (!d) return;  // a comment: the office keeping the line open while the model is silent
       var j;
       try { j = JSON.parse(d); } catch (err) { return; }
-      if (ev === "delta") { text += j.t; p.className = ""; p.textContent = text; }
-      else if (ev === "done") { agent.innerHTML = j.html; sections = j.sections || []; }
-      else if (ev === "fail") { agent.innerHTML = '<p class="honesty"><b></b></p>'; agent.querySelector("b").textContent = j.m; }
+      if (ev === "delta") { waits.forEach(clearTimeout); patience.remove(); text += j.t; p.className = ""; p.textContent = text; }
+      else if (ev === "done") finish(j);
+      else if (ev === "fail") refused(j);
     }
 
     fetch(form.action, {
@@ -125,7 +208,11 @@
       headers: { "Accept": "text/event-stream", "Content-Type": "application/x-www-form-urlencoded" },
       body: data
     }).then(function (r) {
-      if (!r.ok || !r.body) throw new Error("no stream");
+      if (!r.ok || !r.body || (r.headers.get("Content-Type") || "").indexOf("text/event-stream") < 0) {
+        settled = true;
+        window.location.reload();  // not the stream: signed out, or turned away at the door; the page says which
+        return;
+      }
       var reader = r.body.getReader(), dec = new TextDecoder(), buf = "";
       function pump() {
         return reader.read().then(function (x) {
@@ -139,15 +226,8 @@
       }
       return pump();
     }).then(function () {
-      // The start, the draft and the caps change a section: it comes back rendered, and is put in place.
-      sections.forEach(function (s) { swap(s.id, s.html); });
-      if (sections.some(function (s) { return s.id === "conversation"; })) return;
-      busy(form, false);
-      if (area) { area.disabled = false; area.focus(); }
-      agent.scrollIntoView({ block: "end", behavior: "smooth" });
-    }).catch(function () {
-      window.location.reload();
-    });
+      if (!settled) lost();
+    }).catch(lost);
   }
 
   document.addEventListener("input", function (e) {

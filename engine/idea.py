@@ -59,6 +59,14 @@ IMAGE = {b"\xff\xd8\xff": ("image/jpeg", "jpg"), b"\x89PNG\r\n\x1a\n": ("image/p
 _locks, _guard = {}, threading.Lock()  # one reply at a time per guest
 
 
+def writing(gid):
+    """Whether the office is writing this guest a reply now: reply() holds the guest's lock. The page draws the
+    turn as being written with the box closed, the script asks /idea/live until it lands, a second message is
+    refused with a sentence. Per process, like the lock: a restart mid-reply forgets both."""
+    lock = _locks.get(gid)
+    return bool(lock is not None and lock.locked())
+
+
 class IdeaError(Exception):
     pass
 
@@ -384,7 +392,9 @@ def reply(c, g, env, text=None, on_delta=lambda s: None, start=False):
     with _guard:
         lock = _locks.setdefault(gid, threading.Lock())
     if not lock.acquire(blocking=False):
-        raise IdeaError("One thing at a time: the office is still writing its last reply.")
+        raise IdeaError(
+            "One thing at a time: the office is still writing its last reply. It appears here when it is done."
+        )
     try:
         if start:
             if turns(c, gid):
@@ -685,26 +695,42 @@ def word(text, bad=False):
     return f'<p class="said{" honesty" if bad else ""}" data-said><b>{esc(text)}</b></p>'
 
 
+WRITING = (  # the turn being written, as the page draws it when the reply is still on its way (the script's is its twin)
+    '<div class="turn agent" data-writing><p class="writing"><span></span><span></span><span></span></p>'
+    '<p class="muted patience">The office is writing; its reply appears here when it is done.</p></div>'
+)
+MISSING = "The office's reply did not arrive. Carry on; it has what you said."
+
+
 def conversation_section(c, g, env):
-    """The conversation as it stands: the turns, then the Begin button, the box, or the sentence that closes it."""
+    """The conversation as it stands: the turns, then the Begin button, the box, or the sentence that closes it.
+    A reply still being written (the page reloaded, a phone back from its pocket) is drawn as the turn being
+    written, the box closed until it lands, and the script asks after it. A reply that never came says so, and
+    the box is open: the next message goes in with the one before it."""
     rows = [t for t in turns(c, g["id"]) if t["role"] != "start"]
     why = allowed(c, g, env)
+    busy = writing(g["id"])
     log = "".join(turn_html(t["role"], t["text"]) for t in rows)
+    if busy:
+        log += WRITING
+    elif rows and rows[-1]["role"] == "guest":
+        log += f'<p class="honesty">{esc(MISSING)}</p>'
+    off = " disabled" if busy else ""
     if why:
         talk = f'<p class="honesty">{esc(why)}</p>'
     elif not rows:
         talk = (
             '<form method="post" action="/idea/say" class="block say" data-say><input type="hidden" name="start" value="1">'
-            '<p><button type="submit" class="signal">Begin</button></p></form>'
+            f'<p><button type="submit" class="signal"{off}>Begin</button></p></form>'
         )
     else:
         talk = (
             '<form method="post" action="/idea/say" class="block say" data-say>'
             '<label for="text" class="visually-hidden">Your answer</label>'
             '<div class="composer">'
-            f'<textarea id="text" name="text" rows="1" maxlength="{MAX_SAY}" required '
+            f'<textarea id="text" name="text" rows="1" maxlength="{MAX_SAY}" required{off} '
             'placeholder="Your answer. Enter sends; Shift+Enter for a new line."></textarea>'
-            '<button type="submit" class="signal">Send</button></div></form>'
+            f'<button type="submit" class="signal"{off}>Send</button></div></form>'
         )
     inner = f'<div class="chat" data-log>{log}</div>{talk}'
     return section("Or borrow ours", "A conversation with the office", inner, "conversation")
