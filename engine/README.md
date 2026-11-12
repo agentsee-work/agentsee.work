@@ -535,8 +535,13 @@ The Claude API over urllib, like every other platform here: the key is
 account key in a Console workspace of its own under a monthly cap, AGE-115
 step 4); the model and the caps are `idea` in `config.json`. The reply
 streams to the page as server-sent events (`static/office.js`), and a browser
-without script posts the same form and gets the page back whole. The
-controls are what make hosting it safe: only a signed-in guest who has
+without script posts the same form and gets the page back whole. A reply is
+finished and kept whether or not the browser is still listening: a guest who
+reloads mid-reply, or whose phone sleeps, finds the turn being written and
+the box closed, the script asks `/idea/live` after it every few seconds, and
+the reply is put in place when it lands; a comment goes down the line every
+fifteen seconds while the model is silent, so no proxy's idle clock runs out.
+The controls are what make hosting it safe: only a signed-in guest who has
 signed the release; twenty turns and a token budget per guest (tokens paid
 for in full: the skill and the transcripts are one system block cached for
 an hour, and a cache read, at a twentieth of the price, is not charged to

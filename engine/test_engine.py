@@ -19,11 +19,13 @@ import os
 import pathlib
 import re
 import smtplib
+import socket
 import struct
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 import unittest.mock
 import urllib.error
@@ -1188,13 +1190,38 @@ class FakeStream(io.BytesIO):
         self.status = status
 
 
+class GatedStream:
+    """FakeStream, but held after its first text delta until the test lets it on: a reply taking its time."""
+
+    def __init__(self, body, gate):
+        self.status, self.lines, self.gate = 200, body.splitlines(keepends=True), gate
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def __iter__(self):
+        held = False
+        for line in self.lines:
+            yield line
+            if not held and b'"text_delta"' in line:
+                held = True
+                self.gate.wait(10)
+
+    def read(self):
+        return b""
+
+
 class FakeAnthropic:
     """The Messages API's stream, as far as engine/idea.py reads it: scripted
     replies as server-sent events with usage, a thinking block with nothing in
-    it first; a status to fail with, once; every payload kept."""
+    it first; a status to fail with, once; a gate to hold the next reply at its
+    first word, once; every payload kept."""
 
     def __init__(self):
-        self.replies, self.payloads, self.fail = [], [], None
+        self.replies, self.payloads, self.fail, self.gate = [], [], None, None
         self.stops = []  # a stop reason per scripted reply; end_turn when none is given
 
     def __call__(self, url, data, headers, timeout=None):
@@ -1252,6 +1279,9 @@ class FakeAnthropic:
             ("message_stop", {"type": "message_stop"}),
         ]
         body = "".join(f"event: {e}\ndata: {json.dumps(d)}\n\n" for e, d in events).encode("utf-8")
+        if self.gate:
+            gate, self.gate = self.gate, None
+            return GatedStream(body, gate)
         return FakeStream(200, body)
 
 
@@ -3676,8 +3706,16 @@ class EngineTest(unittest.TestCase):
         ai.fail = 529
         st, h, body = req("POST", "/idea/say", {"text": "Again?"}, SEE, ada, {"Accept": "text/event-stream"})
         self.assertEqual(st, 200)
-        self.assertIn("event: fail", body)
-        self.assertIn("would not answer", body)
+        events = [chunk.split("\n", 1) for chunk in body.strip().split("\n\n")]
+        self.assertEqual([e[0] for e in events], ["event: fail"])
+        failed = json.loads(events[0][1][len("data: ") :])
+        self.assertIn("would not answer", failed["m"])
+        self.assertEqual((failed["kept"], failed["writing"]), (True, False), "the words stay; nothing is being written")
+        st, h, body = req("GET", "/idea", host=SEE, cookies=ada)
+        self.assertIn(pages.esc(idea.MISSING), body, "the page says the reply never came")
+        self.assertLess(body.index("Again?</p></div>"), body.index(pages.esc(idea.MISSING)))
+        self.assertNotIn(" disabled", body, "and the box is open")
+        self.assertNotIn("data-writing", body)
         st, h, body = req("POST", "/idea/say", {"text": "Once more."}, SEE, ada)
         self.assertEqual(st, 303)
         sent = ai.payloads[-1][0]["messages"]
@@ -3815,6 +3853,81 @@ class EngineTest(unittest.TestCase):
         self.assertTrue(g["brief"].startswith("# Run-sheet draft: Whole again"))
         self.assertIn("- What the podcast is", g["brief"])
         self.assertNotIn("```", g["brief"])
+
+        # ── a reply still being written when the browser goes: the page meanwhile, a second message refused, the
+        #    line kept open, and the reply finished and kept all the same ──
+        ai.gate = gate = threading.Event()
+        guests.PULSE = 0.2
+        self.addCleanup(setattr, guests, "PULSE", 15)
+        s = socket.create_connection(("127.0.0.1", srv.server_address[1]), timeout=5)
+        self.addCleanup(s.close)
+        said = urllib.parse.urlencode({"text": "I think this is a great episode for about 45 minutes"}).encode()
+        s.sendall(
+            b"POST /idea/say HTTP/1.1\r\nHost: %s\r\nCookie: see_session=%s\r\nAccept: text/event-stream\r\n"
+            b"Content-Type: application/x-www-form-urlencoded\r\nContent-Length: %d\r\n\r\n%s"
+            % (SEE.encode(), ada["see_session"].encode(), len(said), said)
+        )
+        got = b""
+        while b"event: delta" not in got:
+            got += s.recv(4096)
+        self.assertTrue(idea.writing(gid), "the first word is out; the rest is held")
+        st, h, body = req("GET", "/idea", host=SEE, cookies=ada)
+        self.assertIn("great episode for about 45 minutes</p></div>", body, "the words are there")
+        self.assertIn('<div class="turn agent" data-writing>', body, "and the turn being written")
+        self.assertIn("The office is writing; its reply appears here when it is done.", body)
+        self.assertIn('required disabled placeholder="Your answer.', body, "the box is closed")
+        self.assertIn('class="signal" disabled>Send<', body)
+        self.assertNotIn(pages.esc(idea.MISSING), body)
+        st, h, body = req("GET", "/idea/live", host=SEE, cookies=ada)
+        self.assertEqual(
+            (st, h["Content-Type"], json.loads(body)), (200, "application/json; charset=utf-8", {"writing": True})
+        )
+        st, h, body = req(
+            "POST",
+            "/idea/say",
+            {"text": "Continue, seemed to have stalled."},
+            SEE,
+            ada,
+            {"Accept": "text/event-stream"},
+        )
+        events = [chunk.split("\n", 1) for chunk in body.strip().split("\n\n")]
+        self.assertEqual([e[0] for e in events], ["event: fail"])
+        self.assertEqual(
+            json.loads(events[0][1][len("data: ") :]),
+            {
+                "m": "One thing at a time: the office is still writing its last reply. It appears here when it is done.",
+                "kept": False,
+                "writing": True,
+            },
+        )
+        self.assertEqual(idea.turns(c, gid)[-1]["text"], "I think this is a great episode for about 45 minutes")
+        while b": writing\n\n" not in got:
+            got += s.recv(4096)
+        self.assertNotIn(b"event: done", got, "a comment keeps the line open while the model is silent")
+        s.close()  # the browser goes (a reload, a phone in a pocket)
+        gate.set()
+        for _ in range(200):
+            if not idea.writing(gid):
+                break
+            time.sleep(0.02)
+        rows = idea.turns(c, gid)
+        self.assertEqual(
+            ([t["role"] for t in rows[-2:]], rows[-1]["stop"]), (["guest", "agent"], "end_turn"), "finished, and kept"
+        )
+        self.assertTrue(rows[-1]["text"].startswith("That is the spine ("))
+        st, h, body = req("GET", "/idea/live", host=SEE, cookies=ada)
+        j = json.loads(body)
+        self.assertEqual((j["writing"], [x["id"] for x in j["sections"]]), (False, ["conversation", "draft", "next"]))
+        self.assertIn(rows[-1]["text"][:24], j["sections"][0]["html"], "the reply, for the page to put in place")
+        self.assertNotIn("data-writing", j["sections"][0]["html"])
+        self.assertNotIn(" disabled", j["sections"][0]["html"])
+        self.assertIn("Whole again", j["sections"][1]["html"])
+        self.assertEqual(req("GET", "/idea/live", host=SEE)[2], '{"writing": false, "go": "/"}', "no session: the door")
+        self.assertEqual(
+            json.loads(req("GET", "/idea/live", host=SEE, cookies=bobs)[2]),
+            {"writing": False, "go": "/idea"},
+            "unsigned",
+        )
         srv.shutdown()
 
     def test_23_booking(self):

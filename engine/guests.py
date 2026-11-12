@@ -43,6 +43,7 @@ import pathlib
 import re
 import secrets
 import tempfile
+import threading
 import urllib.parse
 
 import archive
@@ -752,6 +753,18 @@ def get(h, c, path, q):
         if not g:
             return h.redirect("/")
         return step_page(h, c, g, "idea", idea.idea_page(c, g, os.environ, q=q, nxt=handoff(c, g, "idea")))
+    if path == "/idea/live":  # the script asking after a reply being written: still writing, or the sections as they
+        # now stand, the reply in them (static/office.js, after a reload mid-reply or a stream that broke)
+        if not g or not g["signed_version"]:
+            return answer(h, 200, writing=False, go="/idea" if g else "/")
+        if idea.writing(g["id"]):
+            return answer(h, 200, writing=True)
+        sections = [
+            {"id": "conversation", "html": idea.fragment(c, g, os.environ, "conversation")},
+            {"id": "draft", "html": idea.fragment(c, g, os.environ, "draft")},
+            {"id": "next", "html": idea.next_section(handoff(c, g, "idea"))},
+        ]
+        return answer(h, 200, writing=False, sections=sections)
     if path == "/idea/skill.md":
         if not g:
             return h.redirect("/")
@@ -819,11 +832,20 @@ def answer(h, status, **data):
     h.send(status, json.dumps(data), "application/json; charset=utf-8", "no-store")
 
 
+PULSE = (
+    15  # seconds between the comments the stream carries while the model is silent, so no proxy's idle clock runs out
+)
+
+
 def say(h, c, g, form):
     """The guest's message to the office. With `Accept: text/event-stream` (static/office.js) the reply
     streams as it is written: `delta` events, then `done` with the turn's HTML and the sections the reply
-    changed (the conversation's at the start and when the caps close it, the draft's when one is written),
-    or `fail` with a sentence. Without, the reply is waited for and the page comes back whole."""
+    changed (the conversation's at the start and when the caps close it, the draft's and the hand-off's when
+    one is written), or `fail` with a sentence, whether the guest's words were kept, and whether an earlier
+    reply is still being written. A comment goes down the line every PULSE seconds while nothing else does.
+    When the browser has gone (the page reloaded, a phone asleep) the reply is finished and kept all the same,
+    so the next visit shows it instead of two of the guest's turns in a row, and nothing paid for is lost.
+    Without the header, the reply is waited for and the page comes back whole."""
     streaming = "text/event-stream" in h.headers.get("Accept", "")
     start = form.get("start") == "1"
     first = not g["brief"]  # the first draft is the one that gets the mail, with the next step in it
@@ -840,16 +862,37 @@ def say(h, c, g, form):
     h.send_header("Cache-Control", "no-store")
     h.send_header("X-Accel-Buffering", "no")
     h.end_headers()
+    gone, wire, over = False, threading.Lock(), threading.Event()
 
-    def emit(event, data):
-        h.wfile.write(f"event: {event}\ndata: {json.dumps(data)}\n\n".encode("utf-8"))
-        h.wfile.flush()
+    def emit(event, data):  # one event, or a comment when there is no event; nothing once the browser has gone
+        nonlocal gone
+        line = f"event: {event}\ndata: {json.dumps(data)}\n\n" if event else ": writing\n\n"
+        with wire:
+            if gone:
+                return
+            try:
+                h.wfile.write(line.encode("utf-8"))
+                h.wfile.flush()
+            except OSError:  # the browser closed the stream: the reply goes on, and is kept
+                gone = True
 
+    def pulse():
+        while not over.wait(PULSE):
+            emit(None, None)
+
+    threading.Thread(target=pulse, daemon=True).start()
+    before = len(idea.turns(c, g["id"]))
     try:
         out, stop, wrote = idea.reply(c, g, os.environ, form.get("text"), lambda s: emit("delta", {"t": s}), start)
     except idea.IdeaError as e:
-        emit("fail", {"m": str(e)})
+        emit("fail", {"m": str(e), "kept": len(idea.turns(c, g["id"])) > before, "writing": idea.writing(g["id"])})
         return None
+    except Exception as e:  # noqa: BLE001 — the stream is open, so the sentence goes down it before the trace goes up
+        why = f"The office's assistant stopped mid-reply ({type(e).__name__}); say that again."
+        emit("fail", {"m": why, "kept": len(idea.turns(c, g["id"])) > before, "writing": False})
+        raise
+    finally:
+        over.set()
     g = guest(c, g["id"])
     sections = []
     if start or idea.allowed(c, g, os.environ):
