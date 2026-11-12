@@ -27,6 +27,7 @@ main.engine .deck { color: var(--ink-2); max-width: 44rem; margin: 0 0 1.4rem; }
 .day-head td { padding-top: 1.2rem; font-family: var(--mono); font-size: .75rem; letter-spacing: .06em;
   text-transform: uppercase; color: var(--ink-2); border-bottom: 1px solid var(--rule); }
 .muted { color: var(--ink-3); }
+.late { color: var(--signal); font-family: var(--mono); font-size: .8em; }  /* a guest a week or more on one step (progress.cell) */
 
 .status-word { font-family: var(--mono); font-size: .75rem; letter-spacing: .05em; text-transform: uppercase;
   padding: .05rem .4rem; border: 1px solid var(--hair); border-radius: 2px; white-space: nowrap; }

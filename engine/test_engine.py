@@ -3017,7 +3017,16 @@ class EngineTest(unittest.TestCase):
         st, h, body = req("GET", "/release", host=SEE, cookies=ada)
         self.assertEqual(st, 200)
         self.assertIn("signing this version", body, "not issued: nothing to sign yet")
-        self.assertIn("Soon.", req("GET", "/office", host=SEE, cookies=ada)[2])
+        body = req("GET", "/office", host=SEE, cookies=ada)[2]
+        self.assertIn("None of four done. Nothing for you yet: James and Abrar are signing the release", body)
+        self.assertIn('<li data-state="waiting"><p class="head"><span class="dot" aria-hidden="true">1</span>', body)
+        self.assertNotIn('class="progress"', body, "the office page is the strip at full size")
+        body = req("GET", "/release", host=SEE, cookies=ada)[2]
+        self.assertIn(
+            '<nav class="progress" aria-label="Where you are"><a class="home" href="/office">The office</a>', body
+        )
+        self.assertIn('<li data-state="waiting" aria-current="page">', body, "the page's own step, with the hosts")
+        self.assertIn('<p class="next">Nothing for you yet: James and Abrar are signing the release', body)
 
         os.environ["ENGINE_USER"] = "abrar@example.com"
         st, h, body = req("POST", "/you/signature", {"_t": web.CSRF, "signature": data_url, "strokes": "1"})
@@ -3031,6 +3040,13 @@ class EngineTest(unittest.TestCase):
         st, h, body = req("GET", "/office", host=SEE, cookies=ada)
         self.assertIn('href="/release"', body)
         self.assertIn("Read and sign it", body)
+        self.assertIn('Next: <a href="/release">read and sign the release</a>.', body)
+        self.assertIn('<li data-state="current" data-next>', body, "the next step is the card with weight")
+        self.assertIn('<a class="button signal" href="/release">Read and sign it</a>', body)
+        body = req("GET", "/release", host=SEE, cookies=ada)[2]
+        self.assertIn('<li data-state="current" aria-current="page">', body)
+        self.assertIn('<p class="next">Next: <a href="/release">read and sign the release</a>.</p>', body)
+        self.assertNotIn('<p class="kicker">Next</p>', body, "no hand-off while the step is the guest's to do")
         st, h, body = req("GET", "/release", host=SEE, cookies=ada)
         self.assertEqual(st, 200)
         for s in (
@@ -3140,9 +3156,16 @@ class EngineTest(unittest.TestCase):
             "/release.pdf",
             "/release/signature/mine.png",
             "by James, Abrar and you",
-            '<a class="button signal" href="/office">Back to the office</a>',
+            '<a class="button" href="/office">Back to the office</a>',
+            '<p class="kicker">Next</p><h2>The idea</h2>',
+            '<a class="button signal" href="/idea">Sit down with the office</a>',
+            '<li data-state="done" aria-current="page"><span class="dot" aria-hidden="true">&#10003;</span>',
+            '<p class="next">Next: <a href="/idea">flesh the idea out with the office</a>.</p>',
         ):
             self.assertIn(s, body)
+        self.assertLess(
+            body.index("<h2>All three</h2>"), body.index("<h2>The idea</h2>"), "the hand-off under the signatures"
+        )
         self.assertNotIn("<canvas", body)
         st, h, body = req("GET", "/release.pdf", host=SEE, cookies=ada)
         self.assertEqual((st, h["Content-Type"]), (200, "application/pdf"))
@@ -3153,7 +3176,33 @@ class EngineTest(unittest.TestCase):
         self.assertIn("signed version 1 on", body)
         self.assertIn(f"/guests/{gid}/release.pdf", body)
         self.assertEqual(req("GET", f"/guests/{gid}/release.pdf")[1]["Content-Type"], "application/pdf")
-        self.assertIn("Signed", req("GET", "/guests")[2])
+        body = req("GET", "/guests")[2]
+        self.assertIn("Signed", body)
+        self.assertIn("<th>Next</th>", body)
+        self.assertIn('flesh the idea out with the office <span class="muted">today</span>', body)
+        self.assertIn('<span class="muted">not in yet</span>', body, "Grace has not come through her link")
+        body = req("GET", f"/guests/{gid}")[2]
+        today = dt.datetime.now(ledger.ZONE).strftime("%-d %B")
+        self.assertIn(f"One of four done. Next: flesh the idea out with the office, since {today} (today).", body)
+        self.assertIn(f'action="/guests/{gid}/nudge"', body)
+        sent, before = len(FakeSMTP.sent), len(c.execute("SELECT id FROM linear_job").fetchall())
+        st, h, body = req("POST", f"/guests/{gid}/nudge", {"_t": web.CSRF})
+        self.assertEqual(st, 303)
+        self.assertIn("msg=Sent+to+ada%40example.com%3A+Next%3A+flesh+the+idea+out+with+the+office.", h["Location"])
+        m = FakeSMTP.sent[-1]
+        self.assertEqual(
+            (len(FakeSMTP.sent), m["To"], m["Subject"]),
+            (sent + 1, "ada@example.com", "The next step for your AgentSee episode"),
+        )
+        text = m.get_content()
+        self.assertIn("Hello Ada,", text)
+        self.assertIn(f"https://{SEE}/idea", text)
+        self.assertIn("The next step is the idea", text)
+        job = c.execute("SELECT * FROM linear_job ORDER BY id DESC").fetchone()
+        self.assertEqual((job["kind"], json.loads(job["args"])["step"]), ("nudged", "idea"))
+        self.assertEqual(len(c.execute("SELECT id FROM linear_job").fetchall()), before + 1)
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
+        self.assertIn("emailed Ada Lovelace the next step, the idea, on", fake.comments[-1][1])
         v2 = release.add(c, RELEASE_TEXT.replace("video link", "studio link"), "jameshartt@example.com")
         self.assertEqual((v2["n"], release.issued(c)), (2, 1), "a new version is not issued until both sign it")
         st, h, body = req("GET", "/release", host=SEE, cookies=ada)
@@ -3429,6 +3478,19 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(st, 200)
         for s in ("Begin", "/office.js", "The questions, as a file", "Europe/London", "The run-sheet draft"):
             self.assertIn(s, body)
+        self.assertIn('<div id="next"></div>', body, "the hand-off's place, empty until there is a draft")
+        self.assertIn('<li data-state="current" aria-current="page">', body)
+        self.assertIn(
+            '<li data-state="current"><span class="dot" aria-hidden="true">3</span><b><a href="/time">Time</a></b><small>To do</small>',
+            body,
+        )
+        self.assertIn('<p class="next">Next: <a href="/idea">flesh the idea out with the office</a>.</p>', body)
+        self.assertIn('<a class="button" href="/office">Back to the office</a>', body)
+        self.assertNotIn(
+            "Back to the office</a>",
+            body.replace('<a class="button" href="/office">Back to the office</a>', ""),
+            "one way back",
+        )
         st, h, body = req("GET", "/idea/skill.md", host=SEE, cookies=ada)
         self.assertEqual((st, h["Content-Type"]), (200, "text/markdown; charset=utf-8"))
         self.assertIn("1. If writing the code", body)
@@ -3515,17 +3577,61 @@ class EngineTest(unittest.TestCase):
             "Ada on compilers.\n\n**Run length: 30 minutes.**\n\n## Areas\n\n**1. Intro**\n\n- What the podcast is\n```\n\n"
             "The office saves this and sends it to James and Abrar."
         )
+        self.assertIn("finish the idea with the office", req("GET", "/office", host=SEE, cookies=ada)[2], "begun")
+        sent = len(FakeSMTP.sent)
         st, h, body = req("POST", "/idea/say", {"text": "Write it up."}, SEE, ada)
         self.assertEqual(st, 303)
         g = guests.guest(c, gid)
         self.assertTrue(g["brief"].startswith("# Run-sheet draft: Compilers for everyone"))
         self.assertIn("**1. Intro**", g["brief"])
         self.assertNotIn("```", g["brief"])
+        m = FakeSMTP.sent[-1]
+        self.assertEqual(
+            (len(FakeSMTP.sent), m["To"], m["Subject"]),
+            (sent + 1, "ada@example.com", "Your run-sheet draft, and the next step"),
+        )
+        text = m.get_content()
+        self.assertIn("Your run-sheet draft is with James and Abrar.", text)
+        self.assertIn(
+            f"The next step is a time to record. Pick the time you would prefer and up to two backups at\n\n    https://{SEE}/time",
+            text,
+        )
+        self.assertIn("--- the draft ---\n\n# Run-sheet draft: Compilers for everyone", text)
+        self.assertEqual(
+            [
+                e["who"]
+                for e in c.execute(
+                    "SELECT who FROM event WHERE what='mail:sent' AND guest=? ORDER BY id DESC LIMIT 1", (gid,)
+                )
+            ],
+            ["see"],
+        )
         st, h, body = req("GET", "/idea", host=SEE, cookies=ada)
         self.assertIn("Saved", body)
+        self.assertIn("James and Abrar have it. Change anything here", body)
         self.assertIn("Compilers for everyone", body)
         self.assertIn('<pre class="brief">', body)
-        self.assertIn("Drafted", req("GET", "/office", host=SEE, cookies=ada)[2])
+        self.assertIn(
+            '<div id="next"><section class="section engine-section"><p class="kicker">Next</p><h2>The time</h2>', body
+        )
+        self.assertIn('<a class="button signal" href="/time">Pick a time</a>', body)
+        self.assertLess(body.index('id="draft"'), body.index('id="next"'), "the hand-off under the draft")
+        self.assertLess(body.index('id="next"'), body.index('id="about"'), "and before the about-you form")
+        self.assertIn('<li data-state="done" aria-current="page">', body, "the idea, done, is where the page is")
+        self.assertIn(
+            '<li data-state="current"><span class="dot" aria-hidden="true">3</span><b><a href="/time">Time</a></b><small>Next</small>',
+            body,
+        )
+        self.assertIn('<p class="next">Next: <a href="/time">pick a time to record</a>.</p>', body)
+        body = req("GET", "/office", host=SEE, cookies=ada)[2]
+        self.assertIn("Drafted", body)
+        self.assertIn('Two of four done. Next: <a href="/time">pick a time to record</a>.', body)
+        self.assertIn(
+            '<li data-state="current" data-next><p class="head"><span class="dot" aria-hidden="true">3</span><b>The time</b></p>',
+            body,
+        )
+        self.assertIn('<a class="button signal" href="/time">Pick a time</a>', body)
+        self.assertIn("pick a time to record <span", req("GET", "/guests")[2], "the Guests screen's Next column")
         self.assertEqual(linear.drain(c, env, log=lambda s: None), 2)
         drafted = [b for i, b in fake.comments if "The run-sheet draft for Ada Lovelace" in b]
         self.assertEqual(len(drafted), 1)
@@ -3542,7 +3648,9 @@ class EngineTest(unittest.TestCase):
         )
         self.assertEqual((st, h["Content-Type"]), (200, "application/json; charset=utf-8"), "the script's save")
         j = json.loads(body)
-        self.assertEqual((j["ok"], [s["id"] for s in j["sections"]]), (True, ["draft"]))
+        self.assertEqual((j["ok"], [s["id"] for s in j["sections"]]), (True, ["draft", "next"]))
+        self.assertTrue(j["sections"][1]["html"].startswith('<div id="next"><section'), "the hand-off, in place")
+        self.assertEqual(len(FakeSMTP.sent), sent + 1, "a revision gets no second mail; the first draft did")
         html = j["sections"][0]["html"]
         self.assertTrue(html.startswith('<section class="section engine-section" id="draft">'), "the section, whole")
         self.assertIn("data-said><b>Saved.</b>", html)
@@ -3701,7 +3809,7 @@ class EngineTest(unittest.TestCase):
         )
         self.assertEqual(streamed, head + tail, "the page saw all of it, the seam included")
         done = json.loads(body.strip().split("\n\n")[-1].split("\n", 1)[1][len("data: ") :])
-        self.assertEqual([s["id"] for s in done["sections"]], ["draft"], "the draft section comes back rendered")
+        self.assertEqual([s["id"] for s in done["sections"]], ["draft", "next"], "the draft and the hand-off, rendered")
         self.assertIn("Whole again", done["sections"][0]["html"])
         g = guests.guest(c, gid)
         self.assertTrue(g["brief"].startswith("# Run-sheet draft: Whole again"))
@@ -3862,7 +3970,18 @@ class EngineTest(unittest.TestCase):
         st, h, body = req("GET", "/time", host=SEE, cookies=ada)
         for s in (day.strftime("%a %d %b %Y, %H:%M"), "Sydney", "waiting for James, Abrar", "Withdraw and pick again"):
             self.assertIn(s, body)
-        self.assertIn("Asked for", req("GET", "/office", host=SEE, cookies=ada)[2])
+        self.assertIn(
+            '<p class="kicker">Next</p><h2>Nothing for you just now</h2><p>James and Abrar are answering', body
+        )
+        self.assertIn('<li data-state="waiting" aria-current="page">', body)
+        self.assertIn(
+            '<p class="next">Nothing for you just now: James and Abrar are answering the times you gave', body
+        )
+        body = req("GET", "/office", host=SEE, cookies=ada)[2]
+        self.assertIn("Asked for", body)
+        self.assertIn("Two of four done. Nothing for you just now:", body)
+        self.assertNotIn("data-next", body, "nothing is the guest's to do")
+        self.assertIn('<span class="muted">nothing for you just now</span>', req("GET", "/guests")[2])
         m = FakeSMTP.sent[-1]
         self.assertEqual(
             (len(FakeSMTP.sent), m["To"], m["Subject"]),
@@ -3969,9 +4088,18 @@ class EngineTest(unittest.TestCase):
         self.assertIn(f'<a class="booked" href="/guests/{gid}">Ada Lovelace</a>', body)
         self.assertIn(f'<a class="asked" href="/guests/{grace}">Grace Hopper?</a>', body)
         st, h, body = req("GET", "/time", host=SEE, cookies=ada)
-        for s in ("Booked", f"/join/{b['id']}", "Add it to your calendar"):
+        for s in (
+            "Booked",
+            f"/join/{b['id']}",
+            "Add it to your calendar",
+            "<h2>The recording</h2>",
+            "The review follows",
+        ):
             self.assertIn(s, body)
-        self.assertIn("Booked for", req("GET", "/office", host=SEE, cookies=ada)[2])
+        body = req("GET", "/office", host=SEE, cookies=ada)[2]
+        self.assertIn("Booked for", body)
+        self.assertIn("Three of four done. The recording:", body)
+        self.assertIn('<span class="muted">the recording</span>', req("GET", "/guests")[2])
         st, h, body = req("GET", "/time/recording.ics", host=SEE, cookies=ada)
         self.assertEqual((st, h["Content-Type"]), (200, "text/calendar; charset=utf-8"))
         self.assertIn(backup.strftime("%a %d %b, %H:%M"), req("GET", "/guests")[2])
@@ -4312,7 +4440,9 @@ class EngineTest(unittest.TestCase):
             },
         )
         body = req("GET", "/office", host=SEE, cookies=ada)[2]
-        self.assertIn("Round 1 is ready: watch, note, approve", body)
+        self.assertIn("Round 1 is ready: the episode and the clips, to watch, note and approve", body)
+        self.assertIn('<a class="button signal" href="/review">Watch, note, approve</a>', body)
+        self.assertIn('Three of four done. Next: <a href="/review">watch the episode and approve it</a>.', body)
         row = review.current(c, gid)
         self.assertEqual(
             (row["slug"], row["round"], json.loads(row["release"])["clips"][1]["title"]),
@@ -4603,7 +4733,9 @@ class EngineTest(unittest.TestCase):
         st, h, body = approve()
         self.assertEqual(st, 400)
         self.assertIn("You approved round 1 already", body)
-        self.assertIn("Round 1 approved on", req("GET", "/office", host=SEE, cookies=ada)[2])
+        body = req("GET", "/office", host=SEE, cookies=ada)[2]
+        self.assertIn("Round 1 approved ", body)
+        self.assertIn("All four done. All done: James and Abrar take it from here", body)
         os.environ["ENGINE_USER"] = "jameshartt@example.com"
         body = req("GET", f"/guests/{gid}")[2]
         self.assertIn("ada-engines round 1, seen", body)

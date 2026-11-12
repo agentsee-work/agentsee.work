@@ -97,4 +97,4 @@ Before the draft, one sentence beginning "My guess:" naming the episode's shape:
 - [ ] Agree a date
 ```
 
-Close with one line: the office saves the draft and sends it to James and Abrar, and the guest can change anything in it. Outside the office, the guest pastes the fenced block back into the office.
+Close with one line: the draft is saved and James and Abrar have it, the guest can change anything in it, and the next step is to pick a time to record, which the office offers right under the draft. Outside the office, the guest pastes the fenced block back into the office, where the next step is offered.

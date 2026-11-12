@@ -719,8 +719,9 @@ def you_page(c, host, who, csrf, msg=None):
     return "You", body
 
 
-def release_page(c, g, msg=None, status=200):
-    """The guest's page: the issued version to read and sign, or the one they signed, with its copy."""
+def release_page(c, g, msg=None, status=200, nxt=""):
+    """The guest's page: the issued version to read and sign, or the one they signed, with its copy and, under
+    it, the hand-off to what comes next (`nxt`, from progress.py by way of guests.py)."""
     note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
     n = g["signed_version"] or issued(c)
     if not n:
@@ -741,11 +742,13 @@ def release_page(c, g, msg=None, status=200):
         after = (
             f"<p>Signed on {esc(when(mine['at']))} from {esc(mine['address'])}. A copy with all three signatures and "
             f"the record went to that address. {link('/release.pdf', 'Your copy, as a PDF')}</p>"
-            f"<p>{go('/office', 'Back to the office', 'signal')}</p>"
         )
         body = (
             f'<article class="lead"><p class="kicker">The release</p><h1>Signed</h1><p class="deck">Version {n}, '
-            f"by James, Abrar and you.</p></article>{note}{text}" + section("Signed", "All three", sigs + after)
+            f"by James, Abrar and you.</p></article>{note}{text}"
+            + section("Signed", "All three", sigs + after)
+            + nxt
+            + f"<p>{go('/office', 'Back to the office')}</p>"
         )
         return "The release, signed", body, status
     name_field = (

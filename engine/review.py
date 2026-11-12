@@ -767,19 +767,6 @@ def job_approved(env, a, c=None):
 
 
 # ─── the pages ───────────────────────────────────────────────────────────────
-def step_line(c, g):
-    """The review's line on the office page."""
-    if not g["signed_version"]:
-        return '<span class="muted">After the recording.</span>'
-    row = current(c, g["id"])
-    if not row:
-        return '<span class="muted">After the recording.</span>'
-    a = approval(c, g["id"], row)
-    if a:
-        return f"Round {row['round']} approved on {esc(when(a['at']))}. {link('/review', 'The episode, and your approval')}"
-    return link("/review", f"Round {row['round']} is ready: watch, note, approve")
-
-
 def host_line(c, gid):
     """The review's state on the hosts' page for the guest."""
     row = current(c, gid)

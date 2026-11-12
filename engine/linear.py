@@ -459,6 +459,14 @@ def _signed(env, a, c=None):
     return {"issue": key, "comment": cm["url"], "label": label_softly(env, key, "release-signed")}
 
 
+def _nudged(env, a, c=None):
+    """A host's note to a guest who had stopped (guests.nudge): which step it pointed at."""
+    step = {"release": "the release", "idea": "the idea", "time": "a time to record", "review": "the review"}
+    text = f"{a['who']} emailed {a['name']} the next step, {step.get(a['step'], a['step'])}, on {a['when']}."
+    cm = comment(env, a["issue"], text)
+    return {"issue": a["issue"], "comment": cm["url"]}
+
+
 JOBS = {
     "invited": _invited,
     "sent": _sent,
@@ -466,6 +474,7 @@ JOBS = {
     "reissued": _reissued,
     "claimed": _claimed,
     "signed": _signed,
+    "nudged": _nudged,
 }
 
 

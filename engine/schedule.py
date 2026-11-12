@@ -746,9 +746,10 @@ def choices_table(c, b):
     )
 
 
-def time_body(c, g, msg=None):
+def time_body(c, g, msg=None, nxt=""):
     """Where the request or booking stands, and the form: the part of the page that changes, as one block the
-    script puts back in place after a save."""
+    script puts back in place after a save. `nxt` is the hand-off to what comes next once a time is asked for
+    or booked (progress.py, by way of guests.py), so it changes with the block."""
     s, b, last = settings(), current(c, g["id"]), latest(c, g["id"])
     tz = (b["tz"] if b else None) or g["tz"] or ledger.CONFIG.get("timezone") or "Europe/London"
     body = f'<p class="said honesty" data-said><b>{esc(msg)}</b></p>' if msg else ""
@@ -760,19 +761,19 @@ def time_body(c, g, msg=None):
             f'<p>Your link to the studio: <span class="mono">{esc(join_url(b))}</span></p>'
             f"<p>It opens the studio from an hour before the start to {s['join_after_hours']} hours after it; before "
             "then it shows this booking. Have a quiet room, headphones and, if you can, a wired connection.</p>"
-            f"<p>{go('/time/recording.ics', 'Add it to your calendar', 'signal')} {go('/office', 'Back to the office')}</p>"
+            f"<p>{go('/time/recording.ics', 'Add it to your calendar', 'signal')}</p>"
             '<p class="muted">If the time needs to move, reply to the confirmation, or write to hello@agentsee.work.</p>',
         )
-        return f'<div id="time">{body}</div>'
+        return f'<div id="time">{body}{nxt}<p>{go("/office", "Back to the office")}</p></div>'
     if b:  # asked
         body += section(
             "Asked",
             "With James and Abrar now",
             choices_table(c, b) + "<p>You will hear on this page and by email as soon as both have answered.</p>"
             '<form method="post" action="/time/withdraw" class="inline" data-live>'
-            '<button type="submit">Withdraw and pick again</button></form> ' + go("/office", "Back to the office"),
+            '<button type="submit">Withdraw and pick again</button></form>',
         )
-        return f'<div id="time">{body}</div>'
+        return f'<div id="time">{body}{nxt}<p>{go("/office", "Back to the office")}</p></div>'
     if last and last["state"] in ("declined", "cancelled"):
         why = "None of those times worked" if last["state"] == "declined" else "That recording was cancelled"
         body += (
@@ -807,7 +808,7 @@ def time_body(c, g, msg=None):
     return f'<div id="time">{body}</div>'
 
 
-def time_page(c, g, msg=None, status=200):
+def time_page(c, g, msg=None, status=200, nxt=""):
     """The guest's page: the rules, where their request or booking stands, and the form."""
     if not g["signed_version"]:
         note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
@@ -824,7 +825,7 @@ def time_page(c, g, msg=None, status=200):
         "prefer and up to two backups, in your own time zone; London&#8217;s is shown beside each. Both hosts accept, "
         "one click each, and you get a link that opens the studio when it is time.</p></article>"
     )
-    return "The time", body + time_body(c, g, msg), status
+    return "The time", body + time_body(c, g, msg, nxt), status
 
 
 def join_page(c, b, state):
@@ -845,19 +846,6 @@ def join_page(c, b, state):
         text = f"It was {esc(describe(b['start_at'], b['tz']))}. If something went wrong, write to hello@agentsee.work."
     body = f'<article class="lead"><p class="kicker">The studio</p><h1>{esc(head)}</h1><p class="deck">{text}</p></article>'
     return "The studio", body
-
-
-def step_line(c, g):
-    """The office's line for step 3."""
-    b = current(c, g["id"])
-    if b and b["state"] == "booked":
-        return f"Booked for {esc(describe(b['start_at'], b['tz']))}. {link('/time', 'The details and the join link')}"
-    if b:
-        t = choices_of(b)[b["offered"]]
-        return f"Asked for {esc(describe(t, b['tz']))}; waiting for {esc(', '.join(waiting_for(b)))}. {link('/time', 'Your request')}"
-    if g["signed_version"]:
-        return link("/time", "Pick a time")
-    return '<span class="muted">After the release.</span>'
 
 
 # ─── the engine's side ───────────────────────────────────────────────────────

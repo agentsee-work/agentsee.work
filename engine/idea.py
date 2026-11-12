@@ -713,7 +713,8 @@ def conversation_section(c, g, env):
 def draft_section(c, g, note=""):
     brief = g["brief"] or ""
     inner = note + (
-        f"<p>Saved {esc(when(g['brief_at']))} and sent to James and Abrar. Change anything; a change goes to them too.</p>"
+        f"<p>Saved {esc(when(g['brief_at']))}; James and Abrar have it. Change anything here and the change reaches "
+        "them too.</p>"
         if brief
         else '<p class="muted">Written by the office at the end of its conversation, or pasted here from your own assistant.</p>'
     )
@@ -729,6 +730,12 @@ def about_section(c, g, note=""):
     return section("About you", "For the page and the schedule", note + about_form(c, g), "about")
 
 
+def next_section(card):
+    """The hand-off under the draft (progress.handoff, passed in by guests.py): a block with its id whether or not
+    there is a card in it yet, so the script can put the card there the moment the draft is saved."""
+    return f'<div id="next">{card}</div>'
+
+
 def fragment(c, g, env, name, note=""):
     """One section of the page, as the script puts it back in place after a save or a turn."""
     if name == "conversation":
@@ -740,9 +747,10 @@ def fragment(c, g, env, name, note=""):
     raise KeyError(name)
 
 
-def idea_page(c, g, env, msg=None, status=200, q=None):
+def idea_page(c, g, env, msg=None, status=200, q=None, nxt=""):
     """The page. `q` carries a save's outcome back to its own section (?saved=draft, or ?err=…&at=about)
-    for a browser without script, which lands there by the anchor, the word beside the form."""
+    for a browser without script, which lands there by the anchor, the word beside the form. `nxt` is the
+    hand-off card for under the draft, rendered by guests.py from progress.py; empty until there is a draft."""
     note = f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else ""
     q = q or {}
     notes = {"draft": "", "about": ""}
@@ -773,8 +781,9 @@ def idea_page(c, g, env, msg=None, status=200, q=None):
         + section("Your own assistant", "The questions, as a file", elsewhere)
         + conversation_section(c, g, env)
         + draft_section(c, g, notes["draft"])
+        + next_section(nxt)
         + about_section(c, g, notes["about"])
-        + f"<p>{go('/office', 'Back to the office', 'signal')}</p>"
+        + f"<p>{go('/office', 'Back to the office')}</p>"
     )
     return "The idea", body, status
 
