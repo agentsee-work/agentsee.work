@@ -128,6 +128,21 @@ And `loop.py` turns the ×8 bed into a seamless loop:
 It prints the period in samples, the tempo that implies, and a seam score per
 candidate cycle, then cuts from the cleanest one.
 
+The site's `/seymour/` page loops the same bed as the bass he plays, at the
+level of a cue that plays alone, because there it does. The committed copy is
+made from the delivered loop, not rendered again:
+
+```sh
+ffmpeg -i build/audio/delivery/bed-loop.wav -af volume=14dB -c:a pcm_s16le \
+    -fflags +bitexact -flags:a +bitexact public/media/audio/bass-loop.wav
+```
+
+It is a WAV because the page decodes it and loops it sample for sample in Web
+Audio, and a WAV decodes to exactly the frames that were cut; an mp3 comes
+back with the encoder's padding and the join gaps. Measured after writing:
+−16.3 LUFS, −1.1 dBTP, 174,545 frames, which is two bars at 132 to within a
+sample. The page counts beats on that assumption.
+
 An episode, from the Riverside download to the deliverables:
 
 ```sh
