@@ -290,9 +290,7 @@ resource "cloudflare_dns_record" "bluesky" {
 # re-checks the record from time to time: remove it and, after a grace
 # period, the account loses access to the property. It stays.
 #
-# The token is not a credential (see variables.tf). Bing Webmaster Tools
-# imports the verified property from Search Console and needs no record of
-# its own.
+# The token is not a credential (see variables.tf).
 resource "cloudflare_dns_record" "google_site_verification" {
   zone_id = var.cloudflare_zone_id
   name    = var.domain
@@ -300,6 +298,26 @@ resource "cloudflare_dns_record" "google_site_verification" {
   content = "google-site-verification=${var.google_site_verification}"
   ttl     = 300
   comment = "Google Search Console, Domain property. Re-checked by Google; removing it loses access."
+}
+
+# ─── Bing Webmaster Tools ───────────────────────────────────────────────────
+#
+# Bing verifies a site by a CNAME whose name is the token it issued and whose
+# target is verify.bing.com: it looks the name up and reads the answer. So the
+# record is DNS only; proxied, Cloudflare would answer with its own addresses
+# and the check would fail. Importing the site from Search Console was tried
+# first and did not bring the sitemap with it, so Bing holds the site in its
+# own right and the sitemap is submitted to it by hand. Bing looks at the
+# record again from time to time, so it stays. Bing feeds DuckDuckGo, Yahoo
+# and ChatGPT's search, which is why it is worth a record.
+resource "cloudflare_dns_record" "bing_site_verification" {
+  zone_id = var.cloudflare_zone_id
+  name    = "${var.bing_site_verification}.${var.domain}"
+  type    = "CNAME"
+  content = "verify.bing.com"
+  ttl     = 300
+  proxied = false
+  comment = "Bing Webmaster Tools verification. DNS only on purpose; removing it loses access."
 }
 
 # ─── The engine's door ───────────────────────────────────────────────────────

@@ -235,6 +235,17 @@ variable "google_site_verification" {
   type        = string
 }
 
+variable "bing_site_verification" {
+  description = <<-EOT
+    The token Bing Webmaster Tools gave for agentsee.work, published as the
+    name of a CNAME to verify.bing.com (<token>.<domain>).
+
+    Not a secret, for the same reason as the Google one: a public record,
+    proving only that the account that asked for it also holds this zone.
+  EOT
+  type        = string
+}
+
 # ─── The engine's door (dns.tf) ──────────────────────────────────────────────
 variable "engine_subdomain" {
   description = "Hostname of the podcast engine, under the apex. podcast/variables.tf must agree."

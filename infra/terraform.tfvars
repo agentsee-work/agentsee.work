@@ -57,6 +57,9 @@ bluesky_did = "did:plc:6247kupcnwvc4lu5vmbf4fni"
 # Search Console, Domain property for agentsee.work, 12 November 2026.
 google_site_verification = "g8U7jzT-meh8epQPXA6UtCv39iH9LxneJpm0TgUjHrM"
 
+# Bing Webmaster Tools, verified in its own right, 12 November 2026.
+bing_site_verification = "5454c0caf402dd9253b77d4be4ea082a"
+
 # The podcast engine's tunnel (podcast/engine.tf), applied 16 October 2026.
 # An identifier: the CNAME dns.tf makes from it is public anyway.
 engine_tunnel_id = "05a5debb-5f1a-412d-9eb9-3866d5f5be59"
