@@ -50,6 +50,10 @@ review.py        the review: the round's render from the archive through signed
                  links, the guest's notes with the moment each is about, their
                  approval with its signature and the clips vetoed, the copies
                  and the mail; the records the pipeline reads; the issue told
+progress.py      where a guest is and what is next: one reading of the four
+                 steps for the strip on every office page, the office page,
+                 the hand-off at the end of a step, the Guests screen's Next
+                 column and the mail that names the next step
 pages.py         the page shell in the site's typographic system, and the
                  guest host's
 static/engine.css  tables, forms, a status word; the rest is the site's CSS
@@ -357,6 +361,30 @@ That check reads the `Origin` header, so the guest host's pages say
 `Referrer-Policy: same-origin` where the engine's say `no-referrer`: under
 `no-referrer` a browser posts `Origin: null` to the host's own forms, and
 the door would turn everyone away.
+
+Where the guest is, and what is next, is one reading of the ledger
+(`progress.py`, AGE-150): each of the four steps is done with its date,
+current (the guest's to do), waiting on the hosts (the release they are
+signing, the times they are answering) or locked with why, and the next
+step is the first current one, in the order release, idea, time, review;
+when nothing is the guest's to do the sentence says who is being waited
+on, or that it is all done. Every page of the office draws on that reading,
+so they cannot disagree: a strip under the masthead on each step's page
+(the four steps and the sentence, "Next: pick a time to record", the verb
+a link; a row of four on a desk, the dots and the sentence on a phone), the
+office page itself (the sentence as the deck, the next step as the one card
+with weight), a hand-off card at the foot of a step once that step is no
+longer the guest's to do (so the saved draft hands on to the time, in place,
+with the save), the Guests screen's Next column (the step each guest is on
+and for how long, a week or more marked) and the button on a guest's page
+that emails them the next step by hand (the job `nudged` on the issue). The
+first run-sheet draft is also mailed to the guest with the next step in it,
+the way the signed copy's mail names the idea; a revision gets no mail. The
+pages pass the rendered strip and hand-off in from `guests.py`, so nothing
+below `guests.py` imports `progress.py`. Built because guests fleshed their
+episode out and stopped: the draft said it had been sent to the hosts, which
+read as handed over, and the only sign a time was still to be picked was a
+line on a page they had left.
 
 The review (`review.py`, AGE-111) is the last step of the office. The
 pipeline's `episode.py review <slug>` puts the render as it stands under

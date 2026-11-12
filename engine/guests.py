@@ -51,6 +51,7 @@ import ledger
 import linear
 import mail
 import pages
+import progress
 import release
 import review
 import schedule
@@ -107,6 +108,27 @@ your inbox. A reply, even one word, helps as well: it tells your mail
 service that mail from AgentSee is wanted.
 
 If this was not expected, ignore it; the link does nothing on its own."""
+
+DRAFT_MAIL = """Hello {name},
+
+Your run-sheet draft is with James and Abrar. The office keeps it at
+https://{host}/idea, where you can change anything; it is also at the foot
+of this message, as it stands.
+
+{next}
+
+The office at https://{host} shows where everything stands.
+
+--- the draft ---
+
+{brief}"""
+
+NUDGE_MAIL = """Hello {name},
+
+A note from the office, in case it helps. {next}
+
+The office at https://{host} shows where everything stands; it asks for
+this address and sends you a code."""
 
 
 class Throttled(Exception):
@@ -194,6 +216,42 @@ def tell(c, g, kind, who, **more):
         **more,
     }
     return linear.enqueue(c, kind, args, guest=g["id"])
+
+
+def _mail(c, who, g, subject, kind, text):
+    """A message the flow goes on without: a failure is recorded against the guest, not raised."""
+    try:
+        msgid = mail.send(g["address"], subject, text)
+    except mail.MailError as e:
+        mail.record(c, who, g["address"], kind, error=e, guest=g["id"])
+        return False
+    mail.record(c, who, g["address"], kind, msgid, guest=g["id"])
+    return True
+
+
+def drafted(c, g):
+    """The mail after the first run-sheet draft: the draft itself, where it lives, and the next step with its link,
+    the way the signed copy's mail names the idea (release.COPY_MAIL). Revisions get no mail; the issue has them."""
+    if not g["address"] or not g["brief"]:
+        return False
+    text = DRAFT_MAIL.format(
+        name=g["name"].split()[0], host=HOST, next=progress.next_mail(progress.where(c, g), HOST), brief=g["brief"]
+    )
+    return _mail(c, "see", g, "Your run-sheet draft, and the next step", "draft", text)
+
+
+def nudge(c, g, who):
+    """A host's note to a guest who has stopped: the next step, by mail, from the Guests screen."""
+    if not g["address"]:
+        raise ValueError("No address to write to")
+    w = progress.where(c, g)
+    if not w["next"]:
+        raise ValueError(f"Nothing is theirs to do: {progress.sentence(w, html=False)}")
+    text = NUDGE_MAIL.format(name=g["name"].split()[0], host=HOST, next=progress.next_mail(w, HOST))
+    if not _mail(c, who, g, "The next step for your AgentSee episode", "nudge", text):
+        raise ValueError(f"Not sent: {mail.last_failure(c)['detail']}")
+    tell(c, g, "nudged", who, step=w["next"]["key"])
+    return f"Sent to {g['address']}: {progress.sentence(w, html=False)}"
 
 
 def create(c, name, address, issue, who, angle=None, env=None):
@@ -518,8 +576,20 @@ def same_site(h):
     return h.headers.get("Sec-Fetch-Site", "same-origin") in ("same-origin", "none")
 
 
-def page(h, title, body, status=200, headers=None):
-    h.send(status, see_page(title, body), headers=headers)
+def page(h, title, body, status=200, headers=None, strip=""):
+    """A page of the guest host. `strip` is the progress strip (progress.py), which every step's page carries
+    under the masthead; the office page is the strip at full size and the door has nobody to show it to."""
+    h.send(status, see_page(title, strip + body), headers=headers)
+
+
+def step_page(h, c, g, key, result):
+    """One of the four steps' pages, with the strip that says which it is."""
+    title, body, status = result
+    page(h, title, body, status, strip=progress.strip(c, g, key))
+
+
+def handoff(c, g, after):
+    return progress.handoff(c, guest(c, g["id"]), after)
 
 
 ARRIVAL = (
@@ -606,34 +676,17 @@ def csp(base):
 
 
 def office(c, h, g, s):
+    """The hub: where things stand in one sentence, then the four steps with the next one as the card with
+    weight (progress.py). A guest who has done what is theirs sees who they are waiting on."""
     first = g["name"].split()[0]
     if g["signed_version"]:
         review.fetch(c, g, force=False)  # a new round, if the pipeline put one up since the last look
-        step1 = f"Signed on {esc(when(g['signed_at']))}. {link('/release', 'Your copy')}"
-    elif release.issued(c):
-        step1 = link("/release", "Read and sign it")
-    else:
-        step1 = '<span class="muted">Soon.</span>'
-    if g["brief"]:
-        step2 = f"Drafted {esc(when(g['brief_at']))}. {link('/idea', 'The conversation and the draft')}"
-    elif g["signed_version"]:
-        step2 = link("/idea", "Sit down with the office")
-    else:
-        step2 = '<span class="muted">After the release.</span>'
+    w = progress.where(c, g)
     body = (
         f'<article class="lead"><p class="kicker">The office</p><h1>You\'re in, {esc(first)}.</h1>'
-        '<p class="deck">What happens from here, in order. Each step opens as it is ready; nothing is published '
-        "until you have approved it.</p></article>"
-        '<ol class="steps">'
-        "<li><b>The release.</b> One page in plain words, already signed by James and Abrar; you read it and sign it. "
-        f"{step1}</li>"
-        "<li><b>The idea.</b> A short conversation with the office, about ten minutes, that fleshes it out and writes "
-        "the run-sheet. "
-        f"{step2}</li>"
-        "<li><b>The time.</b> You pick a time and two backups; both hosts accept; you get a link that opens the studio "
-        f"when it is time. {schedule.step_line(c, g)}</li>"
-        "<li><b>The review.</b> The episode and the clips, to watch, note and approve before anything goes out. "
-        f"{review.step_line(c, g)}</li></ol>"
+        f'<p class="deck">{esc(progress.summary(w))} {progress.sentence(w)}</p></article>'
+        + progress.hub(w)
+        + '<p class="muted">Each step opens as it is ready; nothing is published until you have approved it.</p>'
         f'<p class="muted">Signed in as {esc(s["address"])} on this device since {esc(when(s["created_at"]))}. '
         "A new device asks for a code of its own.</p>"
         '<form method="post" action="/leave" class="inline"><button type="submit">Leave</button></form>'
@@ -663,7 +716,7 @@ def get(h, c, path, q):
     if path == "/release":
         if not g:
             return h.redirect("/")
-        return page(h, *release.release_page(c, g))
+        return step_page(h, c, g, "release", release.release_page(c, g, nxt=handoff(c, g, "release")))
     if path == "/release.pdf":
         if not g:
             return h.redirect("/")
@@ -682,7 +735,7 @@ def get(h, c, path, q):
     if path == "/review":
         if not g:
             return h.redirect("/")
-        return page(h, *review.review_page(c, g))
+        return step_page(h, c, g, "review", review.review_page(c, g))
     if path == "/review/approval.html":
         a = review.approval(c, g["id"]) if g else None
         if not a:
@@ -698,7 +751,7 @@ def get(h, c, path, q):
     if path == "/idea":
         if not g:
             return h.redirect("/")
-        return page(h, *idea.idea_page(c, g, os.environ, q=q))
+        return step_page(h, c, g, "idea", idea.idea_page(c, g, os.environ, q=q, nxt=handoff(c, g, "idea")))
     if path == "/idea/skill.md":
         if not g:
             return h.redirect("/")
@@ -716,7 +769,7 @@ def get(h, c, path, q):
     if path == "/time":
         if not g:
             return h.redirect("/")
-        return page(h, *schedule.time_page(c, g))
+        return step_page(h, c, g, "time", schedule.time_page(c, g, nxt=handoff(c, g, "time")))
     if path == "/time/recording.ics":
         b = schedule.current(c, g["id"]) if g else None
         if not b or b["state"] != "booked":
@@ -773,11 +826,14 @@ def say(h, c, g, form):
     or `fail` with a sentence. Without, the reply is waited for and the page comes back whole."""
     streaming = "text/event-stream" in h.headers.get("Accept", "")
     start = form.get("start") == "1"
+    first = not g["brief"]  # the first draft is the one that gets the mail, with the next step in it
     if not streaming:
         try:
             idea.reply(c, g, os.environ, form.get("text"), start=start)
         except idea.IdeaError as e:
-            return page(h, *idea.idea_page(c, g, os.environ, str(e), 400))
+            return step_page(h, c, g, "idea", idea.idea_page(c, g, os.environ, str(e), 400, nxt=handoff(c, g, "idea")))
+        if first and guest(c, g["id"])["brief"]:
+            drafted(c, guest(c, g["id"]))
         return h.redirect("/idea#conversation")
     h.send_response(200)
     h.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -790,7 +846,7 @@ def say(h, c, g, form):
         h.wfile.flush()
 
     try:
-        out, stop, drafted = idea.reply(c, g, os.environ, form.get("text"), lambda s: emit("delta", {"t": s}), start)
+        out, stop, wrote = idea.reply(c, g, os.environ, form.get("text"), lambda s: emit("delta", {"t": s}), start)
     except idea.IdeaError as e:
         emit("fail", {"m": str(e)})
         return None
@@ -798,9 +854,12 @@ def say(h, c, g, form):
     sections = []
     if start or idea.allowed(c, g, os.environ):
         sections.append({"id": "conversation", "html": idea.fragment(c, g, os.environ, "conversation")})
-    if drafted:
+    if wrote:
         sections.append({"id": "draft", "html": idea.fragment(c, g, os.environ, "draft")})
+        sections.append({"id": "next", "html": idea.next_section(progress.handoff(c, g, "idea"))})
     emit("done", {"html": idea.turn_html("agent", out), "sections": sections})
+    if wrote and first:  # after the reply and the sections are out: the swap waits the mail's second, the words do not
+        drafted(c, g)
     return None
 
 
@@ -817,6 +876,7 @@ def post(h, c, path, form, files=None):
         at = {"/idea/brief": "draft", "/idea/about": "about"}.get(path)
         if not at:
             return not_found(h)
+        first = at == "draft" and not g["brief"]
         try:  # the section comes back in place with its word; without script, the page does, at that section
             if at == "draft":
                 idea.save_brief(c, g, form.get("brief"), "guest")
@@ -826,10 +886,15 @@ def post(h, c, path, form, files=None):
             if live(h):
                 return answer(h, 400, ok=False, error=str(e))
             return h.redirect("/idea?" + urllib.parse.urlencode({"err": str(e), "at": at}) + f"#{at}")
+        if first:
+            drafted(c, guest(c, g["id"]))
         mirror(c, g["id"])
         if live(h):
-            html = idea.fragment(c, guest(c, g["id"]), os.environ, at, idea.word("Saved."))
-            return answer(h, 200, ok=True, sections=[{"id": at, "html": html}])
+            g = guest(c, g["id"])
+            sections = [{"id": at, "html": idea.fragment(c, g, os.environ, at, idea.word("Saved."))}]
+            if at == "draft":  # the hand-off under the draft changes with it: the time, once there is a draft
+                sections.append({"id": "next", "html": idea.next_section(progress.handoff(c, g, "idea"))})
+            return answer(h, 200, ok=True, sections=sections)
         return h.redirect(f"/idea?saved={at}#{at}")
     if path == "/enter":
         invite = " ".join((form.get("invite") or "").split()) or None
@@ -896,10 +961,11 @@ def post(h, c, path, form, files=None):
         except schedule.ScheduleError as e:
             if live(h):
                 return answer(h, 400, ok=False, error=str(e))
-            return page(h, *schedule.time_page(c, g, str(e), 400))
+            return step_page(h, c, g, "time", schedule.time_page(c, g, str(e), 400, nxt=handoff(c, g, "time")))
         mirror(c, g["id"])
         if live(h):
-            return answer(h, 200, ok=True, sections=[{"id": "time", "html": schedule.time_body(c, guest(c, g["id"]))}])
+            html = schedule.time_body(c, guest(c, g["id"]), nxt=handoff(c, g, "time"))
+            return answer(h, 200, ok=True, sections=[{"id": "time", "html": html}])
         return h.redirect("/time")
     if path == "/release/sign":
         g, s = current(c, h)
@@ -909,7 +975,7 @@ def post(h, c, path, form, files=None):
             why = "Draw your signature in the box, or choose a photo of it"
             if live(h):
                 return answer(h, 400, ok=False, error=why)
-            return page(h, *release.release_page(c, g, why, 400))
+            return step_page(h, c, g, "release", release.release_page(c, g, why, 400))
         try:
             g, n, keys, sent = release.sign_as_guest(
                 c, g, form.get("name"), form.get("signature"), form.get("agree") == "yes", ip, ua
@@ -917,7 +983,7 @@ def post(h, c, path, form, files=None):
         except release.ReleaseError as e:
             if live(h):  # the drawing stays on the pad; only the word changes
                 return answer(h, 400, ok=False, error=str(e))
-            return page(h, *release.release_page(c, g, str(e), 400))
+            return step_page(h, c, g, "release", release.release_page(c, g, str(e), 400))
         tell(c, g, "signed", s["address"], version=n, copy=keys.get("pdf") or keys.get("html"))
         mirror(c, g["id"])
         if live(h):
@@ -932,7 +998,7 @@ def post(h, c, path, form, files=None):
         except review.ReviewError as e:
             if live(h):
                 return answer(h, 400, ok=False, error=str(e))
-            return page(h, *review.review_page(c, g, str(e), 400))
+            return step_page(h, c, g, "review", review.review_page(c, g, str(e), 400))
         mirror(c, g["id"])
         if live(h):
             row = review.current(c, g["id"])
@@ -950,7 +1016,7 @@ def post(h, c, path, form, files=None):
         except review.ReviewError as e:
             if live(h):
                 return answer(h, 400, ok=False, error=str(e))
-            return page(h, *review.review_page(c, g, str(e), 400))
+            return step_page(h, c, g, "review", review.review_page(c, g, str(e), 400))
         mirror(c, g["id"])
         if live(h):
             row = review.current(c, g["id"])
@@ -964,13 +1030,13 @@ def post(h, c, path, form, files=None):
             why = "Draw your signature in the box, or choose a photo of it"
             if live(h):
                 return answer(h, 400, ok=False, error=why)
-            return page(h, *review.review_page(c, g, why, 400))
+            return step_page(h, c, g, "review", review.review_page(c, g, why, 400))
         try:
             a, keys, sent = review.approve(c, g, form, ip, ua)
         except review.ReviewError as e:
             if live(h):
                 return answer(h, 400, ok=False, error=str(e))
-            return page(h, *review.review_page(c, g, str(e), 400))
+            return step_page(h, c, g, "review", review.review_page(c, g, str(e), 400))
         row = review.current(c, g["id"])
         tell(
             c,
@@ -1005,6 +1071,7 @@ def guests_page(c, csrf, msg=None):
                 esc(g["address"] or "—"),
                 esc(g["issue"] or ""),
                 state_word(g["state"]),
+                progress.cell(c, g),
                 f'<span class="mono">{esc(invite_url(g))}</span>'
                 if g["state"] != "revoked"
                 else '<span class="muted">withdrawn</span>',
@@ -1025,13 +1092,14 @@ def guests_page(c, csrf, msg=None):
     )
     body = (
         '<article class="lead"><h1>Guests</h1><p class="deck">Who has been invited onto the podcast, and how far '
-        f"each has come through {esc(HOST)}. The guest's own journey is theirs; this is the view from the office.</p></article>"
+        f"each has come through {esc(HOST)}: Next is the step that is theirs to do and how long it has been, a week "
+        "or more marked. The guest's own journey is theirs; this is the view from the office.</p></article>"
         + note
         + section("New", "An invitation", form)
         + section(
             "Guests",
             f"{len(rows)} invited",
-            table(["Guest", "Address", "Issue", "State", "Invitation", "Claimed", "Signed", "Booked"], rows)
+            table(["Guest", "Address", "Issue", "State", "Next", "Invitation", "Claimed", "Signed", "Booked"], rows)
             if rows
             else "<p>No guests yet.</p>",
         )
@@ -1122,6 +1190,7 @@ def guest_page(c, gid, csrf, msg=None, who=None):
         ),
         ("Made", f"{esc(when(g['created_at']))} by {esc(g['created_by'])}"),
         ("Claimed", esc(when(g["claimed_at"])) or '<span class="muted">not yet</span>'),
+        ("Next", progress.host_line(c, g) if g["claimed_at"] else '<span class="muted">not in yet</span>'),
         (
             "Release",
             f"signed version {g['signed_version']} on {esc(when(g['signed_at']))}; "
@@ -1154,6 +1223,8 @@ def guest_page(c, gid, csrf, msg=None, who=None):
             ).fetchone()
             label = "Send the invitation again by email" if again else "Send the invitation by email"
             acts.append(button(f"/guests/{gid}/send", label, csrf, "signal"))
+            if g["claimed_at"] and progress.where(c, g)["next"]:
+                acts.append(button(f"/guests/{gid}/nudge", "Email them the next step", csrf))
         acts.append(button(f"/guests/{gid}/reissue", "New link, every session ended", csrf))
         acts.append(button(f"/guests/{gid}/revoke", "Withdraw", csrf, confirm=True))
     sessions = c.execute("SELECT * FROM session WHERE guest=? ORDER BY created_at DESC", (gid,)).fetchall()
@@ -1228,6 +1299,10 @@ def act(c, g, action, who, form=None):
         mail.record(c, who, g["address"], "invitation", msgid, guest=gid)
         tell(c, g, "sent", who)
         return f"Sent to {g['address']}"
+    if action == "nudge":
+        if g["state"] == "revoked":
+            raise ValueError("Withdrawn; reissue first")
+        return nudge(c, g, who)
     if action == "revoke":
         revoke(c, gid, who)
         return "Withdrawn; the link and every session are dead"

@@ -13,11 +13,58 @@ main.see .lead .kicker { font-family: var(--mono); font-size: .75rem; letter-spa
 .door input[type=text] { font-family: var(--mono); letter-spacing: .3em; max-width: 12rem; }
 .door button { margin-top: .4rem; }
 .honesty { max-width: 44rem; }
-.steps { max-width: 44rem; padding-left: 1.4rem; line-height: 1.5; }
-.steps li { margin: .7rem 0; }
-.steps li .muted { font-family: var(--mono); font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; margin-left: .4rem; }
 main.see .release { font-size: 1.05rem; }
-main.see .sign { max-width: 44rem; }
+
+/* Where the guest is (engine/progress.py). The dot is shared by the strip and the office page: a tick on a done
+   step, the number otherwise; the next step's in the signal colour, a step with the hosts dashed, a locked one faint.
+   (Not .mark, which is the eye in styles.css, nor .steps, which is the site's grid of cards.) */
+.dot { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 1.5rem; height: 1.5rem;
+  border-radius: 50%; border: 1px solid var(--ink-2); font-family: var(--mono); font-size: .72rem; line-height: 1; color: var(--ink-2); }
+[data-state=done] > .dot, [data-state=done] > .head > .dot { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+[data-state=current] > .dot, [data-state=current] > .head > .dot { border-color: var(--signal); color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); }
+[data-state=waiting] > .dot, [data-state=waiting] > .head > .dot { border-style: dashed; }
+[data-state=locked] > .dot, [data-state=locked] > .head > .dot { border-color: var(--hair); color: var(--ink-3); }
+
+/* The strip under the masthead on each step's page: the four across, and the one sentence that says what is next.
+   On a desk each step carries a line (its date, "Next", who has it); on a phone the dots and names stand alone and
+   the sentence does the telling. The page's own step is underlined. */
+.progress { margin: 0 0 .4rem; padding: .6rem 0 .7rem; border-top: 2px solid var(--rule); border-bottom: var(--hairline); }
+main.see .progress .home { display: inline-block; border: 0; font-family: var(--mono); font-size: .72rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-3); }
+main.see .progress .home:hover { color: var(--signal); }
+.progress ol { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: .6rem; }
+.progress li { display: grid; grid-template-columns: auto 1fr; column-gap: .5rem; align-items: start; line-height: 1.3; min-width: 0; }
+.progress li .dot { grid-row: 1 / 3; margin-top: .05rem; }
+.progress li b { font-weight: 500; }
+main.see .progress li b a { border: 0; }
+main.see .progress li b a:hover { color: var(--signal); }
+.progress li[aria-current] b, .progress li[aria-current] b a { font-weight: 700; text-decoration-thickness: 2px; text-underline-offset: .18em; }
+.progress li small { display: block; font-size: .78rem; color: var(--ink-3); overflow-wrap: anywhere; }
+.progress li[data-state=current] small { color: var(--signal); font-family: var(--mono); font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; }
+.progress li[data-state=locked] b { color: var(--ink-3); }
+.progress .next { margin: .7rem 0 0; }
+@media (max-width: 46rem) {
+  .progress ol { gap: .25rem; }
+  .progress li { grid-template-columns: 1fr; justify-items: center; row-gap: .25rem; text-align: center; }
+  .progress li .dot { grid-row: auto; margin: 0; }
+  .progress li small { display: none; }
+  .progress li b { font-size: .88rem; }
+  .progress .next { text-align: center; }
+}
+
+/* The office page's four, in order: the next step is the one card with weight; a done step folds to its date and a
+   link; a locked one says why in a faint dashed box. Two by two on a desk, one under another on a phone. */
+.journey { list-style: none; margin: 0 0 1.4rem; padding: 0; max-width: 44rem; display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: .8rem; }
+.journey li { margin: 0; padding: .75rem .95rem; border: var(--hairline); border-radius: 4px; line-height: 1.5; }
+.journey li[data-next] { border-color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); background: var(--paper-2); }
+.journey li[data-state=locked] { border-style: dashed; color: var(--ink-3); }
+.journey .head { display: flex; align-items: center; gap: .6rem; margin: 0; }
+.journey .head b { font-weight: 600; font-size: 1.05rem; }
+.journey li p { margin: .35rem 0 0 2.1rem; }
+.journey li p + p { margin-top: .6rem; }
+.journey li[data-state=locked] p { margin-top: .15rem; }
+@media (max-width: 46rem) { .journey li p { margin-left: 0; } }
 
 /* The idea conversation (engine/idea.py, static/chat.js). */
 .chat { max-width: 44rem; }
