@@ -282,6 +282,26 @@ resource "cloudflare_dns_record" "bluesky" {
   comment = "Bluesky handle verification for @agentsee.work"
 }
 
+# ─── Google Search Console ──────────────────────────────────────────────────
+#
+# A Domain property covers every host and scheme under agentsee.work at once,
+# so one record verifies the site, the podcast host and the guest's office
+# together, where a URL-prefix property would need one per origin. Google
+# re-checks the record from time to time: remove it and, after a grace
+# period, the account loses access to the property. It stays.
+#
+# The token is not a credential (see variables.tf). Bing Webmaster Tools
+# imports the verified property from Search Console and needs no record of
+# its own.
+resource "cloudflare_dns_record" "google_site_verification" {
+  zone_id = var.cloudflare_zone_id
+  name    = var.domain
+  type    = "TXT"
+  content = "google-site-verification=${var.google_site_verification}"
+  ttl     = 300
+  comment = "Google Search Console, Domain property. Re-checked by Google; removing it loses access."
+}
+
 # ─── The engine's door ───────────────────────────────────────────────────────
 # The podcast engine runs on this box behind a Cloudflare Tunnel declared in
 # podcast/engine.tf, on the podcast's token, which cannot write DNS. The one

@@ -54,6 +54,9 @@ ua_auto_config_hash = "jvR8LcNlYIuK3QEJm8c2IMoEUNoKwhQYUs2uCq55j+E="
 
 bluesky_did = "did:plc:6247kupcnwvc4lu5vmbf4fni"
 
+# Search Console, Domain property for agentsee.work, 12 November 2026.
+google_site_verification = "g8U7jzT-meh8epQPXA6UtCv39iH9LxneJpm0TgUjHrM"
+
 # The podcast engine's tunnel (podcast/engine.tf), applied 16 October 2026.
 # An identifier: the CNAME dns.tf makes from it is public anyway.
 engine_tunnel_id = "05a5debb-5f1a-412d-9eb9-3866d5f5be59"

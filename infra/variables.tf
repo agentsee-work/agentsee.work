@@ -223,6 +223,18 @@ variable "bluesky_did" {
   type        = string
 }
 
+variable "google_site_verification" {
+  description = <<-EOT
+    The token Google Search Console gave for the Domain property, published
+    as a TXT record at the apex (google-site-verification=<token>).
+
+    Not a secret. It is a public DNS record the moment it is applied, and it
+    proves only that whoever holds the Search Console account also holds this
+    zone; on anyone else's zone it does nothing for them.
+  EOT
+  type        = string
+}
+
 # ─── The engine's door (dns.tf) ──────────────────────────────────────────────
 variable "engine_subdomain" {
   description = "Hostname of the podcast engine, under the apex. podcast/variables.tf must agree."
