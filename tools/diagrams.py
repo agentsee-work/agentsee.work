@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The diagrams of Issue No. 8, the map of the podcast pipeline, as inline SVG.
+"""The diagrams of Issues No. 8 and No. 9, the pipeline and the guest's office, as inline SVG.
 
 Every figure is drawn in the page's own colour tokens (var(--ink), var(--paper-2),
 var(--signal), ...), so it follows light and dark mode with the text around it,
@@ -10,6 +10,7 @@ brand marks are Simple Icons (CC0; the marks belong to their owners), reduced to
 their path data below.
 
     python3 tools/diagrams.py public/issues/08-pipeline.html
+    python3 tools/diagrams.py public/issues/09-office.html
 
 replaces each `<!-- fig:NAME -->...<!-- /fig:NAME -->` block in the page with the
 figure of that name, and says which it replaced.
@@ -24,9 +25,11 @@ import textwrap
 # Simple Icons, CC0 (simpleicons.org), each a 24-unit path; the marks belong to their owners.
 ICONS = {
     "bluesky": "M5.202 2.857C7.954 4.922 10.913 9.11 12 11.358c1.087-2.247 4.046-6.436 6.798-8.501C20.783 1.366 24 .213 24 3.883c0 .732-.42 6.156-.667 7.037-.856 3.061-3.978 3.842-6.755 3.37 4.854.826 6.089 3.562 3.422 6.299-5.065 5.196-7.28-1.304-7.847-2.97-.104-.305-.152-.448-.153-.327 0-.121-.05.022-.153.327-.568 1.666-2.782 8.166-7.847 2.97-2.667-2.737-1.432-5.473 3.422-6.3-2.777.473-5.899-.308-6.755-3.369C.42 10.04 0 4.615 0 3.883c0-3.67 3.217-2.517 5.202-1.026",
+    "claude": "m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z",
     "cloudflare": "M16.5088 16.8447c.1475-.5068.0908-.9707-.1553-1.3154-.2246-.3164-.6045-.499-1.0615-.5205l-8.6592-.1123a.1559.1559 0 0 1-.1333-.0713c-.0283-.042-.0351-.0986-.021-.1553.0278-.084.1123-.1484.2036-.1562l8.7359-.1123c1.0351-.0489 2.1601-.8868 2.5537-1.9136l.499-1.3013c.0215-.0561.0293-.1128.0147-.168-.5625-2.5463-2.835-4.4453-5.5499-4.4453-2.5039 0-4.6284 1.6177-5.3876 3.8614-.4927-.3658-1.1187-.5625-1.794-.499-1.2026.119-2.1665 1.083-2.2861 2.2856-.0283.31-.0069.6128.0635.894C1.5683 13.171 0 14.7754 0 16.752c0 .1748.0142.3515.0352.5273.0141.083.0844.1475.1689.1475h15.9814c.0909 0 .1758-.0645.2032-.1553l.12-.4268zm2.7568-5.5634c-.0771 0-.1611 0-.2383.0112-.0566 0-.1054.0415-.127.0976l-.3378 1.1744c-.1475.5068-.0918.9707.1543 1.3164.2256.3164.6055.498 1.0625.5195l1.8437.1133c.0557 0 .1055.0263.1329.0703.0283.043.0351.1074.0214.1562-.0283.084-.1132.1485-.204.1553l-1.921.1123c-1.041.0488-2.1582.8867-2.5527 1.914l-.1406.3585c-.0283.0713.0215.1416.0986.1416h6.5977c.0771 0 .1474-.0489.169-.126.1122-.4082.1757-.837.1757-1.2803 0-2.6025-2.125-4.727-4.7344-4.727",
     "docker": "M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.185.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.185.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.185.186.186m5.893 2.715h2.118a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.185V9.006a.185.185 0 00-.184-.186h-2.12a.186.186 0 00-.186.186v1.887c0 .102.084.185.186.185m-2.92 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.082.185.185.185M23.763 9.89c-.065-.051-.672-.51-1.954-.51-.338.001-.676.03-1.01.087-.248-1.7-1.653-2.53-1.716-2.566l-.344-.199-.226.327c-.284.438-.49.922-.612 1.43-.23.97-.09 1.882.403 2.661-.595.332-1.55.413-1.744.42H.751a.751.751 0 00-.75.748 11.376 11.376 0 00.692 4.062c.545 1.428 1.355 2.48 2.41 3.124 1.18.723 3.1 1.137 5.275 1.137.983.003 1.963-.086 2.93-.266a12.248 12.248 0 003.823-1.389c.98-.567 1.86-1.288 2.61-2.136 1.252-1.418 1.998-2.997 2.553-4.4h.221c1.372 0 2.215-.549 2.68-1.009.309-.293.55-.65.707-1.046l.098-.288Z",
     "instagram": "M7.0301.084c-1.2768.0602-2.1487.264-2.911.5634-.7888.3075-1.4575.72-2.1228 1.3877-.6652.6677-1.075 1.3368-1.3802 2.127-.2954.7638-.4956 1.6365-.552 2.914-.0564 1.2775-.0689 1.6882-.0626 4.947.0062 3.2586.0206 3.6671.0825 4.9473.061 1.2765.264 2.1482.5635 2.9107.308.7889.72 1.4573 1.388 2.1228.6679.6655 1.3365 1.0743 2.1285 1.38.7632.295 1.6361.4961 2.9134.552 1.2773.056 1.6884.069 4.9462.0627 3.2578-.0062 3.668-.0207 4.9478-.0814 1.28-.0607 2.147-.2652 2.9098-.5633.7889-.3086 1.4578-.72 2.1228-1.3881.665-.6682 1.0745-1.3378 1.3795-2.1284.2957-.7632.4966-1.636.552-2.9124.056-1.2809.0692-1.6898.063-4.948-.0063-3.2583-.021-3.6668-.0817-4.9465-.0607-1.2797-.264-2.1487-.5633-2.9117-.3084-.7889-.72-1.4568-1.3876-2.1228C21.2982 1.33 20.628.9208 19.8378.6165 19.074.321 18.2017.1197 16.9244.0645 15.6471.0093 15.236-.005 11.977.0014 8.718.0076 8.31.0215 7.0301.0839m.1402 21.6932c-1.17-.0509-1.8053-.2453-2.2287-.408-.5606-.216-.96-.4771-1.3819-.895-.422-.4178-.6811-.8186-.9-1.378-.1644-.4234-.3624-1.058-.4171-2.228-.0595-1.2645-.072-1.6442-.079-4.848-.007-3.2037.0053-3.583.0607-4.848.05-1.169.2456-1.805.408-2.2282.216-.5613.4762-.96.895-1.3816.4188-.4217.8184-.6814 1.3783-.9003.423-.1651 1.0575-.3614 2.227-.4171 1.2655-.06 1.6447-.072 4.848-.079 3.2033-.007 3.5835.005 4.8495.0608 1.169.0508 1.8053.2445 2.228.408.5608.216.96.4754 1.3816.895.4217.4194.6816.8176.9005 1.3787.1653.4217.3617 1.056.4169 2.2263.0602 1.2655.0739 1.645.0796 4.848.0058 3.203-.0055 3.5834-.061 4.848-.051 1.17-.245 1.8055-.408 2.2294-.216.5604-.4763.96-.8954 1.3814-.419.4215-.8181.6811-1.3783.9-.4224.1649-1.0577.3617-2.2262.4174-1.2656.0595-1.6448.072-4.8493.079-3.2045.007-3.5825-.006-4.848-.0608M16.953 5.5864A1.44 1.44 0 1 0 18.39 4.144a1.44 1.44 0 0 0-1.437 1.4424M5.8385 12.012c.0067 3.4032 2.7706 6.1557 6.173 6.1493 3.4026-.0065 6.157-2.7701 6.1506-6.1733-.0065-3.4032-2.771-6.1565-6.174-6.1498-3.403.0067-6.156 2.771-6.1496 6.1738M8 12.0077a4 4 0 1 1 4.008 3.9921A3.9996 3.9996 0 0 1 8 12.0077",
+    "linear": "M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z",
     "mastodon": "M23.268 5.313c-.35-2.578-2.617-4.61-5.304-5.004C17.51.242 15.792 0 11.813 0h-.03c-3.98 0-4.835.242-5.288.309C3.882.692 1.496 2.518.917 5.127.64 6.412.61 7.837.661 9.143c.074 1.874.088 3.745.26 5.611.118 1.24.325 2.47.62 3.68.55 2.237 2.777 4.098 4.96 4.857 2.336.792 4.849.923 7.256.38.265-.061.527-.132.786-.213.585-.184 1.27-.39 1.774-.753a.057.057 0 0 0 .023-.043v-1.809a.052.052 0 0 0-.02-.041.053.053 0 0 0-.046-.01 20.282 20.282 0 0 1-4.709.545c-2.73 0-3.463-1.284-3.674-1.818a5.593 5.593 0 0 1-.319-1.433.053.053 0 0 1 .066-.054c1.517.363 3.072.546 4.632.546.376 0 .75 0 1.125-.01 1.57-.044 3.224-.124 4.768-.422.038-.008.077-.015.11-.024 2.435-.464 4.753-1.92 4.989-5.604.008-.145.03-1.52.03-1.67.002-.512.167-3.63-.024-5.545zm-3.748 9.195h-2.561V8.29c0-1.309-.55-1.976-1.67-1.976-1.23 0-1.846.79-1.846 2.35v3.403h-2.546V8.663c0-1.56-.617-2.35-1.848-2.35-1.112 0-1.668.668-1.67 1.977v6.218H4.822V8.102c0-1.31.337-2.35 1.011-3.12.696-.77 1.608-1.164 2.74-1.164 1.311 0 2.302.5 2.962 1.498l.638 1.06.638-1.06c.66-.999 1.65-1.498 2.96-1.498 1.13 0 2.043.395 2.74 1.164.675.77 1.012 1.81 1.012 3.12z",
     "nvidia": "M8.948 8.798v-1.43a6.7 6.7 0 0 1 .424-.018c3.922-.124 6.493 3.374 6.493 3.374s-2.774 3.851-5.75 3.851c-.398 0-.787-.062-1.158-.185v-4.346c1.528.185 1.837.857 2.747 2.385l2.04-1.714s-1.492-1.952-4-1.952a6.016 6.016 0 0 0-.796.035m0-4.735v2.138l.424-.027c5.45-.185 9.01 4.47 9.01 4.47s-4.08 4.964-8.33 4.964c-.37 0-.733-.035-1.095-.097v1.325c.3.035.61.062.91.062 3.957 0 6.82-2.023 9.593-4.408.459.371 2.34 1.263 2.73 1.652-2.633 2.208-8.772 3.984-12.253 3.984-.335 0-.653-.018-.971-.053v1.864H24V4.063zm0 10.326v1.131c-3.657-.654-4.673-4.46-4.673-4.46s1.758-1.944 4.673-2.262v1.237H8.94c-1.528-.186-2.73 1.245-2.73 1.245s.68 2.412 2.739 3.11M2.456 10.9s2.164-3.197 6.5-3.533V6.201C4.153 6.59 0 10.653 0 10.653s2.35 6.802 8.948 7.42v-1.237c-4.84-.6-6.492-5.936-6.492-5.936z",
     "threads": "M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.783 3.631 2.698 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.75-1.757-.513-.586-1.308-.883-2.359-.89h-.029c-.844 0-1.992.232-2.721 1.32L7.734 7.847c.98-1.454 2.568-2.256 4.478-2.256h.044c3.194.02 5.097 1.975 5.287 5.388.108.046.216.094.321.142 1.49.7 2.58 1.761 3.154 3.07.797 1.82.871 4.79-1.548 7.158-1.85 1.81-4.094 2.628-7.277 2.65Zm1.003-11.69c-.242 0-.487.007-.739.021-1.836.103-2.98.946-2.916 2.143.067 1.256 1.452 1.839 2.784 1.767 1.224-.065 2.818-.543 3.086-3.71a10.5 10.5 0 0 0-2.215-.221z",
@@ -144,14 +147,21 @@ class Band:
 
 
 def draw_node(c, n):
-    cls = {"auto": "d-box", "hand": "d-box d-hand", "store": "d-box d-store", "future": "d-box d-future"}[n.kind]
+    cls = {
+        "auto": "d-box",
+        "hand": "d-box d-hand",
+        "guest": "d-box d-hand",
+        "host": "d-box d-host",
+        "store": "d-box d-store",
+        "future": "d-box d-future",
+    }[n.kind]
     c.rect(n.x, n.y, n.w, n.h, cls, rx=3)
     tx = n.x + PAD
     ty = n.y + PAD + TITLE - 2
     if n.icon:
         c.icon(n.icon, n.x + PAD, n.y + PAD - 1, 14)
         tx += 20
-    c.text(tx, ty, n.title, "d-title d-title-hand" if n.kind == "hand" else "d-title")
+    c.text(tx, ty, n.title, "d-title d-title-hand" if n.kind in ("hand", "guest") else "d-title")
     if n.chip:
         c.text(n.x + n.w - PAD, ty, n.chip, "d-chip d-chip-gpu" if n.chip == "GPU" else "d-chip", anchor="end")
     c.lines(n.x + PAD, ty + 4 + LH, n.lines, "d-sub")
@@ -255,11 +265,11 @@ def flow(bands, cross, width, cols, title, gap=14, row_gap=18, band_gap=20, marg
     return c
 
 
-def chain(nodes, title, orient, width):
+def chain(nodes, title, orient, width, cols=None):
     """A line of steps: left to right on a desk, top to bottom on a phone."""
     band = Band("", "", nodes)
     if orient == "wide":
-        return flow([band], [], width, len(nodes), title, gap=20, margin=10, frame=False)
+        return flow([band], [], width, cols or len(nodes), title, gap=20, margin=10, frame=False)
     return flow([band], [], width, 1, title, row_gap=22, margin=10, frame=False)
 
 
@@ -736,6 +746,537 @@ def fig_plan(orient):
     )
 
 
+# ═══════════════  Issue No. 9: the guest's office  ═══════════════
+#
+# Three kinds of box here: orange for the guest's own step, a dark edge for a
+# host's, plain for the engine and the model.
+
+
+def fig_office_map(orient):
+    wide = orient == "wide"
+    N = Node
+    invite = Band(
+        "The invitation",
+        "the Guests screen on the engine; the mail from office@",
+        [
+            N(
+                "find",
+                "a name and an address",
+                "two steps on the Guests screen; the guest's Linear issue found in the project by name, made there, or typed",
+                kind="host",
+            ),
+            N(
+                "invite",
+                "the link",
+                "carries an id, not a secret: one made for an address refuses any other; one made without is claimed by the first address that passes a code",
+            ),
+            N(
+                "imail",
+                "the mail",
+                "from office@agentsee.work, Reply-To hello@: the link, a line to look in the junk folder, and that a reply helps our reputation",
+            ),
+            N(
+                "told",
+                "the issue told",
+                "guest-invited; every step after lands on the same issue, the guest's words always quoted",
+                icon="linear",
+            ),
+        ],
+    )
+    door = Band(
+        "The door",
+        "see.agentsee.work, the same engine answering a second hostname",
+        [
+            N(
+                "seymour",
+                "Seymour",
+                "the masthead's eye, big, for a first visit: a greeting, a blink, surprise, delight; the lids close and part onto the door; a tap skips",
+            ),
+            N("address", "an address", "typed by the guest; the only thing the door asks for", kind="guest"),
+            N(
+                "code",
+                "a six-digit code",
+                "by mail, bound to the browser that asked; ten minutes, once, five tries; no link in the mail",
+                kind="guest",
+            ),
+            N(
+                "session",
+                "a session",
+                "a cookie for this host only, thirty days; the address, the time, the IP and the device recorded, the address alone enforced",
+            ),
+        ],
+    )
+    release = Band(
+        "The release",
+        "the one document with the guest's name on it",
+        [
+            N(
+                "rtext",
+                "the text, versioned",
+                "a Linear document in plain words; each version with its hash, mirrored to the archive",
+                icon="linear",
+            ),
+            N(
+                "rhosts",
+                "both hosts pre-sign",
+                "each draws a signature once on their profile and signs each version; a version is issued only when every host has",
+                kind="host",
+            ),
+            N(
+                "rguest",
+                "the guest signs",
+                "reads it, types their name, draws on the pad or uploads a photo, ticks",
+                kind="guest",
+            ),
+            N(
+                "rcopy",
+                "the signed copy",
+                "a PDF with the three signatures and the record: address, time, IP, device, the text's hash; to the archive, the guest and hello@; release-signed on the issue",
+            ),
+        ],
+    )
+    idea = Band(
+        "The idea",
+        "a conversation with the office, about ten minutes, on a phone between other things",
+        [
+            N(
+                "open",
+                "one open question",
+                "what is the episode about, and why you? then only the gaps, one at a time; six questions is plenty, ten the ceiling",
+                kind="guest",
+            ),
+            N(
+                "model",
+                "the office",
+                "Claude, given the skill, the show's ten questions, every episode so far and the latest transcripts in full; the hosts' page on the guest as background",
+                icon="claude",
+            ),
+            N(
+                "draft",
+                "the run-sheet draft",
+                "the claim, the areas in order, the stories, what not to ask, how long; its own comment on the issue; the first one mailed; the guest can revise it",
+            ),
+            N(
+                "about",
+                "about you",
+                "the name as shown, a line, a link, a headshot, a time zone: what the pipeline wants",
+                kind="guest",
+            ),
+        ],
+    )
+    time = Band(
+        "The time",
+        "the engine is the scheduler; no calendar is read",
+        [
+            N(
+                "cal",
+                "a calendar",
+                "tapped in the guest's own zone: Mondays and Tuesdays work, Wednesday to Friday are asked, weekends want notice; three choices ranked gold, silver, bronze",
+                kind="guest",
+            ),
+            N(
+                "rules",
+                "the rules",
+                "seven days' notice, two hours, starts between eight and four London time, one recording a day and one a week softly; a taken day refused",
+            ),
+            N(
+                "hosts",
+                "both hosts answer",
+                "accept, decline or cancel on the guest's page; a clash moves the other guest's request with a note",
+                kind="host",
+            ),
+            N(
+                "booked",
+                "booked",
+                "a mail with a calendar file, copy to hello@; the join link needs no sign-in and opens an hour before, for three hours after; booked on the issue",
+            ),
+        ],
+    )
+    review = Band(
+        "The review",
+        "after the recording: the cut, then the signature the pipeline insists on",
+        [
+            N(
+                "render",
+                "the review render",
+                "episode.py review puts the unnumbered cut in the archive with the round's record; the office streams it through links signed for an hour",
+                kind="host",
+            ),
+            N(
+                "notes",
+                "notes at the moment",
+                "a note takes the player's time or one typed; sent as it is made, to the hosts by mail and to the issue",
+                kind="guest",
+            ),
+            N(
+                "cuts",
+                "the words to cut",
+                "a note that asks for a removal is read by the model with the transcript; the words it names, checked to occur once, shown for the guest to confirm",
+            ),
+            N(
+                "approval",
+                "the approval",
+                "a second signature: the round's hash, the clips vetoed by name; approve and stage refuse without it, and without both hosts' on the engine",
+                kind="guest",
+            ),
+        ],
+    )
+    bands = [invite, door, release, idea, time, review]
+    return flow(
+        bands,
+        [],
+        1152 if wide else 400,
+        4 if wide else 2,
+        "The guest's journey: invitation, door, release, idea, time, review, and who acts at each step",
+        gap=14 if wide else 12,
+    )
+
+
+def fig_door(orient):
+    N = Node
+    nodes = [
+        N(
+            "link",
+            "the invitation link",
+            "an id, not a secret: knowing it admits nobody; the address and the code do",
+            kind="store",
+        ),
+        N(
+            "eye",
+            "Seymour",
+            "the eye, large, for a browser's first visit: a greeting, a look round, two blinks, surprise, delight; the lids close on black and part onto the door. Eight seconds; a tap skips; reduced motion skips it all",
+        ),
+        N(
+            "addr",
+            "the address",
+            "the one field on the door; an invitation made for an address refuses any other; a stranger with a right code is told there is no invitation for them",
+            kind="guest",
+        ),
+        N(
+            "code",
+            "the code",
+            "six digits by mail from office@, no link in it; good for ten minutes and once; five wrong tries void it and the address waits a quarter of an hour; three codes an address in ten minutes, twelve a connection",
+            kind="guest",
+        ),
+        N(
+            "bound",
+            "bound to the browser",
+            "a cookie set when the code is asked for and required when it is typed, so a code read over someone's shoulder opens nothing elsewhere",
+        ),
+        N(
+            "sess",
+            "the session",
+            "thirty days, this host only, signed with the engine's session key; a new device asks for a code; every sign-in records address, time, IP and device, and enforces only the first",
+        ),
+    ]
+    return chain(
+        nodes,
+        "The door: an invitation, the eye, an address, a code bound to the browser, a session",
+        orient,
+        1152 if orient == "wide" else 400,
+    )
+
+
+def fig_prompt(orient):
+    """What the office is given before it says a word: the sources converge on one prompt."""
+    N = Node
+    sources = [
+        N(
+            "skill",
+            "the skill",
+            "one Markdown file, the single source: the opening, how it should feel, the seven things a run-sheet needs, the draft's shape; served to a guest who would rather use their own assistant",
+            kind="store",
+        ),
+        N(
+            "questions",
+            "the ten questions",
+            "read from the front page, so the office asks the questions the site asks",
+            kind="store",
+        ),
+        N(
+            "episodes",
+            "every episode so far",
+            "from the ledger: each one's summary, chapters and the questions it touched",
+            kind="store",
+        ),
+        N(
+            "transcripts",
+            "the latest transcripts",
+            "twelve, word for word, from the archive, so a guest whose idea is an episode already made is told which, and asked what they add",
+            kind="store",
+        ),
+        N(
+            "page",
+            "the hosts' page on the guest",
+            "the title and description of their Linear issue, fetched when they sit down and hourly: background, never a plan, never quoted",
+            kind="store",
+            icon="linear",
+        ),
+    ]
+    system = N(
+        "system",
+        "one system prompt",
+        "the first five as one block, cached for an hour, a cache read at a twentieth of the price; this guest's block uncached; then this guest's conversation and nothing else",
+    )
+    model = N(
+        "model",
+        "the model",
+        "Opus, 4,000 tokens a reply with two continuations, no tools; twenty turns and a token budget per guest; one reply at a time, finished and kept whether or not the browser is still listening",
+        icon="claude",
+    )
+    outs = [
+        N(
+            "stream",
+            "the page",
+            "streamed as it is written; reloaded mid-reply, the page shows the turn being written and asks after it every few seconds",
+            kind="guest",
+        ),
+        N(
+            "issue",
+            "the issue",
+            "the whole conversation as one comment the worker rewrites after each exchange, in the guest's words; the draft its own comment, idea-drafted",
+            icon="linear",
+        ),
+        N("mail", "the mail", "the first draft to the guest, with the next step in it; a revision gets no mail"),
+    ]
+    title = "What the office is given before it speaks, and where what it says goes"
+    margin = 10
+    if orient == "wide":
+        w = 1152
+        gapx = 48
+        colw = (w - 2 * margin - 2 * gapx) / 3
+        x1, x2, x3 = margin, margin + colw + gapx, margin + 2 * (colw + gapx)
+        y = margin
+        for n in sources:
+            n.h = n.fit(colw)
+            n.x, n.y = x1, y
+            y += n.h + 12
+        total = y - 12
+        system.h = system.fit(colw)
+        model.h = model.fit(colw)
+        mid = margin + total / 2
+        system.x, system.y = x2, mid - (system.h + 14 + model.h) / 2
+        model.x, model.y = x2, system.y + system.h + 14
+        y = margin
+        oh = [n.fit(colw) for n in outs]
+        oy = mid - (sum(oh) + 12 * 2) / 2
+        for n, h in zip(outs, oh):
+            n.h = h
+            n.x, n.y = x3, oy
+            oy += h + 12
+        c = Canvas(w, max(total, oy - 12) + margin, title, "d-prompt")
+        for n in sources + [system, model] + outs:
+            draw_node(c, n)
+        bx = x2 - gapx / 2
+        for n in sources:
+            c.path(f"M{n.x + n.w:g} {n.cy:g}H{bx:g}", "d-arrow")
+        c.line(bx, sources[0].cy, bx, sources[-1].cy, "d-arrow")
+        c.line(bx, system.cy, system.x - 1, system.cy, "d-arrow", head=True)
+        c.line(system.cx, system.y + system.h, model.cx, model.y - 1, "d-arrow", head=True)
+        ox = x3 - gapx / 2
+        c.line(model.x + model.w, model.cy, ox, model.cy, "d-arrow")
+        c.line(ox, outs[0].cy, ox, outs[-1].cy, "d-arrow")
+        for n in outs:
+            c.line(ox, n.cy, n.x - 1, n.cy, "d-arrow", head=True)
+        return c
+    w = 400
+    nodes = sources + [system, model] + outs
+    y = margin
+    for n in nodes:
+        n.h = n.fit(w - 2 * margin - 14)
+        n.x, n.y = margin + 14, y
+        y += n.h + 14
+    c = Canvas(w, y - 14 + margin, title, "d-prompt")
+    for n in nodes:
+        draw_node(c, n)
+    tx = margin + 4
+    c.line(tx, sources[0].cy, tx, system.cy, "d-arrow")
+    for n in sources:
+        c.line(n.x - 1, n.cy, tx, n.cy, "d-arrow")
+    c.line(tx, system.cy, system.x - 1, system.cy, "d-arrow", head=True)
+    c.line(system.cx, system.y + system.h, model.cx, model.y - 1, "d-arrow", head=True)
+    c.line(tx, model.cy, tx, outs[-1].cy, "d-arrow")
+    c.line(model.x - 1, model.cy, tx, model.cy, "d-arrow")
+    for n in outs:
+        c.line(tx, n.cy, n.x - 1, n.cy, "d-arrow", head=True)
+    return c
+
+
+def fig_calendar(orient):
+    """A month as the guest sees it, with the rules the day states come from."""
+    w = 400
+    c = Canvas(
+        w,
+        10,
+        "A month on the office's calendar: which days work, which are asked, which want notice, and the three choices ranked",
+        "d-calendar",
+    )
+    c.text(14, 20, "A month, as a guest sees it", "d-title")
+    c.text(14, 34, "today is the 4th; seven days' notice; one recording taken on the 19th", "d-tiny")
+    days = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+    x0, y0, cw, ch = 14, 46, (w - 28) / 7, 34
+    for i, d in enumerate(days):
+        c.text(x0 + i * cw + cw / 2, y0 + 10, d, "d-tiny", anchor="middle")
+    # the month starts on a Wednesday; today is the 4th; the 16th is taken; the 23rd is in the taken week
+    first_col = 2
+    taken = {19}
+    picks = {22: "1", 23: "2", 27: "3"}
+    rows = 5
+    for day in range(1, 31):
+        idx = first_col + day - 1
+        r, col = divmod(idx, 7)
+        x, y = x0 + col * cw, y0 + 16 + r * ch
+        wd = col  # 0 = Monday
+        if day <= 4:
+            state = "gone"
+        elif day < 4 + 7:
+            state = "soon"
+        elif day in taken:
+            state = "taken"
+        elif 13 <= day <= 19:
+            state = "week"
+        elif wd <= 1:
+            state = "works"
+        elif wd <= 4:
+            state = "ask"
+        else:
+            state = "notice"
+        c.rect(x + 2, y + 2, cw - 4, ch - 4, f"d-day d-day-{state}" + (" d-day-pick" if day in picks else ""), rx=3)
+        c.text(x + 8, y + 15, str(day), "d-day-n" + (" d-day-n-dim" if state in ("gone", "soon", "taken") else ""))
+        if day in picks:
+            c.text(x + cw - 8, y + ch - 9, picks[day], "d-day-rank", anchor="end")
+        if state == "taken":
+            c.text(x + cw / 2, y + ch - 9, "taken", "d-tiny", anchor="middle")
+    y = y0 + 16 + rows * ch + 10
+    legend = [
+        ("works", "Monday and Tuesday: works"),
+        ("ask", "Wednesday to Friday: ask us"),
+        ("notice", "the weekend: with notice"),
+        ("week", "one that week already: softly refused"),
+        ("taken", "taken by another recording: refused"),
+        ("soon", "inside the seven days: not offered"),
+    ]
+    for i, (st, text) in enumerate(legend):
+        lx, ly = 14, y + i * 17
+        c.rect(lx, ly, 12, 12, f"d-day d-day-{st}", rx=2)
+        c.text(lx + 18, ly + 10, text, "d-tiny")
+    y += 6 * 17 + 8
+    lines = wrap(
+        "Three choices, ranked gold, silver and bronze in the sheet a tap opens, with the half-hours between eight and four London time shown in the guest's own zone. Two hours each. Both hosts answer; the first yes books it, and a request that clashes with a booking made since is moved on with a note.",
+        w - 28,
+        10,
+    )
+    c.lines(14, y + 10, lines, "d-tiny", 12)
+    c.h = y + 10 + len(lines) * 12 + 6
+    return c
+
+
+def fig_review(orient):
+    N = Node
+    nodes = [
+        N(
+            "render",
+            "the review render",
+            "the cut as it stands, unnumbered, to the archive under the episode with the round's record; a pointer at guests/<id>/review.json",
+            kind="host",
+        ),
+        N(
+            "watch",
+            "watch",
+            "the episode, the clips and the posters stream from the private archive through links signed for an hour; nothing passes through the box",
+            kind="guest",
+        ),
+        N(
+            "note",
+            "a note at a moment",
+            "the player's time taken into the note, or typed; sent as it is made to the hosts by mail and to the issue",
+            kind="guest",
+        ),
+        N(
+            "find",
+            "the words to cut",
+            "a note that asks for a removal goes to the model with the transcript around that moment; the words it names must occur exactly once, as cut.py compares them",
+        ),
+        N(
+            "confirm",
+            "confirm or decline",
+            "the quoted words shown to the guest; a yes lands in notes.json as the phrase cut.py takes, verbatim",
+            kind="guest",
+        ),
+        N(
+            "sign",
+            "the approval",
+            "name, pad, tick: the round's hash, the clips vetoed by name; a signed copy to the archive, the guest and hello@; episode-approved on the issue",
+            kind="guest",
+        ),
+        N(
+            "hostsok",
+            "both hosts approve",
+            "the same round on the engine, a button each, recorded like the release's signatures",
+            kind="host",
+        ),
+        N(
+            "approve",
+            "approve, then stage",
+            "refuses without every approval of the round reviewed; mints the number; stage checks again, so a guest's episode cannot reach the media host unapproved",
+            kind="host",
+        ),
+    ]
+    return chain(
+        nodes,
+        "The review: the render reaches the guest, notes come back with their moments, cuts are confirmed in words, and two signatures gate the number",
+        orient,
+        1152 if orient == "wide" else 400,
+        cols=4,
+    )
+
+
+def fig_records(orient):
+    w = 400
+    N = Node
+    boxes = [
+        N(
+            "ledger",
+            "The ledger, on the box",
+            "guest, code, session, booking, idea_turn, review_note, approval, host_approval, linear_job, event: the working state. On the root disk; copied to the archive nightly.",
+            kind="store",
+        ),
+        N(
+            "archive",
+            "The archive: guests/<id>/",
+            "guest.json with the sessions and the record; release-v<n>.pdf, .html and .json; the headshot; notes.json by round; approval.json and .html; review.json, the pipeline's pointer. The copy the pipeline reads and a rebuilt box restores.",
+            kind="store",
+            icon="cloudflare",
+        ),
+        N(
+            "issue",
+            "The guest's Linear issue",
+            "every step a comment as AgentSee Engine, the guest's words quoted line by line so nobody takes them for instructions; the conversation as one comment rewritten; the draft its own; labels guest-invited, guest-claimed, release-signed, idea-drafted, booked, episode-approved.",
+            kind="store",
+            icon="linear",
+        ),
+        N(
+            "mail",
+            "The mail, from office@",
+            "the code, the invitation, the signed copy with the PDF, the first draft, the booking with its calendar file, the approval, the next step when a host presses the button; a copy of each record to hello@.",
+            kind="store",
+        ),
+    ]
+    y = 12
+    for n in boxes:
+        n.h = n.fit(w - 24)
+        n.x, n.y = 12, y
+        y += n.h + 26
+    c = Canvas(
+        w, y - 26 + 12, "Where a guest's records go: the ledger, the archive, their issue and the mail", "d-records"
+    )
+    for n in boxes:
+        draw_node(c, n)
+    for a, z in zip(boxes, boxes[1:]):
+        c.line(a.cx, a.y + a.h, z.cx, z.y - 1, "d-arrow d-cross")
+    return c
+
+
 FIGS = {
     "map": fig_map,
     "studio": fig_studio,
@@ -743,8 +1284,14 @@ FIGS = {
     "masters": fig_masters,
     "morning": fig_morning,
     "plan": fig_plan,
+    "office-map": fig_office_map,
+    "door": fig_door,
+    "prompt": fig_prompt,
+    "calendar": fig_calendar,
+    "review": fig_review,
+    "records": fig_records,
 }
-ONE = {"studio", "masters"}
+ONE = {"studio", "masters", "calendar", "records"}
 
 
 def figure(name):

@@ -1,4 +1,4 @@
-/* Issue No. 8's figures: inline SVG drawn in the page's own tokens by
+/* Issues No. 8 and No. 9: figures as inline SVG drawn in the page's own tokens by
    tools/diagrams.py, so the colours follow the scheme with the text around
    them and the type is the mono face. The map and the chains are drawn twice;
    the wide one is for a desk and the tall one for a phone, and the query picks.
@@ -8,7 +8,9 @@
    for ten minutes (public/_headers), so a page that needs rules its readers'
    caches have never seen ships them under a name no cache has either. The
    first readers of No. 8 got the old styles.css for ten minutes and both
-   layouts of every figure, each a page tall. */
+   layouts of every figure, each a page tall. The same holds for this file
+   once it is cached: a change to it goes with a new ?v= on the pages that
+   link it, so the edge sees a new name. */
 .diagram { max-width: 72rem; margin-left: auto; margin-right: auto; }
 .diagram.narrow { max-width: 32rem; }
 .diagram svg { display: block; width: 100%; height: auto; font-family: var(--mono); }
@@ -43,3 +45,19 @@
 .d-track-wav { fill: var(--paper-2); stroke: var(--ink-2); }
 .d-pad { fill: none; stroke: var(--hair); stroke-dasharray: 2 2; }
 .d-window { fill: none; stroke: var(--ink); }
+
+/* Issue No. 9: a host's step has a dark edge (the guest's is orange, like a
+   person's hand above); the calendar's day states. */
+.d-host { stroke: var(--ink-2); stroke-width: 1.5; }
+.d-day { fill: var(--paper-2); stroke: var(--hair); }
+.d-day-works { fill: var(--wash); stroke: var(--signal); }
+.d-day-ask { fill: var(--paper-2); stroke: var(--ink-3); }
+.d-day-notice { fill: var(--paper); stroke: var(--hair); stroke-dasharray: 2 2; }
+.d-day-week { fill: var(--paper); stroke: var(--hair); }
+.d-day-taken { fill: var(--hair); stroke: var(--hair); }
+.d-day-gone { fill: none; stroke: none; }
+.d-day-soon { fill: none; stroke: var(--hair); stroke-dasharray: 1 3; }
+.d-day-pick { stroke: var(--signal); stroke-width: 1.6; }
+.d-day-n { font-size: 11px; fill: var(--ink); }
+.d-day-n-dim { fill: var(--ink-3); }
+.d-day-rank { font-size: 10px; fill: var(--signal); }
