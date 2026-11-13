@@ -25,8 +25,11 @@
   Cache-Control: public, max-age=31536000, immutable
 
 # Short, because the site is under active development and a stale stylesheet
-# is worse than a revalidation request. The fonts and media above never change,
-# so they get a year. Requires the zone's Browser Cache TTL to be "Respect
+# is worse than a revalidation request. Ten minutes still bites: a page that
+# needs rules nobody has cached yet ships them in a file of its own (see
+# assets/diagrams.css), because the edge may hold styles.css from seconds
+# before the deploy. The fonts and media above never change, so they get a
+# year. Requires the zone's Browser Cache TTL to be "Respect
 # Existing Headers" — otherwise Cloudflare overrides all of this. See
 # docs/RUNBOOK.md.
 /assets/*

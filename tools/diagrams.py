@@ -5,7 +5,7 @@ Every figure is drawn in the page's own colour tokens (var(--ink), var(--paper-2
 var(--signal), ...), so it follows light and dark mode with the text around it,
 and in the page's mono face. The map, the chains and the morning are laid out
 twice, wide for a desk and tall for a phone, and the page shows one by a media
-query (styles.css, .diagram); the two schematics are drawn once and scaled. The
+query (public/assets/diagrams.css); the two schematics are drawn once and scaled. The
 brand marks are Simple Icons (CC0; the marks belong to their owners), reduced to
 their path data below.
 

@@ -1,0 +1,45 @@
+/* Issue No. 8's figures: inline SVG drawn in the page's own tokens by
+   tools/diagrams.py, so the colours follow the scheme with the text around
+   them and the type is the mono face. The map and the chains are drawn twice;
+   the wide one is for a desk and the tall one for a phone, and the query picks.
+   Font sizes here are in the SVG's own units and scale with it.
+
+   A file of its own, not a block in styles.css: the edge keeps a stylesheet
+   for ten minutes (public/_headers), so a page that needs rules its readers'
+   caches have never seen ships them under a name no cache has either. The
+   first readers of No. 8 got the old styles.css for ten minutes and both
+   layouts of every figure, each a page tall. */
+.diagram { max-width: 72rem; margin-left: auto; margin-right: auto; }
+.diagram.narrow { max-width: 32rem; }
+.diagram svg { display: block; width: 100%; height: auto; font-family: var(--mono); }
+.diagram .tall { display: none; }
+@media (max-width: 56rem) {
+  .diagram .wide { display: none; }
+  .diagram .tall { display: block; }
+}
+.diagram text { fill: var(--ink); }
+.d-band { fill: none; stroke: var(--hair); stroke-dasharray: 3 3; }
+.d-band-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; fill: var(--ink-2); }
+.d-band-note { font-size: 10.5px; fill: var(--ink-3); }
+.d-box { fill: var(--paper-2); stroke: var(--hair); }
+.d-hand { stroke: var(--signal); }
+.d-store { stroke: var(--ink-3); }
+.d-edge-box { stroke: var(--ink-3); }
+.d-future { stroke: var(--ink-3); stroke-dasharray: 4 3; fill: var(--paper); }
+.d-title { font-size: 13px; }
+.d-title-hand { fill: var(--signal); }
+.d-sub { font-size: 11.5px; fill: var(--ink-2); }
+.d-tiny { font-size: 10px; fill: var(--ink-3); }
+.d-tick { font-size: 11.5px; }
+.d-chip { font-size: 9.5px; letter-spacing: .08em; fill: var(--ink-3); }
+.d-chip-gpu { fill: var(--signal); }
+.d-icon { fill: var(--ink); }
+.d-arrow { fill: none; stroke: var(--ink-3); stroke-width: 1.1; }
+.d-cross { stroke-dasharray: 3 3; }
+.d-head { fill: var(--ink-3); }
+.d-edge-label { font-size: 10px; fill: var(--ink-3); }
+.d-axis { fill: none; stroke: var(--ink-3); stroke-width: 1; }
+.d-track-video { fill: var(--wash); stroke: var(--signal); }
+.d-track-wav { fill: var(--paper-2); stroke: var(--ink-2); }
+.d-pad { fill: none; stroke: var(--hair); stroke-dasharray: 2 2; }
+.d-window { fill: none; stroke: var(--ink); }
