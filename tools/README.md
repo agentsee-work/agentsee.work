@@ -14,6 +14,7 @@ that checks handles.
 | `cues.py` | Rendered cues normalised to consistent levels. |
 | `loop.py` | A rendered loop's true length, measured and cut. |
 | `handle-probe.sh` | Handle availability. Nothing to do with the rest. |
+| `diagrams.py` | Issue No. 8's figures, the map of the podcast pipeline, as inline SVG in the page's own colour tokens; `diagrams.py public/issues/08-pipeline.html` redraws them between the page's `fig:` markers. Wide and tall layouts of each, picked by the stylesheet. |
 
 The podcast pipeline, one tool per stage, driven by `episode.py`:
 
