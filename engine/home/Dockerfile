@@ -6,7 +6,7 @@
 #
 # The same Python as the workstations, on purpose: the engine is tested on
 # 3.14, and Debian's 3.11 is not what the tests ran on.
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 # The op CLI from 1Password's own repository (there is no Debian package).
 # gnupg is needed only to dearmor the key and is removed again. DejaVu is
