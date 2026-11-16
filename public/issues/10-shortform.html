@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShortformBeGone, an iPhone lock on short-form video — AgentSee, Issue No. 10</title>
+<meta name="description" content="ShortformBeGone is a free, open-source iPhone app that blocks Shorts, Reels and feeds like them and keeps the rest. How it was built in a day, what broke, and why its lock had to leave the app before Apple sees it.">
+<link rel="canonical" href="https://agentsee.work/issues/10-shortform">
+
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://agentsee.work/issues/10-shortform">
+<meta property="og:title" content="A lock on short video, and an app that is not allowed to carry it.">
+<meta property="og:description" content="ShortformBeGone blocks short-form video on an iPhone and keeps long-form video and messaging. Four layers, a filter that blocked all of Safari, a tab that changes the address without asking, and an App Store submission that is imminent.">
+<meta property="og:image" content="https://agentsee.work/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="AgentSee">
+<meta property="article:published_time" content="2026-11-16">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "A lock on short video, and an app that is not allowed to carry it.", "description": "ShortformBeGone blocks short-form video on an iPhone and keeps long-form video and messaging. Four layers, a filter that blocked all of Safari, a tab that changes the address without asking, and an App Store submission that is imminent.", "datePublished": "2026-11-16", "url": "https://agentsee.work/issues/10-shortform", "mainEntityOfPage": "https://agentsee.work/issues/10-shortform", "image": "https://agentsee.work/assets/og.png", "author": [{"@type": "Person", "name": "James Hartt", "url": "https://www.linkedin.com/in/james-hartt-78519132/"}, {"@type": "Person", "name": "Abrar Mahmood", "url": "https://www.linkedin.com/in/abrar-m-339b61386/"}], "publisher": {"@type": "Organization", "name": "AgentSee", "url": "https://agentsee.work/"}, "isPartOf": {"@type": "Blog", "name": "AgentSee: the register", "url": "https://agentsee.work/issues/"}}</script>
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/assets/og.png">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+
+<a class="skip" href="#opening">Skip to content</a>
+
+<!-- ═══════════════  MASTHEAD  ═══════════════ -->
+<header class="masthead">
+  <nav class="ear" aria-label="Listen to the podcast">
+    <a class="ear-label" href="/podcast/">Listen</a>
+    <a href="https://podcasts.apple.com/gb/podcast/agentsee-podcast/id6824580895">Apple Podcasts</a>
+    <a href="https://open.spotify.com/show/0YjxzDGgoCzjvEykcUAfPr">Spotify</a>
+    <a href="https://www.youtube.com/@agentseework">YouTube</a>
+    <a href="/podcast/feed.xml">RSS</a>
+  </nav>
+  <a class="nameplate home" href="/" aria-label="AgentSee, the front page">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+  </a>
+  <nav class="ear" aria-label="Follow AgentSee">
+    <span class="ear-label">Follow</span>
+    <a href="https://www.linkedin.com/company/agentseework">LinkedIn</a>
+    <a href="https://x.com/agentseework">X</a>
+    <a href="https://bsky.app/profile/agentsee.work">Bluesky</a>
+    <a href="https://mastodon.social/@agentseework">Mastodon</a>
+    <a href="https://www.instagram.com/agentsee.work/">Instagram</a>
+  </nav>
+</header>
+
+<!-- ═══════════════  DATELINE  ═══════════════ -->
+<div class="dateline">
+  <span class="edge">Hove &amp; London</span>
+  <span class="mid" id="dateline">Founded 18 August 2026</span>
+  <span class="edge">Issue No.&nbsp;10 &middot; Free, obviously</span>
+</div>
+
+<main>
+
+  <article class="lead">
+    <h1>A lock on short video,<br>and an app that is not allowed to carry it.</h1>
+    <p class="deck">
+      ShortformBeGone is a free iPhone and iPad app that blocks Shorts, Reels and the feeds
+      like them, and leaves long-form video and messaging alone. It went from an empty
+      project to a lock that holds in one Sunday and the morning after. Its submission to
+      the App Store is imminent, and the part that does the locking will not be in it.
+    </p>
+  </article>
+
+  <section class="section" id="opening">
+    <p class="kicker">01 — The premise</p>
+    <h2>Every softer tool leaves the off switch with the person it is meant to stop.</h2>
+
+    <div class="cols">
+      <p class="drop">This one was not built for a client. James wanted short-form video
+      off his own phone, and had already been through the softer options: the timers that
+      ask whether you are sure, the blockers that sit behind a setting, deleting the apps
+      and putting them back. His verdict on all of them was that they are easily defeated,
+      because in each the person who wants to stop and the person who can switch it off
+      are the same person, on the same evening.</p>
+
+      <p>The brief was narrower than "block the bad apps", and the narrowness is the
+      whole difficulty. Blocking YouTube outright is easy and wrong: long-form YouTube is,
+      in his words, pretty benign, and does not do to his attention what Shorts do. So the
+      thing to remove is a section of a site, and the same goes for Instagram and
+      Facebook, where the messages and the posts are worth keeping and the Reels are not.
+      And whatever removes it has to stay removed when he would rather it did not.</p>
+
+      <p>iOS has one arrangement that meets the second condition. A supervised device,
+      which means one erased once and set up from a Mac with Apple Configurator, can carry
+      a configuration profile that switches on a content filter, blocks named apps, and
+      cannot be removed without a password. If somebody else holds the password, the lock
+      is real. James had worked that much out in an earlier conversation and made the
+      empty Xcode project. On Sunday 15 November, at twenty past twelve, he handed over
+      the rest: everything possible before the App Store, so that it could be given away
+      to other people in the same position.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">02 — The first hour</p>
+    <h2>All of it was built in fifty minutes, and it did not block Shorts.</h2>
+
+    <div class="cols">
+      <p>By ten past one there was an app with three screens, a network content filter in
+      two extensions, the rule matcher they share with tests around it, the profile, a
+      script that sets the profile's removal password without showing it to the person
+      running it, a privacy policy and an MIT licence, in a public repository. The rules
+      are one short list: nine sites blocked whole, such as tiktok.com, and seven
+      sections blocked by the start of their address, such as youtube.com/shorts and
+      instagram.com/reel.</p>
+
+      <p>At three minutes to two James reported that the mobile Shorts page still loaded.
+      The filter was running; it had simply never been asked. A network content filter on
+      iOS is shown an address when a connection opens, and a browser that already has a
+      connection open to YouTube sends the request for Shorts down the same one. Whole
+      sites were blocked for every app on the phone. A section of a site that was already
+      open was invisible.</p>
+
+      <p>The first repair took twenty minutes and was a second, humbler mechanism: a
+      Safari content blocker, a list of rules that Safari applies itself to every request
+      it makes, generated from the same list. It works on any iPhone a minute after
+      installing, with no Mac and no erase. It is also a switch in Settings, which is the
+      thing the whole project exists to get away from.</p>
+    </div>
+  </section>
+
+  <p class="pull">A blocker you can switch off in a tap does not survive a weak moment.</p>
+
+  <section class="section">
+    <p class="kicker">03 — The filter Apple built for this</p>
+    <h2>It refused the feed, and then it refused every page in Safari.</h2>
+
+    <div class="cols">
+      <p>Recent versions of iOS have a second kind of filter that is shown every address,
+      on open connections too, and that a profile can switch on. It looked like the
+      answer, so we prototyped it that afternoon. It comes with a condition. The phone
+      checks each address against a compact filter held on the device, and for anything
+      that might match it asks a lookup server, using a scheme in which the server answers
+      without learning what was asked. There is no mode without the server. For one phone
+      built from Xcode, Apple's example server on a Mac on the same network will do. For
+      anyone else it means hosted servers and Apple's approval, which other developers
+      report takes weeks.</p>
+
+      <p>James went out. When he came back, Safari would not open anything at all. The
+      prototype had been set to fail closed, which means that when a lookup cannot be
+      made the page is refused, and the lookup server was a laptop that the phone could
+      no longer reach. The app's own status row said "Problem", twice, for two reasons
+      that both turned out to be nothing: the system reports saving an unchanged setting
+      as an error, and reports its state as invalid until the state next changes. The
+      phone was restarted twice before the filter would find its own extension again,
+      because installing a new build while the filter is running loses it.</p>
+
+      <p>Once it ran, it did what the network filter cannot, and the test was plain:
+      requests to a listed address were refused on a connection that was already open.
+      Then two limits. The system looked up only the exact address until it was told to
+      try each level of the path, so the entry for Shorts did not cover a particular
+      Short. And one Short still played. Tapping a Short on YouTube's home page loads
+      that video through the same request every ordinary video uses, which cannot be
+      listed without blocking YouTube; the requests that build the feed behind it were
+      refused, so there was nothing to swipe to. James's report was that it stalled and
+      nothing would scroll, which is very nearly the product.</p>
+
+      <p>The lock test settled it. A profile can switch this filter on, but the app can
+      still switch it off, and it needs servers we would have to run for strangers. The
+      prototype and its notes are on a branch of the repository, and it is not in the
+      app.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">04 — The guard</p>
+    <h2>Some pages change their address without asking anyone.</h2>
+
+    <div class="cols">
+      <p>That evening James found that Reels on Facebook still played, but only when
+      reached from the tab inside the page. Refreshing the same address was blocked.
+      Facebook's site, like YouTube's, swaps one view for another without loading a page,
+      so the address changes and no request is made that a rule could refuse. We tried
+      hiding the tab, with selectors that were guesses about Facebook's markup, and the
+      answer from the phone was two words: still there.</p>
+
+      <p>So there is a third piece, the smallest. A Safari web extension with one script
+      of about fifty lines, which runs only on YouTube, Instagram, Facebook and Snapchat,
+      looks at the page's address four times a second, and when the address is one of the
+      seven sections it pauses the video and goes back to the site's home page. It reads
+      nothing else on the page and sends nothing anywhere. A test fails if its list and
+      the app's list ever differ.</p>
+
+      <p>It did not work, and then it did, and nothing had changed in between. A new
+      Safari extension arrives switched off, and once on it has to be allowed for each
+      site. That is the right default for something that runs inside pages, and it is now
+      a step in the setup guide, because we walked into it ourselves.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">05 — The audit</p>
+    <h2>The profile is the lock, and the app may not hand it to you.</h2>
+
+    <div class="cols">
+      <p>The next morning James asked a fair question: would this honestly pass Apple's
+      review. Not as it stood. So a second model was set loose on the repository with
+      Apple's current review guidelines, and came back with a ranked list. Some of
+      it was plain error. The warning that the next step erases the device said "Step 2
+      erases this device" on the screen that was itself step two. The Rules screen said
+      sites were blocked in all apps on a phone where only Safari was covered, which is
+      the phone a reviewer will have. The path we gave through Settings does not exist on
+      the oldest system we claimed to support. The store keywords used other companies'
+      product names, and the abandoned prototype's entitlement was still in the build.</p>
+
+      <p>The finding that mattered was a rule about configuration profiles. Apps that
+      offer one must ask Apple for the capability, and it is granted to companies,
+      schools and government, and in limited cases to parental control and security
+      firms. Our app shipped the profile inside itself with a button to send it to a Mac,
+      and that profile blocks named apps and other browsers, which a reviewer would
+      notice.</p>
+
+      <p>So the profile left the app. The app is now a Safari blocker, a guard, a filter
+      that runs where iOS allows it, a status screen and a guide; the profile and its
+      script are published in the open, in the repository and on
+      <a href="/shortformbegone/">this site</a>, and the guide sends a link to the Mac,
+      where they were always going to be used. Nothing was lost by it. What stays odd is
+      that the only lock iOS offers a person against their own worst hour is one built
+      for companies and schools.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <p class="kicker">06 — Where it stands</p>
+    <h2>Submission is imminent, and the limits are written down first.</h2>
+
+    <div class="cols two">
+      <p>The listing is written, the screenshots are made by the tests, and the review
+      notes say what a reviewer can try on an ordinary phone and what needs a supervised
+      one. What is left is signing, an archive, an upload, and Apple. We expect at least
+      one round of questions, and if the answer is no, the source is public and builds
+      with Xcode. The app is free and has no account, no purchases and no analytics, and
+      it collects nothing; there is a <a href="/shortformbegone/privacy/">privacy
+      policy</a> and it is short.</p>
+
+      <p>What it does not do. The two Safari pieces can be switched off in Settings; only
+      the profile and the network filter are locked. Video that plays inside another
+      app's own feed is covered only by blocking that app. It is an iPhone and iPad app,
+      and a laptop is an open door. And the lock costs a Mac, an erase and about a day,
+      most of it waiting, which is more than most people will pay. That price is the one
+      we would most like to bring down, and bringing it down is mostly not ours to do.</p>
+
+      <p>What it cost us was a Sunday and the morning after. What it changed is harder to
+      put a number on. James, that first evening: YouTube honestly feels much nicer now. His view
+      of the format is blunter than the app is. "Infinite scroll specifically needs to
+      go. You should not be able to lose hours to these things." None of the companies
+      whose sites the app blocks offers a way to turn the feed off and keep the rest, so
+      for now it takes a filter, a guard and a password in somebody else's drawer.</p>
+    </div>
+
+    <p class="backlink-row trail">
+      <a class="backlink" href="/issues/09-office" rel="prev">&larr; Issue No.&nbsp;9</a>
+      <a class="backlink" href="/issues/">All issues</a>
+      <a class="backlink" href="/shortformbegone/">ShortformBeGone</a>
+      <a class="backlink" href="https://github.com/agentsee-work/ShortformBeGone">The source</a>
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee &middot; Issue No.&nbsp;10 &middot; <time datetime="2026-11-16">16 November 2026</time></span>
+    <span id="colophon-date">Founded 18 August 2026</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+</body>
+</html>
