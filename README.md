@@ -46,6 +46,13 @@ public/                       ← the only thing that gets deployed
   issues/05-podcast.html      Issue No. 5 — the first episode cut by script, and the um that stayed
   issues/06-publishing.html   Issue No. 6 — everything after the render, and the token the vault would not take
   issues/07-twenty.html       Issue No. 7 — the twenty questions, and why the ending changed
+  shortformbegone/            the home of the ShortformBeGone iPhone app: the page, privacy/,
+                              support/, and the two profile files its Setup step sends people
+                              to. no-shortform.mobileconfig and set-removal-password.sh are
+                              copies of Profile/ in agentsee-work/ShortformBeGone, which is
+                              canonical: when they change there, copy both here again in the
+                              same sitting. _headers serves them as downloads. Styles in
+                              assets/shortformbegone.css
   twenty-questions/           the questions to answer before building, in any assistant;
                               the page and SKILL.md are written by tools/twenty.py
   404.html                    Issue No. 404, never printed

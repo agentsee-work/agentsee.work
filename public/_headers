@@ -34,3 +34,15 @@
 # docs/RUNBOOK.md.
 /assets/*
   Cache-Control: public, max-age=600, must-revalidate
+
+# The two profile files for ShortformBeGone are downloads, never pages: the
+# profile must not open an install sheet on a phone, and the script must not
+# render as text. They are copies of Profile/ in agentsee-work/ShortformBeGone
+# (README, "What's here").
+/shortformbegone/no-shortform.mobileconfig
+  Content-Type: application/octet-stream
+  Content-Disposition: attachment; filename="no-shortform.mobileconfig"
+
+/shortformbegone/set-removal-password.sh
+  Content-Type: application/octet-stream
+  Content-Disposition: attachment; filename="set-removal-password.sh"

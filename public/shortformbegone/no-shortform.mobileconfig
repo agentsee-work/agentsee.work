@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  No Short-Form Video: configuration profile for a SUPERVISED iPhone or iPad.
+
+  Before installing:
+    1. Install the ShortformBeGone app on the device.
+    2. Run set-removal-password.sh (published beside this file) to replace CHANGE_ME_REMOVAL_PASSWORD.
+    3. Delete the lines for any apps you need to keep.
+    4. Install with Apple Configurator (Add > Profiles).
+
+  Edit DenyHosts / DenyPaths below to change what the content filter blocks.
+-->
+<plist version="1.0">
+<dict>
+	<key>PayloadDisplayName</key>
+	<string>No Short-Form Video</string>
+	<key>PayloadDescription</key>
+	<string>Blocks short-form video apps and feeds. Removing it needs the removal password.</string>
+	<key>PayloadIdentifier</key>
+	<string>agentsee.ShortformBeGone.profile</string>
+	<key>PayloadOrganization</key>
+	<string>ShortformBeGone</string>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>A812077B-5582-4F69-B739-4BECA5CA59CB</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+	<key>PayloadScope</key>
+	<string>System</string>
+	<key>PayloadContent</key>
+	<array>
+
+		<!-- Layer 1: blocked apps, no app deletion, no erase from Settings -->
+		<dict>
+			<key>PayloadType</key>
+			<string>com.apple.applicationaccess</string>
+			<key>PayloadIdentifier</key>
+			<string>agentsee.ShortformBeGone.profile.restrictions</string>
+			<key>PayloadUUID</key>
+			<string>A5F10756-37E8-4D07-B678-062B14A8AFDB</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>PayloadDisplayName</key>
+			<string>Blocked apps</string>
+			<!-- Deleting the ShortformBeGone app would switch the filter off. -->
+			<key>allowAppRemoval</key>
+			<false/>
+			<key>allowEraseContentAndSettings</key>
+			<false/>
+			<!-- Safari's Private Browsing can run without the Safari blocker. Delete these two lines to keep it. -->
+			<key>allowSafariPrivateBrowsing</key>
+			<false/>
+			<key>blockedAppBundleIDs</key>
+			<array>
+				<!-- Short-form video apps -->
+				<string>com.zhiliaoapp.musically</string>      <!-- TikTok -->
+				<string>com.burbn.instagram</string>           <!-- Instagram -->
+				<string>com.google.ios.youtube</string>        <!-- YouTube -->
+				<string>com.facebook.Facebook</string>         <!-- Facebook -->
+				<string>com.toyopagroup.picaboo</string>       <!-- Snapchat -->
+				<string>pinterest</string>                     <!-- Pinterest -->
+				<string>com.reddit.Reddit</string>             <!-- Reddit -->
+				<string>com.atebits.Tweetie2</string>          <!-- X / Twitter -->
+				<string>tv.twitch</string>                     <!-- Twitch -->
+				<string>com.tumblr.tumblr</string>             <!-- Tumblr -->
+				<string>com.ss.iphone.ugc.Aweme</string>       <!-- Douyin -->
+				<string>com.ss.iphone.ugc.aweme.lite</string>  <!-- Douyin Lite -->
+				<string>com.kwai.intl</string>                 <!-- Kwai -->
+				<string>com.jiangjia.gif</string>              <!-- Kuaishou -->
+				<string>video.like</string>                    <!-- Likee -->
+				<string>tv.danmaku.bilianime</string>          <!-- Bilibili -->
+				<string>com.bilibili.inter</string>            <!-- Bilibili (international) -->
+				<string>com.9gag.ios.mobile</string>           <!-- 9GAG -->
+				<!-- OPTIONAL: delete these two lines if you need the apps -->
+				<string>com.linkedin.LinkedIn</string>         <!-- LinkedIn -->
+				<string>com.burbn.barcelona</string>           <!-- Threads -->
+				<!-- Other browsers, so Safari is the only one -->
+				<string>com.google.chrome.ios</string>         <!-- Chrome -->
+				<string>org.mozilla.ios.Firefox</string>       <!-- Firefox -->
+				<string>org.mozilla.ios.Focus</string>         <!-- Firefox Focus -->
+				<string>com.microsoft.msedge</string>          <!-- Edge -->
+				<string>com.brave.ios.browser</string>         <!-- Brave -->
+				<string>com.opera.OperaTouch</string>          <!-- Opera -->
+				<string>com.duckduckgo.mobile.ios</string>     <!-- DuckDuckGo -->
+			</array>
+		</dict>
+
+		<!-- Layer 2: the ShortformBeGone content filter and its rules -->
+		<dict>
+			<key>PayloadType</key>
+			<string>com.apple.webcontent-filter</string>
+			<key>PayloadIdentifier</key>
+			<string>agentsee.ShortformBeGone.profile.filter</string>
+			<key>PayloadUUID</key>
+			<string>AD4C8C9A-64C6-4DC3-8C50-B28A70A70ACC</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>PayloadDisplayName</key>
+			<string>ShortformBeGone content filter</string>
+			<key>FilterType</key>
+			<string>Plugin</string>
+			<key>UserDefinedName</key>
+			<string>ShortformBeGone</string>
+			<!-- The bundle ID of the ShortformBeGone app. Leave it as it is. -->
+			<key>PluginBundleID</key>
+			<string>agentsee.ShortformBeGone</string>
+			<key>FilterBrowsers</key>
+			<true/>
+			<key>FilterSockets</key>
+			<true/>
+			<key>VendorConfig</key>
+			<dict>
+				<!-- Whole domains, including subdomains, blocked for every app -->
+				<key>DenyHosts</key>
+				<array>
+					<string>tiktok.com</string>
+					<string>tiktokv.com</string>
+					<string>douyin.com</string>
+					<string>kwai.com</string>
+					<string>kuaishou.com</string>
+					<string>likee.video</string>
+					<string>triller.co</string>
+					<string>9gag.com</string>
+					<string>fb.watch</string>
+				</array>
+				<!-- host/path prefixes, blocked in Safari and in-app browsers -->
+				<key>DenyPaths</key>
+				<array>
+					<string>youtube.com/shorts</string>
+					<string>youtube.com/youtubei/v1/reel</string>
+					<string>instagram.com/reel</string>
+					<string>instagram.com/explore</string>
+					<string>facebook.com/reel</string>
+					<string>facebook.com/watch</string>
+					<string>snapchat.com/spotlight</string>
+				</array>
+				<!-- Set to true to log each block in Console.app (subsystem: shortformfilter) -->
+				<key>LogMatches</key>
+				<false/>
+			</dict>
+		</dict>
+
+		<!-- The lock: removing this profile needs this password -->
+		<dict>
+			<key>PayloadType</key>
+			<string>com.apple.profileRemovalPassword</string>
+			<key>PayloadIdentifier</key>
+			<string>agentsee.ShortformBeGone.profile.removal</string>
+			<key>PayloadUUID</key>
+			<string>C518444C-8DD5-4C09-B776-FB07F8C2455D</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>RemovalPassword</key>
+			<string>CHANGE_ME_REMOVAL_PASSWORD</string>
+		</dict>
+	</array>
+</dict>
+</plist>
