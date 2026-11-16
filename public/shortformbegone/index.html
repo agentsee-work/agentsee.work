@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShortformBeGone, a lock on short-form video for iPhone and iPad — AgentSee</title>
+<meta name="description" content="A free, open-source iPhone and iPad app that blocks Reels, Shorts and TikTok-style feeds and keeps long-form video and messaging. What it does, what the lock costs to set up, and the profile files for your Mac.">
+<link rel="canonical" href="https://agentsee.work/shortformbegone/">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://agentsee.work/shortformbegone/">
+<meta property="og:title" content="ShortformBeGone">
+<meta property="og:description" content="A free, open-source lock on short-form video for iPhone and iPad. Reels, Shorts and TikTok-style feeds go; long-form video and messaging stay.">
+<meta property="og:image" content="https://agentsee.work/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="AgentSee">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://agentsee.work/assets/og.png">
+
+<meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 210'%3E%3Cpath d='M70 96C68 60 74 40 92 38c8 10 48 10 56 0 18 2 24 22 22 58z' fill='%231a1712'/%3E%3Cellipse cx='120' cy='96' rx='97' ry='14' fill='%231a1712'/%3E%3Cpath d='M44 142c28-38 124-38 152 0-28 36-124 36-152 0z' fill='%23f7f3ea' stroke='%231a1712' stroke-width='9' stroke-linejoin='round'/%3E%3Ccircle cx='120' cy='142' r='30' fill='%23a8431d'/%3E%3Ccircle cx='120' cy='142' r='13' fill='%231a1712'/%3E%3C/svg%3E">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+
+<link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.css">
+<link rel="stylesheet" href="/assets/shortformbegone.css">
+</head>
+<body>
+
+<header class="masthead">
+  <nav class="ear" aria-label="Listen to the podcast">
+    <a class="ear-label" href="/podcast/">Listen</a>
+    <a href="https://podcasts.apple.com/gb/podcast/agentsee-podcast/id6824580895">Apple Podcasts</a>
+    <a href="https://open.spotify.com/show/0YjxzDGgoCzjvEykcUAfPr">Spotify</a>
+    <a href="https://www.youtube.com/@agentseework">YouTube</a>
+    <a href="/podcast/feed.xml">RSS</a>
+  </nav>
+  <a class="nameplate home" href="/" aria-label="AgentSee, the front page">
+  <div class="mark" id="mark">
+    <svg viewBox="0 0 240 210" role="img" aria-label="An eye wearing a fedora">
+      <defs>
+        <clipPath id="eyeclip">
+          <path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        </clipPath>
+      </defs>
+
+      <g class="hat">
+        <path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>
+        <path class="hat-band"  d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>
+        <path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>
+        <ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/>
+      </g>
+
+      <g class="eye" id="eye">
+        <path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+        <g clip-path="url(#eyeclip)">
+          <g id="iris" class="iris">
+            <circle class="iris-outer" cx="120" cy="142" r="31"/>
+            <circle class="iris-inner" cx="120" cy="142" r="22"/>
+            <circle class="pupil"      cx="120" cy="142" r="13.5"/>
+            <circle class="glint"      cx="109" cy="131" r="6"/>
+            <circle class="glint sm"   cx="132" cy="152" r="2.6"/>
+          </g>
+        </g>
+        <path class="eye-outline" vector-effect="non-scaling-stroke"
+              d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>
+      </g>
+    </svg>
+  </div>
+  <p class="wordmark">AgentSee</p>
+  </a>
+  <nav class="ear" aria-label="Follow AgentSee">
+    <span class="ear-label">Follow</span>
+    <a href="https://www.linkedin.com/company/agentseework">LinkedIn</a>
+    <a href="https://x.com/agentseework">X</a>
+    <a href="https://bsky.app/profile/agentsee.work">Bluesky</a>
+    <a href="https://mastodon.social/@agentseework">Mastodon</a>
+    <a href="https://www.instagram.com/agentsee.work/">Instagram</a>
+  </nav>
+</header>
+<div class="dateline">
+  <span class="edge">Hove &amp; London</span>
+  <span class="mid">ShortformBeGone</span>
+  <span class="edge">Free &middot; Open source</span>
+</div>
+
+<main>
+  <article class="lead">
+    <h1>A lock on short-form video that survives a weak moment.</h1>
+    <p class="deck">ShortformBeGone is a free iPhone and iPad app that blocks short-form, infinite-scroll video: Instagram Reels, YouTube Shorts, TikTok and the feeds like them. Messaging, long-form YouTube and ordinary browsing keep working.</p>
+    <p class="status">
+      <span class="pulse" aria-hidden="true"></span>
+      <b>Coming to the App Store</b>
+      <span class="sep">/</span> Free, no purchases
+      <span class="sep">/</span> No account, no data collected
+      <span class="sep">/</span> <a href="https://github.com/agentsee-work/ShortformBeGone">Open source on GitHub</a>
+    </p>
+  </article>
+
+  <section class="section" id="what">
+    <p class="kicker">01 — What it does</p>
+    <h2>It takes the feed away and leaves the rest of the phone alone.</h2>
+    <div class="sfbg-split">
+      <div class="notes">
+        <p>It is for people who have tried app timers, and deleted and reinstalled their way through every softer option. A blocker you can switch off in a tap does not survive a weak moment, so the app comes in two parts: a Safari blocker that works a minute after you install it, and a guide to locking the device down so that undoing it needs a password somebody else holds.</p>
+        <h3>What it blocks</h3>
+        <ul>
+          <li>Whole sites that are only a short-form feed, such as tiktok.com.</li>
+          <li>Only the short-form sections of sites worth keeping: <code>youtube.com/shorts</code>, <code>instagram.com/reel</code> and <code>/explore</code>, <code>facebook.com/reel</code> and <code>/watch</code>, <code>snapchat.com/spotlight</code>.</li>
+          <li>The links and shelves that lead into them, as far as the sites' pages allow.</li>
+          <li>With the lock: the apps themselves, other browsers, and deleting the filter.</li>
+        </ul>
+        <h3>What it leaves alone</h3>
+        <ul>
+          <li>Long-form YouTube in Safari.</li>
+          <li>Instagram and Facebook messages and posts on the web.</li>
+          <li>Everything else.</li>
+        </ul>
+        <p>The app is not on the App Store yet. It is built and about to be submitted, and this page will carry the link when there is one. Until then the <a href="https://github.com/agentsee-work/ShortformBeGone">source</a> is public and can be built with Xcode.</p>
+      </div>
+      <figure class="sfbg-shots">
+        <img src="/shortformbegone/1-status.jpg" width="660" height="1434" loading="lazy" decoding="async"
+             alt="The app's Status tab: short-form video is blocked, with the network filter and the Safari blocker both on.">
+        <img src="/shortformbegone/2-rules-blocked.jpg" width="660" height="1434" loading="lazy" decoding="async"
+             alt="The app's Rules tab: the address m.youtube.com/shorts/abc tested and shown as blocked, above the list of blocked sites.">
+        <figcaption>Status, with the layers running, and Rules, with a box to test any address.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="layers">
+    <p class="kicker">02 — The layers</p>
+    <h2>Four layers. Two work in a minute, and two are the lock.</h2>
+    <div class="steps">
+      <div>
+        <h3>Safari blocker</h3>
+        <p>A Safari content blocker. It refuses the short-form sections of sites on every request Safari makes, including from inside a site that is already open, and hides the links into them. Works on any iPhone or iPad the moment you switch it on. <b>Not locked:</b> it can be switched off in Settings.</p>
+      </div>
+      <div>
+        <h3>Safari guard</h3>
+        <p>A second Safari extension. Some sites open a Short or a Reel without loading a page, so there is no request to refuse; the guard watches the address on YouTube, Instagram, Facebook and Snapchat and returns you to the site's home page. <b>Not locked</b> either, and it needs Allow for each site.</p>
+      </div>
+      <div>
+        <h3>Network filter</h3>
+        <p>A content filter that checks the full address of every Safari and in-app browser request, and the hostname of every app's connections, against the rules. iOS only runs it on a supervised device. <b>Locked by the profile,</b> and its rules live in the profile too.</p>
+      </div>
+      <div>
+        <h3>Locked profile</h3>
+        <p>A configuration profile for a supervised device. It switches the network filter on, blocks the short-form apps and other browsers, and blocks deleting apps and erasing from Settings. <b>Removing it needs the removal password</b> or a full restore from a computer.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="setup">
+    <p class="kicker">03 — What setup takes</p>
+    <h2>A minute for the Safari blocker. A Mac, an erase and about a day for the lock.</h2>
+    <div class="notes">
+      <p>The Safari blocker and guard need nothing but the app: switch both on in Settings → Apps → Safari → Extensions, allow the guard for its four sites, and Shorts and Reels stop loading in Safari. No Mac, no erase.</p>
+      <p>The lock costs more, and the cost is Apple's rule rather than ours: iOS only runs a network content filter on a <i>supervised</i> device, and supervising a device you already own means erasing it once with Apple Configurator on a Mac and restoring it from an iCloud backup. That is the price of a lock that holds. You will need:</p>
+      <ul>
+        <li>A Mac with <a href="https://apps.apple.com/app/apple-configurator/id1037126344">Apple Configurator</a> (free) and room for a phone backup.</li>
+        <li>A USB cable, plugged straight into the Mac.</li>
+        <li>The ShortformBeGone app on the phone.</li>
+        <li>A keyholder, or a timed lockbox, for the removal password.</li>
+        <li>About a day, most of it waiting.</li>
+      </ul>
+      <p>You do not need an Apple Developer account or Xcode once the app is on the App Store. The erase is the only risky step, and the app's Setup tab walks through what to back up and sign out of first; the same guide is in the <a href="https://github.com/agentsee-work/ShortformBeGone#setup">README</a>.</p>
+    </div>
+  </section>
+
+  <section class="section" id="profile">
+    <p class="kicker">04 — The profile files</p>
+    <h2>Two files for your Mac. Download both into the same folder.</h2>
+    <div class="launch">
+      <a href="/shortformbegone/no-shortform.mobileconfig" download="no-shortform.mobileconfig">Download no-shortform.mobileconfig</a>
+      <a href="/shortformbegone/set-removal-password.sh" download="set-removal-password.sh">Download set-removal-password.sh</a>
+    </div>
+    <p class="launch-note">
+      The profile template (6 KB) and the script that locks it (2 KB). Open this page on the Mac, not the phone: the profile is installed from the Mac, on a supervised device, with Apple Configurator.
+    </p>
+    <div class="notes">
+      <p>The app does not contain or install a profile. Its Setup tab sends you here, and you install the profile yourself. Both files are plain text, so read them before you use them.</p>
+      <ol>
+        <li>Supervise the device first (section 03) and install the ShortformBeGone app on it.</li>
+        <li>Download both files into Downloads on the Mac.</li>
+        <li>Open <code>no-shortform.mobileconfig</code> in a text editor and delete the lines for any apps you need to keep. Edit <code>DenyHosts</code> and <code>DenyPaths</code> to change the rules. Leave <code>CHANGE_ME_REMOVAL_PASSWORD</code> as it is.</li>
+        <li>In Terminal, set the removal password without seeing it:
+          <pre class="sfbg-cmd">bash ~/Downloads/set-removal-password.sh</pre>
+          This writes <code>no-shortform.locked.mobileconfig</code> beside the template and sends the password to the default printer. With no printer, add <code>--to-file</code>. The script uses only tools built into macOS, and the password never leaves the Mac.</li>
+        <li>Apple Configurator → select the phone → <b>Add → Profiles</b> → choose the locked copy.</li>
+        <li>Check that Settings → General → VPN &amp; Device Management lists "No Short-Form Video" and a content filter, and that the app's Status tab is green.</li>
+        <li>Hand the password to your keyholder, then delete the locked copy: the password is readable inside it.</li>
+      </ol>
+      <p>These two files are copies. The canonical ones, with their history, are in the <a href="https://github.com/agentsee-work/ShortformBeGone/tree/main/Profile">Profile folder of the GitHub repository</a>; if the two ever differ, the repository is right.</p>
+    </div>
+  </section>
+
+  <section class="section" id="gaps">
+    <p class="kicker">05 — Known gaps</p>
+    <h2>What it does not do, said before you erase a phone for it.</h2>
+    <div class="notes">
+      <ul>
+        <li><b>A full restore from a computer removes everything.</b> That is deliberate: you can never be locked out for good.</li>
+        <li><b>The Safari blocker and guard are not locked.</b> Both can be switched off in Settings → Apps → Safari → Extensions. Apple offers no profile setting that locks a Safari extension on a device that is not enrolled in an MDM server. The profile turns off Safari's Private Browsing, where they may not run.</li>
+        <li><b>The locked filter misses some in-page views.</b> It is shown one address per connection, so it misses Shorts reached from inside a YouTube session that is already open. The Safari blocker and guard cover those, and they are the unlocked part. The guard checks the address several times a second, so a Reel may flash before you are sent back.</li>
+        <li><b>Hidden links are best-effort.</b> Hiding the Shorts tab and shelves depends on the sites' current pages, which change. Blocking the requests does not.</li>
+        <li><b>Inline video inside other apps</b>, such as chat and news apps, is not covered.</li>
+        <li><b>If the filter crashes,</b> traffic may pass until it restarts.</li>
+        <li><b>New apps</b> are not in the list until their bundle ID and domain are added.</li>
+      </ul>
+      <p>The full list, with what was measured and on which iOS version, is in the <a href="https://github.com/agentsee-work/ShortformBeGone#known-gaps">README</a>.</p>
+    </div>
+  </section>
+
+  <section class="section" id="more">
+    <p class="kicker">06 — Source, privacy, support</p>
+    <h2>Free, MIT licensed, and all of it readable.</h2>
+    <div class="notes">
+      <p>ShortformBeGone has no account, no ads, no purchases and no analytics, and it collects no data: the <a href="/shortformbegone/privacy/">privacy policy</a> is short because of it. The code is on <a href="https://github.com/agentsee-work/ShortformBeGone">GitHub</a> under the MIT licence, copyright AgentSee. For help, see <a href="/shortformbegone/support/">support</a>, or write to <a href="mailto:apps@agentsee.work">apps@agentsee.work</a>.</p>
+    </div>
+    <p class="links">
+      <a href="https://github.com/agentsee-work/ShortformBeGone">GitHub repository</a>
+      <a href="https://github.com/agentsee-work/ShortformBeGone/issues">Issues</a>
+      <a href="/shortformbegone/privacy/">Privacy policy</a>
+      <a href="/shortformbegone/support/">Support</a>
+    </p>
+  </section>
+
+  <p class="backlink-row">
+    <a class="backlink" href="/">&larr; Back to the front page</a>
+  </p>
+</main>
+
+<footer>
+  <div class="colophon">
+    <span>AgentSee</span>
+    <span>agentsee.work</span>
+    <span>Set in Newsreader</span>
+  </div>
+  <p class="footer-note">
+    Printed by nobody. No trackers, no cookies, no analytics, no third-party requests
+    of any kind — this page loads only what it serves itself. If that ever changes,
+    it will say so right here.
+  </p>
+</footer>
+
+<script src="/assets/eye.js" defer></script>
+</body>
+</html>

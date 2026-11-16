@@ -1,0 +1,64 @@
+/* /shortformbegone/ and its two pages. A file of its own, like diagrams.css:
+   the edge may hold styles.css from before the deploy that added these pages. */
+
+/* Prose beside two screenshots; the screenshots drop below on a narrow screen. */
+.sfbg-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+  gap: clamp(1.6rem, 4vw, 3.4rem);
+  align-items: start;
+}
+@media (max-width: 56rem) {
+  .sfbg-split { grid-template-columns: 1fr; }
+}
+
+.sfbg-shots {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .9rem;
+}
+.sfbg-shots img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--hair);
+  border-radius: 1.1rem;
+  background: var(--paper-2);
+}
+.sfbg-shots figcaption {
+  grid-column: 1 / -1;
+  font-family: var(--mono);
+  font-size: .8rem;
+  line-height: 1.5;
+  color: var(--ink-3);
+  text-align: center;
+  text-wrap: pretty;
+}
+
+/* The layers' "locked / not locked" verdicts. */
+.steps b { color: var(--ink); font-weight: 600; }
+
+.notes li { margin-bottom: .45em; }
+.notes b { color: var(--ink); font-weight: 600; }
+
+/* One command, set like the prompt on /twenty-questions/. */
+.sfbg-cmd {
+  margin: .6rem 0;
+  padding: .8rem 1rem;
+  background: var(--paper-2);
+  border: var(--hairline);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: .8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* File names and addresses on the buttons stay as typed. */
+.launch a[download], .launch a[href^="mailto:"] {
+  text-transform: none;
+  letter-spacing: .04em;
+  font-size: .74rem;
+}

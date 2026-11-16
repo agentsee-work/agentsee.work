@@ -44,6 +44,15 @@
   <url>
     <loc>https://agentsee.work/seymour/</loc>
   </url>
+  <url>
+    <loc>https://agentsee.work/shortformbegone/</loc>
+  </url>
+  <url>
+    <loc>https://agentsee.work/shortformbegone/privacy/</loc>
+  </url>
+  <url>
+    <loc>https://agentsee.work/shortformbegone/support/</loc>
+  </url>
   <!-- podcast: written by tools/site.py -->
   <url>
     <loc>https://agentsee.work/podcast/</loc>
