@@ -5,7 +5,7 @@ post on every platform, and back from every post to the numbers. The design
 and the decisions are on Linear (AGE-69); this is what exists.
 
 ```
-engine.py        the command line: ingest, plan, links, posts, publish, serve, mail, linear
+engine.py        the command line: ingest, plan, links, posts, publish, serve, mail, linear, remind
 ledger.py        the SQLite ledger: episode, deliverable, post, snapshot, spend,
                  click, download, lead, event; guest, code, session, linear_job
 ingest.py        release.json + staged.json → episode and deliverables
@@ -43,6 +43,9 @@ release.py       the release: versions with their hash, both hosts' signatures
 idea.py          the idea conversation: the guest-episode skill run with the
                  Claude API, streamed, capped; the run-sheet draft; what the
                  pipeline wants of the guest; the issue told
+remind.py        the office's notes to guests who have stopped: who is due
+                 one, by stage and quiet days, and the letter for each stage;
+                 the worker sends them on weekday mornings (guests.remind_all)
 schedule.py      the time: the guest's choices in their zone against the rules,
                  both hosts' answers, the booking with its mail and calendar
                  file, the join link in its window; the issue told
@@ -385,6 +388,36 @@ below `guests.py` imports `progress.py`. Built because guests fleshed their
 episode out and stopped: the draft said it had been sent to the hosts, which
 read as handed over, and the only sign a time was still to be picked was a
 line on a page they had left.
+
+The office also writes by itself (`remind.py`, AGE-154): once a day after
+`remind_at` (config.json; 09:30 London), Monday to Friday, the worker runs
+`guests.remind_all`, which reads every guest the way the office does and
+sends a note to each one whose step has been theirs for a while and who
+has heard nothing from us in that while. The rule is `remind.after_days`,
+`[3, 7]`: the first note after three quiet days on a step, the second
+after seven more, and then no more from the engine; the Guests screen's
+Next column marks a week or more as late and says how many notes have
+gone, and the hosts decide. The door keeps a slower clock,
+`remind.door_days` `[7, 14]`, since an invitation unopened for three days
+is not yet a stop. Quiet means no mail of any kind from us to
+that guest, so a hand note, a draft mail or an invitation sent again all
+count as having spoken; a step re-entered (a time that fell through)
+starts the count again. The stages are the four steps and the door: a
+guest invited by mail who has not come through gets the invitation again,
+worded as a second note. Each letter says where the guest stands, in the
+office's voice, asks whether anything is unclear or in the way, and says a
+reply reaches James and Abrar; the office's second note says it is the
+last. The hand button sends the same letter, opening in the host's name,
+and counts as one of the two, so the engine stands back once a host has
+written; the button itself is never capped. Nothing goes to a guest whose
+next step is with the hosts, who is booked and waiting for the recording,
+who has approved, who was withdrawn, who has no address, or who was never
+emailed the invitation (the link went by hand, and mail would be a
+surprise). Each note is a `mail:sent` event under the kind
+`reminder:<stage>`, the issue hears of it as `nudged` (the office's own told
+apart from a host's), the pass is a `remind:run` event Health shows, and
+`engine.py remind --dry-run` says who is due and why without sending;
+`engine.py remind` sends now, weekend or not.
 
 The review (`review.py`, AGE-111) is the last step of the office. The
 pipeline's `episode.py review <slug>` puts the render as it stands under

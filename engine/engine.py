@@ -9,6 +9,7 @@ line; the screens are `serve`. The design is on AGE-69.
     ./engine/engine.py publish --due --dry-run what the next run would do
     op run --env-file=engine/engine.env -- ./engine/engine.py publish --due
     op run --env-file=engine/engine.env -- ./engine/engine.py serve
+    ./engine/engine.py remind --dry-run        who the office would write to today, and why
 
 `ingest` and `plan` need no credentials; `links` (which `plan` tries) wants
 the Cloudflare token, `publish` and the worker in `serve` want each
@@ -138,6 +139,17 @@ def cmd_collect(a):
     c = ledger.connect(a.ledger)
     res = collect.run(c, only=a.only, who=who())
     print("; ".join(f"{k}: {v}" for k, v in res.items()))
+
+
+def cmd_remind(a):
+    import guests
+
+    c = ledger.connect()
+    lines = guests.remind_all(c, who=who(), dry_run=a.dry_run)
+    if not lines:
+        print("nobody is due a note" if a.dry_run else "nothing sent (nobody due, or the weekend)")
+    for line in lines:
+        print(line)
 
 
 def cmd_threads(a):
@@ -373,6 +385,11 @@ def main():
         "--late", action="store_true", help="also what is past its time by more than late_hours (config.json)"
     )
     p.set_defaults(fn=cmd_publish)
+    p = sub.add_parser(
+        "remind", help="the office's notes to guests who have stopped, now (the worker does it on weekday mornings)"
+    )
+    p.add_argument("--dry-run", action="store_true", help="say who is due a note and why; send nothing")
+    p.set_defaults(fn=cmd_remind)
     p = sub.add_parser("collect", help="read what every post and file did, into the ledger (the worker does it daily)")
     p.add_argument(
         "--only",

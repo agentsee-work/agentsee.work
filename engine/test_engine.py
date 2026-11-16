@@ -3222,17 +3222,25 @@ class EngineTest(unittest.TestCase):
         m = FakeSMTP.sent[-1]
         self.assertEqual(
             (len(FakeSMTP.sent), m["To"], m["Subject"]),
-            (sent + 1, "ada@example.com", "The next step for your AgentSee episode"),
+            (sent + 1, "ada@example.com", "The idea for your AgentSee episode"),
         )
-        text = m.get_content()
+        text = m.get_content()  # the office's letter for the stage (remind.py), the one the daily pass sends
         self.assertIn("Hello Ada,", text)
+        self.assertIn("A note from Abrar, in case it helps.", text, "a hand note opens in the host's name")
+        self.assertIn(f"You signed the release on {today}; thank you. The next thing is the", text)
         self.assertIn(f"https://{SEE}/idea", text)
-        self.assertIn("The next step is the idea", text)
+        self.assertIn("If anything is unclear or in the way, reply to this message", text)
         job = c.execute("SELECT * FROM linear_job ORDER BY id DESC").fetchone()
-        self.assertEqual((job["kind"], json.loads(job["args"])["step"]), ("nudged", "idea"))
+        self.assertEqual(
+            tuple(json.loads(job["args"])[k] for k in ("step", "n", "auto")), ("idea", 1, False), job["args"]
+        )
+        self.assertEqual(job["kind"], "nudged")
         self.assertEqual(len(c.execute("SELECT id FROM linear_job").fetchall()), before + 1)
         self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
         self.assertIn("emailed Ada Lovelace the next step, the idea, on", fake.comments[-1][1])
+        self.assertIn("(the first of its two notes, counted against the office's).", fake.comments[-1][1])
+        body = req("GET", "/guests")[2]
+        self.assertIn('<span class="muted">today</span> <span class="muted">reminded once</span>', body)
         v2 = release.add(c, RELEASE_TEXT.replace("video link", "studio link"), "jameshartt@example.com")
         self.assertEqual((v2["n"], release.issued(c)), (2, 1), "a new version is not issued until both sign it")
         st, h, body = req("GET", "/release", host=SEE, cookies=ada)
@@ -4986,6 +4994,267 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(st, 303)
         self.assertEqual([r["n"] for r in json.loads(objs[f"guests/{gid}/notes.json"]["body"])["rounds"]], [1, 2])
         self.assertIn("Nothing to watch yet", review.not_yet(c, guests.guest(c, gid), "")[1])
+
+    def test_25b_reminders(self):
+        """The office's notes (AGE-154): who is due one, by stage and quiet days; the letter for each stage; the
+        cap of two, a host's note counted; the weekend; the Guests screen, Health and the issue."""
+        import remind
+
+        SEE = guests.HOST
+        os.environ.update(self.menv)
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in self.menv])
+        c = self.c()
+        fake = FakeLinear()
+        fake.issues.update(self.linear_made)
+        linear.post = fake
+        linear.vault = FakeVault("lr1", item="Linear podcast token")
+        linear._token.update(access=None, until=0.0, unsaved=None)
+        env = {"LINEAR_CLIENT_ID": "lcid", "LINEAR_CLIENT_SECRET": "lcs", "LINEAR_REFRESH_TOKEN": "lr1"}
+        quiet = lambda s: None  # noqa: E731
+        day = lambda iso: guests.when(iso, "%-d %B")  # noqa: E731
+        flat = lambda m: " ".join(m.get_content().split())  # noqa: E731 — the letters are wrapped at 72
+        now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        sunday = dt.datetime(2026, 11, 15, 9, 35, tzinfo=ledger.ZONE)
+        # the guests the earlier tests made keep their addresses out of this, and get them back after
+        had = {r["id"]: r["address"] for r in c.execute("SELECT id, address FROM guest WHERE address IS NOT NULL")}
+        c.execute("UPDATE guest SET address=NULL")
+        self.addCleanup(lambda: [c.execute("UPDATE guest SET address=? WHERE id=?", (a, i)) for i, a in had.items()])
+
+        def ago(days):
+            return (now - dt.timedelta(days=days)).isoformat()
+
+        def make(name, address, days, issue=None, **cols):
+            """A guest whose whole story so far happened `days` ago: made then, the invitation mailed then, and
+            each column given set then too, so the quiet clock reads from that day."""
+            g = guests.create(c, name, address, issue, "james@example.com")
+            guests.act(c, g, "send", "james@example.com")
+            sets = {"created_at": ago(days), "updated_at": ago(days), **cols}
+            if cols:
+                sets.update(state="claimed", claimed_at=ago(days))
+            c.execute(f"UPDATE guest SET {', '.join(f'{k}=?' for k in sets)} WHERE id=?", (*sets.values(), g["id"]))
+            c.execute("UPDATE event SET at=? WHERE guest=?", (ago(days), g["id"]))
+            return g["id"]
+
+        def book(gid, state, created, updated, start_at=None):
+            c.execute(
+                "INSERT INTO booking (id, guest, tz, choices, offered, answers, state, start_at, created_at, "
+                "updated_at) VALUES (?, ?, 'Europe/London', ?, 0, '{}', ?, ?, ?, ?)",
+                (f"bk-{gid}-{created[:10]}", gid, json.dumps([start]), state, start_at, created, updated),
+            )
+
+        FakeSMTP.sent.clear()
+        start = (now + dt.timedelta(days=21)).replace(hour=10, minute=0, second=0).isoformat()
+        door = make("Dora Door", "dora@example.com", 8)  # invited by mail, never came in; the door is slower
+        fresh = make("Finn Fresh", "finn@example.com", 1)  # invited yesterday: too soon
+        unmailed = guests.create(c, "Ulla Unmailed", "ulla@example.com", None, "james@example.com")  # link by hand
+        c.execute("UPDATE guest SET created_at=? WHERE id=?", (ago(9), unmailed["id"]))
+        rel = make("Rex Release", "rex@example.com", 5)  # in, release unsigned
+        c.execute("UPDATE guest SET state='claimed', claimed_at=? WHERE id=?", (ago(5), rel))
+        idle = make("Ida Idle", "ida@example.com", 4, signed_version=1, signed_at=ago(4))  # signed, idea untouched
+        booked = make("Bea Booked", "bea@example.com", 6, signed_version=1, signed_at=ago(6))  # booked first
+        book(booked, "booked", ago(5), ago(5), start)
+        drafted = make(  # James's case: the run-sheet written, no time picked (AGE-150)
+            "Tim Time",
+            "tim@example.com",
+            8,
+            "AGE-73",
+            signed_version=1,
+            signed_at=ago(10),
+            brief="A run-sheet.",
+            brief_at=ago(8),
+        )
+        asked = make(
+            "Wanda Waiting", "wanda@example.com", 5, signed_version=1, signed_at=ago(9), brief="x", brief_at=ago(5)
+        )
+        book(asked, "asked", ago(4), ago(4))
+        fell = make(
+            "Finlay Fell", "fin@example.com", 12, signed_version=1, signed_at=ago(12), brief="x", brief_at=ago(11)
+        )
+        book(fell, "declined", ago(10), ago(4))
+        gone = make("Gus Gone", "gus@example.com", 20, signed_version=1, signed_at=ago(20))
+        guests.revoke(c, gone, "james@example.com")
+        c.execute("DELETE FROM linear_job")
+        mine = (door, fresh, unmailed["id"], rel, idle, booked, drafted, asked, fell, gone)
+
+        # ── who is due, and why ──
+        due = {g["name"]: (stage, n) for g, stage, since, n, w in remind.due(c, now)}
+        self.assertEqual(
+            due,
+            {
+                "Dora Door": ("door", 1),
+                "Rex Release": ("release", 1),
+                "Ida Idle": ("idea", 1),
+                "Bea Booked": ("idea", 1),
+                "Tim Time": ("time", 1),
+                "Finlay Fell": ("time", 1),
+            },
+        )
+        # not Finn (a day), not Ulla (never emailed, so mail would be a surprise), not Wanda (with the hosts), not Gus
+        self.assertEqual(
+            [g["name"] for g, *_ in remind.due(c, now - dt.timedelta(days=4)) if g["id"] == door],
+            [],
+            "a door unopened for four days is not yet a stop",
+        )
+        self.assertEqual(
+            sorted(g["name"] for g, *_ in remind.due(c, now - dt.timedelta(days=2))),
+            ["Bea Booked", "Rex Release", "Tim Time"],
+            "two days earlier only those three had been quiet three days",
+        )
+
+        # ── a Sunday sends nothing; a dry run lists anyway ──
+        self.assertEqual(guests.remind_all(c, now=sunday, log=quiet), [])
+        self.assertEqual(len(FakeSMTP.sent), 9, "the nine invitations, nothing more")
+        lines = guests.remind_all(c, now=now, dry_run=True, log=quiet)
+        self.assertEqual(len(lines), 6)
+        self.assertIn(f"Tim Time (tim@example.com): a time to record, since {day(ago(8))}, note 1", lines)
+        self.assertEqual(len(FakeSMTP.sent), 9, "a dry run sends nothing")
+        self.assertIsNone(c.execute("SELECT 1 FROM event WHERE what='remind:run'").fetchone())
+
+        # ── the pass, on a weekday ──
+        said = []
+        lines = guests.remind_all(c, now=now, log=said.append)
+        self.assertEqual(len(lines), 6)
+        self.assertTrue(all(line.endswith(": sent") for line in lines), lines)
+        self.assertEqual(len(FakeSMTP.sent), 15)
+        by = {m["To"]: m for m in FakeSMTP.sent[9:]}
+        m = by["dora@example.com"]
+        self.assertEqual(m["Subject"], "The invitation to the AgentSee podcast, again")
+        text = flat(m)
+        self.assertIn(
+            f"James invited you to record an episode of the AgentSee podcast on {day(ago(8))}, and the office has "
+            "not seen you yet.",
+            text,
+        )
+        self.assertIn(f"https://{SEE}/i/{guests.guest(c, door)['invite']}", text)
+        self.assertIn("junk folder", text)
+        self.assertNotIn("sends you a code.", text, "the door's letter has its own ending")
+        m = by["rex@example.com"]
+        self.assertEqual(m["Subject"], "The release for your AgentSee episode")
+        text = flat(m)
+        self.assertIn("A note from the office, in case it helps.", text)
+        self.assertIn(f"You came into the office on {day(ago(5))}, and the release has been waiting", text)
+        self.assertIn(f" https://{SEE}/release ", text)
+        self.assertIn("If anything is unclear or in the way, reply to this message; it reaches James and Abrar", text)
+        self.assertIn(f"The office at https://{SEE} shows where everything stands", text)
+        m = by["ida@example.com"]
+        self.assertEqual(m["Subject"], "The idea for your AgentSee episode")
+        self.assertIn(f"You signed the release on {day(ago(4))}; thank you.", flat(m))
+        self.assertIn("Nothing has moved since, which is fine, and this is a note in case it is not.", flat(m))
+        m = by["bea@example.com"]
+        self.assertEqual(m["Subject"], "The idea for your AgentSee episode")
+        self.assertIn("Your recording is booked for", flat(m))
+        self.assertIn("that starts when you do, at https://", flat(m), "booked first: pointed at the idea")
+        m = by["tim@example.com"]
+        self.assertEqual(m["Subject"], "A time to record your AgentSee episode")
+        text = flat(m)
+        self.assertIn(
+            "Your run-sheet draft is written and with James and Abrar, and the one thing left before the recording is "
+            "the time, which only you can pick.",
+            text,
+        )
+        self.assertIn(f" https://{SEE}/time ", text)
+        self.assertIn("Both hosts accept, one click each", text)
+        m = by["fin@example.com"]
+        self.assertIn(
+            "The time you asked for did not work out, and nothing has been picked since; the calendar is open again.",
+            flat(m),
+        )
+        for m in FakeSMTP.sent[9:]:
+            self.assertEqual(m["Auto-Submitted"], "auto-generated")
+            self.assertIn("A reply reaches James and Abrar.", flat(m))
+        run = c.execute("SELECT * FROM event WHERE what='remind:run'").fetchone()
+        self.assertEqual((run["who"], json.loads(run["detail"])["sent"]), ("worker", 6))
+        self.assertIn("Tim Time (a time to record, 1)", json.loads(run["detail"])["to"])
+        self.assertEqual(len([line for line in said if line.startswith("remind: ")]), 6)
+        # the record under the stage's kind, by the worker; the issue told as the office's own note
+        rec = c.execute(
+            "SELECT who, detail FROM event WHERE guest=? AND what='mail:sent' ORDER BY id DESC", (drafted,)
+        ).fetchone()
+        self.assertEqual((rec["who"], json.loads(rec["detail"])["subject"]), ("worker", "reminder:time"))
+        job = c.execute("SELECT * FROM linear_job WHERE guest=? ORDER BY id DESC", (drafted,)).fetchone()
+        args = json.loads(job["args"])
+        self.assertEqual((job["kind"], args["auto"], args["n"], args["step"]), ("nudged", True, 1, "time"))
+        self.assertEqual(linear.drain(c, env, log=quiet), 1, "only Tim has an issue")
+        self.assertEqual(
+            fake.comments[-1][1],
+            f"The office reminded Tim Time of the next step, a time to record, on {guests.when(ledger.now())}: "
+            "the first of its two notes.",
+        )
+
+        # ── the same day again: nothing; the Guests screen and Health say what went ──
+        self.assertEqual(remind.due(c, now), [])
+        title, body = guests.guests_page(c, "csrf")
+        self.assertIn(
+            'pick a time to record <span class="late">8 days</span> <span class="muted">reminded once</span>', body
+        )
+        self.assertIn(
+            '<span class="muted">not in yet</span> <span class="muted">8 days</span> '
+            '<span class="muted">reminded once</span>',
+            body,
+        )
+        self.assertIn(
+            'flesh the idea out with the office <span class="muted">4 days</span> '
+            '<span class="muted">reminded once</span>',
+            body,
+        )
+        self.assertEqual(remind.mark(c, guests.guest(c, asked)), "", "no mark on a guest who is with the hosts")
+        health = web.health_page(c)[1]
+        self.assertIn("Last reminders", health)
+        self.assertIn("&quot;sent&quot;: 6", health)
+        web.STATE["remind_day"] = dt.date(2000, 1, 1)
+        ledger.CONFIG["remind_at"] = "00:00"
+        self.assertTrue(web.daily_due("remind"))
+        ledger.CONFIG["remind_at"] = "09:30"
+
+        # ── the second note after seven more quiet days, and its last; then the hosts ──
+        self.assertEqual(
+            [g["name"] for g, *_ in remind.due(c, now + dt.timedelta(days=6))],
+            ["Finn Fresh"],
+            "six days is not seven; Finn's own first note is due by then",
+        )
+        later = now + dt.timedelta(days=7, minutes=1)
+        due = {g["name"]: n for g, stage, since, n, w in remind.due(c, later)}
+        self.assertEqual(
+            due,
+            {n: 2 for n in ("Rex Release", "Ida Idle", "Bea Booked", "Tim Time", "Finlay Fell")} | {"Finn Fresh": 1},
+            "the door's second note waits fourteen days, so Dora is not here",
+        )
+        lines = guests.remind_all(c, now=later, log=quiet)
+        self.assertEqual(len(lines), 6)
+        m = next(m for m in FakeSMTP.sent[15:] if m["To"] == "tim@example.com")
+        self.assertIn(
+            "This is the office's second note, and its last; anything after it comes from James or Abrar in person.",
+            flat(m),
+        )
+        self.assertEqual(remind.count(c, drafted, "time", ago(8)), 2)
+        self.assertEqual(remind.mark(c, guests.guest(c, drafted)), "reminded twice")
+        self.assertEqual(
+            [g["name"] for g, *_ in remind.due(c, later + dt.timedelta(days=30))],
+            ["Dora Door", "Finn Fresh"],
+            "two is the cap; the hosts take it from here; the door's second notes come in their own time",
+        )
+        # a host's hand note is never capped, counts, opens in their name and reads as theirs on the issue
+        msg = guests.nudge(c, guests.guest(c, drafted), "abrar@example.com")
+        self.assertEqual(msg, "Sent to tim@example.com: Next: pick a time to record.")
+        self.assertIn("A note from Abrar, in case it helps.", flat(FakeSMTP.sent[-1]))
+        self.assertEqual(remind.mark(c, guests.guest(c, drafted)), "reminded 3 times")
+        self.assertEqual(linear.drain(c, env, log=quiet), 2, "the office's second and Abrar's")
+        self.assertTrue(fake.comments[-1][1].startswith("Abrar emailed Tim Time the next step, a time to record, on"))
+        self.assertIn("(note 3, counted against the office's).", fake.comments[-1][1])
+        # a step re-entered starts the count again: Tim's time falls through, and the office may write once more
+        again = (later + dt.timedelta(days=1)).isoformat()
+        book(drafted, "declined", later.isoformat(), again)
+        self.assertEqual(remind.count(c, drafted, "time", again), 0)
+        due = {g["name"]: n for g, stage, since, n, w in remind.due(c, later + dt.timedelta(days=5))}
+        self.assertEqual(due.get("Tim Time"), 1, "the first note about the step as it now stands")
+        self.assertFalse(set(due) & {"Dora Door", "Rex Release", "Ida Idle", "Bea Booked", "Finlay Fell"}, due)
+        # nothing is theirs: the hand button refuses with the sentence
+        with self.assertRaises(ValueError) as e:
+            guests.nudge(c, guests.guest(c, asked), "james@example.com")
+        self.assertIn("Nothing is theirs to do: Nothing for you just now", str(e.exception))
+        for gid in mine:
+            c.execute("DELETE FROM guest WHERE id=?", (gid,))
+        c.execute("DELETE FROM linear_job")
 
     def test_26_threads(self):
         c = self.c()

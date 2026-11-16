@@ -304,12 +304,14 @@ def days(iso):
     return "today" if n < 1 else "yesterday" if n < 2 else f"{n} days"
 
 
-def cell(c, g):
-    """One cell for the Guests table: the step the guest is on and for how long, so the one to nudge stands out."""
+def cell(c, g, more=""):
+    """One cell for the Guests table: the step the guest is on and for how long, so the one to nudge stands out;
+    `more` is a word after it (how many notes the office has sent, remind.py)."""
+    tail = f' <span class="muted">{esc(more)}</span>' if more else ""
     if g["state"] == "revoked":
         return '<span class="muted">withdrawn</span>'
     if not g["claimed_at"]:
-        return f'<span class="muted">not in yet</span> <span class="muted">{esc(days(g["created_at"]))}</span>'
+        return f'<span class="muted">not in yet</span> <span class="muted">{esc(days(g["created_at"]))}</span>{tail}'
     w = where(c, g)
     nxt = w["next"]
     if not nxt:
@@ -317,7 +319,7 @@ def cell(c, g):
         return f'<span class="muted">{esc(head.lower())}</span>'
     age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(nxt["since"])).days if nxt["since"] else 0
     cls = "late" if age >= 7 else "muted"
-    return f'{esc(nxt["todo"])} <span class="{cls}">{esc(days(nxt["since"]))}</span>'
+    return f'{esc(nxt["todo"])} <span class="{cls}">{esc(days(nxt["since"]))}</span>{tail}'
 
 
 def host_line(c, g):
