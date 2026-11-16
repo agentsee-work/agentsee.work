@@ -460,9 +460,22 @@ def _signed(env, a, c=None):
 
 
 def _nudged(env, a, c=None):
-    """A host's note to a guest who had stopped (guests.nudge): which step it pointed at."""
-    step = {"release": "the release", "idea": "the idea", "time": "a time to record", "review": "the review"}
-    text = f"{a['who']} emailed {a['name']} the next step, {step.get(a['step'], a['step'])}, on {a['when']}."
+    """A note to a guest who had stopped (guests.nudge, guests.remind_all): which step it pointed at, and which
+    of the office's notes it was; the office's own are told apart from a host's."""
+    step = {
+        "door": "the invitation again",
+        "release": "the release",
+        "idea": "the idea",
+        "time": "a time to record",
+        "review": "the review",
+    }
+    nth = {1: "the first of its two notes", 2: "the second and last"}.get(a.get("n"), f"note {a.get('n')}")
+    if a.get("auto"):
+        text = f"The office reminded {a['name']} of the next step, {step.get(a['step'], a['step'])}, on {a['when']}: {nth}."
+    else:
+        text = f"{a['who']} emailed {a['name']} the next step, {step.get(a['step'], a['step'])}, on {a['when']}" + (
+            f" ({nth}, counted against the office's)." if a.get("n") else "."
+        )
     cm = comment(env, a["issue"], text)
     return {"issue": a["issue"], "comment": cm["url"]}
 

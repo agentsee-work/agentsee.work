@@ -685,6 +685,7 @@ def health_page(c):
         "SELECT at, what, detail FROM event WHERE what IN ('snapshot', 'snapshot:failed') ORDER BY at DESC LIMIT 1"
     ).fetchone()
     coll = c.execute("SELECT at, detail FROM event WHERE what='collect:run' ORDER BY at DESC LIMIT 1").fetchone()
+    rem = c.execute("SELECT at, detail FROM event WHERE what='remind:run' ORDER BY at DESC LIMIT 1").fetchone()
     creds = []
     for name, a in ACCOUNTS.items():
         mod = publish.adapter(name)
@@ -749,6 +750,13 @@ def health_page(c):
             f'{esc(when(coll["at"]))} <span class="mono">{esc(coll["detail"])}</span>'
             if coll
             else f"never (daily at {esc(ledger.CONFIG.get('collect_at', 'no hour set'))} London, by the worker)",
+        ),
+        (
+            "Last reminders",
+            f'{esc(when(rem["at"]))} <span class="mono">{esc(rem["detail"])}</span>'
+            if rem
+            else f"never (weekdays at {esc(ledger.CONFIG.get('remind_at', 'no hour set'))} London, by the worker; "
+            "the office's notes to guests who have stopped)",
         ),
         ("Episodes", str(c.execute("SELECT COUNT(*) FROM episode").fetchone()[0])),
         (
@@ -1209,6 +1217,9 @@ def worker(stop, interval=60):
                 if daily_due("collect"):
                     collect.run(c, who="worker", log=lambda s: print(s, flush=True))
                     STATE["collect_day"] = dt.datetime.now(ledger.ZONE).date()
+                if daily_due("remind"):
+                    guests.remind_all(c, who="worker", log=lambda s: print(s, flush=True))
+                    STATE["remind_day"] = dt.datetime.now(ledger.ZONE).date()
             finally:
                 c.close()
         except Exception as e:  # noqa: BLE001 — the worker must outlive a bad minute

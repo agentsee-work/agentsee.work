@@ -54,6 +54,7 @@ import mail
 import pages
 import progress
 import release
+import remind
 import review
 import schedule
 from pages import button, esc, link, section, see_page, table, when
@@ -123,13 +124,6 @@ The office at https://{host} shows where everything stands.
 --- the draft ---
 
 {brief}"""
-
-NUDGE_MAIL = """Hello {name},
-
-A note from the office, in case it helps. {next}
-
-The office at https://{host} shows where everything stands; it asks for
-this address and sends you a code."""
 
 
 class Throttled(Exception):
@@ -241,18 +235,57 @@ def drafted(c, g):
     return _mail(c, "see", g, "Your run-sheet draft, and the next step", "draft", text)
 
 
+def _remind(c, g, stage, since, n, w, who):
+    """One note to one guest about the stage they are at (remind.py): the letter, its record under the stage's
+    kind, and the issue told. False when the mail did not go; the record says why."""
+    by = None if who == "worker" else host_name(who)
+    subject, text = remind.letter(c, g, stage, since, n, w, HOST, inviter=host_name(g["created_by"]), by=by)
+    if not _mail(c, who, g, subject, remind.kind(stage), text):
+        return False
+    tell(c, g, "nudged", who, step=stage, n=n, auto=who == "worker")
+    return True
+
+
 def nudge(c, g, who):
-    """A host's note to a guest who has stopped: the next step, by mail, from the Guests screen."""
+    """A host's note to a guest who has stopped: the office's letter for the stage they are at, by mail, from the
+    Guests screen. It counts as one of the office's two, so the engine stands back after a host has written;
+    the button itself is never capped."""
     if not g["address"]:
         raise ValueError("No address to write to")
-    w = progress.where(c, g)
-    if not w["next"]:
+    st = remind.stage(c, g)
+    if not st:
+        w = progress.where(c, g)
         raise ValueError(f"Nothing is theirs to do: {progress.sentence(w, html=False)}")
-    text = NUDGE_MAIL.format(name=g["name"].split()[0], host=HOST, next=progress.next_mail(w, HOST))
-    if not _mail(c, who, g, "The next step for your AgentSee episode", "nudge", text):
+    stage, since, w = st
+    n = remind.count(c, g["id"], stage, since) + 1
+    if not _remind(c, g, stage, since, n, w, who):
         raise ValueError(f"Not sent: {mail.last_failure(c)['detail']}")
-    tell(c, g, "nudged", who, step=w["next"]["key"])
-    return f"Sent to {g['address']}: {progress.sentence(w, html=False)}"
+    what = progress.sentence(w, html=False) if w else "the invitation again"
+    return f"Sent to {g['address']}: {what}"
+
+
+def remind_all(c, who="worker", log=None, now=None, dry_run=False):
+    """The daily pass (remind.py): a note to each guest who is due one, on a weekday; the pass recorded for
+    Health. Returns the lines it would print. `dry_run` lists who is due and sends nothing."""
+    log = log or (lambda s: None)
+    if not dry_run and not remind.office_hours(now):
+        log("remind: the weekend; the office writes on weekdays")
+        return []
+    lines, sent = [], []
+    for g, stage, since, n, w in remind.due(c, now):
+        line = f"{g['name']} ({g['address']}): {remind.STAGES[stage]}, since {when(since, progress.DAY)}, note {n}"
+        if dry_run:
+            lines.append(line)
+            continue
+        ok = _remind(c, g, stage, since, n, w, who)
+        lines.append(f"{line}: {'sent' if ok else 'NOT SENT, see the mail failure'}")
+        if ok:
+            sent.append(f"{g['name']} ({remind.STAGES[stage]}, {n})")
+    for line in lines:
+        log(f"remind: {line}")
+    if not dry_run:
+        ledger.event(c, "remind:run", who, detail={"sent": len(sent), "to": sent})
+    return lines
 
 
 def create(c, name, address, issue, who, angle=None, env=None):
@@ -1114,7 +1147,7 @@ def guests_page(c, csrf, msg=None):
                 esc(g["address"] or "—"),
                 esc(g["issue"] or ""),
                 state_word(g["state"]),
-                progress.cell(c, g),
+                progress.cell(c, g, remind.mark(c, g)),
                 f'<span class="mono">{esc(invite_url(g))}</span>'
                 if g["state"] != "revoked"
                 else '<span class="muted">withdrawn</span>',
