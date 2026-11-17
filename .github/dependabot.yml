@@ -5,16 +5,23 @@
 # decide, you just stop being the one who has to notice.
 #
 # Added 24 October 2026 (AGE-93), after the mail server was found sitting six
-# Stalwart releases behind within seven weeks. These image tags, and the Ruff
-# version pinned in workflows/check.yml (dev-only; bumped by hand when a new
-# release is wanted), are the hand-updated dependency surface in the repo: the
-# box's OS packages are kept current by unattended-upgrades, and the engine is
-# Python-stdlib-only with no third-party packages to track.
+# Stalwart releases behind within seven weeks. These image tags, the Ruff
+# version pinned in workflows/check.yml (dev-only) and fpdf2, the engine's one
+# package beyond the standard library (pinned in engine/home/Dockerfile and in
+# workflows/check.yml, bumped by hand together), are the hand-updated
+# dependency surface in the repo; the box's OS packages are kept current by
+# unattended-upgrades.
 #
 # The `docker` ecosystem scans both docker-compose.yml image tags and the
 # Dockerfile FROM, so these two directories cover:
 #   /stalwart       stalwartlabs/stalwart
 #   /engine/home    cloudflare/cloudflared  +  python base image (Dockerfile)
+#
+# A bump of the python image is a real test, not only a tag change:
+# workflows/check.yml reads the version from the Dockerfile's FROM line and
+# runs the engine's suite on it, so the PR's green tick says the suite passed
+# on the new interpreter. The media tools under tools/ are on the
+# workstations' own Python and are not moved by it (engine/home/Dockerfile).
 version: 2
 updates:
   - package-ecosystem: "docker"

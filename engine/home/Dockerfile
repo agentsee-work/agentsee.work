@@ -4,9 +4,14 @@
 # image is rebuilt only when the interpreter, the op CLI or that package
 # should move.
 #
-# The same Python as the workstations, on purpose: the engine is tested on
-# 3.14, and Debian's 3.11 is not what the tests ran on.
-FROM python:3.14-slim
+# The engine's Python is this line, and only this line: CI
+# (.github/workflows/check.yml) reads the version from here and runs the
+# suite on it, so a bump, Dependabot's or by hand, is tested on the
+# interpreter it ships before it is merged. Until November 2026 this was held
+# to the workstations' Python; the media tools under tools/ still run on
+# that (Ubuntu's 3.14, and faster-whisper's onnxruntime has no 3.15 wheel
+# yet), so the two are now allowed to differ and ruff.toml targets the lower.
+FROM python:3.15-slim
 
 # The op CLI from 1Password's own repository (there is no Debian package).
 # gnupg is needed only to dearmor the key and is removed again. DejaVu is

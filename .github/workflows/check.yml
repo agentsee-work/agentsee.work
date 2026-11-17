@@ -34,10 +34,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: The engine's Python, read from its image
+        # One pin, the FROM line of engine/home/Dockerfile: the suite runs on
+        # the interpreter the engine ships on, so a bump of that line
+        # (Dependabot's or by hand) is tested on the new Python before it is
+        # merged, and nothing here has to be changed in step.
+        id: python
+        run: |
+          version=$(sed -n 's/^FROM python:\([0-9][0-9.]*\)-slim$/\1/p' engine/home/Dockerfile)
+          test -n "$version" || { echo "no 'FROM python:X.Y-slim' line in engine/home/Dockerfile" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-python@v5
         with:
-          # The same interpreter the engine runs on (engine/home/Dockerfile).
-          python-version: "3.14"
+          python-version: ${{ steps.python.outputs.version }}
 
       - name: The engine's one dependency
         # fpdf2 makes the release's signed copy (engine/release.py); the suite
