@@ -73,6 +73,41 @@ def cuda_libs():
         os.execv(sys.executable, [sys.executable, *sys.argv])
 
 
+def norm(s):
+    """A token as the fixes and the ghosts compare it: lower case, no trailing
+    punctuation, letters, digits and the few marks an address keeps."""
+    return re.sub(r"[^a-z0-9'@.]", "", re.sub(r"[,.?!]+$", "", s.lower()))
+
+
+def drop_ghosts(words, ghosts):
+    """Whisper's inventions that the aligner's two rules let through, named
+    in episode.json as "ghosts": [{spk, phrase, near}]. A "Thank you." written
+    over a laugh or a hum sits above the speaker's line, so it is not a
+    silence ghost, and it is louder than a doubted backchannel; on episode 5
+    four of thirty survived that way. The speaker's run of words matching the
+    phrase that starts nearest `near` (episode seconds, within 5 s) goes, as
+    the aligner's ghosts go: out of the captions and off the mix's gate.
+    Returns the words and how many of the list were found."""
+    out, found = list(words), 0
+    for g in ghosts:
+        want = [norm(t) for t in g["phrase"].split()]
+        idx = [i for i, w in enumerate(out) if w["spk"] == g["spk"]]
+        near = float(g["near"])
+        hits = [
+            k
+            for k in range(len(idx) - len(want) + 1)
+            if [norm(out[idx[k + j]]["w"]) for j in range(len(want))] == want and abs(out[idx[k]]["t0"] - near) <= 5.0
+        ]
+        if not hits:
+            print(f"  ghost {g['phrase']!r} by {g['spk']} near {near:.1f}s: not found, nothing dropped")
+            continue
+        k = min(hits, key=lambda k: abs(out[idx[k]]["t0"] - near))
+        gone = set(idx[k : k + len(want)])
+        out = [w for i, w in enumerate(out) if i not in gone]
+        found += 1
+    return out, found
+
+
 def apply_fixes(words, fixes):
     """Deterministic spelling, after the model: 'Abra=Abrar' or
     'the bra=Abrar' or 'Agency Podcast=AgentSee podcast'. Multi-word matches
@@ -87,9 +122,7 @@ def apply_fixes(words, fixes):
         dst_t = dst.split()
         i = 0
         while i <= len(out) - len(src_t):
-            win = [
-                re.sub(r"[^a-z0-9'@.]", "", re.sub(r"[,.?!]+$", "", w["w"].lower())) for w in out[i : i + len(src_t)]
-            ]
+            win = [norm(w["w"]) for w in out[i : i + len(src_t)]]
             if win == src_t:
                 t0, t1 = out[i]["t0"], out[i + len(src_t) - 1]["t1"]
                 # the matched words' own punctuation survives; the rule's does not
@@ -342,6 +375,14 @@ def main():
     words.sort(key=lambda w: (w["t0"], w["t1"]))
     segments.sort(key=lambda s: s["t0"])
     cfg = load_json(d / "episode.json") if (d / "episode.json").exists() else {}
+    ghosts = cfg.get("ghosts", [])
+    if ghosts:
+        words, found = drop_ghosts(words, ghosts)
+        # a segment that was only a ghost would keep its old text below
+        segments = [
+            s for s in segments if any(w["spk"] == s["spk"] and s["t0"] - 0.01 <= w["t0"] < s["t1"] for w in words)
+        ]
+        print(f"  ghosts by request: {found} of {len(ghosts)} found and dropped")
     fixes = list(cfg.get("fixes", [])) + list(a.fix)
     if fixes:
         before = " ".join(w["w"] for w in words)
