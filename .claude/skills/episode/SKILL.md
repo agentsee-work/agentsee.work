@@ -55,7 +55,10 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    the command line is lost the next time the stage runs; episode 1's slate
    was. Read `align.py`'s ghost list
    (words Whisper wrote into silence) and `fillers.py`'s recovered words; both
-   should look right.
+   should look right. A "Thank you." the rules let through (one speaker's
+   quiet track, over a laugh or a hum, while the other talks) goes in
+   `episode.json` as `ghosts` (`{spk, phrase, near}`), then
+   `./tools/transcribe.py <slug> --merge-only --from-aligned` drops it.
 5. **If the user has review notes** ("remove the 'nice' at the start of section two",
    "the cut after X is odd"): put editorial cuts in `removals.json` (and `keep: true` spans for cuts they did not want), re-cut, and
    if the setting itself is in doubt run `./tools/variants.py <slug>` and point

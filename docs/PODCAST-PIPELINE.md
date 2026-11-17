@@ -259,7 +259,11 @@ segment is a ghost when it scored above 0.6, every word of it sits within
 5 dB of the speaker's line, and the other speaker was talking over it, and
 it goes whole, so no half of one is left behind. On episodes 2 and 3 that
 rule took every "Thank you." and a handful of quiet backchannels said
-under the other voice, which the captions do not miss. And Whisper drops
+under the other voice, which the captions do not miss. What both rules let
+through is a "Thank you." written over a laugh or a hum loud enough to pass
+for a word, four of thirty on episode 5: those are named in episode.json as
+`ghosts`, `{spk, phrase, near}`, and the merge drops them the same way, so
+neither the captions nor the gate sees them. And Whisper drops
 the odd short utterance altogether —
 a reply of a second and a half in the middle of the other person's story —
 so `verbatim_words.py` transcribes again, on its own with a little
