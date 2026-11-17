@@ -10,8 +10,10 @@
 # A hook in .claude/settings.json runs those last two on each .py file the
 # Edit and Write tools change, when ruff is installed (.claude/hooks/).
 
-# What the code runs on: the engine's image (engine/home/Dockerfile), the
-# media tools' venvs under build/ and the workstations are all 3.14.
+# The lowest Python the code runs on: the media tools, their venvs under
+# build/ and the workstations are on 3.14 (Ubuntu's). The engine's image
+# (engine/home/Dockerfile) is newer, and code written for 3.14 runs there;
+# this moves up when the workstations do.
 target-version = "py314"
 line-length = 120
 

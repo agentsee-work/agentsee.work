@@ -10,7 +10,7 @@ email (`../guests.py`). Nothing listens on the box; nothing is in the
 security groups; there is no password of ours anywhere.
 
 ```
-Dockerfile            Python 3.14 and the 1Password CLI. The code is mounted, not baked
+Dockerfile            Python 3.15 and the 1Password CLI. The code is mounted, not baked
 docker-compose.yml    engine + cloudflared on a private network; no published port
 engine.env.example    /etc/agentsee/engine.env: the service-account token, 0600, not in git
 tunnel.env.example    /etc/agentsee/tunnel.env: the tunnel token, 0600, not in git
