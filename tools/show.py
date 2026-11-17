@@ -125,6 +125,20 @@ def _esc(s):
     return (s or "").replace("&", "&amp;").replace("<", "&lt;")
 
 
+def _titled(title, placeholder):
+    """The title's HTML. The directories and the feed take one string, so an
+    episode with a subtitle carries it after a colon ("Shortform, begone: a
+    lock you can't pick", episode 5); the title card and the episode art set
+    the two parts as two lines, the second smaller, instead of breaking
+    wherever the wrap happens to fall and leaving an "a" at the end of a
+    line. A title without ": " is one line as before."""
+    title = title or placeholder
+    head, sep, sub = title.partition(": ")
+    if not sep or not sub.strip():
+        return f'<p class="title">{_esc(title)}</p>'
+    return f'<p class="title">{_esc(head)}</p>\n<p class="subtitle">{_esc(sub.strip())}</p>'
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Layouts. Each returns (css, html).
 
@@ -167,6 +181,8 @@ body {{ display: flex; flex-direction: column; justify-content: center;
 .number {{ font-size: {round(24 * u)}px; margin-bottom: {round(18 * u)}px; }}
 .title {{ font-size: {round(108 * u)}px; font-weight: 300; line-height: 1.1;
           letter-spacing: -.02em; max-width: 88%; }}
+.subtitle {{ font-size: {round(62 * u)}px; font-weight: 300; line-height: 1.15;
+             letter-spacing: -.01em; margin-top: {round(16 * u)}px; max-width: 88%; }}
 .hosts {{ font-size: {round(44 * u)}px; margin-top: {round(26 * u)}px; }}
 .rule {{ width: {round(300 * u)}px; margin: {round(44 * u)}px 0 {round(32 * u)}px; }}
 .strip {{ font-size: {round(25 * u)}px; line-height: 1; }}
@@ -176,7 +192,7 @@ body {{ display: flex; flex-direction: column; justify-content: center;
     hosts_html = f'<p class="hosts">{_esc(hosts)}</p>' if hosts else ""
     body = f"""<div class="head">{_mark(expr)}<p class="wordmark">AgentSee</p></div>
 {number_html}
-<p class="title">{_esc(title) or "Episode title goes here"}</p>
+{_titled(title, "Episode title goes here")}
 {hosts_html}
 <div class="rule hair"></div>
 <p class="strip">Two people building in public</p>
@@ -308,13 +324,15 @@ def lay_episodeart(u, expr, title="", number="", **kw):
     css = f"""
 body {{ display: grid; place-items: center; }}
 .stack {{ display: flex; flex-direction: column; align-items: center; text-align: center;
-          gap: {round(28 * u)}px; padding: 0 {round(110 * u)}px; position: relative; }}
+          gap: {round(28 * u)}px; padding: 0 {round(110 * u)}px; position: relative; width: 100%; }}
 .mark {{ --mark-w: {round(300 * u)}px; }}
 .wordmark {{ font-size: {round(100 * u)}px; }}
 .rule {{ width: {round(520 * u)}px; margin: {round(8 * u)}px 0; }}
 .number {{ font-size: {round(30 * u)}px; }}
 .title {{ font-size: {round(100 * u)}px; font-weight: 300; line-height: 1.1;
           letter-spacing: -.02em; max-width: 94%; }}
+.subtitle {{ font-size: {round(60 * u)}px; font-weight: 300; line-height: 1.15;
+             letter-spacing: -.01em; max-width: 94%; margin-top: {round(-10 * u)}px; }}
 """
     number_html = f'<p class="strip number"><b>Episode {_esc(str(number))}</b></p>' if number != "" else ""
     body = f"""<div class="stack">
@@ -322,7 +340,7 @@ body {{ display: grid; place-items: center; }}
   <p class="wordmark">AgentSee</p>
   <div class="rule"></div>
   {number_html}
-  <p class="title">{_esc(title) or "Episode title goes here"}</p>
+  {_titled(title, "Episode title goes here")}
 </div>"""
     return css, body
 
