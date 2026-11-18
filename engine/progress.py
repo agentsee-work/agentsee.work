@@ -33,8 +33,8 @@ ABOUT = {  # what each step is, in one line, for the office page and the hand-of
     "release": "One page in plain words, already signed by James and Abrar; you read it and sign it.",
     "idea": "A short conversation with the office, about ten minutes, that fleshes the episode out and writes the "
     "run-sheet James and Abrar record from.",
-    "time": "Pick the time you would prefer and up to two backups; both hosts accept, one click each, and you get a "
-    "link that opens the studio when it is time.",
+    "time": "Pick the time you would prefer and up to two backups; both hosts say which they can do, your "
+    "highest that suits both is booked, and you get a link that opens the studio when it is time.",
     "review": "The episode and the clips, to watch, note and approve before anything goes out.",
 }
 DAY = "%-d %B"
@@ -283,7 +283,7 @@ def next_mail(w, host):
     if nxt["key"] == "time":
         return (
             "The next step is a time to record. Pick the time you would prefer and up to two backups at\n\n"
-            f"    {url}\n\nBoth hosts accept, one click each, and you get a link that opens the studio when it is time."
+            f"    {url}\n\nBoth hosts say which they can do, your highest that suits both is booked, and you get a link that opens the studio when it is time."
         )
     if nxt["key"] == "idea":
         return (

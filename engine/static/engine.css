@@ -65,6 +65,44 @@ input[type=date], input[type=time], input[type=datetime-local], select { width: 
 .cal .day.gone, .cal .day.soon { color: var(--ink-3); opacity: .45; border-color: transparent; }
 .cal button.day.chosen { border-color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); }  /* a stroke inside the box: no outline, which iOS draws oddly on buttons, and nothing that can move the number */
 .cal td .medal { position: absolute; top: .15rem; left: .2rem; font-size: .75rem; line-height: 1; pointer-events: none; z-index: 1; }  /* the rank a chosen day holds (time.js): a badge on the cell, outside the button, so the number never moves */
+/* The hosts' answer (schedule.offer_tiles, AGE-155): the guest's three times as tiles to tick, in the guest's order,
+   each wearing its medal like a chosen day on the guest's calendar. The checkbox is the tile's own, hidden; :has()
+   paints the tick and the stroke, so the form needs no script. The day's word is the calendar's: hatched ask us,
+   dashed with notice, struck through taken. */
+.answer { max-width: 36rem; }
+.offers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: .6rem; margin: .6rem 0 .2rem; }  /* one height, so the three line up; a square by the content, not an aspect ratio, which WebKit let set the width */
+.offer { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  min-height: 11rem; padding: 1.5rem .4rem .8rem; text-align: center; cursor: pointer; box-sizing: border-box;
+  font: inherit; letter-spacing: 0; text-transform: none; margin: 0;  /* not the form label's face */
+  border: var(--hairline); border-radius: 4px; background: var(--paper); color: var(--ink); }
+.offer input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.offer:hover { border-color: var(--signal); }
+.offer.works, .offer.perfect { background: var(--paper-2); }
+.offer.ask, .offer.week { background: repeating-linear-gradient(135deg, var(--paper-2) 0 3px, var(--paper) 3px 7px); }
+.offer.notice { border-style: dashed; }
+.offer.taken { color: var(--ink-3); cursor: default; }
+.offer.taken .dom, .offer.taken .time { text-decoration: line-through; }
+.offer:has(:checked) { border-color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); }  /* the stroke inside, as the calendar's chosen day */
+.offer:has(:focus-visible) { outline: 2px solid var(--signal); outline-offset: 2px; }
+.offer .medal { position: absolute; top: .3rem; left: .4rem; font-size: 1.05rem; line-height: 1; }
+.offer .tick { position: absolute; top: .25rem; right: .45rem; font-size: 1rem; line-height: 1; color: var(--signal); visibility: hidden; }
+.offer:has(:checked) .tick { visibility: visible; }
+.offer .rank, .offer .wday, .offer .who { font-family: var(--mono); font-size: .62rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); line-height: 1.3; }
+.offer .wday { color: var(--ink-2); margin-top: .25rem; }
+.offer .dom { font-size: 2rem; line-height: 1; margin: .1rem 0 .05rem; font-variant-numeric: tabular-nums; }
+.offer .month { font-size: .95rem; line-height: 1.2; }
+.offer .time { font-size: .95rem; line-height: 1.3; margin-top: .1rem; }
+.offer .theirs, .offer .word { font-size: .72rem; color: var(--ink-3); line-height: 1.25; }
+.offer .theirs { margin-top: .3rem; }
+.offer .who { margin-top: .3rem; color: var(--signal); }
+@media (max-width: 30rem) {  /* a phone: the three still side by side, a little smaller */
+  .offers { gap: .4rem; }
+  .offer { padding: 1.4rem .25rem .6rem; border-radius: 3px; }
+  .offer .dom { font-size: 1.7rem; }
+  .offer .month, .offer .time { font-size: .85rem; }
+  .offer .theirs, .offer .word { font-size: .66rem; }
+  .offer .rank, .offer .wday, .offer .who { font-size: .56rem; letter-spacing: .04em; }
+}
 .cal-hosts .cal { max-width: 64rem; }
 .cal-hosts td { min-height: 4rem; border: var(--hairline); border-radius: 4px; padding: .25rem .35rem; font-size: .85rem; }
 .cal-hosts .num { display: block; font-family: var(--mono); font-size: .75rem; color: var(--ink-3); }

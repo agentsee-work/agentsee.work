@@ -512,7 +512,7 @@ def _about(env, a, c=None):
 JOBS.update({"idea": _idea, "brief": _brief, "about": _about})
 
 
-def _schedule(name):  # the booking's turns (schedule.py): asked, moved, booked, unbooked, withdrawn
+def _schedule(name):  # the booking's turns (schedule.py): asked, answered, declined, booked, unbooked, withdrawn
     def job(env, a, c=None):
         import schedule
 
@@ -521,7 +521,7 @@ def _schedule(name):  # the booking's turns (schedule.py): asked, moved, booked,
     return job
 
 
-JOBS.update({k: _schedule(k) for k in ("asked", "moved", "booked", "unbooked", "withdrawn")})
+JOBS.update({k: _schedule(k) for k in ("asked", "answered", "declined", "moved", "booked", "unbooked", "withdrawn")})
 
 
 def _review(name):  # the review's turns (review.py): noted, cut, approved, host_approved

@@ -1,8 +1,10 @@
 """
-Scheduling (AGE-109): the guest picks the time they would prefer and up to two
-backups, in their own time zone with London's beside it; the engine checks the
-rules; both hosts accept on the engine, one click each; and the confirmation
-carries a join link that opens the studio only around the booked time.
+Scheduling (AGE-109, AGE-155): the guest picks the time they would prefer and
+up to two backups, in their own time zone with London's beside it; the engine
+checks the rules; each host ticks every one of the times they can do, on the
+engine, in one go; the guest's highest-ranked time both can do is booked; and
+the confirmation carries a join link that opens the studio only around the
+booked time.
 
 The engine is the scheduler. Riverside cannot create a session or a link from
 outside (no API on our plan, none of the MCP's tools; checked 29 October
@@ -20,14 +22,23 @@ hours, the latest start 16:00 so nothing runs past 18:00, and at least seven
 days' notice. A day marked "ask us" is allowed and flagged; the hosts'
 acceptance is the check, by decision (no calendar read, 29 October).
 
-The flow: a request holds the choices in order and the one the hosts are
-looking at; each host answers that one; both yes books it; one no moves to the
-next choice and asks both again; no choice left declines it and the guest is
-asked to pick again. The guest is told on their page and by email at every
-turn, with a calendar file on the booking; the issue is told by the worker
-(linear.py): a comment at each turn, and on the booking the due date and the
-label "booked". A host can cancel a booking; the guest can withdraw a request
-the hosts have not answered.
+The flow: a request holds the choices in the guest's order, gold, silver and
+bronze; each host sees all of them as tiles on the guest's page and ticks every
+one they can do, once (and can change the ticks until the other host has
+answered). Both answered books the guest's highest-ranked choice both ticked,
+or declines the request when there is none; a host who can do none declines it
+at once, since the other's answer cannot change that; so does the office when
+other bookings have taken every day a booking could still land on. The guest's
+rank decides, never the hosts' preference: they are the guest. The guest hears
+the outcome only, on their page and by email, with a calendar file on the
+booking; the issue is told by the worker (linear.py): a comment at each turn,
+and on the booking the due date and the label "booked". A host can cancel a
+booking; the guest can withdraw a request the hosts have not answered.
+
+Until 18 November 2026 the hosts answered one choice at a time: `offered` was
+the choice on the table and a no moved it on. A request from then still reads:
+a host's old yes is a tick on the choice that was on offer, and the choices
+before `offered` stay declined. On a booking `offered` is the choice booked.
 """
 
 import calendar
@@ -54,6 +65,10 @@ WORDS = {  # what a day's setting says to the guest
     "notice": "works with reasonable notice",
 }
 SLOTS = ("The time you would prefer", "A backup", "Another backup")
+RANKS = ("Preferred", "Backup", "Backup")  # the guest's three, as the tiles name them
+MEDALS = ("🥇", "🥈", "🥉")  # gold, silver, bronze: the guest's order, which decides
+WORDS_OF_RANK = ("gold", "silver", "bronze")  # the same, in a sentence
+CHOICE_OF_RANK = ("first choice", "first backup", "second backup")  # and in the guest's own terms
 STATES = {
     "asked": "the hosts are looking at it",
     "booked": "both hosts accepted; the join link is out",
@@ -68,27 +83,17 @@ ASK_MAIL = """Hello,
 
     {first}{backups}
 
-Accept or decline, one click each, on the engine:
+Tick every one of them you can do, on the engine:
 
     {page}
 
-The first choice goes to you both; if either of you declines it, the next
-is offered. Nothing is booked until both of you have accepted one."""
-
-MOVED_MAIL = """Hello {name},
-
-{host} cannot make {time}{note}. The next time you gave is with
-James and Abrar now:
-
-    {next}
-
-You will hear as soon as both have answered. Your page shows where it
-stands: https://{host_name}/time"""
+Once you have both answered, {name}'s highest choice that suits you both
+is booked. Nothing is booked until then."""
 
 DECLINED_MAIL = """Hello {name},
 
-None of the times you gave worked, sorry; {host} could not make
-{time}{note}. Pick again, with a week's notice or more, at
+None of the times you gave worked, sorry: {why}. Pick again, with a
+week's notice or more, at
 
     https://{host_name}/time
 
@@ -219,6 +224,14 @@ TITLES = {  # a day's word on the calendar, as its title
     "notice": "works, with reasonable notice",
     "works": "works for us",
 }
+TILE_WORDS = {  # the same, in the two or three words a tile has room for (offer_tiles)
+    "taken": "taken",
+    "week": "one that week",
+    "ask": "hard for Abrar",
+    "notice": "with notice",
+    "works": "works",
+    "perfect": "perfect",
+}
 
 
 def london_date(t):
@@ -300,8 +313,8 @@ def calendar_html(c, s=None):
 
 
 def calendar_page(c):
-    """The hosts' calendar on the engine: every accepted recording on its day, and every open request on the
-    day it is waiting for, each to the guest's page."""
+    """The hosts' calendar on the engine: every accepted recording on its day, and every open request on each
+    of the days it asks for, with the guest's medal for that day, each to the guest's page."""
     today = dt.datetime.now(ledger.ZONE).date()
     booked, asked = {}, {}
     rows = c.execute(
@@ -312,20 +325,24 @@ def calendar_page(c):
         if b["state"] == "booked":
             booked.setdefault(london_date(b["start_at"]), []).append(b)
         else:
-            asked.setdefault(london_date(choices_of(b)[b["offered"]]), []).append(b)
+            for i in open_choices(b):
+                asked.setdefault(london_date(choices_of(b)[i]), []).append((b, i))
 
     def cell(d):
         parts = [f'<span class="num">{d.day}</span>']
         parts += [f'<a class="booked" href="/guests/{esc(b["guest"])}">{esc(b["name"])}</a>' for b in booked.get(d, [])]
-        parts += [f'<a class="asked" href="/guests/{esc(b["guest"])}">{esc(b["name"])}?</a>' for b in asked.get(d, [])]
+        parts += [
+            f'<a class="asked" href="/guests/{esc(b["guest"])}">{MEDALS[i]} {esc(b["name"])}?</a>'
+            for b, i in asked.get(d, [])
+        ]
         return "".join(parts)
 
     grids = "".join(month_grid(first, cell) for first in months_ahead(today))
     n = sum(len(v) for v in booked.values())
     body = (
         '<article class="lead"><h1>Calendar</h1><p class="deck">Every accepted recording on its day, and every '
-        "request on the day it is waiting for, with a question mark. One recording a day; the rules prefer one a "
-        "week, and a second in a week is yours to accept or not.</p></article>"
+        "request on each day it asks for, with the guest&#8217;s medal for that day and a question mark. One "
+        "recording a day; the rules prefer one a week, and a second in a week is yours to accept or not.</p></article>"
         + section("Ahead", f"{n} booked", f'<div class="cal-hosts">{grids}</div>')
     )
     return "Calendar", body
@@ -370,9 +387,47 @@ def answers_of(b):
     return json.loads(b["answers"] or "{}")
 
 
+def open_choices(b):
+    """The indices of the choices still in play: all of them, but for a request from before 18 November
+    2026, where the choices before `offered` were declined one at a time."""
+    return list(range(b["offered"] if b["state"] == "asked" else 0, len(json.loads(b["choices"]))))
+
+
+def picks_of(b, host):
+    """The choices a host ticked, as indices, or None while they have not answered. A host's answer from
+    before 18 November 2026 was a yes or no to the one choice on offer: a yes reads as a tick on it."""
+    a = answers_of(b).get(host)
+    if a is None:
+        return None
+    if "picks" in a:
+        return [int(i) for i in a["picks"]]
+    return [b["offered"]] if a.get("yes") else []
+
+
 def waiting_for(b):
-    a = answers_of(b)
-    return [h for h in HOSTS if not (a.get(h) or {}).get("yes")]
+    return [h for h in HOSTS if picks_of(b, h) is None]
+
+
+def can_do(b, i):
+    """The hosts who ticked choice `i`, in the hosts' order."""
+    return [h for h in HOSTS if i in (picks_of(b, h) or [])]
+
+
+def ranks(picks):
+    """Ticks in a sentence: "gold and bronze"."""
+    words = [WORDS_OF_RANK[i] for i in sorted(picks)]
+    return " and ".join(words) if len(words) < 3 else f"{words[0]}, {words[1]} and {words[2]}"
+
+
+def hopeless(c, b, taken=None):
+    """True when no booking can come of the request as it stands: every open choice's day is taken by another
+    recording, or a host who has answered has no tick left on a free day."""
+    taken = taken_days(c) if taken is None else taken
+    choices = choices_of(b)
+    free = [i for i in open_choices(b) if london_date(choices[i]) not in taken]
+    if not free:
+        return True
+    return any(p is not None and not any(i in free for i in p) for p in (picks_of(b, h) for h in HOSTS))
 
 
 def _mail(c, who, to, subject, text, gid, attachments=(), copy=False):
@@ -400,9 +455,10 @@ def _page(g):
 
 def _ask_hosts(c, g, b, who):
     choices = choices_of(b)
-    i = b["offered"]
-    backups = "".join(f"\n    {describe(t, b['tz'])}" for t in choices[i + 1 :])
-    text = ASK_MAIL.format(name=g["name"], first=describe(choices[i], b["tz"]), backups=backups, page=_page(g))
+    lines = [f"{MEDALS[i]} {describe(choices[i], b['tz'])}" for i in open_choices(b)]
+    text = ASK_MAIL.format(
+        name=g["name"], first=lines[0], backups="".join(f"\n    {x}" for x in lines[1:]), page=_page(g)
+    )
     _mail(c, who, mail.settings()["copy_to"], f"A time to accept: {g['name']}", text, g["id"])
 
 
@@ -477,76 +533,82 @@ def withdraw(c, b, g, who, replaced=False):
 
 
 # ─── the hosts answer ────────────────────────────────────────────────────────
-def answer(c, b, host, yes, who, note=None):
-    """One host's answer to the choice on offer. Both yes books it; a no moves to the next choice,
-    or declines the request when none is left. Returns the sentence for the screen."""
+def answer(c, b, host, picks, who, note=None):
+    """One host's answer: the choices they can do, by index; none means none of them. Both answered books the
+    guest's highest-ranked choice both ticked, or declines the request when there is none; a host who can do
+    none declines it at once, since the other's answer cannot change that. A host can answer again until the
+    other has. Returns the sentence for the screen."""
     if host not in HOSTS:
         raise ScheduleError(f"This engine's hosts are {' and '.join(HOSTS)}; you are {who}")
     if b["state"] != "asked":
         raise ScheduleError(f"Nothing to answer: the request is {b['state']}")
-    answers = answers_of(b)
-    if host in answers:
-        raise ScheduleError(f"You answered this time already ({'yes' if answers[host]['yes'] else 'no'})")
-    g, choices, i = _guest(c, b["guest"]), choices_of(b), b["offered"]
+    g, choices, taken = _guest(c, b["guest"]), choices_of(b), taken_days(c)
+    picks, opened = sorted({int(i) for i in picks}), open_choices(b)
+    for i in picks:
+        if i not in opened:
+            raise ScheduleError(f"That is not one of {g['name'].split()[0]}'s times")
+        if london_date(choices[i]) in taken:
+            raise ScheduleError(f"{describe(choices[i], b['tz'])} is taken by another recording since; untick it")
     note = " ".join((note or "").split())[:200]
-    if yes and london_date(choices[i]) in taken_days(c):
-        raise ScheduleError(
-            f"{describe(choices[i], b['tz'])} is taken by another recording since; decline it, and the next time is offered"
-        )
-    answers[host] = {"yes": bool(yes), "at": ledger.now(), "note": note}
+    answers = answers_of(b)
+    answers[host] = {"picks": picks, "at": ledger.now(), "note": note}
     b = _update(c, b["id"], answers=json.dumps(answers))
     ledger.event(
         c,
         "booking:answered",
         who,
-        detail={"booking": b["id"], "host": host, "yes": bool(yes), "choice": i, "note": note},
+        detail={"booking": b["id"], "host": host, "picks": picks, "note": note},
         guest=g["id"],
     )
-    if yes:
-        left = waiting_for(b)
-        if left:
-            return f"Accepted; waiting for {', '.join(left)}"
-        book(c, b, g, who)
-        return f"Booked: {describe(choices[i], b['tz'])}; {g['name'].split()[0]} has the confirmation"
-    return _move_on(c, b, g, host, who, note)
+    first = g["name"].split()[0]
+    if not picks:
+        why = f"{host} could not make any of them" + (f" ({note})" if note else "")
+        return _decline(c, b, g, who, why, by=host, note=note)
+    left = waiting_for(b)
+    if left:
+        _tell(c, g, "answered", host=host, picks=ranks(picks), waiting=left, page=_page(g))
+        return f"You can do {ranks(picks)}; waiting for {', '.join(left)}"
+    common = [i for i in opened if len(can_do(b, i)) == len(HOSTS) and london_date(choices[i]) not in taken]
+    if common:
+        book(c, b, g, who, common[0])
+        return (
+            f"Booked: {describe(choices[common[0]], b['tz'])}, {first}'s {CHOICE_OF_RANK[common[0]]}; "
+            f"{first} has the confirmation"
+        )
+    could = "; ".join(f"{h} {ranks(picks_of(b, h))}" for h in HOSTS)
+    return _decline(c, b, g, who, f"none of them suited both of us ({could})", note=note)
 
 
-def _move_on(c, b, g, host, who, note=None):
-    """The time on offer is declined, by a host or by the office when another booking took its day: the next
-    choice goes to both hosts, or the request is declined when none is left; the guest is told either way."""
-    choices, i, first = choices_of(b), b["offered"], g["name"].split()[0]
-    note = " ".join((note or "").split())[:200]
-    said, time = f" ({note})" if note else "", describe(choices[i], b["tz"])
-    if i + 1 < len(choices):
-        b = _update(c, b["id"], offered=i + 1, answers="{}", note=note or None)
-        ledger.event(c, "booking:moved", who, detail={"booking": b["id"], "to": i + 1, "by": host}, guest=g["id"])
-        nxt = describe(choices[i + 1], b["tz"])
-        _tell(c, g, "moved", host=host, time=time, note=note, next=nxt, page=_page(g))
-        text = MOVED_MAIL.format(name=first, host=host, time=time, note=said, next=nxt, host_name=HOST)
-        _mail(c, who, g["address"], "Your recording: the next time", text, g["id"])
-        _ask_hosts(c, g, b, who)
-        return f"Declined; the next time, {nxt}, is offered to you both"
+def _decline(c, b, g, who, why, by=None, note=None):
+    """No booking can come of the request: it is declined, the guest is told why and asked to pick again, and
+    so is the issue. `by` is the host who could do none, or "The office" when other bookings took the days."""
+    first = g["name"].split()[0]
     b = _update(c, b["id"], state="declined", note=note or None)
-    ledger.event(c, "booking:declined", who, detail={"booking": b["id"], "by": host}, guest=g["id"])
-    _tell(c, g, "moved", host=host, time=time, note=note, next=None, page=_page(g))
-    text = DECLINED_MAIL.format(name=first, host=host, time=time, note=said, host_name=HOST)
+    ledger.event(c, "booking:declined", who, detail={"booking": b["id"], "by": by, "why": why}, guest=g["id"])
+    _tell(c, g, "declined", why=why, page=_page(g))
+    text = DECLINED_MAIL.format(name=first, why=why, host_name=HOST)
     _mail(c, who, g["address"], "Your recording: another time, please", text, g["id"])
-    return f"Declined; no backup left, so {first} is asked to pick again"
+    return f"Declined: {why}; {first} is asked to pick again"
 
 
 def _clear_clashes(c, b, who):
-    """Other requests whose time on offer falls on the day just booked are moved on, as if the office had
-    declined them, so no two guests wait on one day: one recording a day."""
-    day = london_date(b["start_at"])
+    """Other requests the booking leaves hopeless (every open choice on a taken day, or a host's every tick on
+    one) are declined by the office, so no guest waits on a request that cannot be booked: one recording a
+    day. A request with a free choice left stays; the hosts see the taken one struck through."""
+    taken = taken_days(c)
     rows = c.execute("SELECT * FROM booking WHERE state='asked' AND id!=? ORDER BY created_at", (b["id"],)).fetchall()
     for o in rows:
-        if london_date(choices_of(o)[o["offered"]]) == day:
-            _move_on(c, o, _guest(c, o["guest"]), "The office", who, "that day was booked by another guest")
+        if hopeless(c, o, taken):
+            why = "the days you asked for were booked by another guest since"
+            _decline(c, o, _guest(c, o["guest"]), who, why, by="The office", note=why)
 
 
-def book(c, b, g, who):
-    start = choices_of(b)[b["offered"]]
-    b = _update(c, b["id"], state="booked", start_at=start.isoformat())
+def book(c, b, g, who, i=None):
+    """Choice `i` is booked: `offered` names it from here on, the guest gets the confirmation with the calendar
+    file and the join link, the issue its due date and label, and the requests the day leaves hopeless go."""
+    i = b["offered"] if i is None else i
+    start = choices_of(b)[i]
+    b = _update(c, b["id"], state="booked", start_at=start.isoformat(), offered=i)
     ledger.event(c, "booking:booked", who, detail={"booking": b["id"], "start": start.isoformat()}, guest=g["id"])
     text = BOOKED_MAIL.format(name=g["name"].split()[0], time=describe(start, b["tz"]), join=join_url(b))
     _mail(
@@ -565,7 +627,8 @@ def book(c, b, g, who):
         "booked",
         time=describe(start, b["tz"]),
         date=start.astimezone(ledger.ZONE).strftime("%Y-%m-%d"),
-        hosts=[h for h in HOSTS if (answers_of(b).get(h) or {}).get("yes")],
+        hosts=can_do(b, i),
+        rank=CHOICE_OF_RANK[i],
         join=join_url(b),
     )
     _clear_clashes(c, b, who)
@@ -650,12 +713,24 @@ def job_asked(env, a, c=None):
         text += "; backups " + "; ".join(
             f"{t} ({WORDS.get(w, w)})" for t, w in zip(a["backups"], words[1:] + [None] * 2) if t
         )
-    text += f". Accept or decline on the engine: {a['page']}"
+    text += f". Tick the times you can do on the engine: {a['page']}"
     cm = linear.comment(env, a["issue"], text)
     return {"issue": a["issue"], "comment": cm["url"]}
 
 
-def job_moved(env, a, c=None):
+def job_answered(env, a, c=None):
+    text = f"{a['host']} can do {a['picks']}; waiting for {' and '.join(a['waiting'])}: {a['page']}"
+    cm = linear.comment(env, a["issue"], text)
+    return {"issue": a["issue"], "comment": cm["url"]}
+
+
+def job_declined(env, a, c=None):
+    text = f"Declined: {a['why']}; {linear.plain(a['name'])} is asked to pick again."
+    cm = linear.comment(env, a["issue"], text)
+    return {"issue": a["issue"], "comment": cm["url"]}
+
+
+def job_moved(env, a, c=None):  # a turn of the flow before 18 November 2026, kept for a job still queued then
     text = f"{a['host']} declined {a['time']}" + (f" ({a['note']})" if a.get("note") else "")
     text += (
         f"; {a['next']} is offered to both hosts now: {a['page']}"
@@ -669,9 +744,10 @@ def job_moved(env, a, c=None):
 def job_booked(env, a, c=None):
     key = a["issue"]
     linear.due(env, key, a["date"])
+    rank = f", {linear.plain(a['name'])}'s {a['rank']}" if a.get("rank") else ""
     text = (
-        f"Booked: {a['time']}, accepted by {' and '.join(a['hosts'])}. The join link {a['join']} opens the studio "
-        "from an hour before the start to three hours after it, and shows the booking outside that."
+        f"Booked: {a['time']}{rank}, accepted by {' and '.join(a['hosts'])}. The join link {a['join']} opens the "
+        "studio from an hour before the start to three hours after it, and shows the booking outside that."
     )
     cm = linear.comment(env, key, text)
     return {"issue": key, "comment": cm["url"], "due": a["date"], "label": linear.label_softly(env, key, "booked")}
@@ -709,32 +785,41 @@ def rules_html(s=None):
     )
 
 
-def choices_table(c, b):
-    """The request's times as a table: London, the guest's, the rules' word, and where each stands."""
-    choices, answers, i, s = choices_of(b), answers_of(b), b["offered"], settings()
+def _day_word(t, taken, weeks, s):
+    """The rules' word for a choice as the hosts read it: taken by another recording, or the day's word with
+    "one that week already" when the week has one."""
+    if london_date(t) in taken:
+        return "taken", "taken by another recording"
+    kind = day_word(t, s)
+    word = WORDS.get(kind, "")
+    if london_date(t).isocalendar()[:2] in weeks:
+        return "week", word + "; one that week already"
+    return kind, word
+
+
+def choices_table(c, b, hosts=False):
+    """The request's times as a table: the guest's medal and rank, London, the guest's zone, the rules' word
+    and, for the hosts, who can do each; the guest's own copy says only that the hosts have them."""
+    choices, i, s = choices_of(b), b["offered"], settings()
     taken, weeks = taken_days(c, but=b["id"]), busy_weeks(c, but=b["id"])
     rows = []
     for n, t in enumerate(choices):
-        if london_date(t) in taken:
-            word = "taken by another recording"
-        else:
-            word = WORDS.get(day_word(t, s), "")
-            if london_date(t).isocalendar()[:2] in weeks:
-                word += "; one that week already"
+        kind, word = _day_word(t, taken, weeks, s)
         if b["state"] == "booked" and n == i:
             state = "<b>booked</b>"
-        elif b["state"] in ("declined", "cancelled", "withdrawn") and n == i:
-            state = b["state"]
-        elif n < i:
-            state = "declined"
-        elif n == i:
-            yes = [h for h, a in answers.items() if a.get("yes")]
-            state = ("accepted by " + ", ".join(yes) + "; " if yes else "") + "waiting for " + ", ".join(waiting_for(b))
+        elif b["state"] == "cancelled" and b["start_at"] and n == i:
+            state = "cancelled"
+        elif b["state"] == "asked" and n < i:
+            state = "declined"  # one at a time, before 18 November 2026
+        elif not hosts:
+            state = '<span class="muted">with James and Abrar</span>'
         else:
-            state = '<span class="muted">if needed</span>'
+            who = can_do(b, n)
+            yet = " yet" if b["state"] == "asked" and waiting_for(b) else ""
+            state = esc(" and ".join(who) + " can") if who else f'<span class="muted">no one{yet}</span>'
         rows.append(
             [
-                esc(("Preferred", "Backup", "Backup")[n]),
+                f"{MEDALS[n]} {esc(RANKS[n])}",
                 esc(t.astimezone(ledger.ZONE).strftime("%a %d %b %Y, %H:%M")),
                 esc(t.astimezone(zoneinfo.ZoneInfo(b["tz"])).strftime("%a %d %b, %H:%M") + " " + city(b["tz"])),
                 esc(word),
@@ -744,6 +829,46 @@ def choices_table(c, b):
     return table(
         ["", "London", esc(city(b["tz"])) if b["tz"] != ledger.CONFIG.get("timezone") else "Yours", "Day", ""], rows
     )
+
+
+def offer_tiles(c, b, host):
+    """The request's choices as tiles for a host to tick (AGE-155), in the guest's order: the medal, the day in
+    London with the time, the guest's own time and city when theirs is another zone, the rules' word, and who
+    can do it so far. A choice on a day taken since is struck through and cannot be ticked. The tick is a
+    checkbox the label carries, so the form needs no script."""
+    choices, s = choices_of(b), settings()
+    taken, weeks = taken_days(c, but=b["id"]), busy_weeks(c, but=b["id"])
+    mine, theirs_too = picks_of(b, host) or [], b["tz"] != ledger.CONFIG.get("timezone")
+    out = []
+    for i in open_choices(b):
+        t = choices[i]
+        kind, word = _day_word(t, taken, weeks, s)
+        london, theirs = t.astimezone(ledger.ZONE), t.astimezone(zoneinfo.ZoneInfo(b["tz"]))
+        others = [h for h in can_do(b, i) if h != host]
+        box = (
+            f'<input type="checkbox" name="pick{i}" value="1"'
+            + (" checked" if i in mine else "")
+            + (" disabled" if kind == "taken" else "")
+            + ">"
+        )
+        out.append(
+            f'<label class="offer {kind}" title="{esc(word)}">{box}<span class="medal">{MEDALS[i]}</span>'
+            '<span class="tick">&#10003;</span>'
+            f'<span class="rank">{esc(RANKS[i])}</span>'
+            f'<span class="wday">{london.strftime("%A")}</span>'
+            f'<span class="dom">{london.day}</span>'
+            f'<span class="month">{london.strftime("%B")}</span>'
+            f'<span class="time">{london.strftime("%H:%M")} London</span>'
+            + (
+                f'<span class="theirs">{theirs.strftime("%a %-d %b, %H:%M")} {esc(city(b["tz"]))}</span>'
+                if theirs_too
+                else ""
+            )
+            + f'<span class="word">{esc(TILE_WORDS.get(kind, word))}</span>'
+            + (f'<span class="who">{esc(" and ".join(others))} can</span>' if others else "")
+            + "</label>"
+        )
+    return f'<div class="offers">{"".join(out)}</div>'
 
 
 def time_body(c, g, msg=None, nxt=""):
@@ -822,8 +947,8 @@ def time_page(c, g, msg=None, status=200, nxt=""):
     body = (
         '<article class="lead"><p class="kicker">The time</p><h1>A time to record</h1>'
         f'<p class="deck">{s["length_hours"]} hours over a video link, with James and Abrar. Pick the time you would '
-        "prefer and up to two backups, in your own time zone; London&#8217;s is shown beside each. Both hosts accept, "
-        "one click each, and you get a link that opens the studio when it is time.</p></article>"
+        "prefer and up to two backups, in your own time zone; London&#8217;s is shown beside each. Both hosts say which "
+        "they can do, your highest that suits both is booked, and you get a link that opens the studio when it is time.</p></article>"
     )
     return "The time", body + time_body(c, g, msg, nxt), status
 
@@ -860,26 +985,40 @@ def summary(c, gid):
 
 
 def host_section(c, g, csrf, host):
-    """The Booking section of a guest's page on the engine: the request as it stands, and the host's buttons."""
+    """The Booking section of a guest's page on the engine: the request as it stands and, while it is asked,
+    the tiles the host ticks; the table once it is settled."""
     b = current(c, g["id"]) or latest(c, g["id"])
     if not b:
         return section(
             "Booking", "No request yet", "<p>The guest picks a time in the office once the release is signed.</p>"
         )
-    acts = ""
-    if b["state"] == "asked" and host in HOSTS and host not in answers_of(b):
-        acts = (
-            f'<form method="post" action="/guests/{esc(g["id"])}/accept" class="inline"><input type="hidden" name="_t" value="{esc(csrf)}">'
-            '<button type="submit" class="signal">Accept this time</button></form>'
-            f'<form method="post" action="/guests/{esc(g["id"])}/decline" class="inline"><input type="hidden" name="_t" value="{esc(csrf)}">'
-            '<input type="text" name="note" placeholder="why not, in a few words (optional)" maxlength="200" class="why">'
-            '<button type="submit">Decline, offer the next</button></form>'
+    gid, acts, inner = esc(g["id"]), "", ""
+    first = g["name"].split()[0]
+    if b["state"] == "asked" and host in HOSTS:
+        mine, left = picks_of(b, host), ", ".join(waiting_for(b))
+        if mine is None:
+            lead = (
+                f"Tick every time you can do, then accept. {esc(first)}&#8217;s highest that suits you both is booked."
+            )
+            verb = "Accept the ticked times"
+        else:
+            lead = f"You said {esc(ranks(mine))}; change it until {esc(left)} has answered."
+            verb = "Change to the ticked times"
+        inner = (
+            f'<form method="post" action="/guests/{gid}/accept" class="answer"><input type="hidden" name="_t" value="{esc(csrf)}">'
+            f"<p>{lead}</p>{offer_tiles(c, b, host)}"
+            f'<p><button type="submit" class="signal">{verb}</button></p></form>'
         )
-    elif b["state"] == "asked" and host in HOSTS:
-        acts = f'<p class="muted">You answered; waiting for {esc(", ".join(waiting_for(b)))}.</p>'
+        acts = (
+            f'<form method="post" action="/guests/{gid}/decline" class="inline"><input type="hidden" name="_t" value="{esc(csrf)}">'
+            '<input type="text" name="note" placeholder="why not, in a few words (optional)" maxlength="200" class="why">'
+            '<button type="submit">None of these</button></form>'
+        )
+    else:
+        inner = choices_table(c, b, hosts=True)
     if b["state"] in ("asked", "booked") and host in HOSTS:
         acts += (
-            f'<form method="post" action="/guests/{esc(g["id"])}/cancel" class="inline confirm"><input type="hidden" name="_t" value="{esc(csrf)}">'
+            f'<form method="post" action="/guests/{gid}/cancel" class="inline confirm"><input type="hidden" name="_t" value="{esc(csrf)}">'
             '<input type="text" name="note" placeholder="why, in a few words (optional)" maxlength="200" class="why">'
             f'<button type="submit">Cancel the {"booking" if b["state"] == "booked" else "request"}</button></form>'
         )
@@ -887,8 +1026,10 @@ def host_section(c, g, csrf, host):
         "asked": "Asked; " + ("waiting for " + ", ".join(waiting_for(b))),
         "booked": "Booked for " + describe(b["start_at"], b["tz"]) if b["start_at"] else "Booked",
     }.get(b["state"], b["state"].capitalize())
-    inner = f'<p class="muted">{esc(STATES.get(b["state"], ""))}. Asked {esc(when(b["created_at"]))}, in {esc(b["tz"])}.</p>'
-    inner += choices_table(c, b)
+    inner = (
+        f'<p class="muted">{esc(STATES.get(b["state"], ""))}. Asked {esc(when(b["created_at"]))}, in {esc(b["tz"])}.</p>'
+        + inner
+    )
     if b["state"] == "booked":
         inner += f'<p>Join link <span class="mono">{esc(join_url(b))}</span>: the studio from an hour before to three hours after.</p>'
     if b["note"]:

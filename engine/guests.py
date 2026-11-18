@@ -1351,12 +1351,16 @@ def act(c, g, action, who, form=None):
         b = schedule.current(c, gid)
         if not b:
             raise ValueError("No request or booking to answer")
-        note = (form or {}).get("note")
+        form = form or {}
+        note = form.get("note")
         try:
             if action == "cancel":
                 msg = schedule.cancel(c, b, host_name(who), who, note)
-            else:
-                msg = schedule.answer(c, b, host_name(who), action == "accept", who, note)
+            else:  # accept carries the ticked tiles, pick0..pick2; decline is none of them
+                picks = [i for i in range(3) if form.get(f"pick{i}")] if action == "accept" else []
+                if action == "accept" and not picks:
+                    raise ValueError("Tick the times you can do, or say none of these")
+                msg = schedule.answer(c, b, host_name(who), picks, who, note)
         except schedule.ScheduleError as e:
             raise ValueError(str(e)) from None
         mirror(c, gid)

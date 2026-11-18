@@ -226,7 +226,7 @@ def letter(c, g, stage_, since, n, w, host, inviter=None, by=None):
         body = [
             f"{lead} Pick the time you would prefer and up to two backups at",
             url,
-            "Both hosts accept, one click each, and you get a link that opens the studio when it is time.",
+            "Both hosts say which they can do, your highest that suits both is booked, and you get a link that opens the studio when it is time.",
         ]
     else:
         row = review.current(c, g["id"])
