@@ -1287,12 +1287,16 @@ class FakeAnthropic:
 
 class FakeSMTP:
     """smtplib.SMTP_SSL as far as engine/mail.py uses it: a context manager
-    with login and send_message. Keeps what was sent; can refuse once."""
+    with login and send_message. Keeps what was sent; can refuse once, and can hang up on the next `hangups`
+    connections the way Stalwart's throttle does, closing before a word is said."""
 
-    sent, logins, opened, fail = [], [], [], None
+    sent, logins, opened, fail, hangups = [], [], [], None, 0
 
     def __init__(self, host, port, timeout=None):
         FakeSMTP.opened.append((host, port, timeout))
+        if FakeSMTP.hangups:
+            FakeSMTP.hangups -= 1
+            raise smtplib.SMTPServerDisconnected("Connection unexpectedly closed")
 
     def __enter__(self):
         return self
@@ -2309,6 +2313,25 @@ class EngineTest(unittest.TestCase):
         with self.assertRaises(mail.MailError) as cm:
             mail.send("b@example.com", "s", "t", env=self.menv)
         self.assertIn("SMTPDataError", str(cm.exception))
+        # the server hanging up before a word (its throttle, 5 connections a second) is tried once more after
+        # its window; a second hang-up is the failure, and says so
+        retry_after, mail.RETRY_AFTER = mail.RETRY_AFTER, 0.05
+        try:
+            FakeSMTP.hangups, opened, sent = 1, len(FakeSMTP.opened), len(FakeSMTP.sent)
+            t0 = time.monotonic()
+            msgid = mail.send("c@example.com", "s", "t", env=self.menv)
+            self.assertGreaterEqual(time.monotonic() - t0, 0.05, "the retry waits out the window")
+            self.assertEqual((len(FakeSMTP.opened) - opened, len(FakeSMTP.sent) - sent), (2, 1))
+            self.assertEqual(FakeSMTP.sent[-1]["Message-ID"], msgid)
+            FakeSMTP.hangups, opened, sent = 2, len(FakeSMTP.opened), len(FakeSMTP.sent)
+            with self.assertRaises(mail.MailError) as hung:
+                mail.send("c@example.com", "s", "t", env=self.menv)
+            self.assertIn(
+                "SMTPServerDisconnected: Connection unexpectedly closed, twice 0.05s apart", str(hung.exception)
+            )
+            self.assertEqual((len(FakeSMTP.opened) - opened, len(FakeSMTP.sent) - sent, FakeSMTP.hangups), (2, 0, 0))
+        finally:
+            mail.RETRY_AFTER = retry_after
         self.assertIsNone(mail.last_failure(c))
         mail.record(c, "tester", "b@example.com", "s", error=cm.exception)
         mail.record(c, "tester", "b@example.com", "s", msgid="<ok@agentsee.work>")
@@ -5220,9 +5243,15 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(len(FakeSMTP.sent), 9, "a dry run sends nothing")
         self.assertIsNone(c.execute("SELECT 1 FROM event WHERE what='remind:run'").fetchone())
 
-        # ── the pass, on a weekday ──
+        # ── the pass, on a weekday: six notes, paced under the mail server's five connections a second ──
         said = []
-        lines = guests.remind_all(c, now=now, log=said.append)
+        pace, mail.PACE = mail.PACE, 0.02
+        try:
+            t0 = time.monotonic()
+            lines = guests.remind_all(c, now=now, log=said.append)
+            self.assertGreaterEqual(time.monotonic() - t0, 5 * 0.02, "a pause between notes, none before the first")
+        finally:
+            mail.PACE = pace
         self.assertEqual(len(lines), 6)
         self.assertTrue(all(line.endswith(": sent") for line in lines), lines)
         self.assertEqual(len(FakeSMTP.sent), 15)

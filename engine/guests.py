@@ -44,6 +44,7 @@ import re
 import secrets
 import tempfile
 import threading
+import time
 import urllib.parse
 
 import archive
@@ -265,8 +266,9 @@ def nudge(c, g, who):
 
 
 def remind_all(c, who="worker", log=None, now=None, dry_run=False):
-    """The daily pass (remind.py): a note to each guest who is due one, on a weekday; the pass recorded for
-    Health. Returns the lines it would print. `dry_run` lists who is due and sends nothing."""
+    """The daily pass (remind.py): a note to each guest who is due one, on a weekday, mail.PACE apart so the
+    burst stays under the mail server's throttle; the pass recorded for Health. Returns the lines it would
+    print. `dry_run` lists who is due and sends nothing."""
     log = log or (lambda s: None)
     if not dry_run and not remind.office_hours(now):
         log("remind: the weekend; the office writes on weekdays")
@@ -277,6 +279,8 @@ def remind_all(c, who="worker", log=None, now=None, dry_run=False):
         if dry_run:
             lines.append(line)
             continue
+        if lines:
+            time.sleep(mail.PACE)
         ok = _remind(c, g, stage, since, n, w, who)
         lines.append(f"{line}: {'sent' if ok else 'NOT SENT, see the mail failure'}")
         if ok:

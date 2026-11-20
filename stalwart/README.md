@@ -281,6 +281,13 @@ Roughly in this order:
    which `infra/server.tf` already allows.
 5. **MtaRoute** — the SMTP2GO relay, per the reference file.
 6. **Spam filter** — Stalwart's is built in; the defaults are sane.
+7. **Throttle** — the submissions listener takes five connections a second
+   from one address and closes the rest without a reply (an
+   `MtaInboundThrottle`, a default; the export above leaves the type out, so
+   it is not in `plan.json`). The engine keeps under it: `engine/mail.py`
+   paces a pass of mail and tries a closed connection once more after the
+   window. Seen 17 November 2026, when the first reminder pass opened eleven
+   connections in one second and lost six.
 
 ## `dmarc@` delivers to a sink, not to people
 
