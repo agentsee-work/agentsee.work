@@ -13,18 +13,32 @@ config.json, none of them secret.
 A failure to send is an exception with a sentence in it, for a screen to
 show; nothing here is allowed to fail quietly. The SMTP class is a module
 attribute so the tests can put a fake in its place.
+
+Stalwart takes five connections a second from one address on the
+submissions port and closes the rest without a word (its inbound throttle;
+the first reminder pass, 17 November 2026, lost six of eleven notes to it).
+Each message here is its own connection, so a burst must keep under that:
+a pass sleeps PACE between messages, and a connection the server closes
+before taking the message is tried once more after RETRY_AFTER, the
+throttle's window. The retry cannot send twice: the server's acceptance of
+the message is the last thing in the connection, and a close after it
+cannot raise.
 """
 
 import email.message
 import email.utils
 import os
 import smtplib
+import time
 
 import ledger
 
 NEEDS = "MAIL_USER / MAIL_PASSWORD"
 SMTP = smtplib.SMTP_SSL
 TIMEOUT = 30
+PACE = 0.25  # seconds between messages in a pass: four a second, under the server's five
+RETRY_AFTER = 1.1  # seconds before the one retry of a connection the server closed: its window, and a little
+HANGUP = (smtplib.SMTPServerDisconnected, ConnectionResetError, ConnectionRefusedError)
 SIGNATURE = "\n\n— AgentSee\nhttps://agentsee.work\nA reply reaches James and Abrar."
 
 
@@ -71,15 +85,23 @@ def send(to, subject, text, env=None, attachments=(), copy=False):
     for name, data, ctype in attachments:
         maintype, _, subtype = ctype.partition("/")
         m.add_attachment(data, maintype=maintype, subtype=subtype or "octet-stream", filename=name)
-    try:
-        with SMTP(cfg["host"], cfg["port"], timeout=TIMEOUT) as s:
-            s.login(env["MAIL_USER"], env["MAIL_PASSWORD"])
-            s.send_message(m)
-    except smtplib.SMTPAuthenticationError:
-        raise MailError(f"{cfg['host']} refused the office account's password") from None
-    except (smtplib.SMTPException, OSError) as e:
-        raise MailError(f"{cfg['host']}:{cfg['port']}: {type(e).__name__}: {str(e)[:200]}") from None
-    return m["Message-ID"]
+    where = f"{cfg['host']}:{cfg['port']}"
+    for attempt in (1, 2):
+        try:
+            with SMTP(cfg["host"], cfg["port"], timeout=TIMEOUT) as s:
+                s.login(env["MAIL_USER"], env["MAIL_PASSWORD"])
+                s.send_message(m)
+            return m["Message-ID"]
+        except smtplib.SMTPAuthenticationError:
+            raise MailError(f"{cfg['host']} refused the office account's password") from None
+        except HANGUP as e:  # closed before the message was taken: the throttle, or a restart; once more
+            if attempt == 1:
+                time.sleep(RETRY_AFTER)
+                continue
+            raise MailError(f"{where}: {type(e).__name__}: {str(e)[:200]}, twice {RETRY_AFTER}s apart") from None
+        except (smtplib.SMTPException, OSError) as e:
+            raise MailError(f"{where}: {type(e).__name__}: {str(e)[:200]}") from None
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def record(c, who, to, subject, msgid=None, error=None, guest=None):
