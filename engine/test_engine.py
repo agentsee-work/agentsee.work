@@ -4381,7 +4381,10 @@ class EngineTest(unittest.TestCase):
         tiles, one per time, that each host ticks in one go and can change until the
         other answers; the guest's highest time both can do booked, with the
         confirmation, the calendar file, the due date and the label; a request the
-        booking leaves hopeless declined by the office; a tick on a taken day refused;
+        booking leaves hopeless declined by the office; a tick on a time that clashes
+        with another recording refused; a second recording on a day, clear of the
+        first (AGE-158), named on its tile, ticked and booked, and the request that
+        clashes with it declined; the hosts' calendar with both on the day;
         a host who can do none, and two hosts with nothing in common, each a decline
         at once; a request from before, answered one at a time, still read; the join
         link before, inside and after its window; a cancel; a withdrawal."""
@@ -4598,7 +4601,7 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(schedule.picks_of(schedule.current(c, gid), "James"), [0, 1])
         grace = c.execute("SELECT id FROM guest WHERE name='Grace Hopper'").fetchone()[0]
         c.execute("UPDATE guest SET address='grace@example.com', signed_version=1 WHERE id=?", (grace,))
-        clash = backup.replace(hour=14)  # Grace asks for the same day, later in it, and a week on
+        clash = backup.replace(hour=11)  # Grace asks for the same day, an hour into Ada's two, and a week on
         c.execute(
             "INSERT INTO booking (id, guest, tz, choices, offered, answers, state, created_at, updated_at) "
             "VALUES (?,?,?,?,?,?,?,?,?)",
@@ -4615,7 +4618,24 @@ class EngineTest(unittest.TestCase):
             ),
         )
         said = schedule.answer(c, schedule.booking(c, "graceclash01"), "James", [0], "jameshartt@example.com")
-        self.assertEqual(said, "You can do gold; waiting for Abrar", "James can do only the day Ada is about to take")
+        self.assertEqual(said, "You can do gold; waiting for Abrar", "James can do only the hours Ada is about to take")
+        bob = c.execute("SELECT id FROM guest WHERE name='Bob Builder'").fetchone()[0]
+        same = backup.replace(hour=14)  # Bob asks for that day too, both times clear of Ada's two hours
+        c.execute(
+            "INSERT INTO booking (id, guest, tz, choices, offered, answers, state, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (
+                "bobsameday01",
+                bob,
+                "Europe/London",
+                json.dumps([same.isoformat(), same.replace(hour=16).isoformat()]),
+                0,
+                "{}",
+                "asked",
+                ledger.now(),
+                ledger.now(),
+            ),
+        )
         os.environ["ENGINE_USER"] = "abrar@example.com"
         body = req("GET", f"/guests/{gid}")[2]
         self.assertEqual(
@@ -4632,12 +4652,15 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(
             (len(FakeSMTP.sent), m["To"], m["Cc"], m["Subject"]),
             (sent + 2, "ada@example.com", "hello@agentsee.work", "Booked: your recording with AgentSee"),
-            "the confirmation; then Grace, whose only tick from James was that day, asked to pick again",
+            "the confirmation; then Grace, whose only tick from James clashes with it, asked to pick again",
         )
         gone = FakeSMTP.sent[sent + 1]
         self.assertEqual((gone["To"], gone["Subject"]), ("grace@example.com", "Your recording: another time, please"))
-        self.assertIn("the days you asked for were booked by another guest since", gone.get_content())
+        self.assertIn("the times that could have worked were booked by another guest since", gone.get_content())
         self.assertEqual(schedule.booking(c, "graceclash01")["state"], "declined")
+        self.assertEqual(
+            schedule.booking(c, "bobsameday01")["state"], "asked", "the same day, clear of the clock: the hosts' still"
+        )
         self.assertIn(f"https://{SEE}/join/{b['id']}", m.get_body(preferencelist=("plain",)).get_content())
         att = list(m.iter_attachments())
         self.assertEqual(
@@ -4649,7 +4672,9 @@ class EngineTest(unittest.TestCase):
         self.assertGreaterEqual(linear.drain(c, env, log=lambda s: None), 2)
         self.assertIn("Booked:", fake.comments[-2][1])
         self.assertIn("Ada Lovelace's first backup, accepted by James and Abrar", fake.comments[-2][1])
-        self.assertIn("Declined: the days you asked for were booked by another guest since", fake.comments[-1][1])
+        self.assertIn(
+            "Declined: the times that could have worked were booked by another guest since", fake.comments[-1][1]
+        )
         self.assertEqual(fake.issues["AGE-73"]["dueDate"], backup.strftime("%Y-%m-%d"))
         self.assertIn("booked", [fake.labels[x]["name"] for x in fake.issues["AGE-73"]["labelIds"]])
         body = req("GET", f"/guests/{gid}")[2]
@@ -4657,9 +4682,10 @@ class EngineTest(unittest.TestCase):
         self.assertIn("James can</td>", body, "the table once settled: who could do each")
         self.assertNotIn('class="offers"', body)
 
-        # ── one recording a day: the calendar says taken, a request for it is refused, a tick on it too; the
-        #    hosts' calendar wears the medals; Abrar can do none and the request is declined at once; a request
-        #    from before 18 November 2026 still reads, James's yes as a tick on the time that was on offer ──
+        # ── the day has a recording: the guest's calendar says taken and a request for it is refused, clear of
+        #    the clock or not; a tick on a time that clashes is refused and its tile struck through; the hosts'
+        #    calendar wears the medals; Abrar can do none and the request is declined at once; a request from
+        #    before 18 November 2026 still reads, James's yes as a tick on the time that was on offer ──
         self.assertIn(backup.date(), schedule.taken_days(c))
         cal = schedule.calendar_html(c)
         self.assertIn(f'<span class="day taken" title="taken: a recording that day">{backup.day}</span>', cal)
@@ -4667,20 +4693,24 @@ class EngineTest(unittest.TestCase):
         with self.assertRaises(schedule.ScheduleError) as cm:
             schedule.ask(c, guests.guest(c, grace), "Europe/London", [clash.strftime("%Y-%m-%dT%H:%M")], "grace")
         self.assertIn("taken by a recording already", str(cm.exception))
+        with self.assertRaises(schedule.ScheduleError) as cm:
+            schedule.ask(c, guests.guest(c, grace), "Europe/London", [same.strftime("%Y-%m-%dT%H:%M")], "grace")
+        self.assertIn("taken by a recording already", str(cm.exception), "a guest picking afresh, the hours clear")
         c.execute(
             "UPDATE booking SET state='asked', answers='{}', note=NULL WHERE id='graceclash01'"
         )  # unanswered again
         gb = schedule.booking(c, "graceclash01")
         with self.assertRaises(schedule.ScheduleError) as cm:
             schedule.answer(c, gb, "James", [0, 1], "jameshartt@example.com")
-        self.assertIn("taken by another recording since; untick it", str(cm.exception))
+        self.assertIn("clashes with another recording since; untick it", str(cm.exception))
         os.environ["ENGINE_USER"] = "jameshartt@example.com"
         body = req("GET", f"/guests/{grace}")[2]
+        struck = "clashes with another recording, at 10:00 with Ada Lovelace"
         self.assertIn(
-            '<label class="offer taken" title="taken by another recording"><input type="checkbox" name="pick0" value="1" disabled>',
+            f'<label class="offer taken" title="{struck}"><input type="checkbox" name="pick0" value="1" disabled>',
             body,
         )
-        self.assertIn('<span class="word">taken</span>', body)
+        self.assertIn(f'<span class="word">{struck}</span>', body)
         self.assertEqual(
             schedule.answer(c, gb, "James", [1], "jameshartt@example.com"), "You can do silver; waiting for Abrar"
         )
@@ -4734,6 +4764,84 @@ class EngineTest(unittest.TestCase):
         schedule.cancel(c, schedule.booking(c, "graceold0001"), "James", "jameshartt@example.com")
         self.assertEqual(schedule.booking(c, "graceold0001")["state"], "cancelled")
         self.assertIsNone(schedule.current(c, grace))
+
+        # ── a second recording on a day (AGE-158): Bob's times are on Ada's day and clear of her two hours, so
+        #    they are the hosts' to tick, each tile naming hers, and his own copy naming no one; both hosts tick
+        #    both and his gold is booked; Grace's times, clear of Ada's, clash with Bob's now, and the office
+        #    declines her; the hosts' calendar shows the two on the day ──
+        rules = schedule.settings()
+        bb = schedule.booking(c, "bobsameday01")
+        self.assertFalse(schedule.hopeless(c, bb))
+        named = "another recording that day, at 10:00 with Ada Lovelace"
+        self.assertEqual(schedule._day_word(same, schedule.taken_days(c), set(), rules), ("day", named))
+        own = schedule.choices_table(c, bb)
+        self.assertIn("another recording that day", own)
+        self.assertNotIn("Ada Lovelace", own, "the guest's own copy names no other guest")
+        os.environ["ENGINE_USER"] = "jameshartt@example.com"
+        body = req("GET", f"/guests/{bob}")[2]
+        for i in (0, 1):
+            self.assertIn(
+                f'<label class="offer day" title="{named}"><input type="checkbox" name="pick{i}" value="1">', body
+            )
+        self.assertEqual(body.count(f'<span class="word">{named}</span>'), 2, "the tile names the other recording")
+        st, h, body = req("POST", f"/guests/{bob}/accept", {"_t": web.CSRF, "pick0": "1", "pick1": "1"})
+        self.assertIn("You+can+do+gold+and+silver%3B+waiting+for+Abrar", h["Location"])
+        between = [backup.replace(hour=12, minute=30), backup.replace(hour=15, minute=30)]
+        c.execute(
+            "INSERT INTO booking (id, guest, tz, choices, offered, answers, state, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (
+                "graceclash02",
+                grace,
+                "Europe/London",
+                json.dumps([t.isoformat() for t in between]),
+                0,
+                "{}",
+                "asked",
+                ledger.now(),
+                ledger.now(),
+            ),
+        )
+        self.assertFalse(schedule.hopeless(c, schedule.booking(c, "graceclash02")), "clear of Ada's; Bob's not booked")
+        os.environ["ENGINE_USER"] = "abrar@example.com"
+        sent = len(FakeSMTP.sent)
+        st, h, body = req("POST", f"/guests/{bob}/accept", {"_t": web.CSRF, "pick0": "1", "pick1": "1"})
+        self.assertIn("Booked%3A", h["Location"])
+        self.assertIn("Bob%27s+first+choice%3B+Bob+has+the+confirmation", h["Location"])
+        bb = schedule.booking(c, "bobsameday01")
+        self.assertEqual((bb["state"], bb["offered"], dt.datetime.fromisoformat(bb["start_at"])), ("booked", 0, same))
+        m, gone = FakeSMTP.sent[sent], FakeSMTP.sent[sent + 1]
+        self.assertEqual(
+            (len(FakeSMTP.sent), m["To"], m["Subject"]),
+            (sent + 2, "bob@example.com", "Booked: your recording with AgentSee"),
+            "the confirmation; then Grace, whose every time clashes by the clock now, asked to pick again",
+        )
+        self.assertEqual((gone["To"], gone["Subject"]), ("grace@example.com", "Your recording: another time, please"))
+        self.assertIn("the times that could have worked were booked by another guest since", gone.get_content())
+        self.assertEqual(schedule.booking(c, "graceclash02")["state"], "declined")
+        self.assertIn("Declined: the times that could have worked", drained()[1])
+        taken = schedule.taken_days(c)
+        self.assertEqual([x["name"] for x in taken[backup.date()]], ["Ada Lovelace", "Bob Builder"])
+        self.assertEqual(
+            schedule._day_word(backup.replace(hour=16), taken, set(), rules),
+            ("day", named + " and at 14:00 with Bob Builder"),
+            "each recording that day named",
+        )
+        self.assertEqual(
+            schedule._day_word(between[1], taken, set(), rules),
+            ("taken", "clashes with another recording, at 14:00 with Bob Builder"),
+        )
+        self.assertIn(
+            f'<a class="booked" href="/guests/{gid}">Ada Lovelace</a>'
+            f'<a class="booked" href="/guests/{bob}">Bob Builder</a>',
+            req("GET", "/calendar")[2],
+            "two on a day, in the order they happen",
+        )
+        body = req("GET", f"/guests/{bob}")[2]
+        self.assertIn("<b>booked</b>", body)
+        self.assertIn(named, body, "the table once settled says so too")
+        schedule.cancel(c, bb, "James", "jameshartt@example.com")
+        self.assertEqual([x["name"] for x in schedule.taken_days(c)[backup.date()]], ["Ada Lovelace"])
         st, h, body = req("GET", "/time", host=SEE, cookies=ada)
         for s in (
             "Booked",

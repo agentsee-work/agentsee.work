@@ -67,8 +67,8 @@ input[type=date], input[type=time], input[type=datetime-local], select { width: 
 .cal td .medal { position: absolute; top: .15rem; left: .2rem; font-size: .75rem; line-height: 1; pointer-events: none; z-index: 1; }  /* the rank a chosen day holds (time.js): a badge on the cell, outside the button, so the number never moves */
 /* The hosts' answer (schedule.offer_tiles, AGE-155): the guest's three times as tiles to tick, in the guest's order,
    each wearing its medal like a chosen day on the guest's calendar. The checkbox is the tile's own, hidden; :has()
-   paints the tick and the stroke, so the form needs no script. The day's word is the calendar's: hatched ask us,
-   dashed with notice, struck through taken. */
+   paints the tick and the stroke, so the form needs no script. The day's word is the calendar's: hatched ask us
+   (a second that week or that day too), dashed with notice, struck through a clash with another recording. */
 .answer { max-width: 36rem; }
 .offers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: .6rem; margin: .6rem 0 .2rem; }  /* one height, so the three line up; a square by the content, not an aspect ratio, which WebKit let set the width */
 .offer { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
@@ -78,7 +78,7 @@ input[type=date], input[type=time], input[type=datetime-local], select { width: 
 .offer input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .offer:hover { border-color: var(--signal); }
 .offer.works, .offer.perfect { background: var(--paper-2); }
-.offer.ask, .offer.week { background: repeating-linear-gradient(135deg, var(--paper-2) 0 3px, var(--paper) 3px 7px); }
+.offer.ask, .offer.week, .offer.day { background: repeating-linear-gradient(135deg, var(--paper-2) 0 3px, var(--paper) 3px 7px); }
 .offer.notice { border-style: dashed; }
 .offer.taken { color: var(--ink-3); cursor: default; }
 .offer.taken .dom, .offer.taken .time { text-decoration: line-through; }

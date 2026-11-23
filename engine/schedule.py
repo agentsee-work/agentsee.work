@@ -1,10 +1,10 @@
 """
-Scheduling (AGE-109, AGE-155): the guest picks the time they would prefer and
-up to two backups, in their own time zone with London's beside it; the engine
-checks the rules; each host ticks every one of the times they can do, on the
-engine, in one go; the guest's highest-ranked time both can do is booked; and
-the confirmation carries a join link that opens the studio only around the
-booked time.
+Scheduling (AGE-109, AGE-155, AGE-158): the guest picks the time they would
+prefer and up to two backups, in their own time zone with London's beside it;
+the engine checks the rules; each host ticks every one of the times they can
+do, on the engine, in one go; the guest's highest-ranked time both can do is
+booked; and the confirmation carries a join link that opens the studio only
+around the booked time.
 
 The engine is the scheduler. Riverside cannot create a session or a link from
 outside (no API on our plan, none of the MCP's tools; checked 29 October
@@ -28,12 +28,20 @@ one they can do, once (and can change the ticks until the other host has
 answered). Both answered books the guest's highest-ranked choice both ticked,
 or declines the request when there is none; a host who can do none declines it
 at once, since the other's answer cannot change that; so does the office when
-other bookings have taken every day a booking could still land on. The guest's
+other bookings clash with every time a booking could still land on. The guest's
 rank decides, never the hosts' preference: they are the guest. The guest hears
 the outcome only, on their page and by email, with a calendar file on the
 booking; the issue is told by the worker (linear.py): a comment at each turn,
 and on the booking the due date and the label "booked". A host can cancel a
 booking; the guest can withdraw a request the hosts have not answered.
+
+Two recordings clash when their starts are less than a recording's length
+apart, and only a clash is blocked. A guest picking afresh is not offered a
+day that has a recording. A request that was already waiting when another
+guest was booked on one of its days keeps that time: a second recording on a
+day is the hosts' to accept or not, as a second in a week is. Its tile names
+the other recording; a time that clashes is struck through and cannot be
+ticked.
 
 Until 18 November 2026 the hosts answered one choice at a time: `offered` was
 the choice on the table and a no moved it on. A request from then still reads:
@@ -225,7 +233,6 @@ TITLES = {  # a day's word on the calendar, as its title
     "works": "works for us",
 }
 TILE_WORDS = {  # the same, in the two or three words a tile has room for (offer_tiles)
-    "taken": "taken",
     "week": "one that week",
     "ask": "hard for Abrar",
     "notice": "with notice",
@@ -240,18 +247,33 @@ def london_date(t):
 
 
 def taken_days(c, but=None):
-    """The London dates with an accepted recording, each with its booking: one recording a day. `but` leaves
-    one booking out of the count."""
+    """The London dates with an accepted recording, each with its bookings in the day's order and their
+    guests' names. `but` leaves one booking out of the count."""
     out = {}
-    for b in c.execute("SELECT * FROM booking WHERE state='booked' ORDER BY start_at").fetchall():
+    rows = c.execute(
+        "SELECT b.*, g.name FROM booking b JOIN guest g ON g.id = b.guest WHERE b.state='booked' ORDER BY b.start_at"
+    ).fetchall()
+    for b in rows:
         if b["id"] != but:
-            out[london_date(b["start_at"])] = b
+            out.setdefault(london_date(b["start_at"]), []).append(b)
     return out
 
 
 def busy_weeks(c, but=None):
     """The ISO weeks with a recording already: the rules prefer one a week, so the rest of such a week says ask us."""
     return {d.isocalendar()[:2] for d in taken_days(c, but)}
+
+
+def clash(a, b, s=None):
+    """Two starts clash when they are less than a recording's length apart: the one test, between a guest's
+    own choices and between a choice and another recording."""
+    return abs((a - b).total_seconds()) < 3600 * (s or settings())["length_hours"]
+
+
+def clashing(t, taken, s=None):
+    """The accepted recordings a start clashes with, in time order. A day can hold a second recording; the
+    same hours cannot."""
+    return [b for day in taken.values() for b in day if clash(t, dt.datetime.fromisoformat(b["start_at"]), s)]
 
 
 def day_state(d, today, soonest, taken, weeks, s=None):
@@ -313,13 +335,14 @@ def calendar_html(c, s=None):
 
 
 def calendar_page(c):
-    """The hosts' calendar on the engine: every accepted recording on its day, and every open request on each
-    of the days it asks for, with the guest's medal for that day, each to the guest's page."""
+    """The hosts' calendar on the engine: every accepted recording on its day, a day's two in the order they
+    happen, and every open request on each of the days it asks for, with the guest's medal for that day, each
+    to the guest's page."""
     today = dt.datetime.now(ledger.ZONE).date()
     booked, asked = {}, {}
     rows = c.execute(
         "SELECT b.*, g.name FROM booking b JOIN guest g ON g.id = b.guest WHERE b.state IN ('booked', 'asked') "
-        "ORDER BY b.created_at"
+        "ORDER BY b.start_at, b.created_at"
     ).fetchall()
     for b in rows:
         if b["state"] == "booked":
@@ -341,9 +364,9 @@ def calendar_page(c):
     n = sum(len(v) for v in booked.values())
     body = (
         '<article class="lead"><h1>Calendar</h1><p class="deck">Every accepted recording on its day, and every '
-        "request on each day it asks for, with the guest&#8217;s medal for that day and a question mark. One "
-        "recording a day; the rules prefer one a week, and a second in a week is yours to accept or not.</p></article>"
-        + section("Ahead", f"{n} booked", f'<div class="cal-hosts">{grids}</div>')
+        "request on each day it asks for, with the guest&#8217;s medal for that day and a question mark. The "
+        "rules prefer one a week; a second in a week, or on a day when the two do not clash, is yours to accept "
+        "or not.</p></article>" + section("Ahead", f"{n} booked", f'<div class="cal-hosts">{grids}</div>')
     )
     return "Calendar", body
 
@@ -420,11 +443,12 @@ def ranks(picks):
 
 
 def hopeless(c, b, taken=None):
-    """True when no booking can come of the request as it stands: every open choice's day is taken by another
-    recording, or a host who has answered has no tick left on a free day."""
+    """True when no booking can come of the request as it stands: every open choice clashes with another
+    recording by the clock, or a host who has answered has no tick left on one that does not. A choice on a
+    day with another recording, clear of its hours, is still the hosts' to accept."""
     taken = taken_days(c) if taken is None else taken
-    choices = choices_of(b)
-    free = [i for i in open_choices(b) if london_date(choices[i]) not in taken]
+    choices, s = choices_of(b), settings()
+    free = [i for i in open_choices(b) if not clashing(choices[i], taken, s)]
     if not free:
         return True
     return any(p is not None and not any(i in free for i in p) for p in (picks_of(b, h) for h in HOSTS))
@@ -488,7 +512,7 @@ def ask(c, g, tz, values, who):
             raise ScheduleError(f"{SLOTS[n]}: {why}")
         if london_date(t) in taken:
             raise ScheduleError(f"{SLOTS[n]}: that day is taken by a recording already; another day, please")
-        if any(abs((t - o).total_seconds()) < 3600 * s["length_hours"] for o in chosen):
+        if any(clash(t, o, s) for o in chosen):
             raise ScheduleError(f"{SLOTS[n]} overlaps another of your times; a backup is a different time")
         chosen.append(t)
     if live:
@@ -542,13 +566,13 @@ def answer(c, b, host, picks, who, note=None):
         raise ScheduleError(f"This engine's hosts are {' and '.join(HOSTS)}; you are {who}")
     if b["state"] != "asked":
         raise ScheduleError(f"Nothing to answer: the request is {b['state']}")
-    g, choices, taken = _guest(c, b["guest"]), choices_of(b), taken_days(c)
+    g, choices, taken, s = _guest(c, b["guest"]), choices_of(b), taken_days(c), settings()
     picks, opened = sorted({int(i) for i in picks}), open_choices(b)
     for i in picks:
         if i not in opened:
             raise ScheduleError(f"That is not one of {g['name'].split()[0]}'s times")
-        if london_date(choices[i]) in taken:
-            raise ScheduleError(f"{describe(choices[i], b['tz'])} is taken by another recording since; untick it")
+        if clashing(choices[i], taken, s):
+            raise ScheduleError(f"{describe(choices[i], b['tz'])} clashes with another recording since; untick it")
     note = " ".join((note or "").split())[:200]
     answers = answers_of(b)
     answers[host] = {"picks": picks, "at": ledger.now(), "note": note}
@@ -568,7 +592,7 @@ def answer(c, b, host, picks, who, note=None):
     if left:
         _tell(c, g, "answered", host=host, picks=ranks(picks), waiting=left, page=_page(g))
         return f"You can do {ranks(picks)}; waiting for {', '.join(left)}"
-    common = [i for i in opened if len(can_do(b, i)) == len(HOSTS) and london_date(choices[i]) not in taken]
+    common = [i for i in opened if len(can_do(b, i)) == len(HOSTS) and not clashing(choices[i], taken, s)]
     if common:
         book(c, b, g, who, common[0])
         return (
@@ -581,7 +605,7 @@ def answer(c, b, host, picks, who, note=None):
 
 def _decline(c, b, g, who, why, by=None, note=None):
     """No booking can come of the request: it is declined, the guest is told why and asked to pick again, and
-    so is the issue. `by` is the host who could do none, or "The office" when other bookings took the days."""
+    so is the issue. `by` is the host who could do none, or "The office" when other bookings took the times."""
     first = g["name"].split()[0]
     b = _update(c, b["id"], state="declined", note=note or None)
     ledger.event(c, "booking:declined", who, detail={"booking": b["id"], "by": by, "why": why}, guest=g["id"])
@@ -592,20 +616,21 @@ def _decline(c, b, g, who, why, by=None, note=None):
 
 
 def _clear_clashes(c, b, who):
-    """Other requests the booking leaves hopeless (every open choice on a taken day, or a host's every tick on
-    one) are declined by the office, so no guest waits on a request that cannot be booked: one recording a
-    day. A request with a free choice left stays; the hosts see the taken one struck through."""
+    """Other requests the booking leaves hopeless (every open choice clashing with a recording, or a host's
+    every tick on one that does) are declined by the office, so no guest waits on a request that cannot be
+    booked. A request with a choice clear of the clash stays, the same day included; the hosts see the
+    clashing one struck through."""
     taken = taken_days(c)
     rows = c.execute("SELECT * FROM booking WHERE state='asked' AND id!=? ORDER BY created_at", (b["id"],)).fetchall()
     for o in rows:
         if hopeless(c, o, taken):
-            why = "the days you asked for were booked by another guest since"
+            why = "the times that could have worked were booked by another guest since"
             _decline(c, o, _guest(c, o["guest"]), who, why, by="The office", note=why)
 
 
 def book(c, b, g, who, i=None):
     """Choice `i` is booked: `offered` names it from here on, the guest gets the confirmation with the calendar
-    file and the join link, the issue its due date and label, and the requests the day leaves hopeless go."""
+    file and the join link, the issue its due date and label, and the requests the booking leaves hopeless go."""
     i = b["offered"] if i is None else i
     start = choices_of(b)[i]
     b = _update(c, b["id"], state="booked", start_at=start.isoformat(), offered=i)
@@ -785,11 +810,19 @@ def rules_html(s=None):
     )
 
 
-def _day_word(t, taken, weeks, s):
-    """The rules' word for a choice as the hosts read it: taken by another recording, or the day's word with
-    "one that week already" when the week has one."""
-    if london_date(t) in taken:
-        return "taken", "taken by another recording"
+def _day_word(t, taken, weeks, s, names=True):
+    """The rules' word for a choice as the hosts read it: clashing with another recording, or on a day with
+    one it is clear of (each named with its London time, but not on the guest's own copy), or the day's word
+    with "one that week already" when the week has one."""
+    hit, same = clashing(t, taken, s), taken.get(london_date(t))
+    if hit or same:
+        word = "clashes with another recording" if hit else "another recording that day"
+        if names:
+            word += ", " + " and ".join(
+                f"at {dt.datetime.fromisoformat(o['start_at']).astimezone(ledger.ZONE):%H:%M} with {o['name']}"
+                for o in hit or same
+            )
+        return ("taken" if hit else "day"), word
     kind = day_word(t, s)
     word = WORDS.get(kind, "")
     if london_date(t).isocalendar()[:2] in weeks:
@@ -804,7 +837,7 @@ def choices_table(c, b, hosts=False):
     taken, weeks = taken_days(c, but=b["id"]), busy_weeks(c, but=b["id"])
     rows = []
     for n, t in enumerate(choices):
-        kind, word = _day_word(t, taken, weeks, s)
+        kind, word = _day_word(t, taken, weeks, s, names=hosts)
         if b["state"] == "booked" and n == i:
             state = "<b>booked</b>"
         elif b["state"] == "cancelled" and b["start_at"] and n == i:
@@ -834,7 +867,8 @@ def choices_table(c, b, hosts=False):
 def offer_tiles(c, b, host):
     """The request's choices as tiles for a host to tick (AGE-155), in the guest's order: the medal, the day in
     London with the time, the guest's own time and city when theirs is another zone, the rules' word, and who
-    can do it so far. A choice on a day taken since is struck through and cannot be ticked. The tick is a
+    can do it so far. A choice that clashes with a recording booked since is struck through and cannot be
+    ticked; one on the same day, clear of its hours, can, and says which recording that is. The tick is a
     checkbox the label carries, so the form needs no script."""
     choices, s = choices_of(b), settings()
     taken, weeks = taken_days(c, but=b["id"]), busy_weeks(c, but=b["id"])
