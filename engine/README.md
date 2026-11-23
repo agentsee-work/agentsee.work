@@ -5,12 +5,13 @@ post on every platform, and back from every post to the numbers. The design
 and the decisions are on Linear (AGE-69); this is what exists.
 
 ```
-engine.py        the command line: ingest, plan, arrive, links, posts, publish, serve, mail, linear, remind
+engine.py        the command line: ingest, plan, arrive, confirm, links, posts, publish, serve, mail, linear, remind
 ledger.py        the SQLite ledger: episode, deliverable, post, snapshot, spend,
                  click, download, lead, event; guest, code, session, linear_job, arrival
 arrive.py        a staged episode into the ledger by itself: the worker's look at the
                  archive, the checks, ingest + plan + links in one pass, and what it
-                 refuses or leaves for a host's button
+                 refuses or leaves for a host's button; the plan's confirmation, which
+                 the publisher waits for
 ingest.py        release.json + staged.json → episode and deliverables
 plan.py          the day plan × accounts.json → posts, with short-link ids and
                  drafted text; the push of id → URL into KV
@@ -86,6 +87,7 @@ test_engine.py   the whole thing against a made-up episode and stubs for every
 ./engine/engine.py ingest ep1                 # needs build/episodes/ep1/out, staged
 ./engine/engine.py plan ep1 --no-links        # posts drafted, nothing leaves the machine
 ./engine/engine.py posts --episode ep1
+./engine/engine.py confirm ep1                # a host's word on the plan; nothing of ep1 is sent before it
 ./engine/engine.py publish --due --dry-run    # what the next run would do
 op run --env-file=engine/engine.env -- ./engine/engine.py arrive --dry-run   # what a look at the archive would bring in
 
@@ -146,7 +148,9 @@ worker lists the archive, and an episode whose staging the ledger has not
 taken is checked, ingested, planned and given its short links in one pass
 (`arrive.py`). "Look now" on the Episodes screen runs the same pass at once,
 and `engine.py arrive --dry-run` prints what one would do. The hosts get a
-mail when an episode is in, and a guest's Linear issue a comment.
+mail when an episode is in, asking them to confirm its plan, and a guest's
+Linear issue a comment. Arriving sends nothing: see "Confirming the plan"
+below.
 
 A pass says what it will not do rather than guess. Each state shows on the
 Episodes screen with its reason, and the first three turn Health's "Episode
@@ -171,13 +175,55 @@ new day when the plan's day moved; a post nobody edited is written again
 from the record, and an edited one keeps its words with the new link. Two
 episodes that swap numbers are taken in one transaction. Once a post is out
 the number and the date are frozen, and a staging that changes either is
-refused. YouTube takes its uploads within a minute of the plan, so in
-practice they freeze as the episode arrives: settle the number and the date
-before staging. An episode already released that is staged again gets no new
-posts by itself; `engine.py plan` adds them.
+refused. No post goes out before a host confirms the plan, and YouTube takes
+its uploads within a minute of that, so in practice they freeze at the
+confirmation: settle the number and the date before confirming. An episode
+already released that is staged again gets no new posts by itself;
+`engine.py plan` adds them.
 
 `ingest` and `plan` remain as commands, for a workstation and for the day
-the worker cannot do it.
+the worker cannot do it. An episode brought in that way is unconfirmed too.
+
+### Confirming the plan
+
+Nothing of an episode is sent anywhere until a host has confirmed its plan:
+no upload, no timed post, no card on By hand. An episode is born unconfirmed
+whichever way it came in, and the publisher's selection (`publish.split`,
+so `publish --due`, `--late`, `--post` and the worker) leaves out every post
+of an unconfirmed episode. "Publish now" and "Retry" on one such post are
+refused; its text, time and skip can be changed, and a post made by hand can
+still be recorded with its permalink.
+
+The episode's page carries the plan at its top while it waits: the number,
+title, release time and page, the posts per account and their first and last
+day, what confirming does in numbers, and what a late confirmation costs. An
+upload whose time is past, or within fifteen minutes, goes public at once
+rather than private (`publish/youtube.py`; the late rule never holds an
+upload back). A timed post under `late_hours` past its time is sent within a
+minute; one further past waits under Late on By hand, as ever. "Confirm the
+plan" there, or `engine.py confirm <slug>` on the box, records who and when
+on the episode (`confirmed_by`, `confirmed_at`) and as a `confirm` event,
+and the publisher takes the posts from its next minute. The Episodes list
+says "to confirm" in the Stage column until then.
+
+"Hold the plan" on the same page takes the confirmation back at any time.
+Nothing more is sent until a host confirms again; what a platform already
+has stays there, so a video YouTube holds still goes public at its time.
+
+A new staging that the arrival takes clears the confirmation while none of
+the episode's posts is out, and the hosts are mailed to confirm again. Once
+a post is out the confirmation stays.
+
+An unconfirmed episode whose release is under 24 hours away, or past, gets
+one more mail to the hosts, once per wait (a hold begins a new one), and
+Health's "Plans to confirm" row turns red; otherwise the row says how many
+wait.
+
+The episodes a ledger held when this rule reached it were marked confirmed
+once, in the migration that added `confirmed_at` (`ledger.add_column`), by
+"the engine (in the ledger before plans were confirmed)". That happens only
+in the step that adds the column, so it happens again only for a ledger
+restored from a snapshot older than the rule.
 
 Then the states, in `ledger.STATUSES`: `planned` until its day; `due` when
 a person says now; `publishing` while the worker has it; `scheduled` when
@@ -186,9 +232,10 @@ card is ready for a person; `failed` with the error, for a retry; `skipped`.
 
 ## The publisher
 
-`publish --due` takes every post that is due: marked so by a person, or on a
-platform that schedules for us (YouTube takes everything the moment it
-exists, private, with `publishAt`), or past its time. One adapter per
+`publish --due` takes every post that is due, of an episode whose plan a
+host has confirmed: marked so by a person, or on a platform that schedules
+for us (YouTube takes everything the moment the plan is confirmed, private,
+with `publishAt`), or past its time. One adapter per
 platform, in `publish/`; the docstring of `publish/__init__.py` is the
 contract. The YouTube adapter is real: resumable upload in 8 MiB chunks with
 resume on a dropped connection, captions, thumbnail (refused rather than

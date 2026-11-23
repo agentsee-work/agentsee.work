@@ -119,7 +119,9 @@ def episodes_page(c, csrf="", msg=None):
     body = (
         '<article class="lead"><h1>Episodes</h1><p class="deck">What has been approved and staged, '
         "and where each one has gone. An episode arrives here by itself once it is staged: the engine "
-        "looks in the archive, and says below what it found and what it would not do alone.</p></article>"
+        "looks in the archive, and says below what it found and what it would not do alone. Arrived, it is planned "
+        "and nothing more: no upload, post or card is made until a host confirms the plan on the episode's page."
+        "</p></article>"
     )
     if msg:
         body += f'<p class="honesty"><b>{esc(msg)}</b></p>'
@@ -134,7 +136,7 @@ def episodes_page(c, csrf="", msg=None):
     return "Episodes", body
 
 
-def episode_page(c, slug):
+def episode_page(c, slug, csrf="", msg=None):
     e = ledger.episode(c, slug)
     if not e:
         return None
@@ -177,7 +179,10 @@ def episode_page(c, slug):
     ).fetchall()
     body = (
         f'<article class="lead"><h1>{esc(e["title"])}</h1><p class="deck">{esc(r["episode"].get("summary", ""))}</p></article>'
+        + (f'<p class="honesty"><b>{esc(msg)}</b></p>' if msg else "")
+        + ("" if e["confirmed_at"] else arrive.plan_panel(c, e, csrf))
         + dl
+        + (arrive.plan_panel(c, e, csrf) if e["confirmed_at"] else "")
     )
     body += section(
         "Deliverables",
@@ -339,9 +344,10 @@ def post_page(c, pid, csrf, msg=None):
         else f'<p class="muted">Due {esc(when(p["scheduled_at"]))}; the platform holds it now.</p>'
     )
     acts = []
-    if p["status"] in ("planned", "hand", "failed", "skipped") and not by_hand:
+    go_now = bool(e["confirmed_at"])  # nothing of an episode is sent until a host has confirmed its plan
+    if go_now and p["status"] in ("planned", "hand", "failed", "skipped") and not by_hand:
         acts.append(button(f"/posts/{pid}/publish", "Publish now", csrf, "signal"))
-    if p["status"] == "failed":
+    if go_now and p["status"] == "failed":
         acts.append(button(f"/posts/{pid}/retry", "Retry", csrf))
     if p["status"] in ("planned", "due", "hand", "failed"):
         acts.append(button(f"/posts/{pid}/skip", "Skip", csrf))
@@ -351,8 +357,14 @@ def post_page(c, pid, csrf, msg=None):
     body = f'<article class="lead"><h1>{esc(p["title"] or asset_label(p))}</h1></article>{note}{dl}'
     body += section("Text", "What goes out", text_form)
     body += section("When", "Its day and hour", sched_form)
-    if acts:
-        body += section("Now", "Actions", '<div class="actions">' + "".join(acts) + "</div>")
+    wait = (
+        ""
+        if go_now
+        else f"<p>The episode's plan is not confirmed, so this post is not sent, by the publisher or from here. "
+        f"{link(f'/episodes/{p["episode"]}', 'Confirm the plan')} on the episode's page first.</p>"
+    )
+    if acts or wait:
+        body += section("Now", "Actions", wait + '<div class="actions">' + "".join(acts) + "</div>")
     if by_hand or p["status"] in ("hand", "failed"):
         body += section("By hand", "The card", card(c, p, e, csrf), anchor="card")
     body += section(
@@ -378,7 +390,10 @@ def due_page(c):
     end = dt.datetime.combine(dt.datetime.now(ledger.ZONE).date(), dt.time(23, 59), tzinfo=ledger.ZONE)
     rows = [
         p
-        for p in c.execute("SELECT * FROM post WHERE status IN ('hand','planned','due') ORDER BY scheduled_at, id")
+        for p in c.execute(  # a card that is not made yet waits, like every post, for its episode's plan to be confirmed
+            "SELECT * FROM post WHERE status='hand' OR (status IN ('planned','due') AND episode IN "
+            "(SELECT slug FROM episode WHERE confirmed_at IS NOT NULL)) ORDER BY scheduled_at, id"
+        )
         if ACCOUNTS.get(p["account"], {}).get("adapter") == "hand"
         and (p["status"] == "hand" or (p["scheduled_at"] and dt.datetime.fromisoformat(p["scheduled_at"]) <= end))
     ]
@@ -735,6 +750,7 @@ def health_page(c):
         ("Ledger", f'<span class="mono">{esc(STATE["ledger"] or ledger.data_dir() / "ledger.sqlite")}</span>'),
         ("Worker last ran", when(STATE["last_run"]) or "not in this process"),
         ("Episode arrivals", arrive.health(c)),
+        ("Plans to confirm", arrive.confirm_health(c)),
         (
             "Resting",
             "; ".join(f"{esc(a)} until {esc(when(u.isoformat()))}: {esc(why)}" for a, (u, why) in publish.HELD.items())
@@ -931,7 +947,7 @@ class App(BaseHTTPRequestHandler):
                 return self.html(*episodes_page(c, CSRF, q.get("msg")))
             m = re.fullmatch(r"/episodes/([a-z0-9-]+)", path)
             if m:
-                r = episode_page(c, m.group(1))
+                r = episode_page(c, m.group(1), CSRF, q.get("msg"))
                 return self.html(*r) if r else self.fail(404, "No such episode")
             if path == "/posts":
                 return self.html(*posts_page(c, q))
@@ -1094,6 +1110,15 @@ class App(BaseHTTPRequestHandler):
             if m:
                 msg = arrive.act(c, m.group(1) or m.group(3), m.group(2), who)
                 return self.redirect("/episodes?" + urllib.parse.urlencode({"msg": msg}))
+            m = re.fullmatch(r"/episodes/([a-z0-9-]{1,61})/(confirm|hold)", path)
+            if m:
+                slug = m.group(1)
+                if m.group(2) == "confirm":
+                    msg = arrive.confirm(c, slug, who, form.get("staged"))
+                    STATE["poke"].set()
+                else:
+                    msg = arrive.hold(c, slug, who)
+                return self.redirect(f"/episodes/{slug}?" + urllib.parse.urlencode({"msg": msg}))
             m = re.fullmatch(r"/posts/(\d+)/(text|schedule|publish|retry|skip|unskip|done)", path)
             if not m:
                 return self.fail(404, "No such action")
@@ -1132,6 +1157,8 @@ def act(c, p, action, form, who):
         ledger.update_post(c, pid, scheduled_at=at)
         ledger.event(c, "reschedule", who, post=pid, episode=p["episode"], detail=at)
         return f"Moved to {when(at)}"
+    if action in ("publish", "retry") and not ledger.episode(c, p["episode"])["confirmed_at"]:
+        raise ValueError("Confirm the episode's plan first.")
     if action == "publish":
         if p["status"] not in ("planned", "hand", "failed", "skipped"):
             raise ValueError("Not from this state")
@@ -1228,6 +1255,10 @@ def worker(stop, interval=60):
                     except Exception as e:  # noqa: BLE001
                         print(f"worker: arrive: {type(e).__name__}: {e}", flush=True)
                         arrive.remember({"at": ledger.now(), "error": f"{type(e).__name__}: {e}"})
+                try:  # a plan nobody has confirmed a day before its release is said once more
+                    arrive.chase(c, log=lambda s: print(s, flush=True))
+                except Exception as e:  # noqa: BLE001
+                    print(f"worker: chase: {type(e).__name__}: {e}", flush=True)
                 linear.drain(c, os.environ, log=lambda s: print(s, flush=True))
                 if snapshot_due():
                     try:

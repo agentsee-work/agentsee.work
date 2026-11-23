@@ -509,7 +509,9 @@ and `staged.json` into a SQLite ledger; `engine.py plan <slug>` turns the
 release's day plan into one post per asset per account, text drafted and cut
 to each platform's budget, a short link minted per post (`agentsee.work/p/
 e1xc02`: episode 1, X, clip 2) so every click back is counted at the edge;
-the publisher sends what is due through one adapter per platform: YouTube
+nothing of the episode is sent until a host has read that plan on the
+episode's page and confirmed it (`engine.py confirm <slug>` does the same);
+the publisher then sends what is due through one adapter per platform: YouTube
 (upload, `publishAt`, captions, thumbnail, playlist), then X, Bluesky and
 Mastodon at the post's hour (the art or the clip, then the post, each in
 its platform's way), and makes a card for a person to post everywhere else
@@ -524,7 +526,8 @@ The engine's home is the mail box, behind a Cloudflare Tunnel with Access
 in front (`engine/home/README.md`). It has no `build/`, so `stage` now
 archives `staged.json` beside `release.json`, and the engine's worker finds
 a staged episode there and runs the ingest and the plan itself, with checks
-and a host's button for what it will not decide (`engine/arrive.py`; the
+and a host's button for what it will not decide, and then waits for a host
+to confirm the plan before anything is sent (`engine/arrive.py`; the
 engine's README, "How an episode arrives"); an adapter that needs a file fetches it from the
 archive on demand, checked against the hash the ledger holds; and the
 ledger itself is copied to the archive nightly, which is what a rebuilt box
