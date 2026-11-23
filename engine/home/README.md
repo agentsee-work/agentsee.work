@@ -149,6 +149,13 @@ Episodes screen shows each staged episode's state and holds the buttons:
 "Look now", "Bring it in" for one that waits on a host, "Set aside", and the
 switch. Automatic arrival starts off after the first deploy, so the first
 passes only say what they would bring in; turn it on there once.
+
+An episode that is in sends nothing until a host confirms its plan: the
+mail links to the episode's page, which shows what confirming will send and
+holds "Confirm the plan" (and "Hold the plan" afterwards, to take it back).
+Until then the Episodes list says "to confirm" and Health's "Plans to
+confirm" row counts it, red from a day before its release.
+
 Deliverables are fetched on demand when an adapter needs one, checked
 against the hash the ledger holds, into `/var/lib/agentsee-engine/episodes/`
 (a cache; safe to delete).
@@ -159,6 +166,7 @@ By hand, should the worker be unable to:
 docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py arrive --dry-run
 docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py ingest ep2
 docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py plan ep2
+docker compose exec -e ENGINE_USER=you@example.com engine python3 engine/engine.py confirm ep2   # read the plan first: this lets it be sent, and records who said so
 ```
 
 ## The release

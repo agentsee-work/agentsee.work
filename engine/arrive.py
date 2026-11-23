@@ -29,8 +29,18 @@ short link, and its new day when the plan's day moved; a post nobody edited
 is written again from the record, an edited one keeps its words. Two
 episodes swapping numbers go in one transaction with the link ids cleared
 first, so e5… is never two posts'. Once a post is out the number and the
-date are frozen. YouTube takes its uploads within a minute of the plan
-(publish.split), so in practice that is at once.
+date are frozen.
+
+Confirming the plan. An episode that arrives is planned and nothing more:
+no upload, no post and no card is made until a host has confirmed its plan
+(`confirm`, the button on the episode's page, or `engine.py confirm`), and
+the publisher leaves every post of an unconfirmed episode alone
+(publish.split). So the number and the date freeze when the first post goes
+out after that, not as the episode arrives. `hold` takes the confirmation
+back; a staging taken again while none of the episode's posts is out takes
+it back too, because what was confirmed is no longer what is staged, and
+the hosts are asked again. A plan still unconfirmed a day before its
+release gets one more note (`chase`) and a red row on Health.
 """
 
 import collections
@@ -48,6 +58,7 @@ import ledger
 import linear
 import mail
 import plan
+import publish
 from pages import button, esc, link, section, table, when
 
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,60}")
@@ -56,6 +67,7 @@ ENGINE = (ledger.CONFIG.get("engine") or {}).get("host", "engine.agentsee.work")
 OUT = ("publishing", "scheduled", "published")  # a platform has it, or is being handed it
 FAILING = ("failed", "unlinked")  # tried again every pass: nothing came in, or all but the short links did
 QUIET = dt.timedelta(minutes=30)  # a failure younger than this is not worth a mail: the next pass may clear it
+SOON = dt.timedelta(hours=24)  # a plan nobody has confirmed this close to its release is said again, and is red
 LOCK = threading.Lock()  # one pass at a time: the worker's, or a screen's "look now"
 LAST = {}  # the last pass in this process, for the screens
 
@@ -139,6 +151,105 @@ def act(c, what, slug, who, **kw):
         return sentence(attempt(c, who=who, **kw), slug)
     set_aside(c, slug, who, what == "aside")
     return f"{slug} is set aside until it is staged again" if what == "aside" else f"{slug} is back on the list"
+
+
+# ─── the plan, confirmed by a host ───────────────────────────────────────────
+def confirm(c, slug, who, staged=None):
+    """A host has read the plan and says send it: the publisher takes the
+    episode's posts from its next minute. `staged` is the staging the host was
+    shown; when the ledger has taken another since, the word is not for this
+    plan. Returns the sentence for whoever asked."""
+    e = ledger.episode(c, slug)
+    if not e:
+        raise ValueError(f"{slug} is not in the ledger")
+    if e["confirmed_at"]:
+        return f"The plan of {slug} was confirmed already, by {e['confirmed_by']}"
+    n = c.execute("SELECT COUNT(*) FROM post WHERE episode=?", (slug,)).fetchone()[0]
+    if not n:
+        raise ValueError(f"{slug} has no posts to confirm: plan it first")
+    if staged is not None and staged != (e["staged_at"] or ""):
+        raise ValueError(f"{slug} was staged again since that page was made: read the plan as it is now")
+    c.execute("UPDATE episode SET confirmed_at=?, confirmed_by=? WHERE slug=?", (ledger.now(), who, slug))
+    ledger.event(c, "confirm", who, episode=slug, detail={"posts": n, "staged_at": e["staged_at"]})
+    return f"The plan of {slug} is confirmed: the publisher takes its posts from the next minute"
+
+
+def hold(c, slug, who, why=None):
+    """The confirmation taken back: nothing more of the episode is sent until
+    a host confirms again. What a platform already has stays there."""
+    e = ledger.episode(c, slug)
+    if not e:
+        raise ValueError(f"{slug} is not in the ledger")
+    if not e["confirmed_at"]:
+        return f"The plan of {slug} is not confirmed: nothing of it is being sent"
+    c.execute("UPDATE episode SET confirmed_at=NULL, confirmed_by=NULL WHERE slug=?", (slug,))
+    was = {"confirmed_by": e["confirmed_by"], "confirmed_at": e["confirmed_at"]}
+    ledger.event(c, "confirm:held", who, episode=slug, detail={**was, "why": why})
+    return (
+        f"The plan of {slug} is held: nothing more is sent until it is confirmed again. "
+        "What a platform already has stays there"
+    )
+
+
+def unconfirmed(c):
+    """Episodes with posts the publisher would take and no host's word to take
+    them, soonest release first."""
+    return c.execute(
+        "SELECT * FROM episode WHERE confirmed_at IS NULL AND slug IN "
+        "(SELECT episode FROM post WHERE status IN ('planned', 'due')) ORDER BY release_at, slug"
+    ).fetchall()
+
+
+def soon(e):
+    """Its release is under a day away, or has passed."""
+    at = e["release_at"] and dt.datetime.fromisoformat(e["release_at"])
+    return bool(at and at - dt.datetime.now(dt.timezone.utc) < SOON)
+
+
+def chase(c, env=None, log=print):
+    """One more note to the hosts about a plan nobody has confirmed with its
+    release under a day away. Once per wait (a hold begins a new one), and not
+    within QUIET of the arrival or the hold, which has just said the same.
+    Returns the episodes it wrote about."""
+    env = os.environ if env is None else env
+    chased = []
+    for e in unconfirmed(c):
+        slug = e["slug"]
+        if not soon(e):
+            continue
+        began = c.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM event WHERE episode=? AND what='confirm:held'", (slug,)
+        ).fetchone()[0]
+        if c.execute(
+            "SELECT 1 FROM event WHERE episode=? AND what='confirm:reminder' AND id > ?", (slug, began)
+        ).fetchone():
+            continue
+        last = c.execute(
+            "SELECT MAX(at) FROM event WHERE episode=? AND what IN ('ingest', 'confirm:held')", (slug,)
+        ).fetchone()[0]
+        if last and dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(last) < QUIET:
+            continue
+        passed = dt.datetime.fromisoformat(e["release_at"]) <= dt.datetime.now(dt.timezone.utc)
+        name = f"Episode {e['number']}, {e['title']}"
+        subject = f"{name} is not confirmed, and its release {'has passed' if passed else 'is under a day away'}"
+        text = (
+            f"{slug} is in the ledger and planned, and no host has confirmed its plan. "
+            f"Its release {'was' if passed else 'is'} {when(e['release_at'])}.\n\n"
+            "Nothing of it is sent until one of you confirms: no upload, no post, no card. "
+            "The page has the plan and the button. This is the only reminder.\n\n"
+            f"https://{ENGINE}/episodes/{slug}"
+        )
+        ledger.event(c, "confirm:reminder", "engine", episode=slug, detail={"release_at": e["release_at"]})
+        to = mail.settings().get("copy_to")
+        if to and mail.ready(env):
+            try:
+                mail.record(c, "engine", to, subject, mail.send(to, subject, text, env))
+            except mail.MailError as err:
+                mail.record(c, "engine", to, subject, error=err)
+                log(f"arrive: the reminder to confirm {slug} was not sent: {err}")
+            time.sleep(mail.PACE)
+        chased.append(slug)
+    return chased
 
 
 # ─── one pass ────────────────────────────────────────────────────────────────
@@ -308,6 +419,9 @@ def bring(c, ok, who):
                 (d / name).write_bytes(data)
             x["files"] = ingest.store(c, slug, d, x["r"], x["s"], who)
             x["changes"] = follow(c, slug, was, who) if was["episode"] else {}
+            x["held"] = bool(was["episode"] and was["episode"]["confirmed_at"] and not any(map(out, was["posts"])))
+            if x["held"]:  # what a host confirmed is not what is staged now, and none of it has gone: ask again
+                hold(c, slug, who, "staged again with none of its posts out")
             late = bool(was["posts"]) and released(x["release"])
             x["made"] = [] if late else plan.draft(c, slug, who)
             x.update(late=late, again=bool(was["posts"]))
@@ -422,6 +536,7 @@ def look(c, client=None, who="worker", put=None, env=None, dry_run=False, log=pr
                 settle(c, ok)
                 ok = [x for x in ok if x["state"] == "ok"]
         for x in ok:
+            x["confirmed"] = bool(ledger.episode(c, x["slug"])["confirmed_at"])
             try:
                 x["planned"] = c.execute("SELECT COUNT(*) FROM post WHERE episode=?", (x["slug"],)).fetchone()[0]
                 x["links"] = plan.links(c, x["slug"], put, who)
@@ -440,7 +555,10 @@ def look(c, client=None, who="worker", put=None, env=None, dry_run=False, log=pr
         state = "would be brought in" if x["state"] == "ok" else x["state"]
         log(f"arrive: {x['slug']}: {state}" + (f": {x['why']}" if x.get("why") else ""))
         found["results"].append(
-            {k: x.get(k) for k in ("slug", "state", "why", "number", "title", "release", "staged_at", "quiet")}
+            {
+                k: x.get(k)
+                for k in ("slug", "state", "why", "number", "title", "release", "staged_at", "quiet", "confirmed")
+            }
             | {"posts": len(x.get("made") or []), "links": x.get("links")}
         )
     return remember(found, dry_run)
@@ -531,8 +649,24 @@ def words(x):
                 lines.append(f"  {ch[key]} {text}")
         if x.get("late"):
             lines += ["", "It is already released, so no new posts were planned; `engine.py plan` adds them."]
-        lines += ["", "The site's pull request is still yours to merge on the morning.", "", f"{page}/{slug}"]
-        return (f"{name_of(x)} was staged again" if x.get("again") else f"{name_of(x)} is in"), "\n".join(lines)
+        lines += ["", "The site's pull request is still yours to merge on the morning.", ""]
+        if x.get("held"):
+            ask = ": confirm its plan again"
+            lines.append(
+                "Its plan had been confirmed. It was staged again with none of its posts out, so that word is "
+                "gone: nothing of it is sent until a host confirms the plan again."
+            )
+        elif not x.get("confirmed"):
+            ask = ": confirm its plan"
+            lines.append(
+                "Nothing of it is sent anywhere until a host confirms its plan: no upload, no post, no card. "
+                "The page has the plan and the button."
+            )
+        else:
+            ask = ""
+            lines.append("Its plan stays confirmed, so the publisher goes on with what has not gone out.")
+        lines.append(f"{page}/{slug}")
+        return f"{name_of(x)} {'was staged again' if x.get('again') else 'is in'}{ask}", "\n".join(lines)
     if x["state"] == "waiting":
         return f"{name_of(x)} is staged and waiting for you", (
             f"{slug} is staged in the archive and has not been brought in: {x['why']}.\n\n"
@@ -547,7 +681,9 @@ def words(x):
     if x["state"] == "unlinked":
         return f"{name_of(x)} is in without its short links", (
             f"{slug} was brought in and its posts are planned, but the short links were not pushed: {x['why']}.\n\n"
-            f"A post that goes out before they are pushed carries a link that does not resolve. {again}"
+            f"A post that goes out before they are pushed carries a link that does not resolve. "
+            + ("" if x.get("confirmed") else f"None goes out until a host confirms its plan ({page}/{slug}). ")
+            + again
         )
     return f"{name_of(x)} could not be brought in yet", (
         f"{slug} is staged in the archive and bringing it in failed: {x['why']}.\n\n{again}"
@@ -596,9 +732,10 @@ def stage(c, e):
     pushed = c.execute(
         "SELECT MAX(at) FROM event WHERE what='links' AND (episode=? OR episode IS NULL)", (e["slug"],)
     ).fetchone()[0]
+    ask = "" if e["confirmed_at"] else link(f"/episodes/{e['slug']}", "to confirm")
     if not pushed or pushed < newest:
-        return '<span class="error">planned, links not pushed</span>'
-    return "planned, links pushed"
+        return '<span class="error">planned, links not pushed</span>' + (", " + ask if ask else "")
+    return ask or "planned, links pushed"
 
 
 def last_look():
@@ -673,6 +810,135 @@ def panel(c, csrf):
     )
 
 
+def plan_panel(c, e, csrf):
+    """The plan on an episode's page. Until a host confirms it: what
+    confirming sends, counted as the publisher will count it
+    (publish.fate_of), and the button. After: who confirmed, and the button
+    that takes it back."""
+    slug = e["slug"]
+    if e["confirmed_at"]:
+        return section(
+            "Plan",
+            "Confirmed",
+            f"<p>Confirmed by {esc(e['confirmed_by'])}, {esc(when(e['confirmed_at']))}. The publisher takes this "
+            "episode's posts as their times come.</p>"
+            "<p>Holding the plan stops anything more being sent until it is confirmed again. What a platform "
+            "already has stays there: a video YouTube holds still goes public at its time, and a post that is "
+            "out stays out.</p>" + button(f"/episodes/{slug}/hold", "Hold the plan", csrf),
+        )
+    ps = posts(c, slug)
+    if not ps:
+        return section(
+            "Plan",
+            "Nothing to confirm yet",
+            "<p>No posts are planned. Once they are, none is sent until a host confirms the plan here.</p>",
+        )
+    t = dt.datetime.now(dt.timezone.utc)
+    hours = f"{publish.late_after().total_seconds() / 3600:g}"
+    left = [p for p in ps if p["status"] in ("planned", "due") and p["account"] in plan.ACCOUNTS]
+    up, public, later, at_once, late, cards = [], [], [], [], [], []
+    for p in left:
+        mod, at = publish.adapter(p["account"]), publish.parse(p["scheduled_at"])
+        fate = publish.fate_of(p, t)
+        if getattr(mod, "SCHEDULES", False):
+            up.append(p)
+            if not at or at - t <= getattr(mod, "GRACE", dt.timedelta(0)):
+                public.append(p)
+        elif not getattr(mod, "SENDS", True):
+            cards.append(p)
+        else:
+            {None: later, "now": at_once, "late": late}[fate].append(p)
+
+    def s(some):
+        return "" if len(some) == 1 else "s"
+
+    does, warns = [], []
+    if up:
+        names = " and ".join(sorted({"YouTube" if p["platform"] == "youtube" else p["platform"] for p in up}))
+        private = len(up) - len(public)
+        does.append(
+            f"{names} takes {len(up)} upload{s(up)} now, "
+            + (f"{private} of them private until their times." if public else "private until their times.")
+        )
+    if later:
+        day = when(min(later, key=lambda p: publish.parse(p["scheduled_at"]))["scheduled_at"], "%A %-d %B")
+        does.append(
+            f"{len(later)} post{s(later)} go{'es' if len(later) == 1 else ''} out by "
+            f"{'itself' if len(later) == 1 else 'themselves'} from {day}."
+        )
+    if cards:
+        does.append(f"{len(cards)} card{s(cards)} for a person to post come up on By hand, each on its day.")
+    if not left:
+        does.append("Nothing is left for the publisher to send.")
+    if e["release_at"] and publish.parse(e["release_at"]) <= t:
+        warns.append("The release time has passed.")
+    if public:
+        grace = int(getattr(publish.adapter(public[0]["account"]), "GRACE", dt.timedelta(0)).total_seconds() // 60)
+        warns.append(
+            f"Public at once, not private: {len(public)} upload{s(public)} at or past the time set, or within "
+            f"{grace} minutes of it. The late rule does not hold an upload back."
+        )
+    if at_once:
+        warns.append(
+            f"Sent within a minute of confirming: {len(at_once)} post{s(at_once)} past the time set by less than "
+            f"{hours} hours."
+        )
+    if late:
+        warns.append(
+            f"Not sent: {len(late)} post{s(late)} more than {hours} hours past the time set. Each waits under "
+            "Late on By hand, to be published now, moved or skipped."
+        )
+    gone = [p for p in ps if out(p)]
+    if gone:
+        warns.append(f"Already out or with a platform, and staying there: {len(gone)} post{s(gone)}.")
+    per = collections.Counter(p["account"] for p in left)
+    days = sorted(publish.parse(p["scheduled_at"]) for p in left if p["scheduled_at"])
+    facts = [
+        ("Episode", esc(f"{e['number']}, {e['title']}")),
+        ("Release", esc(when(e["release_at"]))),
+        ("Page", link(e["url"], external=True)),
+        ("Posts to send", esc(", ".join(f"{a} {n}" for a, n in per.items()) or "none")),
+    ]
+    if days:
+        first, last = (when(d.isoformat(), "%A %-d %B %Y") for d in (days[0], days[-1]))
+        facts.append(("Days", esc(first if first == last else f"{first} to {last}")))
+    form = (
+        f'<form method="post" action="/episodes/{esc(slug)}/confirm" class="inline">'
+        f'<input type="hidden" name="_t" value="{esc(csrf)}">'
+        f'<input type="hidden" name="staged" value="{esc(e["staged_at"] or "")}">'
+        '<button type="submit" class="signal">Confirm the plan</button></form>'
+    )
+    return section(
+        "Plan",
+        "Nothing is sent until a host confirms it",
+        '<dl class="facts">'
+        + "".join(f"<dt>{esc(k)}</dt><dd>{v}</dd>" for k, v in facts)
+        + "</dl><p>"
+        + " ".join(esc(d) for d in does)
+        + "</p>"
+        + "".join(f'<p class="error">{esc(w)}</p>' for w in warns)
+        + "<p>Each post's text, time and skip can still be changed below before confirming.</p>"
+        + form,
+    )
+
+
+def confirm_health(c):
+    """The Health row for plans waiting on a host: red when one's release is
+    under a day away or has passed."""
+    rows = unconfirmed(c)
+    if not rows:
+        return "none waiting"
+    names = ", ".join(link(f"/episodes/{e['slug']}", e["slug"]) for e in rows)
+    close = [e for e in rows if soon(e)]
+    if not close:
+        return f"{len(rows)} waiting for a host: {names}"
+    urgent = ", ".join(link(f"/episodes/{e['slug']}", e["slug"]) for e in close)
+    return (
+        f'<span class="error">{len(close)} not confirmed with the release under 24 hours away or passed: {urgent}'
+        f"</span>; {len(rows)} waiting in all"
+    )
+
+
 def health(c):
     counts = dict(c.execute("SELECT state, COUNT(*) FROM arrival GROUP BY state").fetchall())
     bad = counts.get("refused", 0) + sum(counts.get(s, 0) for s in FAILING)
@@ -698,7 +964,8 @@ def sentence(found, slug=None):
     said = []
     for r in loud:
         if r["state"] == "in":
-            said.append(f"{r['slug']} is in ({r['posts']} posts planned, {r['links']} links pushed)")
+            ask = "" if r.get("confirmed") else ", and nothing of it is sent until its plan is confirmed"
+            said.append(f"{r['slug']} is in ({r['posts']} posts planned, {r['links']} links pushed){ask}")
         else:
             verb = {"refused": " was refused", "waiting": " is waiting", "failed": " failed"}.get(r["state"], "")
             said.append(f"{r['slug']}{verb}: {r['why']}")

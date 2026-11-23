@@ -1,8 +1,9 @@
 """
 YouTube: the episode as a video, each clip as a Short, scheduled by YouTube
-itself. The engine uploads as soon as a post exists (SCHEDULES), private,
-with publishAt set to the post's due time, and YouTube makes it public then;
-a post whose time has already passed goes up public at once. After the
+itself. The engine uploads as soon as the episode's plan is confirmed
+(SCHEDULES), private, with publishAt set to the post's due time, and YouTube
+makes it public then; a post whose time has already passed, or is less than
+GRACE away, goes up public at once. After the
 upload: the captions (the episode's SRT, a clip's VTT), the thumbnail (the
 episode's, or the clip's poster; refused, not failed, while the channel is
 not verified for custom thumbnails), and the episode into the show's

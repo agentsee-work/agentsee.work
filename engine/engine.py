@@ -7,6 +7,7 @@ line; the screens are `serve`. The design is on AGE-69.
     ./engine/engine.py ingest ep1              the staged episode into the ledger
     ./engine/engine.py plan ep1                its day plan into posts, with short links
     ./engine/engine.py arrive --dry-run        what the worker's look at the archive would bring in
+    ./engine/engine.py confirm ep1             a host's word on its plan: nothing of it is sent before
     ./engine/engine.py publish --due --dry-run what the next run would do
     op run --env-file=engine/engine.env -- ./engine/engine.py publish --due
     op run --env-file=engine/engine.env -- ./engine/engine.py serve
@@ -99,6 +100,19 @@ def cmd_plan(a):
                 print(f"  {plan.links(c, slug, who=who())} short links in KV")
             except RuntimeError as e:
                 print(f"  short links not pushed: {e}\n  (run `engine.py links` under op run when ready)")
+        if not ledger.episode(c, slug)["confirmed_at"]:
+            print(f"  nothing of it is sent until its plan is confirmed: its page, or `engine.py confirm {slug}`")
+
+
+def cmd_confirm(a):
+    import arrive
+
+    c = ledger.connect(a.ledger)
+    for slug in a.slug:
+        try:
+            print(arrive.confirm(c, slug, who()))
+        except ValueError as e:
+            sys.exit(f"error: {e}")
 
 
 def cmd_skip_backlog(a):
@@ -390,6 +404,11 @@ def main():
     )
     p.set_defaults(fn=cmd_plan)
     p = sub.add_parser(
+        "confirm", help="a host's word that an episode's plan may be sent: nothing of it goes anywhere before"
+    )
+    p.add_argument("slug", nargs="+")
+    p.set_defaults(fn=cmd_confirm)
+    p = sub.add_parser(
         "skip-backlog",
         help="posts on these accounts whose day has passed and nobody posted, marked skipped: the switch-on (AGE-134)",
     )
@@ -406,7 +425,9 @@ def main():
     p.set_defaults(fn=cmd_posts)
     p = sub.add_parser("publish", help="run the publisher")
     p.add_argument("--due", action="store_true", help="everything due (the default when no --post)")
-    p.add_argument("--post", type=int, nargs="*", help="these posts, whatever their state")
+    p.add_argument(
+        "--post", type=int, nargs="*", help="these posts, whatever their state (their episode's plan confirmed)"
+    )
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--as-of", help="pretend it is this ISO instant")
     p.add_argument(

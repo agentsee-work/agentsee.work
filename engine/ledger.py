@@ -145,7 +145,10 @@ MIGRATIONS = [
     ("review_note", "remove", "TEXT"),
     ("review_note", "confirmed", "INTEGER"),
     ("review_note", "author", "TEXT"),
+    ("episode", "confirmed_by", "TEXT"),
+    ("episode", "confirmed_at", "TEXT"),
 ]
+BEFORE = "the engine (in the ledger before plans were confirmed)"  # who confirmed what the gate found here
 
 STATUSES = {
     "planned": "waiting for its day",
@@ -172,9 +175,42 @@ def connect(path=None):
     c.execute("PRAGMA foreign_keys=ON")
     c.executescript(SCHEMA)
     for table, column, kind in MIGRATIONS:  # a column added since a ledger was made
-        if column not in [r[1] for r in c.execute(f"PRAGMA table_info({table})")]:
-            c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+        if column not in columns(c, table):
+            add_column(c, table, column, kind)
     return c
+
+
+def columns(c, table):
+    return [r[1] for r in c.execute(f"PRAGMA table_info({table})")]
+
+
+def add_column(c, table, column, kind):
+    """One column onto a ledger made before it, under the write lock, so two
+    connections opening at once add it once.
+
+    episode.confirmed_at is the gate on the publisher (publish.split): nothing
+    of an episode is sent until a host has confirmed its plan. The episodes a
+    ledger holds when the gate reaches it were planned and sent under the rule
+    before, so they are marked confirmed here, in the transaction that adds
+    the column: once, for this deploy or for a ledger restored from an older
+    snapshot, and never again, because the column is then there. An episode
+    that comes in afterwards has no confirmation until a host gives one."""
+    c.execute("BEGIN IMMEDIATE")
+    try:
+        if column not in columns(c, table):
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+            if (table, column) == ("episode", "confirmed_at"):
+                t = now()
+                c.execute(
+                    "INSERT INTO event (at, who, what, episode, detail) SELECT ?, 'engine', 'confirm', slug, ? "
+                    "FROM episode ORDER BY slug",
+                    (t, BEFORE),
+                )
+                c.execute("UPDATE episode SET confirmed_at=?, confirmed_by=?", (t, BEFORE))
+    except BaseException:
+        c.execute("ROLLBACK")
+        raise
+    c.execute("COMMIT")
 
 
 def now():

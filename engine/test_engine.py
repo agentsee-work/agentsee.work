@@ -1594,6 +1594,254 @@ class EngineTest(unittest.TestCase):
                 _ for _ in ()
             ).throw(RuntimeError())
 
+    def test_03b_confirm(self):
+        """Nothing of an episode is sent until a host has confirmed its plan: born unconfirmed, the publisher's
+        lists leave its posts out, a run handed them by name leaves them, and one post is not published now or
+        retried. Recording a post made by hand, and skipping, still go. Confirming hands them over; holding takes
+        that back; the command line confirms as the page does. ep9 leaves here confirmed, as the tests after need."""
+        import arrive
+
+        c = self.c()
+        quiet = lambda s: None  # noqa: E731
+        far = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=400)).isoformat()
+        of = lambda account: c.execute(  # noqa: E731
+            "SELECT * FROM post WHERE episode='ep9' AND account=? AND asset='episode'", (account,)
+        ).fetchone()
+        yt, xe, card = of("youtube"), of("x"), of("linkedin-abrar")
+        ids = lambda rows: {r["id"] for r in rows}  # noqa: E731
+        e = ledger.episode(c, "ep9")
+        self.assertEqual((e["confirmed_at"], e["confirmed_by"]), (None, None), "ingested and planned by hand")
+        self.assertEqual([u["slug"] for u in arrive.unconfirmed(c)], ["ep9"])
+        self.assertEqual(publish.split(c, far), ([], []), "a year on, and neither due nor late")
+        self.assertEqual(publish.due(c, far, include_late=True), [])
+        env = {**self.env, **self.xenv}
+        for dry in (True, False):  # named one by one, as `publish --post` names them: an upload, a timed post, a card
+            res = publish.run(c, [yt, xe, card], env=env, dry_run=dry, who="tester", log=quiet)
+            self.assertEqual([r[1] for r in res], ["unconfirmed"] * 3)
+        self.assertEqual(
+            (StubYouTube.state["uploads"], StubYouTube.state["metas"], StubX.state["tweets"]), ({}, [], [])
+        )
+        for p in (yt, xe, card):
+            now = ledger.post(c, p["id"])
+            self.assertEqual((now["status"], now["attempts"], now["remote_id"]), ("planned", 0, None))
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM event WHERE what LIKE 'publish:%'").fetchone()[0], 0)
+
+        # one post, from its page: not published now, not retried; skipped, put back and recorded by hand as ever
+        for p in (yt, xe, card):
+            with self.assertRaisesRegex(ValueError, r"^Confirm the episode's plan first\.$"):
+                web.act(c, p, "publish", {}, "james")
+        ledger.update_post(c, xe["id"], status="failed", last_error="the platform said no")
+        with self.assertRaisesRegex(ValueError, r"^Confirm the episode's plan first\.$"):
+            web.act(c, ledger.post(c, xe["id"]), "retry", {}, "james")
+        self.assertEqual(ledger.post(c, xe["id"])["status"], "failed")
+        ledger.update_post(c, xe["id"], status="planned", last_error=None)
+        self.assertEqual(web.act(c, card, "skip", {}, "james"), "Skipped")
+        self.assertEqual(web.act(c, ledger.post(c, card["id"]), "unskip", {}, "james"), "Back on the plan")
+        self.assertEqual(
+            web.act(c, ledger.post(c, card["id"]), "done", {"permalink": "https://www.linkedin.com/posts/a"}, "james"),
+            "Published, by hand",
+        )
+        self.assertEqual(ledger.post(c, card["id"])["status"], "published")
+        ledger.update_post(c, card["id"], status="planned", permalink=None, published_at=None)
+
+        # confirming: not an episode nobody has, not a staging other than the one the page showed
+        with self.assertRaisesRegex(ValueError, "nope is not in the ledger"):
+            arrive.confirm(c, "nope", "james@example.com")
+        with self.assertRaisesRegex(ValueError, "staged again since that page was made"):
+            arrive.confirm(c, "ep9", "james@example.com", staged="1999-01-01T00:00:00")
+        self.assertIsNone(ledger.episode(c, "ep9")["confirmed_at"])
+        self.assertEqual(
+            arrive.confirm(c, "ep9", "james@example.com", staged=e["staged_at"] or ""),
+            "The plan of ep9 is confirmed: the publisher takes its posts from the next minute",
+        )
+        e = ledger.episode(c, "ep9")
+        self.assertEqual(e["confirmed_by"], "james@example.com")
+        self.assertLessEqual(e["confirmed_at"], ledger.now())
+        ev = c.execute("SELECT who, detail FROM event WHERE what='confirm' AND episode='ep9'").fetchall()
+        self.assertEqual(
+            [(v["who"], json.loads(v["detail"])["posts"]) for v in ev],
+            [("james@example.com", len(arrive.posts(c, "ep9")))],
+        )
+        self.assertEqual(
+            arrive.confirm(c, "ep9", "abrar@example.com"),
+            "The plan of ep9 was confirmed already, by james@example.com",
+        )
+        self.assertEqual(ledger.episode(c, "ep9")["confirmed_by"], "james@example.com")
+        self.assertEqual(arrive.unconfirmed(c), [])
+        now, late = publish.split(c, far)
+        self.assertLessEqual({yt["id"], card["id"]}, ids(now), "the upload and the card are the next run's")
+        self.assertIn(xe["id"], ids(late), "and the timed post, a year past its time, waits for a person as before")
+        self.assertEqual({p["account"] for p in publish.due(c, "2026-01-01T00:00:00+00:00")}, {"youtube"})
+
+        # held: nothing again, until a host confirms again
+        said = arrive.hold(c, "ep9", "james@example.com")
+        self.assertTrue(said.startswith("The plan of ep9 is held: nothing more is sent until it is confirmed again."))
+        e = ledger.episode(c, "ep9")
+        self.assertEqual((e["confirmed_at"], e["confirmed_by"]), (None, None))
+        self.assertEqual(publish.split(c, far), ([], []))
+        ev = c.execute("SELECT who, detail FROM event WHERE what='confirm:held' AND episode='ep9'").fetchone()
+        self.assertEqual((ev["who"], json.loads(ev["detail"])["confirmed_by"]), ("james@example.com",) * 2)
+        self.assertEqual(
+            arrive.hold(c, "ep9", "james@example.com"), "The plan of ep9 is not confirmed: nothing of it is being sent"
+        )
+        with self.assertRaises(ValueError):
+            arrive.hold(c, "nope", "james@example.com")
+
+        # the command, on the box: who ran it is who confirmed
+        entry = pathlib.Path(__file__).resolve().parent / "engine.py"
+        run = lambda *slugs: subprocess.run(  # noqa: E731
+            [sys.executable, str(entry), "--ledger", str(self.db), "confirm", *slugs],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "ENGINE_USER": "box@example.com"},
+            timeout=60,
+        )
+        r = run("nope")
+        self.assertEqual((r.returncode, r.stderr.strip()), (1, "error: nope is not in the ledger"), r.stdout)
+        r = run("ep9")
+        self.assertEqual(
+            (r.returncode, r.stdout.strip()),
+            (0, "The plan of ep9 is confirmed: the publisher takes its posts from the next minute"),
+            r.stderr,
+        )
+        e = ledger.episode(c, "ep9")
+        self.assertEqual(e["confirmed_by"], "box@example.com")
+        self.assertTrue(e["confirmed_at"])
+
+    def test_03c_ledger_before_the_gate(self):
+        """A ledger made before plans were confirmed, as the box's is on the day the gate deploys and as an older
+        snapshot is on the day it is restored (a restore puts the file back and the next connection opens it).
+        Opening it marks every episode it holds confirmed, in the step that adds the column and in no other: an
+        episode that comes in afterwards waits for a host, however often the ledger is opened."""
+        import sqlite3
+
+        import arrive
+
+        root = pathlib.Path(self.tmp.name)
+        new = {"confirmed_by", "confirmed_at"}
+        stamp = "2026-11-01T09:00:00+00:00"
+        hour_ago = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1)).isoformat()
+        far = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=30)).isoformat()
+
+        def before(name, without=new):
+            """A ledger file on the schema of the commit before: every table and column but the ones named."""
+            path = root / name
+            old = sqlite3.connect(path, isolation_level=None)
+            old.execute("PRAGMA journal_mode=WAL")
+            old.executescript(ledger.SCHEMA)
+            for table, column, kind in ledger.MIGRATIONS:
+                if column not in without and column not in ledger.columns(old, table):
+                    old.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+            self.assertFalse(set(without) & set(ledger.columns(old, "episode")))
+            return path, old
+
+        def episode(c, slug, *posts):
+            c.execute(
+                "INSERT INTO episode (slug, number, title, release_at, release_json, ingested_at) VALUES (?,?,?,?,?,?)",
+                (slug, "5", slug.title(), far, "{}", stamp),
+            )
+            for account, status, when in posts:
+                c.execute(
+                    "INSERT INTO post (episode, asset, platform, account, status, scheduled_at, created_at, updated_at) "
+                    "VALUES (?,'episode',?,?,?,?,?,?)",
+                    (slug, account, account, status, when, stamp, stamp),
+                )
+
+        of = lambda c, slug: tuple(ledger.episode(c, slug)[k] for k in ("confirmed_at", "confirmed_by"))  # noqa: E731
+        events = lambda c: [  # noqa: E731
+            tuple(r) for r in c.execute("SELECT episode, who, detail, at FROM event WHERE what='confirm' ORDER BY id")
+        ]
+        taken = lambda c: {(p["episode"], p["account"]) for p in publish.due(c, include_late=True)}  # noqa: E731
+
+        path, old = before("before.sqlite")
+        episode(old, "old-a", ("youtube", "planned", far), ("x", "planned", hour_ago), ("bluesky", "published", stamp))
+        episode(old, "old-b")  # ingested and never planned: in the ledger all the same
+        old.close()
+
+        c = ledger.connect(path)
+        self.assertLessEqual(new, set(ledger.columns(c, "episode")))
+        at = ledger.episode(c, "old-a")["confirmed_at"]
+        self.assertEqual(dt.datetime.fromisoformat(at).tzinfo, dt.timezone.utc)
+        self.assertEqual(of(c, "old-a"), (at, ledger.BEFORE))
+        self.assertEqual(of(c, "old-b"), (at, ledger.BEFORE))
+        self.assertEqual(ledger.BEFORE, "the engine (in the ledger before plans were confirmed)")
+        self.assertEqual(events(c), [("old-a", "engine", ledger.BEFORE, at), ("old-b", "engine", ledger.BEFORE, at)])
+        self.assertEqual(arrive.unconfirmed(c), [])
+        self.assertEqual(taken(c), {("old-a", "youtube"), ("old-a", "x")}, "its posts go on as they did")
+
+        # what comes in afterwards is born unconfirmed, and stays so through every opening of the ledger
+        episode(c, "new-a", ("youtube", "planned", far), ("x", "planned", hour_ago))
+        episode(c, "new-b")
+        self.assertEqual(of(c, "new-a"), (None, None))
+        c.close()
+        for _ in range(3):
+            c = ledger.connect(path)
+            self.assertEqual((of(c, "new-a"), of(c, "new-b")), ((None, None), (None, None)))
+            self.assertEqual((of(c, "old-a"), of(c, "old-b")), ((at, ledger.BEFORE), (at, ledger.BEFORE)))
+            self.assertEqual(len(events(c)), 2)
+            self.assertEqual([e["slug"] for e in arrive.unconfirmed(c)], ["new-a"])
+            self.assertEqual(taken(c), {("old-a", "youtube"), ("old-a", "x")})
+            c.close()
+        c = ledger.connect(path)
+        self.addCleanup(c.close)
+        ledger.add_column(c, "episode", "confirmed_at", "TEXT")  # asked for again: the column is there, so nothing
+        ledger.add_column(c, "episode", "confirmed_by", "TEXT")
+        self.assertEqual((of(c, "new-a"), len(events(c))), ((None, None), 2))
+        with self.assertRaisesRegex(ValueError, "new-b has no posts to confirm: plan it first"):
+            arrive.confirm(c, "new-b", "james@example.com")
+        arrive.confirm(c, "new-a", "james@example.com")
+        self.assertEqual(of(c, "new-a")[1], "james@example.com")
+        self.assertEqual(taken(c), {("old-a", "youtube"), ("old-a", "x"), ("new-a", "youtube"), ("new-a", "x")})
+        self.assertEqual(of(c, "old-a"), (at, ledger.BEFORE))
+
+        # the engine stopped between the two columns: the one that carries the gate is still to come, and marks
+        path, old = before("between.sqlite", without={"confirmed_at"})
+        self.assertIn("confirmed_by", ledger.columns(old, "episode"))
+        episode(old, "old-c", ("youtube", "planned", far))
+        old.close()
+        c = ledger.connect(path)
+        self.addCleanup(c.close)
+        self.assertEqual(of(c, "old-c")[1], ledger.BEFORE)
+        self.assertEqual(len(events(c)), 1)
+
+        # several connections open the old ledger at once, as the server's threads do: marked once
+        path, old = before("together.sqlite")
+        episode(old, "old-d", ("youtube", "planned", far))
+        old.close()
+        gate, seen, wrong = threading.Barrier(6), [], []
+
+        def open_it():
+            try:
+                gate.wait(timeout=30)
+                k = ledger.connect(path)
+                seen.append(of(k, "old-d"))
+                k.close()
+            except Exception as e:
+                wrong.append(repr(e))
+
+        threads_ = [threading.Thread(target=open_it) for _ in range(6)]
+        for t in threads_:
+            t.start()
+        for t in threads_:
+            t.join(60)
+        self.assertEqual(wrong, [])
+        self.assertEqual(len(set(seen)), 1)
+        self.assertEqual(seen[0][1], ledger.BEFORE)
+        c = ledger.connect(path)
+        self.addCleanup(c.close)
+        self.assertEqual([e[0] for e in events(c)], ["old-d"])
+
+        # a ledger with no episodes, and one made new: nothing to mark, and the first episode waits
+        path, old = before("empty.sqlite")
+        old.close()
+        for p in (path, root / "fresh.sqlite"):
+            c = ledger.connect(p)
+            self.addCleanup(c.close)
+            self.assertEqual(events(c), [])
+            episode(c, "first", ("youtube", "planned", far))
+            self.assertEqual(of(c, "first"), (None, None))
+            self.assertEqual(taken(c), set())
+
     def test_04_due(self):
         c = self.c()
         before = publish.due(c, "2026-01-01T00:00:00+00:00")
@@ -1875,6 +2123,139 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(get("/assets/..%2Fstyles.css")[0], 404)
         self.assertEqual(get("/assets/nope.css")[0], 404)
         self.assertEqual(get("/")[0], 200, "the root lands on the episodes")
+        srv.shutdown()
+
+    def test_08b_confirm_web(self):
+        """The plan on the screens. ep9 is confirmed and some of it is out: "Hold the plan" stops what is left and
+        leaves what a platform has; the page then shows the plan and its button, the list says "to confirm", a
+        post is not published now from its page; "Confirm the plan" hands the rest back. Both buttons want the
+        form's token."""
+        import arrive
+
+        web.STATE["ledger"] = str(self.db)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+        def get(path):
+            try:
+                with urllib.request.urlopen(base + path, timeout=10) as r:
+                    return r.status, r.read().decode(errors="replace")
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code, e.read().decode(errors="replace")
+
+        def post(path, **data):
+            req = urllib.request.Request(base + path, data=urllib.parse.urlencode(data).encode(), method="POST")
+            try:
+                with urllib.request.build_opener(NoRedirect).open(req, timeout=10) as r:
+                    return r.status, urllib.parse.unquote_plus(r.headers.get("Location") or ""), r.read().decode()
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code, urllib.parse.unquote_plus(e.headers.get("Location") or ""), e.read().decode()
+
+        c = self.c()
+        far = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=400)).isoformat()
+        states = lambda: {p["id"]: (p["status"], p["remote_id"], p["permalink"]) for p in arrive.posts(c, "ep9")}  # noqa: E731
+        x = c.execute("SELECT * FROM post WHERE link_id='e9xc01'").fetchone()
+        before = states()
+        gone = [p for p in arrive.posts(c, "ep9") if arrive.out(p)]
+        self.assertTrue(gone, "the uploads of test 05 are with YouTube")
+        self.assertEqual(x["status"], "planned")
+        self.assertIn(x["id"], {p["id"] for p in publish.due(c, far, include_late=True)})
+
+        # confirmed: who and when, and the button that takes it back
+        st, body = get("/episodes/ep9")
+        self.assertEqual(st, 200)
+        for part in ("Confirmed by box@example.com", 'action="/episodes/ep9/hold"', "Hold the plan</button>"):
+            self.assertIn(part, body)
+        self.assertNotIn("Confirm the plan", body)
+        self.assertIn("planned, links pushed", get("/episodes")[1])
+        self.assertIn("none waiting", get("/health")[1])
+        self.assertEqual(post("/episodes/ep9/hold", _t="stale")[0], 403)
+        self.assertEqual(post("/episodes/ep9/hold")[0], 403, "no token at all")
+        self.assertTrue(ledger.episode(c, "ep9")["confirmed_at"])
+        self.assertEqual(post("/episodes/nope/hold", _t=web.CSRF)[0], 400)
+
+        # held: nothing more is sent, and what a platform has stays as it is
+        st, to, _ = post("/episodes/ep9/hold", _t=web.CSRF)
+        self.assertEqual(
+            (st, to),
+            (
+                303,
+                "/episodes/ep9?msg=The plan of ep9 is held: nothing more is sent until it is confirmed again. "
+                "What a platform already has stays there",
+            ),
+        )
+        e = ledger.episode(c, "ep9")
+        self.assertEqual((e["confirmed_at"], e["confirmed_by"]), (None, None))
+        self.assertEqual(
+            c.execute("SELECT who FROM event WHERE what='confirm:held' ORDER BY id DESC").fetchone()[0], "local"
+        )
+        self.assertEqual(states(), before, "no post was touched")
+        self.assertEqual(publish.split(c, far), ([], []))
+        res = publish.run(c, [x], env=self.xenv, who="tester", log=lambda s: None)
+        self.assertEqual(res, [(x["id"], "unconfirmed")])
+        self.assertEqual(StubX.state["tweets"], [])
+        st, body = get(to.replace(" ", "+"))
+        self.assertEqual(st, 200)
+        for part in (
+            "The plan of ep9 is held",
+            "Nothing is sent until a host confirms it",
+            "<dt>Episode</dt><dd>9, Nine</dd>",
+            f"Already out or with a platform, and staying there: {len(gone)} post",
+            'action="/episodes/ep9/confirm"',
+            f'name="_t" value="{web.CSRF}"',
+            "Confirm the plan</button>",
+            "clips/01-the-point.mp4",
+        ):
+            self.assertIn(part, body)
+        self.assertNotIn("Hold the plan", body)
+        self.assertLess(body.index("Confirm the plan</button>"), body.index("clips/01-the-point.mp4"), "at the top")
+        self.assertIn('<a href="/episodes/ep9">to confirm</a>', get("/episodes")[1])
+        self.assertIn('1 waiting for a host: <a href="/episodes/ep9">ep9</a>', get("/health")[1])
+        st, body = get(f"/posts/{x['id']}")
+        self.assertEqual(st, 200)
+        self.assertNotIn("Publish now", body)
+        self.assertIn('<a href="/episodes/ep9">Confirm the plan</a>', body)
+        self.assertIn("<textarea", body, "its words can still be changed")
+        st, _, body = post(f"/posts/{x['id']}/publish", _t=web.CSRF)
+        self.assertEqual(st, 400)
+        self.assertIn("Confirm the episode&#x27;s plan first.", body)
+        self.assertEqual(ledger.post(c, x["id"])["status"], "planned")
+        self.assertEqual(post(f"/posts/{x['id']}/skip", _t=web.CSRF)[0], 303)
+        self.assertEqual(post(f"/posts/{x['id']}/unskip", _t=web.CSRF)[0], 303)
+        self.assertEqual(ledger.post(c, x["id"])["status"], "planned")
+
+        # confirmed again, from the page: the token, the staging the page showed, and who pressed it
+        staged = e["staged_at"] or ""
+        self.assertEqual(post("/episodes/ep9/confirm", _t="stale", staged=staged)[0], 403)
+        st, _, body = post("/episodes/ep9/confirm", _t=web.CSRF, staged="1999-01-01T00:00:00")
+        self.assertEqual(st, 400)
+        self.assertIn("staged again since that page was made", body)
+        self.assertEqual(post("/episodes/nope/confirm", _t=web.CSRF, staged="")[0], 400)
+        self.assertIsNone(ledger.episode(c, "ep9")["confirmed_at"])
+        st, to, _ = post("/episodes/ep9/confirm", _t=web.CSRF, staged=staged)
+        self.assertEqual(
+            (st, to),
+            (303, "/episodes/ep9?msg=The plan of ep9 is confirmed: the publisher takes its posts from the next minute"),
+        )
+        e = ledger.episode(c, "ep9")
+        self.assertEqual(e["confirmed_by"], "local")
+        self.assertTrue(e["confirmed_at"])
+        self.assertTrue(web.STATE["poke"].is_set(), "the worker is woken to take them")
+        web.STATE["poke"].clear()
+        self.assertEqual(states(), before)
+        self.assertIn(x["id"], {p["id"] for p in publish.due(c, far, include_late=True)})
+        st, body = get("/episodes/ep9")
+        self.assertIn("Confirmed by local", body)
+        self.assertIn("Hold the plan</button>", body)
+        self.assertNotIn("Confirm the plan", body)
+        self.assertNotIn("to confirm", get("/episodes")[1])
+        self.assertIn("Publish now", get(f"/posts/{x['id']}")[1])
+        self.assertIn("none waiting", get("/health")[1])
         srv.shutdown()
 
     def test_09_x(self):
@@ -6036,24 +6417,47 @@ class EngineTest(unittest.TestCase):
         self.assertEqual((e["number"], e["staged_at"], e["approved_by"]), ("31", "2026-11-20T10:00:00", "Tester"))
         n = len(arrive.posts(c, "arr-a"))
         self.assertGreater(n, 5)
-        self.assertEqual(said, f"Automatic arrival is on. arr-a is in ({n} posts planned, {n} links pushed)")
+        self.assertEqual(
+            said,
+            f"Automatic arrival is on. arr-a is in ({n} posts planned, {n} links pushed), and nothing of it is sent "
+            "until its plan is confirmed",
+        )
         self.assertEqual(
             (self.data / "episodes" / "arr-a" / "out" / "release.json").read_bytes(),
             objs["episodes/arr-a/out/release.json"]["body"],
             "the record as the archive holds it, where plan and the adapters look",
         )
         self.assertTrue(all(i.startswith("e31") and i in kv for i in ids("arr-a")), ids("arr-a"))
-        self.assertEqual(arrive.stage(c, e), "planned, links pushed")
-        self.assertEqual(subjects()[-1], "Episode 31, Arrive A is in")
+        self.assertEqual(arrive.stage(c, e), '<a href="/episodes/arr-a">to confirm</a>')
+        self.assertEqual(subjects()[-1], "Episode 31, Arrive A is in: confirm its plan")
         for part in (
             "brought it in by itself",
             f"Posts     {n} planned\n",
             f"Links     {n} short links pushed",
             "still yours to merge",
+            "Nothing of it is sent anywhere until a host confirms its plan: no upload, no post, no card.",
             "/episodes/arr-a",
         ):
             self.assertIn(part, mailed())
         self.assertEqual(look()[0]["results"], [], "in, and nothing staged since")
+
+        # arrived, it is planned and nothing more: none of its posts is the publisher's until a host confirms the
+        # plan, and then its uploads are, at once, and the rest on their days
+        far = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=400)).isoformat()
+        mine = lambda rows, slug: {(p["account"], p["asset"]) for p in rows if p["episode"] == slug}  # noqa: E731
+        self.assertEqual((e["confirmed_at"], e["confirmed_by"]), (None, None))
+        self.assertEqual(
+            mine(publish.due(c, far, include_late=True), "arr-a"), set(), "an upload, a timed post, a card"
+        )
+        self.assertEqual(
+            arrive.confirm(c, "arr-a", "james@example.com", staged="2026-11-20T10:00:00"),
+            "The plan of arr-a is confirmed: the publisher takes its posts from the next minute",
+        )
+        taken, late = publish.split(c)
+        self.assertEqual(mine(taken, "arr-a"), {("youtube", "episode"), ("youtube", "clip:01-the-point")})
+        self.assertEqual(mine(late, "arr-a"), set())
+        self.assertEqual(len(mine(publish.due(c, far, include_late=True), "arr-a")), n)
+        self.assertEqual(arrive.stage(c, ledger.episode(c, "arr-a")), "planned, links pushed")
 
         # staged again with another number and day while nothing is out: every post follows, an edited one keeps
         # its words and takes the new link
@@ -6074,7 +6478,7 @@ class EngineTest(unittest.TestCase):
             (a["x", "episode"]["scheduled_at"], a["x", "clip:01-the-point"]["scheduled_at"]),
             (ledger.at(d12, "09:00"), ledger.at(day(13), "09:00")),
         )
-        self.assertEqual(subjects()[-1], "Episode 32, Arrive A, moved was staged again")
+        self.assertEqual(subjects()[-1], "Episode 32, Arrive A, moved was staged again: confirm its plan again")
         for part in (
             "Number    31 became 32",
             f"Date      {DAY0} became {d12}",
@@ -6082,8 +6486,19 @@ class EngineTest(unittest.TestCase):
             "written again from the new record",
             "moved to the plan's new day",
             f"Posts     {n} planned, 0 of them new",
+            "Its plan had been confirmed. It was staged again with none of its posts out, so that word is gone",
+            "/episodes/arr-a",
         ):
             self.assertIn(part, mailed())
+        # what a host confirmed is not what is staged now, and none of it had gone: the word is taken back
+        self.assertEqual((e["confirmed_at"], e["confirmed_by"]), (None, None))
+        held = c.execute("SELECT who, detail FROM event WHERE what='confirm:held' AND episode='arr-a'").fetchall()
+        self.assertEqual(
+            [(h["who"], json.loads(h["detail"])["confirmed_by"], json.loads(h["detail"])["why"]) for h in held],
+            [("tester", "james@example.com", "staged again with none of its posts out")],
+        )
+        self.assertEqual(mine(publish.due(c, far, include_late=True), "arr-a"), set())
+        self.assertEqual(arrive.stage(c, e), '<a href="/episodes/arr-a">to confirm</a>')
 
         # two episodes swapping numbers go in one pass, and e32… is never two posts'
         stage("arr-b", 33, "Arrive B", "2026-11-20T10:30:00")
@@ -6115,7 +6530,9 @@ class EngineTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             press("aside", "nope")
 
-        # once a post is out the number and the date are frozen; the words of what is left still follow
+        # once a post is out the number and the date are frozen; the words of what is left still follow. A post
+        # is out only after a host's word, and that word stays when the episode is staged again
+        arrive.confirm(c, "arr-b", "james@example.com")
         gone = by("arr-b")["x", "episode"]
         ledger.update_post(c, gone["id"], "tester", status="published", published_at=ledger.now())
         stage("arr-b", 34, "Arrive B", "2026-11-20T15:00:00")
@@ -6133,6 +6550,12 @@ class EngineTest(unittest.TestCase):
         )
         self.assertIn("Arrive B, retitled", b["bluesky", "episode"]["text"], "what has not gone is written again")
         self.assertEqual(subjects()[-1], "Episode 32, Arrive B, retitled was staged again")
+        self.assertEqual(ledger.episode(c, "arr-b")["confirmed_by"], "james@example.com", "a post is out: it stays")
+        self.assertIn("Its plan stays confirmed, so the publisher goes on with what has not gone out.", mailed())
+        self.assertIsNone(c.execute("SELECT 1 FROM event WHERE what='confirm:held' AND episode='arr-b'").fetchone())
+        left = mine(publish.due(c, far, include_late=True), "arr-b")
+        self.assertEqual(len(left), len(b) - 1, "all but the one that is out are still the publisher's")
+        self.assertNotIn(("x", "episode"), left)
 
         # a release time that has passed waits for a host's word, which is for that staging alone; staged again
         # after its release, it plans nothing new
@@ -6151,8 +6574,52 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(look()[1]["arr-d"]["state"], "waiting", "the host's word was for the staging before")
         self.assertIn("arr-d is in (", press("bring", "arr-d"))
         self.assertEqual(len(arrive.posts(c, "arr-d")), nd - 1)
-        self.assertEqual(subjects()[-1], "Episode 35, Arrive D was staged again")
+        self.assertEqual(subjects()[-1], "Episode 35, Arrive D was staged again: confirm its plan")
         self.assertIn("already released, so no new posts were planned", mailed())
+
+        # a plan nobody has confirmed with its release under a day away, or passed: red on Health, and said once
+        # more, once for each wait, and not on the heels of the mail that asked
+        hence = lambda h: (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=h)).isoformat(timespec="seconds")  # noqa: E731
+        chase = lambda: arrive.chase(c, self.menv, log=quiet)  # noqa: E731
+        self.assertEqual(
+            [arrive.soon({"release_at": hence(h)}) for h in (-1, 23, 25)], [True, True, False], "a day is the line"
+        )
+        self.assertEqual([u["slug"] for u in arrive.unconfirmed(c)], ["arr-d", "arr-a"], "soonest release first")
+        self.assertEqual(
+            arrive.confirm_health(c),
+            '<span class="error">1 not confirmed with the release under 24 hours away or passed: '
+            '<a href="/episodes/arr-d">arr-d</a></span>; 2 waiting in all',
+        )
+        sent = len(subjects())
+        self.assertEqual(chase(), [], "it came in a moment ago, and that mail asked")
+        c.execute("UPDATE event SET at=? WHERE episode='arr-d' AND what='ingest'", (ago(31),))
+        self.assertEqual(chase(), ["arr-d"])
+        self.assertEqual(subjects()[sent:], ["Episode 35, Arrive D is not confirmed, and its release has passed"])
+        self.assertEqual(FakeSMTP.sent[-1]["To"], mail.settings()["copy_to"])
+        for part in (
+            "arr-d is in the ledger and planned, and no host has confirmed its plan.",
+            "Nothing of it is sent until one of you confirms",
+            "This is the only reminder.",
+            "/episodes/arr-d",
+        ):
+            self.assertIn(part, mailed())
+        self.assertEqual((chase(), chase()), ([], []))
+        self.assertEqual(len(subjects()), sent + 1, "once for the wait, however many minutes pass")
+        arrive.confirm(c, "arr-d", "james@example.com")
+        self.assertEqual(arrive.confirm_health(c), '1 waiting for a host: <a href="/episodes/arr-a">arr-a</a>')
+        self.assertEqual(chase(), [], "confirmed: nothing to chase")
+        arrive.hold(c, "arr-d", "james@example.com")
+        at = ledger.episode(c, "arr-d")["release_at"]
+        c.execute("UPDATE episode SET release_at=? WHERE slug='arr-d'", (hence(23),))
+        self.assertEqual(chase(), [], "held a moment ago: the host who held it knows")
+        c.execute("UPDATE event SET at=? WHERE episode='arr-d' AND what='confirm:held'", (ago(31),))
+        self.assertEqual((chase(), chase()), (["arr-d"], []), "a hold begins another wait, said once too")
+        self.assertEqual(
+            subjects()[sent + 1 :], ["Episode 35, Arrive D is not confirmed, and its release is under a day away"]
+        )
+        c.execute("UPDATE episode SET release_at=? WHERE slug='arr-d'", (hence(25),))
+        self.assertEqual(arrive.confirm_health(c).split(":")[0], "2 waiting for a host", "over a day away: not red")
+        c.execute("UPDATE episode SET release_at=? WHERE slug='arr-d'", (at,))
 
         # approved with the guests' gate waived: a host brings it in, or sets it aside
         stage("arr-e", 36, "Arrive E", "2026-11-20T17:00:00", waived="the guest is travelling")
@@ -6205,7 +6672,7 @@ class EngineTest(unittest.TestCase):
         self.assertIsNone(ledger.episode(c, "ada-engines"))
         self.assertEqual(ada(4)["state"], "in")
         self.assertEqual(ledger.episode(c, "ada-engines")["number"], "38")
-        self.assertEqual(subjects()[-1], "Episode 38, Ada, on engines is in")
+        self.assertEqual(subjects()[-1], "Episode 38, Ada, on engines is in: confirm its plan")
         told = c.execute("SELECT * FROM linear_job WHERE id > ? AND kind='arrived' ORDER BY id", (jobs,)).fetchall()
         self.assertEqual(
             [(j["guest"], json.loads(j["args"])["issue"]) for j in told],
@@ -6234,11 +6701,13 @@ class EngineTest(unittest.TestCase):
         e = ledger.episode(c, "arr-g")
         self.assertGreater(len(arrive.posts(c, "arr-g")), 5)
         self.assertIn("links not pushed", arrive.stage(c, e))
+        self.assertIn('<a href="/episodes/arr-g">to confirm</a>', arrive.stage(c, e))
         self.assertEqual(len(subjects()), sent, "too young to be worth a mail")
         self.assertIn("refused or failing", arrive.health(c))
         c.execute("UPDATE arrival SET since=? WHERE slug='arr-g'", (ago(31),))
         look()
         self.assertEqual(subjects()[sent:], ["Episode 39, Arrive G is in without its short links"])
+        self.assertIn("None goes out until a host confirms its plan (https://", mailed())
         look()
         self.assertEqual(len(subjects()), sent + 1, "the only note about it")
         arrive.switch(c, False, "tester")
@@ -6246,7 +6715,58 @@ class EngineTest(unittest.TestCase):
         res = look()[1]
         self.assertEqual(res["arr-g"]["state"], "in", "only the links were left, and those are not the switch's")
         self.assertTrue(all(i.startswith("e39") and i in kv for i in ids("arr-g")), ids("arr-g"))
-        self.assertEqual(subjects()[sent + 1 :], ["Episode 39, Arrive G is in"])
+        self.assertEqual(subjects()[sent + 1 :], ["Episode 39, Arrive G is in: confirm its plan"])
+
+        # the plan's panel counts as the publisher will: what it says before the word is what a run takes after.
+        # An upload past its time goes public at once; a timed post over six hours late is left for a person
+        g = arrive.posts(c, "arr-g")
+        kept = {p["id"]: p["scheduled_at"] for p in g}
+        has = lambda p, name: getattr(publish.adapter(p["account"]), name, name == "SENDS")  # noqa: E731
+        up = [p for p in g if has(p, "SCHEDULES")]
+        cards = [p for p in g if not has(p, "SENDS")]
+        timed = [p for p in g if has(p, "SENDS") and not has(p, "SCHEDULES")]
+        self.assertEqual((len(up), len(cards) > 1, len(timed) > 3), (2, True, True))
+        for p, h in [(up[0], -1), (timed[0], -7), (timed[1], -1)] + [(p, 72) for p in up[1:] + timed[2:]]:
+            ledger.update_post(c, p["id"], scheduled_at=hence(h))
+        html = arrive.plan_panel(c, ledger.episode(c, "arr-g"), "tok")
+        for part in (
+            "Nothing is sent until a host confirms it",
+            "<dt>Episode</dt><dd>39, Arrive G</dd>",
+            '<a href="https://agentsee.work/podcast/arr-g/"',
+            "YouTube takes 2 uploads now, 1 of them private until their times.",
+            f"{len(timed) - 2} posts go out by themselves from ",
+            f"{len(cards)} cards for a person to post come up on By hand, each on its day.",
+            "Public at once, not private: 1 upload at or past the time set, or within 15 minutes of it.",
+            "Sent within a minute of confirming: 1 post past the time set by less than 6 hours.",
+            "Not sent: 1 post more than 6 hours past the time set.",
+            "text, time and skip can still be changed below before confirming",
+            'action="/episodes/arr-g/confirm"',
+            'name="_t" value="tok"',
+            'name="staged" value="2026-11-21T11:00:00"',
+            "Confirm the plan</button>",
+        ):
+            self.assertIn(part, html)
+        for part in ("The release time has passed.", "Hold the plan", "Already out"):
+            self.assertNotIn(part, html)
+        self.assertIn("The release time has passed.", arrive.plan_panel(c, ledger.episode(c, "arr-d"), "tok"))
+        arrive.confirm(c, "arr-g", "james@example.com")
+        of = lambda rows: {p["id"] for p in rows if p["episode"] == "arr-g"}  # noqa: E731
+        taken, late = publish.split(c)
+        self.assertEqual(of(taken), {up[0]["id"], up[1]["id"], timed[1]["id"]}, "both uploads, and the hour-late post")
+        self.assertEqual(of(late), {timed[0]["id"]}, "seven hours late: under Late on By hand, as the panel said")
+        html = arrive.plan_panel(c, ledger.episode(c, "arr-g"), "tok")
+        for part in (
+            "Confirmed by james@example.com",
+            "What a platform already has stays there",
+            'action="/episodes/arr-g/hold"',
+            "Hold the plan</button>",
+        ):
+            self.assertIn(part, html)
+        self.assertNotIn("Confirm the plan", html)
+        arrive.hold(c, "arr-g", "james@example.com")
+        self.assertEqual(of(publish.due(c, include_late=True)), set())
+        for i, at in kept.items():
+            ledger.update_post(c, i, scheduled_at=at)
         # what waits is held to the numbers too: off, a pass still refuses what it would refuse when on
         self.assertEqual((res["arr-c"]["state"], res["arr-c"]["why"]), ("refused", "episode number 9 is ep9's"))
         self.assertIn("Nothing is waiting on the switch", arrive.panel(c, "t"))
@@ -6320,6 +6840,27 @@ class EngineTest(unittest.TestCase):
             self.assertEqual(post("/episodes/look", "stale")[0], 403)
             self.assertIn("Hello there", get("/episodes?msg=Hello+there")[2])
             self.assertIn("Episode arrivals", get("/health")[2])
+            # the plans that wait: on the list, on Health (arr-d was released yesterday), and not on By hand
+            body = get("/episodes")[2]
+            for slug in ("arr-a", "arr-d", "arr-g", "ada-engines"):
+                self.assertIn(f'<a href="/episodes/{slug}">to confirm</a>', body)
+            for slug in ("ep9", "arr-b"):
+                self.assertNotIn(f'<a href="/episodes/{slug}">to confirm</a>', body)
+            body = get("/health")[2]
+            self.assertIn("Plans to confirm", body)
+            self.assertIn(
+                '<span class="error">1 not confirmed with the release under 24 hours away or passed: '
+                '<a href="/episodes/arr-d">arr-d</a></span>; 4 waiting in all',
+                body,
+            )
+            late = [
+                p for p in arrive.posts(c, "arr-d") if publish.fate_of(p, dt.datetime.now(dt.timezone.utc)) == "late"
+            ]
+            self.assertTrue(late, "arr-d has timed posts more than six hours past, and nobody confirmed it")
+            body = get("/due")[2]
+            self.assertNotIn("Past their time, not sent", body)
+            for p in late:
+                self.assertNotIn(f'href="/posts/{p["id"]}"', body)
         srv.shutdown()
 
         # no credentials, and an archive that cannot be listed
