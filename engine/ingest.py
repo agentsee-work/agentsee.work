@@ -12,7 +12,6 @@ when build/ exists.
 
 import json
 import pathlib
-import sys
 
 import archive
 import ledger
@@ -31,8 +30,10 @@ KINDS = (
 )
 
 
-def die(msg):
-    sys.exit(f"error: {msg}")
+class IngestError(Exception):
+    """This episode cannot go into the ledger, and why. The command line
+    prints it and stops (engine.py); the automatic arrival records it against
+    the episode and looks again later (arrive.py)."""
 
 
 def load_json(path):
@@ -54,24 +55,42 @@ def kind_of(name):
     return "other"
 
 
-def ingest(c, slug, src=None, who="engine", from_archive=False):
+def read(slug, src=None, from_archive=False):
+    """The directory holding the two records, and the records: (d, release, staged)."""
     d = pathlib.Path(src) if src else EPISODES / slug / "out"
     if from_archive or (not src and not (d / "release.json").exists()):
         try:
             d = archive.fetch_release(slug)
         except archive.ArchiveError as e:
-            die(f"{slug}: no release.json in {d}, and the archive could not provide one: {e}")
+            raise IngestError(f"{slug}: no release.json in {d}, and the archive could not provide one: {e}") from e
     if not (d / "release.json").exists():
-        die(f"no release.json in {d}: run release and approve first")
+        raise IngestError(f"no release.json in {d}: run release and approve first")
     if not (d / "staged.json").exists():
-        die(f"{slug} is not staged ({d / 'staged.json'} missing): the engine publishes from R2, not from a workstation")
-    r = load_json(d / "release.json")
-    s = load_json(d / "staged.json")
+        raise IngestError(
+            f"{slug} is not staged ({d / 'staged.json'} missing): the engine publishes from R2, not from a workstation"
+        )
+    return d, load_json(d / "release.json"), load_json(d / "staged.json")
+
+
+def ingest(c, slug, src=None, who="engine", from_archive=False):
+    d, r, s = read(slug, src, from_archive)
+    c.execute("BEGIN")
+    try:
+        n = store(c, slug, d, r, s, who)
+    except BaseException:
+        c.execute("ROLLBACK")
+        raise
+    c.execute("COMMIT")
+    return n
+
+
+def store(c, slug, d, r, s, who="engine"):
+    """The episode row and its deliverables from the two records, inside
+    whatever transaction the caller holds. Returns the file count."""
     ep = r["episode"]
     if not ep.get("approved"):
-        die(f"{slug} is not approved")
+        raise IngestError(f"{slug} is not approved")
     release_at = ledger.at(ep["release"], ledger.CONFIG["release_time"])
-    c.execute("BEGIN")
     c.execute(
         """INSERT INTO episode (slug, number, title, release, release_at, guid, url, media_url,
                    approved_by, approved_at, staged_at, release_json, source_dir, ingested_at)
@@ -127,5 +146,4 @@ def ingest(c, slug, src=None, who="engine", from_archive=False):
     ledger.event(
         c, "ingest", who, episode=slug, detail={"files": n, "release": ep["release"], "staged_at": s.get("at")}
     )
-    c.execute("COMMIT")
     return n

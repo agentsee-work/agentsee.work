@@ -141,12 +141,22 @@ docker compose exec engine op run --env-file=engine/engine.env -- python3 engine
 
 Episodes reach the box through the archive too: `stage` puts
 `release.json` and `staged.json` in `episodes/<slug>/out/` beside the
-files, and an `ingest` on a machine without `build/` reads them from there.
+files, and the worker finds them there. Every ten minutes it lists the
+archive and brings in what is staged and not yet in the ledger: ingest, plan
+and the short links in one pass, with a mail to the hosts when it is done
+(`engine/README.md`, "How an episode arrives"). Nothing is run over SSH. The
+Episodes screen shows each staged episode's state and holds the buttons:
+"Look now", "Bring it in" for one that waits on a host, "Set aside", and the
+switch. Automatic arrival starts off after the first deploy, so the first
+passes only say what they would bring in; turn it on there once.
 Deliverables are fetched on demand when an adapter needs one, checked
 against the hash the ledger holds, into `/var/lib/agentsee-engine/episodes/`
 (a cache; safe to delete).
 
+By hand, should the worker be unable to:
+
 ```sh
+docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py arrive --dry-run
 docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py ingest ep2
 docker compose exec engine op run --env-file=engine/engine.env -- python3 engine/engine.py plan ep2
 ```

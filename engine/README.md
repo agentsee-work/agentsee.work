@@ -5,9 +5,12 @@ post on every platform, and back from every post to the numbers. The design
 and the decisions are on Linear (AGE-69); this is what exists.
 
 ```
-engine.py        the command line: ingest, plan, links, posts, publish, serve, mail, linear, remind
+engine.py        the command line: ingest, plan, arrive, links, posts, publish, serve, mail, linear, remind
 ledger.py        the SQLite ledger: episode, deliverable, post, snapshot, spend,
-                 click, download, lead, event; guest, code, session, linear_job
+                 click, download, lead, event; guest, code, session, linear_job, arrival
+arrive.py        a staged episode into the ledger by itself: the worker's look at the
+                 archive, the checks, ingest + plan + links in one pass, and what it
+                 refuses or leaves for a host's button
 ingest.py        release.json + staged.json → episode and deliverables
 plan.py          the day plan × accounts.json → posts, with short-link ids and
                  drafted text; the push of id → URL into KV
@@ -84,6 +87,7 @@ test_engine.py   the whole thing against a made-up episode and stubs for every
 ./engine/engine.py plan ep1 --no-links        # posts drafted, nothing leaves the machine
 ./engine/engine.py posts --episode ep1
 ./engine/engine.py publish --due --dry-run    # what the next run would do
+op run --env-file=engine/engine.env -- ./engine/engine.py arrive --dry-run   # what a look at the archive would bring in
 
 op run --env-file=engine/engine.env -- ./engine/engine.py links ep1          # short links into KV
 op run --env-file=engine/engine.env -- ./engine/engine.py publish --due      # for real
@@ -132,6 +136,48 @@ edit survives a re-plan. `plan --prune` is the one exception: a planned post
 the plan would no longer make, because its account was dropped from
 `accounts.json` or no longer takes that kind of asset, is marked skipped;
 anything a person or a platform has touched is left alone.
+
+## How an episode arrives
+
+Nobody runs `ingest` and `plan` on the box any more. `stage` writes
+`episodes/<slug>/out/staged.json` to the archive last, so that object is the
+signal: every ten minutes (`arrive.every_minutes` in `config.json`) the
+worker lists the archive, and an episode whose staging the ledger has not
+taken is checked, ingested, planned and given its short links in one pass
+(`arrive.py`). "Look now" on the Episodes screen runs the same pass at once,
+and `engine.py arrive --dry-run` prints what one would do. The hosts get a
+mail when an episode is in, and a guest's Linear issue a comment.
+
+A pass says what it will not do rather than guess. Each state shows on the
+Episodes screen with its reason, and the first three turn Health's "Episode
+arrivals" row red:
+
+| State | What it means | What clears it |
+| --- | --- | --- |
+| refused | The staged record is not approved; a guest's approval is not the one this engine recorded, or is of an earlier round; the number is another episode's; or a post is out and the staged number or date is no longer the one it went out under. | Staging it again. |
+| failed | The archive or the ledger said no, or `release.json` is not the one `staged.json` names, which is a stage under way or one that did not finish. | The next pass; it is tried every time. |
+| unlinked | It is in the ledger and planned, and KV did not take its short links. | The next pass; only the links are tried again. |
+| waiting | Automatic arrival is off; the release time has passed; or the episode was approved with the guests' gate waived. | "Bring it in", which allows that one staging. |
+| set aside | A host said to leave it. | "Put it back", or staging it again. |
+
+Automatic arrival starts **off**: the first passes only say what they would
+bring in, and a host turns it on once from the Episodes screen. A failure is
+mailed only once it is half an hour old, and each state is mailed once per
+staging.
+
+An episode staged again is taken again. While none of its posts is out, a
+new number or date is followed: every post takes the new short link, and its
+new day when the plan's day moved; a post nobody edited is written again
+from the record, and an edited one keeps its words with the new link. Two
+episodes that swap numbers are taken in one transaction. Once a post is out
+the number and the date are frozen, and a staging that changes either is
+refused. YouTube takes its uploads within a minute of the plan, so in
+practice they freeze as the episode arrives: settle the number and the date
+before staging. An episode already released that is staged again gets no new
+posts by itself; `engine.py plan` adds them.
+
+`ingest` and `plan` remain as commands, for a workstation and for the day
+the worker cannot do it.
 
 Then the states, in `ledger.STATUSES`: `planned` until its day; `due` when
 a person says now; `publishing` while the worker has it; `scheduled` when
@@ -595,8 +641,9 @@ The engine lives on the box `infra/` provisions, in two containers behind a
 Cloudflare Tunnel with Access in front (a one-time code by email, then a
 passkey); `home/README.md` is the runbook, `infra/podcast/engine.tf` the
 tunnel and the lock, `infra/dns.tf` the two DNS records. On that box there
-is no `build/`: `ingest` reads `release.json` and `staged.json` from the
-archive bucket, where `stage` put them, and an adapter that needs a file
+is no `build/`: the worker finds a staged episode in the archive bucket and
+brings it in from `release.json` and `staged.json` there, where `stage` put
+them (see "How an episode arrives"), and an adapter that needs a file
 gets it from the archive on demand, checked against the hash the ledger
 holds (`archive.py`). The ledger is copied to the archive nightly
 (`snapshot_at` in `config.json`; Health shows the last) and `restore`

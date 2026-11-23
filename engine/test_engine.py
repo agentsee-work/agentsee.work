@@ -757,10 +757,39 @@ class FakeR2(Stub):
         assert "/auto/s3/aws4_request, SignedHeaders=" in auth and "Signature=" in auth, auth
         assert self.headers.get("x-amz-content-sha256") == hashlib.sha256(body).hexdigest(), "payload hash"
         assert re.fullmatch(r"\d{8}T\d{6}Z", self.headers.get("x-amz-date", "")), "x-amz-date"
-        bucket, _, key = self.path.lstrip("/").partition("/")
+        bucket, _, key = urllib.parse.urlsplit(self.path).path.lstrip("/").partition("/")
         assert bucket == "archive-test", bucket
         FakeR2.state["requests"].append((self.command, key))
         return key
+
+    def listing(self):
+        """ListObjectsV2 with a delimiter, two entries to a page so the continuation is walked."""
+        q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
+        assert q.get("list-type") == "2", q
+        prefix, delim = q.get("prefix", ""), q.get("delimiter")
+        folders, keys = set(), []
+        for k in sorted(FakeR2.state["objects"]):
+            if not k.startswith(prefix):
+                continue
+            rest = k[len(prefix) :]
+            if delim and delim in rest:
+                folders.add(prefix + rest.split(delim)[0] + delim)
+            else:
+                keys.append(k)
+        entries = [("CommonPrefixes", "Prefix", f) for f in sorted(folders)] + [("Contents", "Key", k) for k in keys]
+        start = int(q.get("continuation-token", "0"))
+        page, more = entries[start : start + 2], len(entries) > start + 2
+        xml = '<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+        xml += f"<Name>archive-test</Name><Prefix>{prefix}</Prefix><IsTruncated>{str(more).lower()}</IsTruncated>"
+        if more:
+            xml += f"<NextContinuationToken>{start + 2}</NextContinuationToken>"
+        xml += "".join(f"<{outer}><{inner}>{v}</{inner}></{outer}>" for outer, inner, v in page)
+        data = (xml + "</ListBucketResult>").encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/xml")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_PUT(self):
         body = self.body()
@@ -776,12 +805,15 @@ class FakeR2(Stub):
             return self.out(404)
         self.send_response(200)
         self.send_header("Content-Length", str(len(o["body"])))
+        self.send_header("ETag", '"' + hashlib.md5(o["body"], usedforsecurity=False).hexdigest() + '"')
         for k, v in o["meta"].items():
             self.send_header("x-amz-meta-" + k, v)
         self.end_headers()
 
     def do_GET(self):
         key = self.check(b"")
+        if not key:
+            return self.listing()
         o = FakeR2.state["objects"].get(key)
         if not o:
             return self.out(404, {"error": "NoSuchKey"})
@@ -5875,6 +5907,434 @@ class EngineTest(unittest.TestCase):
         self.assertIn("nobody posted the card", why)
         self.assertEqual(plan.skip_backlog(c, ["threads", "instagram"], who="tester"), [], "nothing twice")
         self.assertEqual(plan.skip_backlog(c, ["instagram"], before="2026-10-01", dry_run=True), [], "before the day")
+
+    def test_30_arrive(self):
+        """A staged episode into the ledger with nobody at a shell (arrive.py): the archive listed and each staged
+        record judged; off until a host turns it on; an episode ingested by hand adopted without a word; the
+        arrival, its posts, its links and its mail; a number and a date followed while nothing is out, an edited
+        post keeping its words; two numbers swapped in one pass; what is refused, what waits for a host and what
+        is tried again; a guest's approval held against the ledger's, and told on the issue; the screens."""
+        import arrive
+
+        c = self.c()
+        client = archive.Client(self.r2env)
+        objs = FakeR2.state["objects"]
+        pace, mail.PACE = mail.PACE, 0
+        self.addCleanup(setattr, mail, "PACE", pace)
+        arrive.LAST.clear()
+        self.addCleanup(arrive.LAST.clear)
+        kv, down = {}, []
+        first = len(FakeSMTP.sent)
+        fixture_release = json.loads((self.src / "release.json").read_text())
+        quiet = lambda s: None  # noqa: E731
+        sha = lambda b: hashlib.sha256(b).hexdigest()  # noqa: E731
+        day = lambda n: (dt.date.today() + dt.timedelta(days=n)).isoformat()  # noqa: E731
+        ago = lambda m: (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=m)).isoformat(timespec="seconds")  # noqa: E731
+        subjects = lambda: [m["Subject"] for m in FakeSMTP.sent[first:]]  # noqa: E731
+        mailed = lambda: FakeSMTP.sent[-1].get_content()  # noqa: E731
+        ids = lambda slug: [p["link_id"] for p in arrive.posts(c, slug)]  # noqa: E731
+        by = lambda slug: {(p["account"], p["asset"]): p for p in arrive.posts(c, slug)}  # noqa: E731
+
+        def put(link_id, value):
+            if down:
+                raise RuntimeError("KV answered 503: try later")
+            kv[link_id] = value
+
+        def look(**kw):
+            found = arrive.look(c, client, "tester", put, self.menv, log=quiet, **kw)
+            return found, {r["slug"]: r for r in found["results"]}
+
+        def press(what, slug=None):
+            return arrive.act(c, what, slug, "james@example.com", client=client, put=put, env=self.menv, log=quiet)
+
+        def stage(slug, number, title, at, release=DAY0, approved=True, **more):
+            """An episode approved and staged: the two records in the archive, hashed as tools/stage.py hashes them."""
+            r = json.loads(json.dumps(fixture_release))
+            r["slug"] = slug
+            r["episode"].update(
+                number=str(number),
+                title=title,
+                slug=slug,
+                guid=f"g-{slug}",
+                date=release,
+                release=release,
+                url=f"https://agentsee.work/podcast/{slug}/",
+                media_url=f"https://media.agentsee.work/podcast/{slug}/",
+                approved={
+                    "by": "Tester",
+                    "at": "2026-11-20T09:00:00",
+                    "release": release,
+                    "number": str(number),
+                    **more,
+                },
+            )
+            if not approved:
+                del r["episode"]["approved"]
+            after = (dt.date.fromisoformat(release) + dt.timedelta(days=1)).isoformat()
+            r["plan"] = [
+                {"asset": "episode", "day": 0, "date": release},
+                {"asset": "clip:01-the-point", "day": 1, "date": after},
+            ]
+            raw = json.dumps(r).encode()
+            staged = {
+                "slug": slug,
+                "at": at,
+                "approved": {},
+                "media": {},
+                "archive": {f"episodes/{slug}/out/release.json": {"sha256": sha(raw), "state": "uploaded"}},
+            }
+            client.put_bytes(f"episodes/{slug}/out/release.json", raw, "application/json")
+            client.put_bytes(f"episodes/{slug}/out/staged.json", json.dumps(staged).encode(), "application/json")
+            return r
+
+        def restage9(digest):
+            """ep9's staged record as test 14 archived it, naming a release.json of this hash; the fixture's
+            names none."""
+            s = json.loads((self.src / "staged.json").read_text())
+            s["archive"]["episodes/ep9/out/release.json"] = {"sha256": digest, "state": "uploaded"}
+            client.put_bytes("episodes/ep9/out/staged.json", json.dumps(s).encode(), "application/json")
+
+        # off by default: a look only says what it would do, and a dry run writes nothing at all
+        self.assertFalse(arrive.on(c))
+        stage("arr-a", 31, "Arrive A", "2026-11-20T10:00:00")
+        restage9("0" * 64)  # a stage under way: the record names a release.json the archive does not hold yet
+        FakeR2.state["requests"].clear()
+        found, res = look(dry_run=True)
+        self.assertGreater(FakeR2.state["requests"].count(("GET", "")), 1, "the listing's continuation is walked")
+        self.assertEqual((found["staged"], found["on"]), (2, False), "ep9 and arr-a; a review alone is not staged")
+        self.assertEqual((res["arr-a"]["state"], res["arr-a"]["why"]), ("waiting", "automatic arrival is off"))
+        self.assertEqual(res["ep9"]["state"], "failed")
+        self.assertIn("is not the one staged.json names", res["ep9"]["why"])
+        self.assertEqual((arrive.arrival(c, "arr-a"), arrive.LAST), (None, {}))
+
+        # a real look keeps its answer and tells the hosts once; a failure this young is not worth a mail
+        look()
+        self.assertEqual(arrive.arrival(c, "arr-a")["state"], "waiting")
+        self.assertIsNone(ledger.episode(c, "arr-a"))
+        self.assertEqual(subjects(), ["Episode 31, Arrive A is staged and waiting for you"])
+        self.assertEqual(FakeSMTP.sent[-1]["To"], mail.settings()["copy_to"])
+        self.assertIn("automatic arrival is off", mailed())
+        look()
+        self.assertEqual(len(subjects()), 1, "one note per answer per staging")
+        self.assertIn("Turned on, it would bring in: <b>arr-a (Arrive A)</b>", arrive.panel(c, "t"))
+
+        # an episode ingested and planned by hand, at this staging, is adopted without a word
+        was, n9 = ledger.episode(c, "ep9"), len(arrive.posts(c, "ep9"))
+        restage9(sha(objs["episodes/ep9/out/release.json"]["body"]))
+        res = look()[1]
+        self.assertEqual((res["ep9"]["state"], res["ep9"]["quiet"]), ("in", True))
+        self.assertEqual(
+            (ledger.episode(c, "ep9")["ingested_at"], len(arrive.posts(c, "ep9"))), (was["ingested_at"], n9)
+        )
+        self.assertEqual(len(subjects()), 1)
+        self.assertNotIn("ep9", look()[1], "settled: a staged record with the same ETag is not read again")
+
+        # a host turns it on, and the pass that follows brings arr-a in: ingested, planned, linked, told
+        said = press("auto/on")
+        self.assertTrue(arrive.on(c))
+        e = ledger.episode(c, "arr-a")
+        self.assertEqual((e["number"], e["staged_at"], e["approved_by"]), ("31", "2026-11-20T10:00:00", "Tester"))
+        n = len(arrive.posts(c, "arr-a"))
+        self.assertGreater(n, 5)
+        self.assertEqual(said, f"Automatic arrival is on. arr-a is in ({n} posts planned, {n} links pushed)")
+        self.assertEqual(
+            (self.data / "episodes" / "arr-a" / "out" / "release.json").read_bytes(),
+            objs["episodes/arr-a/out/release.json"]["body"],
+            "the record as the archive holds it, where plan and the adapters look",
+        )
+        self.assertTrue(all(i.startswith("e31") and i in kv for i in ids("arr-a")), ids("arr-a"))
+        self.assertEqual(arrive.stage(c, e), "planned, links pushed")
+        self.assertEqual(subjects()[-1], "Episode 31, Arrive A is in")
+        for part in (
+            "brought it in by itself",
+            f"Posts     {n} planned\n",
+            f"Links     {n} short links pushed",
+            "still yours to merge",
+            "/episodes/arr-a",
+        ):
+            self.assertIn(part, mailed())
+        self.assertEqual(look()[0]["results"], [], "in, and nothing staged since")
+
+        # staged again with another number and day while nothing is out: every post follows, an edited one keeps
+        # its words and takes the new link
+        d12 = day(12)
+        xe = by("arr-a")["x", "episode"]
+        ledger.update_post(c, xe["id"], "james@example.com", text="My own words. " + plan.short(xe["link_id"]))
+        ledger.event(c, "edit:text", "james@example.com", post=xe["id"], episode="arr-a")
+        stage("arr-a", 32, "Arrive A, moved", "2026-11-20T12:00:00", release=d12)
+        self.assertEqual(look()[1]["arr-a"]["state"], "in")
+        e = ledger.episode(c, "arr-a")
+        self.assertEqual((e["number"], e["release"], e["title"]), ("32", d12, "Arrive A, moved"))
+        self.assertEqual(len(arrive.posts(c, "arr-a")), n, "none made twice")
+        self.assertTrue(all(i.startswith("e32") and i in kv for i in ids("arr-a")), ids("arr-a"))
+        a = by("arr-a")
+        self.assertEqual(a["x", "episode"]["text"], "My own words. " + plan.short("e32xe"))
+        self.assertIn("Arrive A, moved", a["bluesky", "episode"]["text"])
+        self.assertEqual(
+            (a["x", "episode"]["scheduled_at"], a["x", "clip:01-the-point"]["scheduled_at"]),
+            (ledger.at(d12, "09:00"), ledger.at(day(13), "09:00")),
+        )
+        self.assertEqual(subjects()[-1], "Episode 32, Arrive A, moved was staged again")
+        for part in (
+            "Number    31 became 32",
+            f"Date      {DAY0} became {d12}",
+            "1 edited post(s) kept their words",
+            "written again from the new record",
+            "moved to the plan's new day",
+            f"Posts     {n} planned, 0 of them new",
+        ):
+            self.assertIn(part, mailed())
+
+        # two episodes swapping numbers go in one pass, and e32… is never two posts'
+        stage("arr-b", 33, "Arrive B", "2026-11-20T10:30:00")
+        self.assertEqual(look()[1]["arr-b"]["state"], "in")
+        stage("arr-a", 33, "Arrive A, moved", "2026-11-20T13:00:00", release=d12)
+        stage("arr-b", 32, "Arrive B", "2026-11-20T13:30:00")
+        res = look()[1]
+        self.assertEqual((res["arr-a"]["state"], res["arr-b"]["state"]), ("in", "in"))
+        self.assertEqual((ledger.episode(c, "arr-a")["number"], ledger.episode(c, "arr-b")["number"]), ("33", "32"))
+        self.assertTrue(all(i.startswith("e33") and i in kv for i in ids("arr-a")), ids("arr-a"))
+        self.assertTrue(all(i.startswith("e32") and i in kv for i in ids("arr-b")), ids("arr-b"))
+        self.assertEqual(by("arr-a")["x", "episode"]["text"], "My own words. " + plan.short("e33xe"))
+
+        # a number that is another episode's is refused; a host sets it aside, and puts it back
+        stage("arr-c", 9, "Arrive C", "2026-11-20T14:00:00")
+        res = look()[1]
+        self.assertEqual((res["arr-c"]["state"], res["arr-c"]["why"]), ("refused", "episode number 9 is ep9's"))
+        self.assertIsNone(ledger.episode(c, "arr-c"))
+        self.assertEqual(subjects()[-1], "Episode 9, Arrive C was not brought in")
+        sent = len(subjects())
+        self.assertEqual(press("aside", "arr-c"), "arr-c is set aside until it is staged again")
+        self.assertNotIn("arr-c", look()[1])
+        self.assertIn("set aside", arrive.panel(c, "t"))
+        self.assertEqual(press("back", "arr-c"), "arr-c is back on the list")
+        self.assertEqual(look()[1]["arr-c"]["state"], "refused")
+        self.assertEqual(len(subjects()), sent, "the same refusal is not mailed twice")
+        with self.assertRaises(ValueError):
+            press("bring", "arr-a")  # it is in: nothing is waiting for anyone
+        with self.assertRaises(ValueError):
+            press("aside", "nope")
+
+        # once a post is out the number and the date are frozen; the words of what is left still follow
+        gone = by("arr-b")["x", "episode"]
+        ledger.update_post(c, gone["id"], "tester", status="published", published_at=ledger.now())
+        stage("arr-b", 34, "Arrive B", "2026-11-20T15:00:00")
+        res = look()[1]
+        self.assertEqual(res["arr-b"]["state"], "refused")
+        self.assertIn("1 of its posts is out as episode 32", res["arr-b"]["why"])
+        self.assertIn("frozen", res["arr-b"]["why"])
+        self.assertEqual(ledger.episode(c, "arr-b")["number"], "32")
+        self.assertEqual(subjects()[-1], "Episode 34, Arrive B was not brought in")
+        stage("arr-b", 32, "Arrive B, retitled", "2026-11-20T15:30:00")
+        self.assertEqual(look()[1]["arr-b"]["state"], "in")
+        b = by("arr-b")
+        self.assertEqual(
+            (b["x", "episode"]["text"], ledger.episode(c, "arr-b")["title"]), (gone["text"], "Arrive B, retitled")
+        )
+        self.assertIn("Arrive B, retitled", b["bluesky", "episode"]["text"], "what has not gone is written again")
+        self.assertEqual(subjects()[-1], "Episode 32, Arrive B, retitled was staged again")
+
+        # a release time that has passed waits for a host's word, which is for that staging alone; staged again
+        # after its release, it plans nothing new
+        stage("arr-d", 35, "Arrive D", "2026-11-20T16:00:00", release=day(-1))
+        res = look()[1]
+        self.assertEqual(res["arr-d"]["state"], "waiting")
+        self.assertIn("has passed", res["arr-d"]["why"])
+        self.assertEqual(subjects()[-1], "Episode 35, Arrive D is staged and waiting for you")
+        said = press("bring", "arr-d")
+        self.assertIn("arr-d is in (", said)
+        self.assertNotIn("arr-c", said, "the button's sentence is about its own episode")
+        nd = len(arrive.posts(c, "arr-d"))
+        self.assertGreater(nd, 5)
+        c.execute("DELETE FROM post WHERE id=?", (arrive.posts(c, "arr-d")[-1]["id"],))
+        stage("arr-d", 35, "Arrive D", "2026-11-20T16:30:00", release=day(-1))
+        self.assertEqual(look()[1]["arr-d"]["state"], "waiting", "the host's word was for the staging before")
+        self.assertIn("arr-d is in (", press("bring", "arr-d"))
+        self.assertEqual(len(arrive.posts(c, "arr-d")), nd - 1)
+        self.assertEqual(subjects()[-1], "Episode 35, Arrive D was staged again")
+        self.assertIn("already released, so no new posts were planned", mailed())
+
+        # approved with the guests' gate waived: a host brings it in, or sets it aside
+        stage("arr-e", 36, "Arrive E", "2026-11-20T17:00:00", waived="the guest is travelling")
+        res = look()[1]
+        self.assertEqual(res["arr-e"]["state"], "waiting")
+        self.assertIn("waived (the guest is travelling)", res["arr-e"]["why"])
+        press("aside", "arr-e")
+
+        # staged and not approved
+        stage("arr-f", 37, "Arrive F", "2026-11-20T17:30:00", approved=False)
+        res = look()[1]
+        self.assertEqual((res["arr-f"]["state"], res["arr-f"]["why"]), ("refused", "the staged record is not approved"))
+
+        # a guest's episode: the approval it was approved with is the archive's, and the one this engine took
+        gid = c.execute("SELECT id FROM guest WHERE name='Ada Lovelace'").fetchone()[0]
+        akey = f"guests/{gid}/approval.json"
+        signed = objs[akey]["body"]
+        rec = json.loads(signed)
+        g = {
+            "id": gid,
+            "name": "Ada Lovelace",
+            "approval": akey,
+            "sha256": sha(signed),
+            "at": rec["at"],
+            "round": rec["review"]["round"],
+        }
+        jobs = c.execute("SELECT COALESCE(MAX(id), 0) FROM linear_job").fetchone()[0]
+
+        def ada(minute, **kw):
+            stage("ada-engines", 38, "Ada, on engines", f"2026-11-21T10:{minute:02d}:00", guests=[{**g, **kw}])
+            return look()[1]["ada-engines"]
+
+        c.execute("UPDATE review SET round=? WHERE guest=?", (g["round"] + 1, gid))
+        r = ada(0)
+        self.assertEqual(r["state"], "refused")
+        self.assertIn("and the review is at round", r["why"])
+        c.execute("UPDATE review SET round=? WHERE guest=?", (g["round"], gid))
+        r = ada(1, sha256="0" * 64)
+        self.assertEqual(r["state"], "refused")
+        self.assertIn("is not the one the episode was approved with", r["why"])
+        r = ada(2, id="zzzzzzzz")
+        self.assertEqual(r["state"], "refused")
+        self.assertIn("cannot know", r["why"])
+        altered = json.dumps({**rec, "at": "2026-01-01T00:00:00+00:00"}).encode()
+        objs[akey]["body"] = altered
+        r = ada(3, sha256=sha(altered))
+        self.assertEqual(r["state"], "refused")
+        self.assertIn("does not match the one this engine recorded", r["why"])
+        objs[akey]["body"] = signed
+        self.assertIsNone(ledger.episode(c, "ada-engines"))
+        self.assertEqual(ada(4)["state"], "in")
+        self.assertEqual(ledger.episode(c, "ada-engines")["number"], "38")
+        self.assertEqual(subjects()[-1], "Episode 38, Ada, on engines is in")
+        told = c.execute("SELECT * FROM linear_job WHERE id > ? AND kind='arrived' ORDER BY id", (jobs,)).fetchall()
+        self.assertEqual(
+            [(j["guest"], json.loads(j["args"])["issue"]) for j in told],
+            [(gid, "AGE-73")] * 4,
+            "three refusals and the arrival on her issue; the guest nobody knows has none",
+        )
+        self.assertIn("is in", json.loads(told[-1]["args"])["text"])
+        fake = FakeLinear()
+        fake.issues.update(self.linear_made)
+        linear.post = fake
+        linear.vault = FakeVault("lr1", item="Linear podcast token")
+        linear._token.update(access=None, until=0.0, unsaved=None)
+        lenv = {"LINEAR_CLIENT_ID": "lcid", "LINEAR_CLIENT_SECRET": "lcs", "LINEAR_REFRESH_TOKEN": "lr1"}
+        self.assertGreaterEqual(linear.drain(c, lenv, log=quiet), 4)
+        self.assertEqual(fake.comments[-1][0], "AGE-73")
+        self.assertIn("Episode 38, Ada, on engines is in", fake.comments[-1][1])
+
+        # KV says no: the episode is in and planned, only its links are tried again, and it is said once, after
+        # half an hour; the links go whatever the switch says
+        down.append(1)
+        sent = len(subjects())
+        stage("arr-g", 39, "Arrive G", "2026-11-21T11:00:00")
+        res = look()[1]
+        self.assertEqual(res["arr-g"]["state"], "unlinked")
+        self.assertIn("KV answered 503", res["arr-g"]["why"])
+        e = ledger.episode(c, "arr-g")
+        self.assertGreater(len(arrive.posts(c, "arr-g")), 5)
+        self.assertIn("links not pushed", arrive.stage(c, e))
+        self.assertEqual(len(subjects()), sent, "too young to be worth a mail")
+        self.assertIn("refused or failing", arrive.health(c))
+        c.execute("UPDATE arrival SET since=? WHERE slug='arr-g'", (ago(31),))
+        look()
+        self.assertEqual(subjects()[sent:], ["Episode 39, Arrive G is in without its short links"])
+        look()
+        self.assertEqual(len(subjects()), sent + 1, "the only note about it")
+        arrive.switch(c, False, "tester")
+        down.clear()
+        res = look()[1]
+        self.assertEqual(res["arr-g"]["state"], "in", "only the links were left, and those are not the switch's")
+        self.assertTrue(all(i.startswith("e39") and i in kv for i in ids("arr-g")), ids("arr-g"))
+        self.assertEqual(subjects()[sent + 1 :], ["Episode 39, Arrive G is in"])
+        # what waits is held to the numbers too: off, a pass still refuses what it would refuse when on
+        self.assertEqual((res["arr-c"]["state"], res["arr-c"]["why"]), ("refused", "episode number 9 is ep9's"))
+        self.assertIn("Nothing is waiting on the switch", arrive.panel(c, "t"))
+        waits = [
+            {"slug": s, "number": n, "state": "waiting"} for s, n in (("arr-a", "39"), ("arr-g", "33"), ("new", "38"))
+        ]
+        arrive.settle(c, waits, "waiting")
+        self.assertEqual([w["state"] for w in waits], ["waiting", "waiting", "refused"], "a swap would go; 38 is Ada's")
+        self.assertEqual(waits[2]["why"], "episode number 38 is ada-engines's")
+
+        # a staged record that leaves the archive leaves nothing waiting
+        del objs["episodes/arr-f/out/staged.json"]
+        look()
+        self.assertIsNone(arrive.arrival(c, "arr-f"))
+
+        # one pass at a time, and the worker's is due every ten minutes
+        with arrive.LOCK:
+            self.assertEqual(press("look"), "A look is running already; reload in a moment")
+        self.assertFalse(arrive.due())
+        arrive.LAST["at"] = ago(11)
+        self.assertTrue(arrive.due())
+
+        # the screens
+        web.STATE["ledger"] = str(self.db)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+        def get(path):
+            try:
+                with urllib.request.urlopen(base + path, timeout=10) as r:
+                    return r.status, dict(r.headers), r.read().decode(errors="replace")
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code, dict(e.headers), e.read().decode(errors="replace")
+
+        def post(path, token=web.CSRF):
+            data = urllib.parse.urlencode({"_t": token}).encode()
+            req = urllib.request.Request(base + path, data=data, method="POST")
+            try:
+                with urllib.request.build_opener(NoRedirect).open(req, timeout=10) as r:
+                    return r.status, urllib.parse.unquote_plus(r.headers.get("Location") or "")
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code, urllib.parse.unquote_plus(e.headers.get("Location") or "")
+
+        with unittest.mock.patch.object(archive, "Client", lambda env=None: client):  # the engine's own pass
+            st, h, body = get("/episodes")
+            self.assertEqual(st, 200)
+            for part in (
+                "Arrivals",
+                "Automatic arrival is <b>off</b>",
+                "Look now",
+                "Put it back",
+                "Bring it in",
+                "In the ledger",
+                "planned, links pushed",
+                "arr-c",
+            ):
+                self.assertIn(part, body)
+            self.assertEqual(post("/episodes/arr-e/back"), (303, "/episodes?msg=arr-e is back on the list"))
+            self.assertEqual(arrive.arrival(c, "arr-e")["state"], "waiting")
+            with unittest.mock.patch("sys.stdout", new_callable=io.StringIO) as logged:  # the pass tells the log
+                st, to = post("/episodes/look")
+            self.assertEqual(st, 303)
+            self.assertIn("arr-c was refused", to)
+            self.assertIn("arrive: arr-c: refused: episode number 9 is ep9's", logged.getvalue())
+            self.assertEqual(post("/episodes/nope/bring")[0], 400)
+            self.assertEqual(post("/episodes/look", "stale")[0], 403)
+            self.assertIn("Hello there", get("/episodes?msg=Hello+there")[2])
+            self.assertIn("Episode arrivals", get("/health")[2])
+        srv.shutdown()
+
+        # no credentials, and an archive that cannot be listed
+        found = arrive.look(c, None, env={}, log=quiet)
+        self.assertIn("not set", found["skipped"])
+        self.assertTrue(arrive.sentence(found).startswith("Not looked: "))
+        nowhere = archive.Client({**self.r2env, "R2_ENDPOINT": "http://127.0.0.1:9"})
+        found = arrive.look(c, nowhere, env={}, log=quiet)
+        self.assertTrue(found["error"].startswith("the archive could not be listed: "), found["error"])
+
+        # the commands by hand say why, and leave the stopping to the command line
+        with self.assertRaises(ingest.IngestError):
+            ingest.read("nope", self.data / "nowhere")
+        with self.assertRaises(plan.PlanError):
+            plan.draft(c, "nope")
 
 
 class TidyTest(unittest.TestCase):

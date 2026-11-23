@@ -20,7 +20,6 @@ import json
 import os
 import pathlib
 import re
-import sys
 import urllib.error
 import urllib.request
 
@@ -114,6 +113,8 @@ def link_id(number, account, asset, r):
     if asset == "episode":
         return f"e{number}{code}e"
     clip = clip_for(r, asset)
+    if not clip:  # the plan names a clip the record no longer has; compose says so with no text
+        return None
     return f"e{number}{code}c{int(clip['index']):02d}"
 
 
@@ -124,17 +125,40 @@ def link_url(r, asset):
     return clip["post"].get("link_at") or r["episode"]["url"]
 
 
-def plan(c, slug, who="engine"):
-    row = ledger.episode(c, slug)
-    if not row:
-        sys.exit(f"error: {slug} is not in the ledger: ingest it first")
+class PlanError(Exception):
+    """This episode cannot be planned, and why."""
+
+
+def release_of(row):
+    """The episode's release record, with the YouTube description as the
+    workstation wrote it (youtube.txt) when that file sits beside the record."""
     r = ledger.release(row)
     src = pathlib.Path(row["source_dir"] or "")
     yt_txt = src / r.get("notes", {}).get("youtube", "youtube.txt")
-    if yt_txt.exists():
+    if yt_txt.is_file():
         r["_youtube_text"] = yt_txt.read_text(encoding="utf-8")
-    made = []
+    return r
+
+
+def plan(c, slug, who="engine"):
     c.execute("BEGIN")
+    try:
+        made = draft(c, slug, who)
+    except BaseException:
+        c.execute("ROLLBACK")
+        raise
+    c.execute("COMMIT")
+    return made
+
+
+def draft(c, slug, who="engine"):
+    """The posts the plan asks for and the ledger does not hold yet, inside
+    whatever transaction the caller holds. Returns their ids."""
+    row = ledger.episode(c, slug)
+    if not row:
+        raise PlanError(f"{slug} is not in the ledger: ingest it first")
+    r = release_of(row)
+    made = []
     for entry in r["plan"]:
         asset = entry["asset"]
         kind = "episode" if asset == "episode" else "clip"
@@ -173,7 +197,6 @@ def plan(c, slug, who="engine"):
             made.append(cur.lastrowid)
     if made:
         ledger.event(c, "plan", who, episode=slug, detail={"posts": len(made)})
-    c.execute("COMMIT")
     return made
 
 

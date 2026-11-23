@@ -121,6 +121,10 @@ CREATE TABLE IF NOT EXISTS host_approval (
 CREATE TABLE IF NOT EXISTS credential (
   platform TEXT PRIMARY KEY, who TEXT, issued_at TEXT, expires_at TEXT, grant_expires_at TEXT, checked_at TEXT,
   refreshed_at TEXT, warned_at TEXT, state TEXT NOT NULL DEFAULT 'valid', note TEXT, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS arrival (
+  slug TEXT PRIMARY KEY, etag TEXT, staged_at TEXT, number TEXT, title TEXT, release TEXT, state TEXT NOT NULL,
+  why TEXT, seen_at TEXT NOT NULL, checked_at TEXT, since TEXT, done_at TEXT, allowed_for TEXT, allowed_by TEXT,
+  allowed_at TEXT, told TEXT);
 """
 
 MIGRATIONS = [
