@@ -6,6 +6,7 @@ line; the screens are `serve`. The design is on AGE-69.
 
     ./engine/engine.py ingest ep1              the staged episode into the ledger
     ./engine/engine.py plan ep1                its day plan into posts, with short links
+    ./engine/engine.py arrive --dry-run        what the worker's look at the archive would bring in
     ./engine/engine.py publish --due --dry-run what the next run would do
     op run --env-file=engine/engine.env -- ./engine/engine.py publish --due
     op run --env-file=engine/engine.env -- ./engine/engine.py serve
@@ -36,8 +37,26 @@ def who():
 def cmd_ingest(a):
     c = ledger.connect(a.ledger)
     for slug in a.slug:
-        n = ingest.ingest(c, slug, a.src, who(), from_archive=a.archive)
+        try:
+            n = ingest.ingest(c, slug, a.src, who(), from_archive=a.archive)
+        except ingest.IngestError as e:
+            sys.exit(f"error: {e}")
         print(f"{slug}: {n} deliverables in the ledger")
+
+
+def cmd_arrive(a):
+    import arrive
+
+    c = ledger.connect(a.ledger)
+    found = arrive.attempt(c, wait=True, who=who(), dry_run=a.dry_run)
+    if found.get("skipped"):
+        sys.exit(f"error: {found['skipped']}")
+    if found.get("error"):
+        sys.exit(f"error: {found['error']}")
+    print(
+        f"{found['staged']} staged in the archive, {len(found['results'])} looked at"
+        + ("" if found["on"] else "; automatic arrival is off, so nothing is brought in without a host's word")
+    )
 
 
 def cmd_snapshot(a):
@@ -66,7 +85,10 @@ def cmd_restore(a):
 def cmd_plan(a):
     c = ledger.connect(a.ledger)
     for slug in a.slug:
-        made = plan.plan(c, slug, who())
+        try:
+            made = plan.plan(c, slug, who())
+        except plan.PlanError as e:
+            sys.exit(f"error: {e}")
         total = c.execute("SELECT COUNT(*) FROM post WHERE episode=?", (slug,)).fetchone()[0]
         print(f"{slug}: {len(made)} new posts ({total} in all)")
         if a.prune:
@@ -352,6 +374,12 @@ def main():
         help="read release.json and staged.json from the archive bucket (the default when build/ is not here)",
     )
     p.set_defaults(fn=cmd_ingest)
+    p = sub.add_parser(
+        "arrive",
+        help="look in the archive for staged episodes the ledger has not taken, and bring them in (the worker does)",
+    )
+    p.add_argument("--dry-run", action="store_true", help="say what the look would do and change nothing")
+    p.set_defaults(fn=cmd_arrive)
     p = sub.add_parser("plan", help="the day plan into posts, with short links")
     p.add_argument("slug", nargs="+")
     p.add_argument("--no-links", action="store_true", help="do not push the short links to KV")

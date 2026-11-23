@@ -480,7 +480,14 @@ def _nudged(env, a, c=None):
     return {"issue": a["issue"], "comment": cm["url"]}
 
 
+def _arrived(env, a, c=None):
+    """What the automatic arrival did with a guest's episode (arrive.tell): brought it in, or refused it."""
+    cm = comment(env, a["issue"], a["text"])
+    return {"issue": a["issue"], "comment": cm["url"]}
+
+
 JOBS = {
+    "arrived": _arrived,
     "invited": _invited,
     "sent": _sent,
     "revoked": _revoked,

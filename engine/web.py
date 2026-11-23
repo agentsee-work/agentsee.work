@@ -28,6 +28,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import archive
+import arrive
 import collect
 import deploy
 import guests
@@ -95,7 +96,7 @@ def post_rows(posts, by_day=True):
     return f'<table class="engine-table"><thead><tr>{head}</tr></thead><tbody>{"".join(out)}</tbody></table>'
 
 
-def episodes_page(c):
+def episodes_page(c, csrf="", msg=None):
     rows = []
     for e in c.execute("SELECT * FROM episode ORDER BY release, number"):
         counts = c.execute(
@@ -111,17 +112,24 @@ def episodes_page(c):
                 esc(e["approved_by"]),
                 esc(when(e["staged_at"])),
                 str(files),
+                arrive.stage(c, e),
                 esc(summary),
             ]
         )
     body = (
         '<article class="lead"><h1>Episodes</h1><p class="deck">What has been approved and staged, '
-        "and where each one has gone. An episode arrives here by <code>engine.py ingest</code>.</p></article>"
+        "and where each one has gone. An episode arrives here by itself once it is staged: the engine "
+        "looks in the archive, and says below what it found and what it would not do alone.</p></article>"
     )
-    body += (
-        table(["No.", "Title", "Release", "Approved by", "Staged", "Files", "Posts"], rows)
+    if msg:
+        body += f'<p class="honesty"><b>{esc(msg)}</b></p>'
+    body += arrive.panel(c, csrf)
+    body += section(
+        "In the ledger",
+        f"{len(rows)} episodes",
+        table(["No.", "Title", "Release", "Approved by", "Staged", "Files", "Stage", "Posts"], rows)
         if rows
-        else "<p>Nothing yet. Stage an episode, then <code>./engine/engine.py ingest &lt;slug&gt;</code>.</p>"
+        else "<p>Nothing yet. Approve and stage an episode, and it arrives here.</p>",
     )
     return "Episodes", body
 
@@ -179,7 +187,10 @@ def episode_page(c, slug):
     body += section(
         "Posts",
         f"{len(posts)} planned across {len({p['account'] for p in posts})} accounts",
-        post_rows(posts) if posts else "<p>No posts yet: <code>./engine/engine.py plan " + esc(slug) + "</code>.</p>",
+        post_rows(posts)
+        if posts
+        else "<p>No posts yet. The next look at the archive plans them (Episodes has the button); "
+        "<code>./engine/engine.py plan " + esc(slug) + "</code> does it by hand.</p>",
     )
     body += section(
         "Record",
@@ -723,6 +734,7 @@ def health_page(c):
         ("Last deploy", deploy.record_html()),
         ("Ledger", f'<span class="mono">{esc(STATE["ledger"] or ledger.data_dir() / "ledger.sqlite")}</span>'),
         ("Worker last ran", when(STATE["last_run"]) or "not in this process"),
+        ("Episode arrivals", arrive.health(c)),
         (
             "Resting",
             "; ".join(f"{esc(a)} until {esc(when(u.isoformat()))}: {esc(why)}" for a, (u, why) in publish.HELD.items())
@@ -916,7 +928,7 @@ class App(BaseHTTPRequestHandler):
                 name = f'attachment; filename="agentsee-release-v{g["signed_version"]}-{g["id"]}.pdf"'
                 return self.send(200, data, "application/pdf", "private, no-store", [("Content-Disposition", name)])
             if path == "/episodes":
-                return self.html(*episodes_page(c))
+                return self.html(*episodes_page(c, CSRF, q.get("msg")))
             m = re.fullmatch(r"/episodes/([a-z0-9-]+)", path)
             if m:
                 r = episode_page(c, m.group(1))
@@ -1078,6 +1090,10 @@ class App(BaseHTTPRequestHandler):
                         html = review.notes_body(c, g, row, review.said("Sent.") if what == "note" else "", host, CSRF)
                     return guests.answer(self, 200, ok=True, sections=[{"id": sec, "html": html}])
                 return self.redirect(f"/guests/{g['id']}/review#{sec}")
+            m = re.fullmatch(r"/episodes/(look|auto/on|auto/off)|/episodes/([a-z0-9-]{1,61})/(bring|aside|back)", path)
+            if m:
+                msg = arrive.act(c, m.group(1) or m.group(3), m.group(2), who)
+                return self.redirect("/episodes?" + urllib.parse.urlencode({"msg": msg}))
             m = re.fullmatch(r"/posts/(\d+)/(text|schedule|publish|retry|skip|unskip|done)", path)
             if not m:
                 return self.fail(404, "No such action")
@@ -1206,6 +1222,12 @@ def worker(stop, interval=60):
                     res = publish.run(c, posts, who="worker", log=lambda s: print(s, flush=True))
                     ledger.event(c, "publisher:run", "worker", detail={"results": res})
                 STATE["last_run"] = ledger.now()
+                if arrive.due():
+                    try:  # its own guard: a bad look at the archive must not cost the minute's other work
+                        arrive.attempt(c, who="worker", log=lambda s: print(s, flush=True))
+                    except Exception as e:  # noqa: BLE001
+                        print(f"worker: arrive: {type(e).__name__}: {e}", flush=True)
+                        arrive.remember({"at": ledger.now(), "error": f"{type(e).__name__}: {e}"})
                 linear.drain(c, os.environ, log=lambda s: print(s, flush=True))
                 if snapshot_due():
                     try:

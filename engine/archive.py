@@ -32,6 +32,7 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+from xml.etree import ElementTree
 
 import ledger
 
@@ -136,8 +137,9 @@ class Client:
     def request(self, method, key, body=b"", headers=None, query=None, timeout=120):
         """One signed request. The body is bytes, or a (file, size, sha256)
         triple streamed as it is. Returns (status, headers, response), the
-        response still open for the caller to read."""
-        path = f"/{self.bucket}/{key}"
+        response still open for the caller to read. A key of None is the
+        bucket itself, which is what a listing asks."""
+        path = f"/{self.bucket}" if key is None else f"/{self.bucket}/{key}"
         h = dict(headers or {})
         if isinstance(body, tuple):
             data, size, digest = body
@@ -162,8 +164,8 @@ class Client:
         }.get(status, "")
         return f"{status}{': ' + why if why else ''} {text.strip()}".strip()
 
-    def head(self, key):
-        st, h, r = self.request("HEAD", key)
+    def head(self, key, timeout=120):
+        st, h, r = self.request("HEAD", key, timeout=timeout)
         with r:
             pass
         if st == 404:
@@ -171,6 +173,59 @@ class Client:
         if st != 200:
             raise ArchiveError(f"HEAD {key}: {st}")
         return h
+
+    def list(self, prefix, delimiter="/", timeout=30):
+        """What sits under `prefix`: (folders, keys), the folders being the
+        common prefixes up to the next `delimiter` and the keys the objects
+        at this level, each with its prefix still on. ListObjectsV2, a page
+        at a time until R2 says there is no more."""
+        folders, keys, token = [], [], None
+        while True:
+            query = {"list-type": "2", "prefix": prefix}
+            if delimiter:
+                query["delimiter"] = delimiter
+            if token:
+                query["continuation-token"] = token
+            st, h, r = self.request("GET", None, query=query, timeout=timeout)
+            if st != 200:
+                raise ArchiveError(f"LIST {prefix}: " + self.said(st, r))
+            with r:
+                try:
+                    root = ElementTree.fromstring(r.read())
+                except ElementTree.ParseError as e:
+                    raise ArchiveError(f"LIST {prefix}: the answer is not a listing ({e})") from e
+            found = {"Prefix": folders, "Key": keys}
+            token = None
+            for el in root.iter():
+                tag = el.tag.rsplit("}", 1)[-1]  # R2 answers in S3's namespace
+                if tag == "NextContinuationToken":
+                    token = el.text
+            for parent, child in (("CommonPrefixes", "Prefix"), ("Contents", "Key")):
+                for el in root.iter():
+                    if el.tag.rsplit("}", 1)[-1] != parent:
+                        continue
+                    for sub in el:
+                        if sub.tag.rsplit("}", 1)[-1] == child and sub.text:
+                            found[child].append(sub.text)
+            if not token:
+                return folders, keys
+
+    def get_bytes(self, key, timeout=60, limit=8 << 20):
+        """A small object as it is stored, or None when the archive has no
+        such key: for a record whose sha256 is about to be checked, which
+        get_json would lose by parsing it."""
+        st, h, r = self.request("GET", key, timeout=timeout)
+        if st == 404:
+            with r:
+                pass
+            return None
+        if st != 200:
+            raise ArchiveError(f"GET {key}: " + self.said(st, r))
+        with r:
+            data = r.read(limit + 1)
+        if len(data) > limit:
+            raise ArchiveError(f"{key} is larger than {limit:,} bytes: not a record")
+        return data
 
     def get(self, key, dest, sha256=None, log=None):
         """The object to `dest`, through a sibling temp file, checked

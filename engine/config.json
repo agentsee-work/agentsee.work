@@ -12,6 +12,7 @@
   "collect_at": "05:30",
   "remind_at": "09:30",
   "remind": {"after_days": [3, 7], "door_days": [7, 14], "weekdays": true},
+  "arrive": {"every_minutes": 10},
   "datasets": {"media": "podcast_media", "links": "podcast_links"},
   "x": {"vault": "Engineering", "item": "X podcast token", "field": "credential"},
   "threads": {"vault": "Engineering", "item": "Threads podcast token", "field": "credential"},
