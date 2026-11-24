@@ -6,7 +6,9 @@ deliverables; a post is a deliverable on a platform from an account, with
 its short-link id, its text, when it is due, what the platform called it and
 where it lives; snapshots and spend hang off posts; clicks and downloads
 arrive from the edges; a lead is where an enquiry says it came from. Events
-are the audit trail: who did what, when, in the engine.
+are the audit trail: who did what, when, in the engine. A claim is one of
+Seymour's poses or chains and the one person it belongs to (seymour.py): the
+primary key is one owner to each, the unique owner one each to a person.
 
 Where the file lives: $ENGINE_DATA/ledger.sqlite, or build/engine/ beside the
 episodes when that is unset (gitignored, like everything under build/). Every
@@ -125,6 +127,9 @@ CREATE TABLE IF NOT EXISTS arrival (
   slug TEXT PRIMARY KEY, etag TEXT, staged_at TEXT, number TEXT, title TEXT, release TEXT, state TEXT NOT NULL,
   why TEXT, seen_at TEXT NOT NULL, checked_at TEXT, since TEXT, done_at TEXT, allowed_for TEXT, allowed_by TEXT,
   allowed_at TEXT, told TEXT);
+CREATE TABLE IF NOT EXISTS claim (
+  kind TEXT NOT NULL, name TEXT NOT NULL, owner TEXT NOT NULL UNIQUE, guest TEXT, host TEXT, shown TEXT NOT NULL,
+  how TEXT NOT NULL, by TEXT NOT NULL, at TEXT NOT NULL, slug TEXT, round INTEGER, PRIMARY KEY (kind, name));
 """
 
 MIGRATIONS = [

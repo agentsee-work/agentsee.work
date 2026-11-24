@@ -1,0 +1,75 @@
+/* ─────────────────────────────────────────────────────────────
+   AgentSee — Seymour, small (seymour-face.css)
+
+   One of the show's eye's poses or chains as a small face: a
+   guest's own on their episode's page (tools/site.py), and the
+   board a guest picks from in the office (engine/seymour.py).
+   styles.css is loaded first for the tokens and the mark's own
+   fills; this file adds what the show's eye has and the masthead's
+   has not, the lids, and takes off what the masthead's does by
+   stylesheet: the resting blink, the iris easing, the hat tipping
+   from its brim. seymour-face.js moves him, by SVG attributes.
+
+   The class is .seyface, not .mark: .mark is the masthead's, with
+   its size, its pointer and its moods.
+   ───────────────────────────────────────────────────────────── */
+
+.seyface {
+  --mark-w: 4.5rem;
+  /* The lid is a lit surface and its margin is drawn in line, so like the
+     pupil and the glint they are pinned to the light and dark ends of
+     whichever palette is running (tools/banner.py, THEMES). */
+  --sey-lid: var(--paper);
+  --sey-line: var(--ink);
+  display: block;
+  flex: none;
+  width: var(--mark-w);
+  line-height: 0;
+}
+@media (prefers-color-scheme: dark) {
+  .seyface { --sey-lid: var(--ink); --sey-line: var(--paper); }
+}
+.seyface svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* The pose is in the drawing's own transform attributes, each about its own
+   point, so the origins styles.css gives the masthead's parts are put back. */
+.seyface .eye { animation: none; transition: none; transform: none; }
+.seyface .iris { transition: none; }
+.seyface .hat, .seyface .pupil, .seyface .glint { transform-box: view-box; transform-origin: 0 0; }
+.seyface .lid-fill { fill: var(--sey-lid); }
+/* The lid's margin: the same non-scaling stroke as the outline at .68 of its
+   weight (tools/eye.py, mark_css); its fade over the first sliver of travel
+   is the opacity attribute the drawing carries. */
+.seyface .lid-edge {
+  fill: none;
+  stroke: var(--sey-line);
+  stroke-linecap: round;
+  stroke-width: calc(var(--mark-w) * .025 * .68);
+}
+
+/* A guest's own Seymour, under their line on their episode's page. */
+.seyown {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0 0;
+  padding-top: .9rem;
+  border-top: 1px solid var(--hair);
+  font-size: .9rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.seyown .seyface { --mark-w: 5.2rem; }
+.seyown b {
+  display: block;
+  font-family: var(--mono);
+  font-size: .62rem;
+  font-weight: 400;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--signal);
+  margin-bottom: .2rem;
+}
+.seyown a { color: inherit; text-decoration-color: var(--underline); text-underline-offset: .15em; }
+.seyown a:hover { color: var(--signal); }

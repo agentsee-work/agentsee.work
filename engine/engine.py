@@ -60,6 +60,21 @@ def cmd_arrive(a):
     )
 
 
+def cmd_seymour(a):
+    """Who holds which of Seymour's poses and chains, and the archive's copies written again."""
+    import seymour
+
+    c = ledger.connect(a.ledger)
+    rows = seymour.claims(c)
+    for r in rows:
+        print(f"  {r['kind']:<5} {r['name']:<14} {seymour.shown(c, r):<24} {r['how']:<8} {r['at'][:16]}  by {r['by']}")
+    free = sum(1 for kind, item in seymour.claimable() if not seymour.holder(c, kind, item["name"]))
+    print(f"{len(rows)} claimed, {free} of {len(seymour.claimable())} free")
+    if a.mirror:
+        done = seymour.mirror_all(c)
+        print(f"mirrored: {', '.join(done) if done else 'nothing (is the archive credential in the environment?)'}")
+
+
 def cmd_snapshot(a):
     import archive
 
@@ -491,6 +506,11 @@ def main():
     p.add_argument("--png", help="sign: a signature image to put on file first (PNG, under 400 KB)")
     p.add_argument("--version", type=int, help="sign: the version to sign; default the latest")
     p.set_defaults(fn=cmd_release)
+    p = sub.add_parser("seymour", help="who holds which of Seymour's poses and chains (the guests' claims)")
+    p.add_argument(
+        "--mirror", action="store_true", help="write the board and each guest's claim.json to the archive again"
+    )
+    p.set_defaults(fn=cmd_seymour)
     p = sub.add_parser("snapshot", help="a copy of the ledger to the archive bucket, now (the worker does it nightly)")
     p.set_defaults(fn=cmd_snapshot)
     p = sub.add_parser("restore", help="the ledger back from the archive, for a rebuilt box")

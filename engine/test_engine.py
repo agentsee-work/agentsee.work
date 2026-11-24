@@ -20,6 +20,7 @@ import pathlib
 import re
 import smtplib
 import socket
+import sqlite3
 import struct
 import subprocess
 import sys
@@ -6984,6 +6985,664 @@ class EngineTest(unittest.TestCase):
             ingest.read("nope", self.data / "nowhere")
         with self.assertRaises(plan.PlanError):
             plan.draft(c, "nope")
+
+
+class SeymourTest(unittest.TestCase):
+    """A Seymour of their own (AGE-159), on a ledger of its own: one owner to a pose or chain and one to a
+    person, by the table; the reserved ones refused; a swap that frees what was left; a host's own, with no
+    head start; a host's assignment and release; the records in the archive; the pages on both hosts."""
+
+    @classmethod
+    def setUpClass(cls):
+        import seymour
+
+        cls.seymour = seymour
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.tmp.cleanup)
+        cls.db = pathlib.Path(cls.tmp.name) / "ledger.sqlite"
+        cls.r2 = http.server.HTTPServer(("127.0.0.1", 0), FakeR2)
+        threading.Thread(target=cls.r2.serve_forever, daemon=True).start()
+        cls.addClassCleanup(cls.r2.server_close)
+        cls.addClassCleanup(cls.r2.shutdown)
+        client = archive.Client(
+            {
+                "R2_ACCOUNT_ID": "acct",
+                "R2_ARCHIVE_BUCKET": "archive-test",
+                "AWS_ACCESS_KEY_ID": "AKID",
+                "AWS_SECRET_ACCESS_KEY": "secret",
+                "R2_ENDPOINT": f"http://127.0.0.1:{cls.r2.server_address[1]}",
+            }
+        )
+        patch = unittest.mock.patch.object(archive, "Client", lambda env=None: client)
+        patch.start()
+        cls.addClassCleanup(patch.stop)
+        mail.SMTP = FakeSMTP
+        os.environ.update(MAIL_USER="office", MAIL_PASSWORD="office-pass", ENGINE_USER="james@agentsee.work")
+        cls.addClassCleanup(lambda: [os.environ.pop(k, None) for k in ("MAIL_USER", "MAIL_PASSWORD", "ENGINE_USER")])
+        c = ledger.connect(cls.db)
+        cls.addClassCleanup(c.close)
+        cls.conn = c
+        cls.guests = {}
+        for name in ("Besar Krasniqi", "Ada Lovelace", "Grace Hopper"):
+            g = guests.create(c, name, f"{name.split()[0].lower()}@example.com", None, "tester")
+            now = ledger.now()
+            c.execute(
+                "UPDATE guest SET state='claimed', claimed_at=?, signed_at=?, signed_version=1 WHERE id=?",
+                (now, now, g["id"]),
+            )
+            cls.guests[name.split()[0]] = g["id"]
+        for first in ("Besar", "Ada"):  # their episodes are there to watch; Grace's is not yet
+            cls.round(c, cls.guests[first], f"{first.lower()}-ep")
+
+    @staticmethod
+    def round(c, gid, slug):
+        doc = {"slug": slug, "round": 1, "at": "2026-11-24T10:00:00", "title": f"An episode ({slug})", "files": {}}
+        c.execute(
+            "INSERT INTO review (guest, slug, round, record, release, seen_at, fetched_at) VALUES (?,?,?,?,?,?,?)",
+            (gid, slug, 1, json.dumps(doc, sort_keys=True), json.dumps({"clips": []}), ledger.now(), ledger.now()),
+        )
+
+    def g(self, first):
+        return guests.guest(self.conn, self.guests[first])
+
+    def stored(self, key):
+        return json.loads(FakeR2.state["objects"][key]["body"])
+
+    def test_1_the_board(self):
+        """What may be claimed: 19 poses and 12 chains; the show's three and six are not among them, and the
+        cards' chains are reserved (tools/cards.py names them)."""
+        sy = self.seymour
+        free = sy.claimable()
+        self.assertEqual((sum(k == "pose" for k, _ in free), sum(k == "chain" for k, _ in free)), (19, 12))
+        names = {(k, item["name"]) for k, item in free}
+        for kind, name in (
+            ("pose", "attentive"),
+            ("pose", "asleep"),
+            ("pose", "closed"),
+            ("chain", "blink"),
+            ("chain", "listen"),
+            ("chain", "idle"),
+            ("chain", "intro"),
+            ("chain", "signoff"),
+            ("chain", "sleep"),
+        ):
+            self.assertNotIn((kind, name), names)
+            self.assertTrue(sy.reserved(kind, name))
+        self.assertIn(("pose", "wry"), names)
+        self.assertIn(("chain", "eyeroll"), names)
+
+    def test_2_claim_taken_swap(self):
+        """First come, first served: a claim; the same one refused to the next guest; the reserved, the unknown
+        and the too-early refused; a swap frees what was left; every step an event, and the archive's copies."""
+        sy, c = self.seymour, self.conn
+        told = sy.take(c, "pose", "wry", "besar@example.com", guest=self.g("Besar"))
+        self.assertEqual((told["what"], told["seymour"], told["how"], told["was"]), ("pose", "wry", "claimed", None))
+        row = sy.of_guest(c, self.guests["Besar"])
+        self.assertEqual(
+            (row["kind"], row["name"], row["how"], row["slug"], row["round"]), ("pose", "wry", "claimed", "besar-ep", 1)
+        )
+        with self.assertRaisesRegex(sy.SeymourError, "wry is Besar Krasniqi's"):
+            sy.take(c, "pose", "wry", "ada@example.com", guest=self.g("Ada"))
+        self.assertIsNone(sy.of_guest(c, self.guests["Ada"]), "a refused claim leaves nothing")
+        with self.assertRaisesRegex(sy.SeymourError, "yours already"):
+            sy.take(c, "pose", "wry", "besar@example.com", guest=self.g("Besar"))
+        for kind, name in (("pose", "attentive"), ("chain", "signoff"), ("chain", "intro")):
+            with self.assertRaisesRegex(sy.SeymourError, "the show's own"):
+                sy.take(c, kind, name, "ada@example.com", guest=self.g("Ada"))
+        for kind, name in (("pose", "smug"), ("chain", "wry"), ("hat", "wry")):
+            with self.assertRaisesRegex(sy.SeymourError, "from the board"):
+                sy.take(c, kind, name, "ada@example.com", guest=self.g("Ada"))
+        with self.assertRaisesRegex(sy.SeymourError, "from the board"):
+            sy.parse("pose:smug")
+        self.assertEqual(sy.parse("chain:eyeroll"), ("chain", "eyeroll"))
+        self.assertTrue(sy.may_pick(c, self.g("Ada")))
+        self.assertFalse(sy.may_pick(c, self.g("Grace")), "nothing to watch yet, and nothing given")
+
+        # the table itself holds the rule, whatever the code above it does
+        with self.assertRaises(sqlite3.IntegrityError, msg="one owner to a pose"):
+            c.execute(
+                "INSERT INTO claim (kind, name, owner, guest, shown, how, by, at) VALUES ('pose','wry','guest:x','x','X','claimed','x','t')"
+            )
+        with self.assertRaises(sqlite3.IntegrityError, msg="one to a person"):
+            c.execute(
+                "INSERT INTO claim (kind, name, owner, guest, shown, how, by, at) VALUES ('pose','sad',?,?,'B','claimed','b','t')",
+                (f"guest:{self.guests['Besar']}", self.guests["Besar"]),
+            )
+
+        # the archive: the guest's record beside their approval, and the board
+        doc = self.stored(f"guests/{self.guests['Besar']}/claim.json")
+        self.assertEqual(
+            (doc["kind"], doc["name"], doc["by"], doc["how"]), ("pose", "wry", "besar@example.com", "claimed")
+        )
+        self.assertEqual(doc["review"], {"slug": "besar-ep", "round": 1})
+        self.assertEqual([(h["what"], h["name"]) for h in doc["history"]], [("claimed", "wry")])
+        board = self.stored("seymour/claims.json")
+        self.assertEqual(
+            [(x["kind"], x["name"], x["owner"], x["guest"], x["host"]) for x in board["claims"]],
+            [("pose", "wry", "Besar Krasniqi", self.guests["Besar"], None)],
+        )
+
+        # a swap: the chain is his, the pose is free again and the next guest takes it
+        told = sy.take(c, "chain", "eyeroll", "besar@example.com", guest=self.g("Besar"))
+        self.assertEqual((told["how"], told["was"]), ("swapped", "the pose wry"))
+        self.assertIsNone(sy.holder(c, "pose", "wry"))
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM claim").fetchone()[0], 1, "one each, never two")
+        sy.take(c, "pose", "wry", "ada@example.com", guest=self.g("Ada"))
+        doc = self.stored(f"guests/{self.guests['Besar']}/claim.json")
+        self.assertEqual((doc["kind"], doc["name"]), ("chain", "eyeroll"))
+        self.assertEqual([h["what"] for h in doc["history"]], ["claimed", "swapped"])
+        self.assertEqual(doc["history"][1]["was"], {"kind": "pose", "name": "wry"})
+        events = c.execute("SELECT who, what, guest FROM event WHERE what LIKE 'seymour:%' ORDER BY id").fetchall()
+        self.assertEqual(
+            [(e["who"], e["what"]) for e in events],
+            [
+                ("besar@example.com", "seymour:claimed"),
+                ("besar@example.com", "seymour:swapped"),
+                ("ada@example.com", "seymour:claimed"),
+            ],
+        )
+        # the name others see is the one the guest asked to be shown by, as of today
+        c.execute("UPDATE guest SET shown_name='Ada, Countess of Lovelace' WHERE id=?", (self.guests["Ada"],))
+        self.assertEqual(sy.shown(c, sy.holder(c, "pose", "wry")), "Ada, Countess of Lovelace")
+        c.execute("UPDATE guest SET shown_name=NULL WHERE id=?", (self.guests["Ada"],))
+
+    def test_3_two_at_once(self):
+        """Two connections claiming the same pose in the same moment: one has it, the other is told."""
+        sy = self.seymour
+        c = self.conn
+        a = guests.create(c, "Race One", "one@example.com", None, "tester")
+        b = guests.create(c, "Race Two", "two@example.com", None, "tester")
+        gate, got = threading.Barrier(2), []
+
+        def claim(g):
+            conn = ledger.connect(self.db)
+            try:
+                gate.wait(timeout=5)
+                sy.take(conn, "pose", "cold", g["address"], guest=g)
+                got.append(("won", g["name"]))
+            except sy.SeymourError as e:
+                got.append(("lost", str(e)))
+            finally:
+                conn.close()
+
+        threads = [threading.Thread(target=claim, args=(g,)) for g in (a, b)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(10)
+        self.assertEqual(sorted(x[0] for x in got), ["lost", "won"], got)
+        self.assertEqual(c.execute("SELECT COUNT(*) FROM claim WHERE kind='pose' AND name='cold'").fetchone()[0], 1)
+        sy.release(c, "pose", "cold", "tester")
+
+    def test_4_hosts(self):
+        """A host's own, by the same rule and with no head start; a host's assignment for a guest, which is
+        the guest's to swap; a host's release, which frees it; all recorded with the host's name."""
+        sy, c = self.seymour, self.conn
+        with self.assertRaisesRegex(sy.SeymourError, "wry is Ada Lovelace's"):
+            sy.take(c, "pose", "wry", "james@agentsee.work", host="James")
+        with self.assertRaisesRegex(sy.SeymourError, "hosts are James and Abrar"):
+            sy.take(c, "pose", "sad", "eve@agentsee.work", host="Eve")
+        self.assertIsNone(sy.take(c, "chain", "deadpan", "james@agentsee.work", host="James"))
+        sy.take(c, "pose", "delighted", "james@agentsee.work", host="James")  # a swap, like anyone's
+        self.assertIsNone(sy.holder(c, "chain", "deadpan"))
+        self.assertEqual(sy.of_host(c, "James")["name"], "delighted")
+        with self.assertRaisesRegex(sy.SeymourError, "delighted is James's"):
+            sy.take(c, "pose", "delighted", "grace@example.com", guest=self.g("Grace"))
+
+        # an assignment: Grace has no episode to watch yet, and a host gives her one
+        told = sy.take(c, "pose", "curious", "abrar@agentsee.work", guest=self.g("Grace"), how="assigned")
+        self.assertEqual((told["how"], told["seymour"]), ("assigned", "curious"))
+        row = sy.of_guest(c, self.guests["Grace"])
+        self.assertEqual((row["how"], row["by"]), ("assigned", "abrar@agentsee.work"))
+        self.assertTrue(sy.may_pick(c, self.g("Grace")), "what a host gave is hers to swap")
+        told = sy.take(c, "pose", "sad", "grace@example.com", guest=self.g("Grace"))
+        self.assertEqual((told["how"], told["was"]), ("swapped", "the pose curious"))
+        doc = self.stored(f"guests/{self.guests['Grace']}/claim.json")
+        self.assertEqual(
+            [(h["what"], h["by"]) for h in doc["history"]],
+            [("assigned", "abrar@agentsee.work"), ("swapped", "grace@example.com")],
+        )
+
+        # a release: hers is free again, her record says none, the board no longer names her
+        with self.assertRaisesRegex(sy.SeymourError, "Nobody holds"):
+            sy.release(c, "pose", "curious", "james@agentsee.work")
+        was = sy.release(c, "pose", "sad", "james@agentsee.work")
+        self.assertEqual(was["guest"], self.guests["Grace"])
+        self.assertIsNone(sy.of_guest(c, self.guests["Grace"]))
+        doc = self.stored(f"guests/{self.guests['Grace']}/claim.json")
+        self.assertEqual(
+            (doc["kind"], doc["name"], doc["history"][-1]["what"], doc["history"][-1]["by"]),
+            (None, None, "released", "james@agentsee.work"),
+        )
+        board = self.stored("seymour/claims.json")["claims"]
+        self.assertEqual(
+            sorted((x["kind"], x["name"], x["owner"], x["host"]) for x in board),
+            [
+                ("chain", "eyeroll", "Besar Krasniqi", None),
+                ("pose", "delighted", "James", "James"),
+                ("pose", "wry", "Ada Lovelace", None),
+            ],
+        )
+        sy.take(c, "pose", "sad", "ada@example.com", guest=self.g("Ada"))  # free again, so the next person may
+        sy.take(c, "pose", "wry", "ada@example.com", guest=self.g("Ada"))
+        done = sy.mirror_all(c)  # everything again, as `engine.py seymour --mirror` does
+        self.assertEqual(done[0], "seymour/claims.json")
+        for gid in self.guests.values():
+            self.assertIn(f"guests/{gid}/claim.json", done)
+
+    def test_5_approval(self):
+        """The approval's record carries what the guest held when they signed; a swap afterwards rewrites
+        claim.json and leaves the approval as it was signed."""
+        import review
+
+        sy, c = self.seymour, self.conn
+        g = self.g("Besar")
+        row = review.current(c, g["id"])
+        form = {
+            "round": "1",
+            "name": "Besar Krasniqi",
+            "agree": "yes",
+            "signature": "data:image/png;base64," + base64.b64encode(test_png()).decode(),
+        }
+        review.approve(c, g, form, "203.0.113.9", "a phone")
+        doc = self.stored(f"guests/{g['id']}/approval.json")
+        self.assertEqual(
+            (doc["seymour"]["kind"], doc["seymour"]["name"], doc["seymour"]["how"]), ("chain", "eyeroll", "claimed")
+        )
+        self.assertIn("Seymour</td><td>the chain eyeroll, theirs since", review.approval(c, g["id"], row)["html"])
+        before = FakeR2.state["objects"][f"guests/{g['id']}/approval.json"]["body"]
+        sy.take(c, "chain", "doubletake", "besar@example.com", guest=g)
+        self.assertEqual(FakeR2.state["objects"][f"guests/{g['id']}/approval.json"]["body"], before)
+        self.assertEqual(self.stored(f"guests/{g['id']}/claim.json")["name"], "doubletake")
+        # a guest who approves without one: the record says none
+        ada = self.g("Ada")
+        sy.release(c, "pose", "wry", "james@agentsee.work")
+        review.approve(c, ada, {**form, "name": "Ada Lovelace"}, "203.0.113.9", "a phone")
+        self.assertIsNone(self.stored(f"guests/{ada['id']}/approval.json")["seymour"])
+        sy.take(c, "pose", "wry", "ada@example.com", guest=ada)
+
+    def test_6_pages(self):
+        """Both hosts' pages: the review's section under the clips and above the approval, every face with
+        its data; a claim from the page, live and as a form; a taken one not offered to the next guest; the
+        guest's own page and the office's card; the engine's board, a host's claim, an assignment and a
+        release from a guest's page, each behind the form token."""
+        sy, c = self.seymour, self.conn
+        web.STATE["ledger"] = str(self.db)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), web.App)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close)
+        self.addCleanup(srv.shutdown)
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+        SEE = guests.HOST
+
+        def req(method, path, data=None, host=None, cookies=None, headers=None):
+            hdr = dict(headers or {})
+            if host:
+                hdr["Host"] = host
+            if cookies:
+                hdr["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+            body = urllib.parse.urlencode(data).encode() if data is not None else None
+            r = urllib.request.Request(base + path, data=body, method=method, headers=hdr)
+            try:
+                with urllib.request.build_opener(NoRedirect).open(r, timeout=10) as resp:
+                    return resp.status, resp.headers, resp.read().decode(errors="replace")
+            except urllib.error.HTTPError as e:
+                with e:
+                    return e.code, e.headers, e.read().decode(errors="replace")
+
+        def signed_in(first):
+            sid = guests.start_session(c, self.guests[first], f"{first.lower()}@example.com", "127.0.0.1", "test")
+            return {guests.SESSION_COOKIE: guests.session_cookie(sid)}
+
+        besar, ada, grace = signed_in("Besar"), signed_in("Ada"), signed_in("Grace")
+        self.assertEqual(req("GET", "/seymour", host=SEE)[0], 303, "nothing without a session")
+
+        # ── the guest's side ──
+        st, h, body = req("GET", "/review", host=SEE, cookies=ada)
+        self.assertEqual(st, 200)
+        self.assertLess(body.index('id="notes"'), body.index('id="seymour"'), "under the episode and its notes")
+        self.assertLess(body.index('id="seymour"'), body.index('id="approve"'), "and above the approval")
+        for s in (
+            "Your Seymour",
+            'data-seymour="pose:wry"',
+            'action="/seymour/claim"',
+            'name="back" value="review"',
+            "/assets/seymour-data.js",
+            "/assets/seymour-core.js",
+            "/assets/seymour-face.js",
+            "/assets/seymour-face.css",
+        ):
+            self.assertIn(s, body, s)
+        self.assertNotIn(
+            "style=",
+            body[body.index('id="seymour"') : body.index('id="approve"')],
+            "the policy refuses a style attribute",
+        )
+        self.assertEqual(body.count('name="pick"'), 31, "every claimable pose and chain, and no reserved one")
+        self.assertNotIn('value="pose:attentive"', body)
+        self.assertNotIn('value="chain:signoff"', body)
+        self.assertIn('<label class="seyopt mine"><input type="radio" name="pick" value="pose:wry" disabled>', body)
+        self.assertRegex(
+            body,
+            r'<label class="seyopt taken"><input type="radio" name="pick" value="chain:doubletake" disabled>.*?Besar Krasniqi&#8217;s',
+        )
+        self.assertRegex(
+            body,
+            r'<label class="seyopt taken"><input type="radio" name="pick" value="pose:delighted" disabled>.*?James&#8217;s',
+        )
+        for name in ("seymour-data.js", "seymour-core.js", "seymour-face.js", "seymour-face.css"):
+            self.assertEqual(req("GET", f"/assets/{name}", host=SEE)[0], 200, name)
+            self.assertEqual(req("GET", f"/assets/{name}")[0], 200, name)
+
+        st, h, body = req(
+            "POST", "/seymour/claim", {"pick": "chain:doubletake", "back": "review"}, SEE, ada, {"X-Office": "live"}
+        )
+        self.assertEqual(st, 400)
+        self.assertIn("doubletake is Besar Krasniqi's", json.loads(body)["error"])
+        st, h, body = req("POST", "/seymour/claim", {"pick": "pose:closed", "back": "seymour"}, SEE, ada)
+        self.assertEqual(st, 400)
+        self.assertIn("the show&#x27;s own", body)
+        st, h, body = req(
+            "POST", "/seymour/claim", {"pick": "pose:bored", "back": "review"}, SEE, ada, {"X-Office": "live"}
+        )
+        self.assertEqual(st, 200)
+        j = json.loads(body)
+        self.assertEqual((j["ok"], j["sections"][0]["id"]), (True, "seymour"))
+        self.assertIn("The pose bored is yours.", j["sections"][0]["html"])
+        self.assertTrue(j["sections"][0]["html"].startswith('<section class="section engine-section" id="seymour">'))
+        self.assertEqual(sy.of_guest(c, self.guests["Ada"])["name"], "bored")
+        st, h, body = req("POST", "/seymour/claim", {"pick": "pose:wry", "back": "seymour"}, SEE, ada)
+        self.assertEqual((st, h["Location"]), (303, "/seymour"))
+        st, h, body = req("POST", "/seymour/claim", {"pick": "pose:sad", "back": "review"}, SEE, ada)
+        self.assertEqual((st, h["Location"]), (303, "/review#seymour"))
+        st, h, body = req("GET", "/seymour", host=SEE, cookies=ada)
+        self.assertEqual(st, 200)
+        self.assertIn('<b class="seyname">sad</b> Yours: the pose claimed on', body)
+        self.assertIn("Swap it for another", body)
+        body = req("GET", "/office", host=SEE, cookies=ada)[2]
+        self.assertIn('<b class="seyname">sad</b> Your Seymour. <a href="/seymour">See it, or swap it</a>', body)
+        # Grace has nothing to watch and nothing given: the page says when, and a claim is refused
+        st, h, body = req("GET", "/seymour", host=SEE, cookies=grace)
+        self.assertIn("once your episode is here to watch", body)
+        self.assertNotIn('name="pick"', body)
+        st, h, body = req("POST", "/seymour/claim", {"pick": "pose:cold", "back": "seymour"}, SEE, grace)
+        self.assertEqual(st, 400)
+        self.assertNotIn("Pick your Seymour", req("GET", "/office", host=SEE, cookies=grace)[2])
+        self.assertEqual(req("POST", "/seymour/claim", {"pick": "pose:cold"}, SEE)[0], 303, "nothing without a session")
+        self.assertIsNone(sy.holder(c, "pose", "cold"))
+
+        # ── the engine's side ──
+        t = web.CSRF
+        st, h, body = req("GET", "/seymour")
+        self.assertEqual(st, 200)
+        for s in (
+            "James&#x27;s Seymour",
+            "3 claimed",
+            "Besar Krasniqi</a>",
+            ">doubletake</b>",
+            'href="/seymour" aria-current="page"',
+        ):
+            self.assertIn(s, body, s)
+        self.assertEqual(req("POST", "/seymour/claim", {"pick": "pose:cold"})[0], 403, "the form token")
+        st, h, body = req("POST", "/seymour/claim", {"_t": t, "pick": "pose:sad"})
+        self.assertEqual(st, 303)
+        self.assertIn("sad+is+Ada+Lovelace%27s", h["Location"], "a host has no head start")
+        st, h, body = req("POST", "/seymour/claim", {"_t": t, "pick": "chain:hardno"})
+        self.assertIn("The+chain+hardno+is+yours", h["Location"])
+        self.assertEqual(sy.of_host(c, "James")["name"], "hardno")
+        gid = self.guests["Grace"]
+        body = req("GET", f"/guests/{gid}")[2]
+        self.assertIn("Grace holds none.", body)
+        self.assertIn(f'action="/guests/{gid}/seymour"', body)
+        self.assertNotIn('<option value="pose:sad">', body, "only the free ones are offered")
+        self.assertNotIn('<option value="pose:attentive">', body)
+        st, h, body = req("POST", f"/guests/{gid}/seymour", {"_t": t, "pick": "pose:sad"})
+        self.assertIn("sad+is+Ada+Lovelace%27s", h["Location"])
+        st, h, body = req("POST", f"/guests/{gid}/seymour", {"_t": t, "pick": "pose:cold"})
+        self.assertIn("The+pose+cold+is+Grace%27s", h["Location"])
+        row = sy.of_guest(c, gid)
+        self.assertEqual((row["name"], row["how"], row["by"]), ("cold", "assigned", "james@agentsee.work"))
+        body = req("GET", f"/guests/{gid}")[2]
+        self.assertIn("the pose <b>cold</b>, assigned by james@agentsee.work", body)
+        self.assertIn("Grace&#x27;s: the pose assigned by James on", body)
+        self.assertIn(
+            '<b class="seyname">cold</b> Yours: the pose given to you by James on',
+            req("GET", "/seymour", host=SEE, cookies=grace)[2],
+        )
+        st, h, body = req("POST", f"/guests/{gid}/seymour/release", {"_t": t})
+        self.assertIn("Released%3A+the+pose+cold+is+free+again", h["Location"])
+        self.assertIsNone(sy.of_guest(c, gid))
+        st, h, body = req("POST", "/seymour/release", {"_t": t, "pick": "pose:sad"})
+        self.assertIn("Released%3A+the+pose+sad+is+free+again", h["Location"])
+        self.assertIsNone(sy.of_guest(c, self.guests["Ada"]))
+        self.assertIsNone(self.stored(f"guests/{self.guests['Ada']}/claim.json")["name"])
+        whats = [e["what"] for e in c.execute("SELECT what FROM event WHERE what LIKE 'seymour:%' ORDER BY id")]
+        self.assertEqual(whats[-4:], ["seymour:swapped", "seymour:assigned", "seymour:released", "seymour:released"])
+        # the guest's issue hears of it through the outbox, when they have one
+        c.execute("UPDATE guest SET issue='AGE-76' WHERE id=?", (self.guests["Besar"],))
+        st, h, body = req("POST", "/seymour/claim", {"pick": "pose:sad", "back": "seymour"}, SEE, besar)
+        self.assertEqual(st, 303)
+        job = c.execute("SELECT * FROM linear_job WHERE kind='seymour' ORDER BY id DESC").fetchone()
+        args = json.loads(job["args"])
+        self.assertEqual(
+            (args["issue"], args["what"], args["seymour"], args["how"], args["was"]),
+            ("AGE-76", "pose", "sad", "swapped", "the chain doubletake"),
+        )
+        said = []
+        with unittest.mock.patch.object(
+            linear, "comment", lambda env, issue, text: said.append((issue, text)) or {"url": "u"}
+        ):
+            sy.job_seymour({}, args)
+        self.assertIn("Besar Krasniqi swapped their Seymour for the pose `sad`", said[0][1])
+        self.assertIn("the chain doubletake is free again", said[0][1])
+
+
+class FaceTest(unittest.TestCase):
+    """The pipeline's end of a guest's Seymour (AGE-159), on made-up records: no episode data, no render."""
+
+    @classmethod
+    def setUpClass(cls):
+        # By file, as TidyTest does. tools/stage.py imports tools/release.py as `release`, which here is the
+        # engine's, so the tools' own stands in for it while stage is loaded.
+        tools = pathlib.Path(__file__).resolve().parent.parent / "tools"
+
+        def load(name, file=None):
+            spec = importlib.util.spec_from_file_location(name, tools / (file or f"{name}.py"))
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[name] = module
+            cls.addClassCleanup(sys.modules.pop, name, None)
+            spec.loader.exec_module(module)
+            return module
+
+        for name in ("banner", "eye", "eyeanim", "eplib", "show"):
+            setattr(cls, name, load(name))
+        cls.cards = load("cards")
+        engines = sys.modules.get("release")
+        try:
+            sys.modules["release"] = load("tools_release", "release.py")
+            load("stage")
+        finally:
+            if engines is not None:
+                sys.modules["release"] = engines
+            else:
+                sys.modules.pop("release", None)
+        cls.office = load("office")
+        cls.site = load("tools_site", "site.py")
+
+    def test_the_export_is_current_and_whole(self):
+        ea = self.eyeanim
+        self.assertEqual(ea.problems(claims=[]), [])
+        self.assertEqual(ea.SITE_DATA.read_text(), ea.export_text(), "run tools/eyeanim.py --export and commit it")
+        self.assertEqual((len(self.eye.EXPRESSIONS), len(ea.CHAINS)), (22, 18))
+        self.assertEqual(
+            {c for _, c, _ in self.cards.CARDS.values()} - set(ea.RESERVED_CHAINS),
+            set(),
+            "the cards' chains are the show's",
+        )
+        gone = ea.problems(
+            claims=[
+                {"kind": "pose", "name": "smug", "owner": "Ada"},
+                {"kind": "chain", "name": "eyeroll", "owner": "B"},
+            ]
+        )
+        self.assertEqual(len(gone), 1)
+        self.assertIn("the pose smug is Ada's and is not in the tables", gone[0])
+
+    def test_the_face_of_an_episode(self):
+        face = self.show.face
+        self.assertIsNone(face({"title": "Ours"}))
+        self.assertEqual(face({"seymour": {"kind": "pose", "name": "wry"}})["pose"], "wry")
+        f = face({"seymour": {"kind": "chain", "name": "eyeroll", "owner": {"id": "x", "name": "B"}}})
+        self.assertEqual((f["chain"], f["pose"], f["owner"]["name"]), ("eyeroll", "unimpressed", "B"))
+        warned = []
+        self.assertIsNone(face({"seymour": {"kind": "pose", "name": "smug"}}, warned.append))
+        self.assertIn("smug", warned[0])
+
+    def test_the_cards_wrap_the_guests_face(self):
+        cards, ea, rate = self.cards, self.eyeanim, 48
+        intro, signoff = ea.CHAINS["intro"], ea.CHAINS["signoff"]
+        plain = cards.card_frames("title", "intro", rate)
+        self.assertEqual(plain, ea.timeline(intro["seq"], rate, ea.HOLD, ea.TRANS, blink=False), "no claim: as before")
+        self.assertEqual(
+            cards.card_frames("end", "signoff", rate), ea.timeline(signoff["seq"], rate, ea.HOLD, ea.TRANS, blink=False)
+        )
+        wry = self.show.face({"seymour": {"kind": "pose", "name": "wry"}})
+        title, end = (
+            cards.card_frames("title", "intro", rate, wry, 7 * rate),
+            cards.card_frames("end", "signoff", rate, wry, 19 * rate),
+        )
+        self.assertEqual(
+            (title[0], title[-1]), (ea.step_axes("asleep"), ea.step_axes("wry")), "he wakes, and lands on theirs"
+        )
+        self.assertEqual(len(title), len(plain))
+        self.assertEqual((end[0], end[-1]), (ea.step_axes("wry"), ea.step_axes("closed")), "from theirs, he closes")
+        for name in ea.CHAINS:
+            if name in ea.RESERVED_CHAINS:
+                continue
+            f = self.show.face({"seymour": {"kind": "chain", "name": name}})
+            title = cards.card_frames("title", "intro", rate, f, 7 * rate)
+            end = cards.card_frames("end", "signoff", rate, f, 19 * rate)
+            self.assertLessEqual(len(title), 6 * rate, f"{name} fits the title card with a second to hold")
+            self.assertEqual(title[0]["lt"], ea.step_axes("asleep")["lt"], f"{name}: he starts asleep")
+            self.assertEqual(end[-1], ea.step_axes("closed"), name)
+        tight = cards.card_frames(
+            "title", "intro", rate, self.show.face({"seymour": {"kind": "chain", "name": "lose-interest"}}), 4 * rate
+        )
+        self.assertEqual(tight[-1], ea.step_axes("asleep"), "no room for the chain: its last pose, not half of it")
+        self.assertEqual(len(tight), len(plain))
+
+    def test_the_claim_into_episode_json(self):
+        office = self.office
+        besar = {
+            "id": "aaaa1111",
+            "name": "Besar Krasniqi",
+            "claim": {"kind": "chain", "name": "eyeroll"},
+            "approval": {"seymour": {"kind": "pose", "name": "wry"}},
+        }
+        ada = {
+            "id": "bbbb2222",
+            "name": "Ada Lovelace",
+            "claim": None,
+            "approval": {"seymour": {"kind": "pose", "name": "sad"}},
+        }
+        none = {
+            "id": "cccc3333",
+            "name": "Grace Hopper",
+            "claim": {"kind": None, "name": None},
+            "approval": {"seymour": {"kind": "pose", "name": "cold"}},
+        }
+        self.assertEqual(
+            office.claim_of([besar, ada])["name"], "eyeroll", "what they hold today, over what they signed with"
+        )
+        self.assertEqual(
+            office.claim_of([ada, besar]),
+            {"kind": "pose", "name": "sad", "owner": {"id": "bbbb2222", "name": "Ada Lovelace"}},
+        )
+        self.assertEqual(office.claim_of([none, besar])["owner"]["id"], "aaaa1111", "the first named who holds one")
+        self.assertIsNone(office.claim_of([none]), "given up since the approval: none")
+        self.assertIsNone(office.claim_of([{"id": "d", "name": "D", "claim": None, "approval": None}]))
+        cfg = {"slug": "x"}
+        self.assertEqual(office.fill_claim(cfg, []), (False, None), "the hosts' own episode is left alone")
+        changed, line = office.fill_claim(cfg, [besar])
+        self.assertTrue(changed)
+        self.assertEqual(
+            cfg["seymour"], {"kind": "chain", "name": "eyeroll", "owner": {"id": "aaaa1111", "name": "Besar Krasniqi"}}
+        )
+        self.assertEqual(office.fill_claim(cfg, [besar]), (False, None))
+        changed, line = office.fill_claim(cfg, [none])
+        self.assertTrue(changed)
+        self.assertNotIn("seymour", cfg)
+
+    def test_the_site_names_the_owner(self):
+        site = self.site
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+
+            def episode(slug, number, gids, seymour=None):
+                d = root / slug
+                d.mkdir()
+                (d / "episode.json").write_text(json.dumps({"slug": slug, "guests": gids}))
+                ep = {"slug": slug, "number": str(number)}
+                if seymour:
+                    ep["seymour"] = seymour
+                return ({"episode": ep}, {}, d)
+
+            mine = {"kind": "pose", "name": "wry", "owner": {"id": "aaaa1111", "name": "Besar Krasniqi"}}
+            eps = [episode("ep5", 5, []), episode("ep6", 6, ["aaaa1111"], mine)]
+            with unittest.mock.patch.object(site, "BOARD", root / "none.json"):
+                claims = site.seymour_claims(eps)  # no board on the workstation: what the episodes were drawn with
+            self.assertEqual(
+                claims,
+                {
+                    "pose": {
+                        "wry": {
+                            "owner": "Besar Krasniqi",
+                            "href": "/podcast/ep6/",
+                            "what": "Episode 6",
+                            "guest": "aaaa1111",
+                        }
+                    },
+                    "chain": {},
+                },
+            )
+            self.assertEqual(site.face_of(*eps[1][::2], claims), {"Besar Krasniqi": ("pose", "wry")})
+            self.assertEqual(site.face_of(*eps[0][::2], claims), {})
+            board = {
+                "claims": [
+                    {"kind": "chain", "name": "eyeroll", "owner": "Besar Krasniqi", "guest": "aaaa1111", "host": None},
+                    {"kind": "pose", "name": "sad", "owner": "Someone Unreleased", "guest": "ffff0000", "host": None},
+                    {"kind": "pose", "name": "delighted", "owner": "James", "guest": None, "host": "James"},
+                    {"kind": "pose", "name": "renamed-away", "owner": "X", "guest": "aaaa1111", "host": None},
+                ]
+            }
+            (root / "claims.json").write_text(json.dumps(board))
+            with unittest.mock.patch.object(site, "BOARD", root / "claims.json"):
+                claims = site.seymour_claims(eps)  # the board: he swapped, a host holds one, a guest is not out yet
+            self.assertEqual(set(claims["pose"]), {"delighted"}, "a guest is named once their episode is out")
+            self.assertEqual(
+                claims["pose"]["delighted"], {"owner": "James Hartt", "href": "/podcast/#people", "what": "Host"}
+            )
+            self.assertEqual(claims["chain"]["eyeroll"]["href"], "/podcast/ep6/")
+            self.assertEqual(
+                site.face_of(*eps[1][::2], claims), {"Besar Krasniqi": ("chain", "eyeroll")}, "what he holds today"
+            )
+            js = site.claims_js(claims)
+            self.assertTrue(js.startswith("// Written by tools/site.py"))
+            self.assertEqual(json.loads(js[js.index("{") : js.rindex("}") + 1]), claims)
+        html = site.people_section(
+            "06 — On this episode",
+            [{"name": "Besar Krasniqi", "role": "guest"}],
+            {},
+            {"Besar Krasniqi": ("chain", "eyeroll")},
+        )
+        self.assertIn('<a class="seyface" data-seymour="chain:eyeroll" href="/seymour/#eyeroll">', html)
+        self.assertIn("Besar&#8217;s Seymour, for good: the chain of poses Besar chose", html)
+        self.assertNotIn("style=", html, "the site's policy refuses a style attribute")
+        self.assertNotIn("seyface", site.people_section("04 — Hosts", [{"name": "James Hartt"}], {}))
+        svg = site.seymour_face("pose", "wry", "t")
+        self.assertIn('id="sey-t"', svg)
+        self.assertIn('transform="rotate(-1.000 120 100)"', svg)
+        self.assertIn('transform="translate(5.000 0.000)"', svg)
 
 
 class TidyTest(unittest.TestCase):

@@ -93,7 +93,13 @@ Output goes to `build/episodes/<slug>/` and is never committed.
    <slug>` puts the render in the archive, unnumbered and nowhere public,
    for the office to show them; `./tools/episode.py notes <slug>` brings
    their confirmed cuts back into `removals.json` (re-cut, review again)
-   and their name, line and link into `notes.guests`. When the guest has
+   and their name, line and link into `notes.guests`. It also writes the
+   pose or chain of Seymour's the guest has claimed in the office, if they
+   have, into `episode.json` as `"seymour"`: the cards, the art, the
+   thumbnail and the clips are drawn with it from the next
+   `run --from cards`, and `approve` takes whatever they hold on the day and
+   renders again if it changed. Say which it is when you report the
+   episode's state; never set or change it by hand. When the guest has
    approved on the office, and the user says the assets are approved, and
    not before: `./tools/episode.py approve <slug> --release YYYY-MM-DD`,
    which refuses without each guest's approval of the round reviewed, mints

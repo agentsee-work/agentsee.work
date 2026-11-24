@@ -12,6 +12,7 @@ One episode, start to finish.
     ./tools/episode.py notes ep4                          # the guest's confirmed cuts into removals.json
     ./tools/episode.py approve ep4 --release 2026-11-24   # the guest and the user have approved: the number, the record
     ./tools/episode.py stage ep4                          # archive + public media, via op run
+    ./tools/episode.py claims                             # who holds which of Seymour's poses and chains, for the site
 
 The stages, each its own tool and each re-runnable on its own:
 
@@ -38,9 +39,16 @@ records who approved the episode and when in episode.json with the hash of
 every deliverable and of each guest's approval, and sets the release date
 the plan counts from. `stage` then puts the approved episode in the right
 spot (stage.py: the archive bucket and the public media bucket), checking
-the same records once more. `review`, `notes`, `approve` and `stage` wrap
-themselves in `op run` with tools/stage.env so the R2 token comes from the
-vault and nowhere else.
+the same records once more. `review`, `notes`, `approve`, `stage` and
+`claims` wrap themselves in `op run` with tools/stage.env so the R2 token
+comes from the vault and nowhere else.
+
+A guest may claim one of Seymour's poses or chains in the office (AGE-159).
+`notes` and `approve` write theirs into episode.json as "seymour", and the
+cards, the art, the thumbnail and the clips of their episode are drawn with
+it; an episode with no claim renders as it always did. `claims` brings the
+whole board from the archive for tools/site.py, which puts each owner's name
+on their pad on /seymour/ and their Seymour on their episode's page.
 
 `new` writes build/episodes/<slug>/episode.json — the episode's words: title,
 hosts, thumbnail text, the guests' ids from the engine's Guests screen — and
@@ -178,6 +186,7 @@ def main():
         action="store_true",
         help="the gate, the number, the clips that would go; nothing written, nothing rendered",
     )
+    sub.add_parser("claims", help="who holds which of Seymour's poses and chains, from the archive, for the site")
     st = sub.add_parser("stage", help="upload the approved episode: archive and public media")
     st.add_argument("slug")
     st.add_argument("--dry-run", action="store_true", help="list what would go; no credentials")
@@ -202,6 +211,9 @@ def main():
         save_json(d / "episode.json", cfg)
         print(f"{(d / 'episode.json').relative_to(ROOT)}")
         return subprocess.call([str(c) for c in stage_cmd("ingest", a.slug, cfg, [])])
+
+    if a.cmd == "claims":
+        return subprocess.call([str(c) for c in with_vault([TOOLS / "office.py", "claims"])])
 
     d = EPISODES / a.slug
     if not d.exists():

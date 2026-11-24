@@ -214,7 +214,8 @@ def put_json(s3, bucket, key, doc):
 def guests_of(cfg, s3, bucket):
     """The office's record of each guest episode.json names (their ids on the engine's Guests
     screen): the guest as they want to be shown, their review notes and their approval, if those
-    exist, with the hash of the approval's bytes so a later change is seen."""
+    exist, with the hash of the approval's bytes so a later change is seen; and the pose or chain of
+    Seymour's they hold (claim.json, AGE-159), when they hold one."""
     out = []
     for gid in cfg.get("guests") or []:
         g, _ = get_json(s3, bucket, f"guests/{gid}/guest.json")
@@ -224,6 +225,7 @@ def guests_of(cfg, s3, bucket):
             )
         approval, sha = get_json(s3, bucket, f"guests/{gid}/approval.json")
         notes, _ = get_json(s3, bucket, f"guests/{gid}/notes.json")
+        claim, _ = get_json(s3, bucket, f"guests/{gid}/claim.json")
         out.append(
             {
                 "id": gid,
@@ -232,6 +234,7 @@ def guests_of(cfg, s3, bucket):
                 "approval": approval,
                 "approval_sha256": sha,
                 "notes": notes,
+                "claim": claim,
             }
         )
     return out

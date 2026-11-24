@@ -60,6 +60,15 @@ jobs:
         # problem. It does not fail the run; a failing test does.
         run: python3 -X dev engine/test_engine.py
 
+      - name: Seymour's poses and chains are exported
+        # The site's Seymour page and the guest office play the poses and
+        # chains from public/assets/seymour-data.js, which is generated from
+        # tools/eye.py and tools/eyeanim.py. A pull request that changes a
+        # pose or a chain without `tools/eyeanim.py --export` fails here, and
+        # so does a chain that steps through a pose that does not exist
+        # (CONTRIBUTING.md, "A new face for Seymour"). Standard library only.
+        run: python3 tools/eyeanim.py --check
+
   ruff:
     name: Ruff
     runs-on: ubuntu-latest

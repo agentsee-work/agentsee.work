@@ -433,15 +433,22 @@ def mp3(d, wav, meta, cfg, chapters_path, qc):
     return out
 
 
-def chapter_cards(d, edl, theme):
-    from cards import static
+def chapter_cards(d, edl, theme, guest=None):
+    """The chapter cards the edit asks for, drawn when they are not there. On
+    a guest's episode the eye holds the guest's pose (show.face); cards drawn
+    with another eye are removed first (cards.same_face), so a claim made
+    since the last render shows."""
+    from cards import same_face, static
 
+    same_face(d, guest)
     made = []
     for it in edl["items"]:
         if it["type"] == "card":
             p = d / "cards" / f"{it['name']}.png"
             if not p.exists():
-                static("chapter", theme, p, title=it["title"], number=it["number"])
+                static(
+                    "chapter", theme, p, expr=guest["pose"] if guest else None, title=it["title"], number=it["number"]
+                )
                 made.append(p.name)
     return made
 
@@ -832,15 +839,16 @@ def main():
 
     # thumbnail
     from banner import render
-    from show import build
+    from show import build, face
 
-    html, w, h = build("thumbnail", theme, cfg.get("thumb") or title, None)
+    guest = face(cfg)  # the guest's Seymour, on a guest's episode (AGE-159)
+    html, w, h = build("thumbnail", theme, cfg.get("thumb") or title, guest["pose"] if guest else None)
     render(html, out / "thumbnail.png", w, h)
 
     # video
     if not a.audio_only and not a.text_only:
         print("video")
-        made = chapter_cards(d, edl, theme)
+        made = chapter_cards(d, edl, theme, guest)
         if made:
             print(f"  chapter cards: {', '.join(made)}")
         twoup = two_up(d, m, a)

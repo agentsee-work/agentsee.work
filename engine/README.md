@@ -61,6 +61,9 @@ progress.py      where a guest is and what is next: one reading of the four
                  steps for the strip on every office page, the office page,
                  the hand-off at the end of a step, the Guests screen's Next
                  column and the mail that names the next step
+seymour.py       a Seymour of their own: who holds which of the eye's poses
+                 and chains, one each, by the ledger's `claim` table; the board
+                 a guest and a host claim from; the copies in the archive
 pages.py         the page shell in the site's typographic system, and the
                  guest host's
 static/engine.css  tables, forms, a status word; the rest is the site's CSS
@@ -412,11 +415,14 @@ the name and offered closest first, or made there with its angle, or
 typed, or left for later; emailed as it is made when an address was
 given, and again from the guest's page on request; without an address
 the link is pasted by hand; withdrawn, reissued; each of which the issue
-is told), Health (the ledger, the worker, the last
+is told), Seymour (who holds which of the eye's poses and chains, the
+host's own claim, a release for any, and the record of every claim, swap,
+assignment and release), Health (the ledger, the worker, the last
 snapshot and collection, counts, which adapters can see their credentials,
 the last mail that did not go, whether guest sessions survive a restart).
 
-Server-rendered, no script but the site's eye, the site's stylesheet and
+Server-rendered, no script but the site's eye and the few that move a
+small Seymour, the site's stylesheet and
 fonts served from `public/`, the same CSP as the site plus the media host
 for posters. Every change is a POST carrying the process's own token. Who
 did it is the identity Cloudflare Access attaches to the request
@@ -550,6 +556,42 @@ copy, with the image), to the guest by mail with a copy to hello@, and to
 the issue with the label `episode-approved` (the job `approved`). A newer
 round asks to be approved again. The pipeline's `approve` and `stage` read
 those records and refuse without them (`docs/PODCAST-PIPELINE.md`).
+
+### A Seymour of their own
+
+A guest keeps one of the eye's poses or one of his chains for good
+(`seymour.py`, AGE-159). The offer sits in the review, under the clips and
+above the approval, and is never required; the guest's own page for it is
+`/seymour` on the office, linked from the office's front page, where they
+see theirs and swap it for any that is free. A guest picks once there is a
+round of their episode to watch, or once a host has given them one. The
+board shows every claimable pose and chain as a small face, moving
+(`public/assets/seymour-face.js`, with `seymour-core.js` and
+`seymour-data.js`, which both hosts serve from `/assets/`, so the policy's
+`script-src 'self'` holds; the faces are drawn as SVG attributes, never a
+style attribute); a taken one carries its owner's name and cannot be
+chosen. Without script each face is a picture of the pose and the form
+still works: an option, then the button.
+
+The rule is the ledger's: `claim` has the pose or chain as its primary key
+(one owner each) and a unique `owner` (one each to a person), so of two
+people who pick the same one at once, one has it and the other is told
+whose it is. Three poses and six chains are the show's and refused
+(`reserved` in the export, from `tools/eye.py` and `tools/eyeanim.py`). A
+swap frees what was held. The hosts claim their own on the engine at
+`/seymour`, one each, by the same rule and with no head start; that page
+lists every claim with a Release button, for an episode that never goes
+out. A guest's page on the engine has the same in small: give them a free
+one (an assignment, recorded with the host's identity, theirs to swap) or
+release theirs. Every claim, swap, assignment and release is an event
+(`seymour:claimed`, `:swapped`, `:assigned`, `:released`) with who and
+when, and a guest's is a comment on their issue (the job `seymour`).
+
+In the archive: `guests/<id>/claim.json`, what the guest holds today and
+how it came about, which the pipeline draws their episode with;
+`seymour/claims.json`, the whole board, for the site; and the guest's
+`approval.json` carries what they held when they signed. `engine.py
+seymour` lists the claims, and with `--mirror` writes those copies again.
 
 ## Mail
 

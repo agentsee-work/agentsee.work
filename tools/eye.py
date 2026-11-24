@@ -53,6 +53,17 @@ from banner import FONT, OUTDIR, ROOT, THEMES, render
 REST = dict(lt=0.0, lb=0.0, tilt=0.0, hat=0.0, ix=0, iy=0, ps=1.0, gl=1.0)
 AXES = tuple(REST)
 
+# Beside its axes an expression carries a `note`, one line on what it is for,
+# and, when somebody outside the show drew it, `by`: their name, which the
+# board on /seymour/ shows on its pad (CONTRIBUTING.md, "A new face for
+# Seymour").
+WORDS = ("note", "by")
+
+# A guest of the show claims one pose or one chain and it is theirs (AGE-159).
+# These three stay the show's and are never offered: the default every lockup
+# rests on, and the two the standby and end cards close on.
+RESERVED = ("attentive", "asleep", "closed")
+
 
 EXPRESSIONS = {
     "attentive": dict(note="Default. Lower thirds, wordmark lockups."),
@@ -101,7 +112,7 @@ EXPRESSIONS = {
 
 
 def axes(name):
-    return {**REST, **{k: v for k, v in EXPRESSIONS[name].items() if k != "note"}}
+    return {**REST, **{k: v for k, v in EXPRESSIONS[name].items() if k not in WORDS}}
 
 
 # The eye's corners. Both lids are pinned here and only their middles travel,

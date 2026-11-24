@@ -450,6 +450,46 @@ go beside the render, `episodes/<slug>/review/hosts.json`, `{"slug",
 "sha256"}]}`, the hash that of the review record; `approve` and `stage`
 refuse a guest's episode until every host in `engine/config.json`'s
 `hosts` has approved the round there.
+
+**A Seymour of their own (AGE-159).** A guest may claim one of the eye's
+poses or chains in the office, with their approval or later, and it is the
+eye of their episode. The office writes `guests/<id>/claim.json`, `{"guest":
+{"id", "name"}, "kind": "pose"|"chain", "name", "at", "by", "how", "review":
+{"slug", "round"}, "history": [...]}`: what the guest holds today (`kind`
+and `name` are null once it is given up), who made the claim and when; a
+swap rewrites it. `approval.json` carries what they held when they signed,
+as `"seymour": {"kind", "name", "at", "how"}` or null, and is never
+rewritten. `episode.py notes` and `approve` put the claim into
+`episode.json` as `"seymour": {"kind", "name", "owner": {"id", "name"}}`,
+from `claim.json`, or from the approval when there is no `claim.json`; with
+two guests it is the first one `episode.json` names who holds one. `notes`
+leaves an approved episode alone, so a swap after approval reaches the
+episode only if it is approved again; `approve` renders again when the
+claim is not the one the render in hand was drawn with. Everything that
+draws the mark for the episode asks `show.face()`:
+
+| Where | With a pose | With a chain |
+|---|---|---|
+| Title card (`cards.py`) | wakes through `intro`, lands on the pose where it would land on `alert` | wakes to attentive, then plays the chain and holds where it ends |
+| Chapter cards (`cards.py`, `assemble.py`) | the pose | the chain's last pose; a chapter card is a still, so the chain does not play there |
+| End card (`cards.py`) | starts on the pose, then `signoff` closes it | plays the chain, then `signoff` closes it |
+| Thumbnail (`assemble.py`), episode art (`release.py`) | the pose | the chain's last pose |
+| Clip plate, and so every clip and poster (`clips.py`) | the pose | the chain's last pose |
+| The episode's page (`site.py`) | beside the guest, moving | beside the guest, playing |
+
+The stills under `cards/` are kept from render to render, so
+`cards/face.json` records whose eye they were drawn with, and a change
+removes the chapter cards and the clip plate to be drawn again. The art's
+signature in `release.json` carries the claim for the same reason, and
+`release.json`'s episode carries `"seymour"`. An episode whose
+`episode.json` has no `"seymour"` renders exactly as before. The engine
+also mirrors the whole board to `seymour/claims.json`, which `episode.py
+claims` (and `notes`, and `approve`) brings to `build/seymour/claims.json`
+for `tools/site.py`: each owner's name under their pad on `/seymour/`
+(`public/assets/seymour-claims.js`), a guest's once their episode is on the
+site. A claim made or swapped after an episode is staged shows on the site
+after `episode.py claims` and a run of `site.py`.
+
 What the pipeline writes for the office: `review.json` as above, and the
 render itself under `episodes/<slug>/review/`, which the office streams to
 the guest through signed links. The hosts' own episodes name no guest and

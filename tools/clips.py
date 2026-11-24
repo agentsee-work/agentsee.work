@@ -360,9 +360,18 @@ def main():
     if not path.exists():
         die(f"{path.relative_to(ROOT)} not found — write one, or --propose first")
     clips = load_json(path)
+    # The plate carries the mark, so on a guest's episode it carries the guest's
+    # Seymour (AGE-159), and with it every clip and every poster, which is a
+    # frame of the clip. A plate drawn with another eye is drawn again.
+    from cards import same_face
+    from show import face
+
+    cfg = load_json(d / "episode.json") if (d / "episode.json").exists() else {}
+    guest = face(cfg)
     plate = d / "cards" / "clip-plate.png"
+    same_face(d, guest)
     if not plate.exists():
-        html, w, h = build("clip", theme)
+        html, w, h = build("clip", theme, "", guest["pose"] if guest else None)
         plate.parent.mkdir(exist_ok=True)
         render(html, plate, w, h)
     caption_font()

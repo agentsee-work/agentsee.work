@@ -23,6 +23,12 @@ a PNG from the pad, the name as typed, the address the code verified, the
 time, the IP and the device, and the hash of what was signed, here the
 review record's, so an approval is of one round and of no other. A newer
 round asks to be approved again.
+
+Above the approval, under the clips, the guest is offered a Seymour of their
+own (seymour.py, AGE-159): one of the eye's poses or chains, theirs for
+good. It is never required. What they hold when they sign goes into the
+approval's record as "seymour"; what they hold today is `claim.json`, which
+is the one the pipeline draws their episode with.
 """
 
 import base64
@@ -38,6 +44,7 @@ import ledger
 import linear
 import mail
 import release
+import seymour
 from pages import esc, go, link, section, when
 
 LINK_TTL = 3600  # a signed link's life
@@ -568,6 +575,7 @@ def approval_record(c, g, row, a):
     return {
         "at": a["at"],
         "guest": {"id": g["id"], "name": g["name"], "address": g["address"], "issue": g["issue"]},
+        "seymour": seymour.of_approval(c, g["id"]),  # the pose or chain they held when they signed; None for none
         "review": {
             "slug": row["slug"],
             "round": row["round"],
@@ -595,12 +603,18 @@ def record_rows(c, g, row, a):
     """The record as people read it, on the copy."""
     doc, vetoed = record(row), json.loads(a["vetoed"])
     clips = clips_of(row)
+    held = seymour.of_approval(c, g["id"])
     rows = [
         ("Episode", f"{title_of(row)}, review round {row['round']} of {doc.get('at') or '?'}"),
         ("Review record's sha256", a["sha256"]),
         ("The episode", "approved"),
         ("Clips kept", ", ".join(cl["title"] for cl in clips if cl["file"] not in vetoed) or "none"),
         ("Clips vetoed", ", ".join(cl["title"] for cl in clips if cl["file"] in vetoed) or "none"),
+        *(
+            [("Seymour", f"the {held['kind']} {held['name']}, theirs since {release.stamp(held['at'])}")]
+            if held
+            else []
+        ),
         ("Guest", a["name"]),
         ("Email address", f"{a['address']} (verified by a code emailed to it)"),
         ("Signed at", release.stamp(a["at"])),
@@ -986,7 +1000,9 @@ def review_page(c, g, msg=None, status=200, client=None):
     if not row:
         title, body = not_yet(c, g, note)
         return title, body, status
-    return "The review", round_body(c, g, row, note, client) + approve_body(c, g, row), status
+    # The guest's own Seymour is offered in the approval step: under the episode and the clips, above the signature.
+    body = round_body(c, g, row, note, client) + seymour.guest_section(c, g) + approve_body(c, g, row)
+    return "The review", body, status
 
 
 def host_review_page(c, g, host, csrf, msg=None, client=None):

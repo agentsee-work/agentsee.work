@@ -16,6 +16,7 @@ day puts it there. Going live is therefore: run this, commit, push. Writes:
   public/podcast/index.html         the show: what it is, how to listen, the episodes
   public/podcast/<slug>/index.html  the episode: player, chapters, notes, people, transcript
   public/podcast/<slug>/art.jpg     the 1400 px episode art, from here so img-src stays 'self'
+  public/assets/seymour-claims.js   whose each claimed pose and chain of Seymour's is, for /seymour/
   public/sitemap.xml                the block between its podcast markers
 
 The masthead, the classifieds and the footer are lifted from public/index.html
@@ -23,6 +24,17 @@ when this runs, so the mark and the ads have one copy. The pages keep the
 site's rules: first-party only, no cookies, usable without JavaScript. The one
 script, assets/player.js, makes a chapter or transcript link seek the player;
 without it the link is a time.
+
+A guest of the show holds one of Seymour's poses or chains (AGE-159). The
+engine keeps who holds what and mirrors it to the archive; `episode.py
+claims` (and `notes`, and `approve`) brings that to build/seymour/claims.json,
+and this script puts each name on its pad on /seymour/, linked to the guest's
+episode, and the guest's Seymour beside them on their episode's page, moving
+(assets/seymour-face.js; without script it holds the pose). A guest is named
+only once their episode is out. Without that file the claims are the ones
+each episode was rendered with (release.json). A claim made or swapped after
+an episode is staged therefore needs `episode.py claims` and a run of this
+to show.
 
 Every date is the episode's release date (`episode.py approve --release`),
 at 06:00 London time in the feed. Output is deterministic: a re-run with
@@ -48,6 +60,9 @@ EPISODES = ROOT / "build" / "episodes"
 SHOW = ROOT / "tools" / "show.json"
 LONDON = ZoneInfo("Europe/London")
 COVER = "/assets/brand/show-cover.png"  # 3000 px square; Apple wants 1400 to 3000
+SEYMOUR_DATA = PUBLIC / "assets" / "seymour-data.js"  # the poses and chains, as tools/eyeanim.py --export writes them
+SEYMOUR_CLAIMS = PUBLIC / "assets" / "seymour-claims.js"  # whose each claimed one is, written here
+BOARD = ROOT / "build" / "seymour" / "claims.json"  # the engine's board, as `episode.py claims` brought it
 
 
 def esc(s):
@@ -149,6 +164,165 @@ def footer_for(parts, label, dated):
 def portrait(name):
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
     return f"/assets/{slug}.jpg" if (PUBLIC / "assets" / f"{slug}.jpg").exists() else None
+
+
+# ─── Seymour ─────────────────────────────────────────────────────────────────
+# The show's eye as markup, for a page that shows one of his poses small: the
+# guest's on their episode's page here, and the board a guest claims from on
+# the engine (engine/seymour.py, which loads this file as pages.py does). The
+# numbers come from the export, the drawing is tools/eye.py's mark_svg and
+# lid_paths, ported as public/assets/seymour.js ports them; this file stays
+# standard-library only, because the engine imports it.
+_seymour = {}
+
+
+def seymour_data():
+    """The export, parsed: axes, rest, lid, reserved, and the poses and chains by name, in the tables' order."""
+    mtime = SEYMOUR_DATA.stat().st_mtime
+    if _seymour.get("mtime") != mtime:
+        text = SEYMOUR_DATA.read_text(encoding="utf-8")
+        doc = json.loads(text[text.index("{") : text.rindex("}") + 1])
+        doc["pose"] = {x["name"]: x for x in doc["poses"]}
+        doc["chain"] = {x["name"]: x for x in doc["chains"]}
+        doc.setdefault("reserved", {"pose": [], "chain": []})
+        _seymour.update(mtime=mtime, doc=doc)
+    return _seymour["doc"]
+
+
+def seymour_axes(kind, name):
+    """The eight numbers a still of this pose or chain shows: the pose's own, or the chain's last step's."""
+    doc = seymour_data()
+    step = name if kind == "pose" else doc["chain"][name]["seq"][-1]
+    src = doc["pose"][step] if isinstance(step, str) else step
+    return {k: float(src.get(k, doc["rest"][k])) for k in doc["axes"]}
+
+
+def seymour_svg(a, uid, label="Seymour, the AgentSee eye"):
+    """The mark at the eight numbers `a`. `uid` makes the clip path's id this drawing's own, since a page
+    carries several and the masthead's besides.
+
+    The pose is written as SVG attributes (a transform on the hat, the iris, the pupil and the glints, an
+    opacity on each lid's margin), not as the custom properties tools/eye.py's stylesheet reads: the site and
+    the engine both serve `style-src 'self'`, which refuses a style attribute. assets/seymour-face.js sets the
+    same attributes when it moves him."""
+    lid = seymour_data()["lid"]
+    span = lid["shut"] - lid["open"]
+    ty, by, t = lid["open"] + span * a["lt"], lid["shut"] - span * a["lb"], a["tilt"] * span * 0.42
+    top = f"M44 142C72 {ty - t:.2f} 168 {ty + t:.2f} 196 142"
+    bot = f"M44 142C72 {by - t * 0.5:.2f} 168 {by + t * 0.5:.2f} 196 142"
+
+    def about(cx, cy, k):  # a scale about a point, as one transform
+        return f"translate({cx} {cy}) scale({k:.4f}) translate({-cx} {-cy})"
+
+    def edge(travel):  # the margin fades in over the first sliver of travel (tools/eye.py, mark_css)
+        return f"{min(1.0, max(0.0, travel * 40)):.3f}"
+
+    return (
+        f'<svg viewBox="0 0 240 210" role="img" aria-label="{esc(label)}">'
+        f'<defs><clipPath id="sey-{uid}"><path d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/></clipPath></defs>'
+        f'<g class="hat" transform="rotate({a["hat"]:.3f} 120 100)">'
+        '<path class="hat-crown" d="M70 96C68 58 74 36 92 34C100 44 140 44 148 34C166 36 172 58 170 96Z"/>'
+        '<path class="hat-band" d="M69 62C100 69 140 69 171 62L170 90L70 90Z"/>'
+        '<path class="hat-buckle" d="M78 64L89 65.8L88.4 88L77.6 88Z"/>'
+        '<ellipse class="hat-brim" cx="120" cy="96" rx="97" ry="13.5"/></g>'
+        '<g class="eye"><path class="sclera" d="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/>'
+        f'<g clip-path="url(#sey-{uid})"><g class="iris" transform="translate({a["ix"]:.3f} {a["iy"]:.3f})">'
+        '<circle class="iris-outer" cx="120" cy="142" r="31"/><circle class="iris-inner" cx="120" cy="142" r="22"/>'
+        f'<circle class="pupil" cx="120" cy="142" r="13.5" transform="{about(120, 142, a["ps"])}"/>'
+        f'<circle class="glint" cx="109" cy="131" r="6" transform="{about(109, 131, a["gl"])}"/>'
+        f'<circle class="glint sm" cx="132" cy="152" r="2.6" transform="{about(132, 152, a["gl"])}"/></g>'
+        f'<g class="lid lid-top"><path class="lid-fill" d="{top} L196 -60 L44 -60 Z"/>'
+        f'<path class="lid-edge" vector-effect="non-scaling-stroke" opacity="{edge(a["lt"])}" d="{top}"/></g>'
+        f'<g class="lid lid-bottom"><path class="lid-fill" d="{bot} L196 340 L44 340 Z"/>'
+        f'<path class="lid-edge" vector-effect="non-scaling-stroke" opacity="{edge(a["lb"])}" d="{bot}"/></g></g>'
+        '<path class="eye-outline" vector-effect="non-scaling-stroke" '
+        'd="M44 142C72 104 168 104 196 142C168 178 72 178 44 142Z"/></g></svg>'
+    )
+
+
+def seymour_face(kind, name, uid, tag="span", attrs=""):
+    """One of his poses or chains as an element assets/seymour-face.js plays: drawn here at the pose (a chain
+    at its last step), so without script it is a picture of it. assets/seymour-face.css dresses it."""
+    return (
+        f'<{tag} class="seyface" data-seymour="{esc(kind)}:{esc(name)}"{attrs}>'
+        f"{seymour_svg(seymour_axes(kind, name), uid, f'Seymour, {name}')}</{tag}>"
+    )
+
+
+def seymour_claims(eps):
+    """Whose each claimed pose and chain is, for the site: {"pose": {name: entry}, "chain": {...}}, an entry
+    being the owner's name, where their name links to, a word for that, and for a guest their id.
+
+    The engine's board says who holds what today, when the workstation has it (BOARD); a host's is named, and
+    a guest's once an episode of theirs is on the site, with that episode as the link. Without the board it is
+    what each episode was drawn with (release.json), the latest episode of a guest winning."""
+    doc = seymour_data()
+    out = {"pose": {}, "chain": {}}
+    of_guest = {}  # guest id → the latest episode on the site that names them
+    for r, _, d in eps:
+        for gid in load(d / "episode.json").get("guests") or []:
+            of_guest[gid] = r["episode"]
+
+    def entry(owner, ep=None, gid=None):
+        if ep:
+            e = {"owner": owner, "href": f"/podcast/{ep['slug']}/", "what": f"Episode {int(ep['number'])}"}
+        else:
+            e = {"owner": owner, "href": "/podcast/#people", "what": "Host"}
+        if gid:
+            e["guest"] = gid
+        return e
+
+    if BOARD.exists():
+        hosts = [p["name"] for p in load(SHOW)["people"].values()]
+        for cl in load(BOARD).get("claims") or []:
+            kind, name = cl.get("kind"), cl.get("name")
+            if kind not in out or name not in doc[kind]:
+                continue
+            if cl.get("host"):
+                full = next((h for h in hosts if h.lower().startswith(str(cl["host"]).lower())), cl["host"])
+                out[kind][name] = entry(full)
+            elif cl.get("guest") in of_guest:
+                out[kind][name] = entry(cl.get("owner") or "A guest", of_guest[cl["guest"]], cl["guest"])
+        return out
+    latest = {}  # guest id → (kind, name, entry), later episodes replacing earlier ones
+    for r, _, _ in eps:
+        sy = r["episode"].get("seymour") or {}
+        owner = sy.get("owner") or {}
+        if sy.get("kind") in out and sy.get("name") in doc[sy["kind"]] and owner.get("id"):
+            latest[owner["id"]] = (
+                sy["kind"],
+                sy["name"],
+                entry(owner.get("name") or "A guest", r["episode"], owner["id"]),
+            )
+    for kind, name, e in latest.values():
+        out[kind][name] = e
+    return out
+
+
+def claims_js(claims):
+    return (
+        "// Written by tools/site.py: whose each claimed pose and chain is (AGE-159). Do not edit this.\n"
+        "window.SEYMOUR_CLAIMS = " + json.dumps(claims, ensure_ascii=False, sort_keys=True, indent=1) + ";\n"
+    )
+
+
+def face_of(r, d, claims):
+    """The Seymour to show on an episode's page: {guest's name: (kind, name)}. What the guest holds today when
+    the claims know them, else what the episode was drawn with."""
+    sy = r["episode"].get("seymour") or {}
+    owner = sy.get("owner") or {}
+    names = {}
+    doc = seymour_data()
+    if sy.get("kind") in ("pose", "chain") and sy.get("name") in doc[sy["kind"]] and owner.get("name"):
+        names[owner["name"]] = (sy["kind"], sy["name"])
+    gids = load(d / "episode.json").get("guests") or []
+    for kind in ("pose", "chain"):
+        for name, e in claims[kind].items():
+            if e.get("guest") in gids:
+                names[e["owner"]] = (kind, name)
+                if owner.get("id") == e["guest"] and owner.get("name") != e["owner"]:
+                    names.pop(owner.get("name"), None)
+    return names
 
 
 # ─── the episodes ────────────────────────────────────────────────────────────
@@ -371,9 +545,11 @@ def dateline(left, mid, right):
 """
 
 
-def people_section(kicker, people, lines):
+def people_section(kicker, people, lines, faces=None):
+    """The people of an episode or of the show. `faces` is {name: (kind, name)}: a guest's own Seymour, shown
+    under their line, linked to his room."""
     cards = []
-    for p in people:
+    for n, p in enumerate(people):
         img = portrait(p["name"])
         pic = (
             f'<img class="portrait" src="{img}" alt="" width="256" height="256" '
@@ -384,6 +560,16 @@ def people_section(kicker, people, lines):
         role = (p.get("role") or "host").capitalize()
         body = lines.get(p["name"]) or p.get("line") or ""
         link = f'\n          <p class="links"><a href="{esc(p["href"])}">LinkedIn</a></p>' if p.get("href") else ""
+        if (faces or {}).get(p["name"]):
+            kind, name = faces[p["name"]]
+            first = p["name"].split()[0]
+            what = seymour_data()[kind][name]
+            mark = seymour_face(kind, name, f"p{n}", "a", f' href="/seymour/#{esc(name)}"')
+            link += (
+                f'\n          <p class="seyown">{mark}<span><b>{esc(name)}</b> {esc(first)}&#8217;s Seymour, for good: the '
+                f"{'pose' if kind == 'pose' else 'chain of poses'} {esc(first)} chose as a guest of the show. "
+                f'{esc(what["note"])} <a href="/seymour/#{esc(name)}">See him pull it</a></span></p>'
+            )
         cards.append(f"""      <article class="person">
         <div class="byline">
           {pic}<div>
@@ -432,7 +618,7 @@ def transcript_turns(segments):
     return "\n".join(out), len(turns)
 
 
-def episode_page(r, s, d, parts, show):
+def episode_page(r, s, d, parts, show, faces=None):
     ep = r["episode"]
     n = int(ep["number"])
     title = ep["title"]
@@ -496,6 +682,8 @@ def episode_page(r, s, d, parts, show):
     extra = (
         '<script type="application/ld+json">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>\n"
     )
+    if faces:  # a guest's Seymour is on the page: his stylesheet, and below, the script that moves him
+        extra = '<link rel="stylesheet" href="/assets/seymour-face.css">\n' + extra
 
     listen = [f'<a href="{esc(mp3)}" download>Download the mp3</a>', '<a href="/podcast/feed.xml">RSS feed</a>']
     for name, u, show_url in reversed(listed):
@@ -569,7 +757,7 @@ def episode_page(r, s, d, parts, show):
     </ol>
   </section>
 """
-    page += people_section(kicker("On this episode"), r["people"], lines)
+    page += people_section(kicker("On this episode"), r["people"], lines, faces)
     page += f"""
   <section class="section" id="transcript">
     <p class="kicker">{kicker("Transcript")}</p>
@@ -582,7 +770,13 @@ def episode_page(r, s, d, parts, show):
     page += classifieds(parts, kicker("Classifieds"))
     page += "\n</main>\n\n"
     page += footer_for(parts, f"{esc(show['name'])} &middot; Episode {n}", f"Released {long_date(ep['release'])}")
-    page += '\n\n<script src="/assets/eye.js" defer></script>\n<script src="/assets/player.js" defer></script>\n</body>\n</html>\n'
+    page += '\n\n<script src="/assets/eye.js" defer></script>\n<script src="/assets/player.js" defer></script>\n'
+    if faces:
+        page += (
+            '<script src="/assets/seymour-data.js" defer></script>\n<script src="/assets/seymour-core.js" defer></script>\n'
+            '<script src="/assets/seymour-face.js" defer></script>\n'
+        )
+    page += "</body>\n</html>\n"
     return page
 
 
@@ -728,9 +922,10 @@ def main():
     ]
     parts = lifted()
     changed = []
+    claims = seymour_claims(eps)
     for r, s, d in eps:
         slug = r["episode"]["slug"]
-        if write(PUBLIC / "podcast" / slug / "index.html", episode_page(r, s, d, parts, show)):
+        if write(PUBLIC / "podcast" / slug / "index.html", episode_page(r, s, d, parts, show, face_of(r, d, claims))):
             changed.append(f"podcast/{slug}/index.html")
         art = PUBLIC / "podcast" / slug / "art.jpg"
         src = d / "out" / "episode-art.jpg"
@@ -753,6 +948,8 @@ def main():
         changed.append("podcast/feed.xml")
     if sitemap(eps, show):
         changed.append("sitemap.xml")
+    if write(SEYMOUR_CLAIMS, claims_js(claims)):
+        changed.append("assets/seymour-claims.js")
     print(
         f"as of {a.as_of}: {len(eps)} episode{'s' if len(eps) != 1 else ''} on the site"
         + (": " + ", ".join(r["episode"]["slug"] for r, _, _ in eps) if eps else "")
