@@ -27,6 +27,7 @@ NAV = [
     ("/due", "By hand"),
     ("/guests", "Guests"),
     ("/calendar", "Calendar"),
+    ("/seymour", "Seymour"),
     ("/you", "You"),
     ("/reach", "Reach"),
     ("/audience", "Audience"),
@@ -80,6 +81,7 @@ def page(title, body, who="", path="/", lifted=None):
 <meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
 <link rel="preload" href="{asset("/fonts/newsreader-latin.woff2")}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="{asset("/assets/styles.css")}">
+<link rel="stylesheet" href="{asset("/assets/seymour-face.css")}">
 <link rel="stylesheet" href="{asset("/engine.css")}">
 </head>
 <body>
@@ -95,9 +97,20 @@ def page(title, body, who="", path="/", lifted=None):
 <script src="{asset("/sign.js")}" defer></script>
 <script src="{asset("/office.js")}" defer></script>
 <script src="{asset("/review.js")}" defer></script>
+{seymour_scripts()}
 </body>
 </html>
 """
+
+
+def seymour_scripts():
+    """The scripts that move a small Seymour (seymour.py's board, the guest's own): the site's own files, which
+    both hosts serve from /assets/, so the policy's script-src 'self' holds. They do nothing on a page without
+    one of his faces."""
+    return "\n".join(
+        f'<script src="{asset(f"/assets/{name}")}" defer></script>'
+        for name in ("seymour-data.js", "seymour-core.js", "seymour-face.js")
+    )
 
 
 def lifted():
@@ -139,6 +152,7 @@ def see_page(title, body, lifted=None):
 <meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
 <link rel="preload" href="{asset("/fonts/newsreader-latin.woff2")}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="{asset("/assets/styles.css")}">
+<link rel="stylesheet" href="{asset("/assets/seymour-face.css")}">
 <link rel="stylesheet" href="{asset("/engine.css")}">
 <link rel="stylesheet" href="{asset("/see.css")}">
 </head>
@@ -156,6 +170,7 @@ def see_page(title, body, lifted=None):
 <script src="{asset("/sign.js")}" defer></script>
 <script src="{asset("/office.js")}" defer></script>
 <script src="{asset("/time.js")}" defer></script>
+{seymour_scripts()}
 </body>
 </html>
 """

@@ -172,3 +172,42 @@ details.before summary { cursor: pointer; font-family: var(--mono); font-size: .
 .note-form .row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .5rem 0; }
 .note-form .at { width: 7rem; font-family: var(--mono); }
 .hosts { max-width: 44rem; padding-left: 1.2rem; line-height: 1.5; }
+
+/* A Seymour of their own (engine/seymour.py): the board of the eye's poses and chains a guest, or a host,
+   claims one from. Each option is a tile with the face (assets/seymour-face.css and .js draw and move it),
+   its name and its note; a taken one carries its owner's name and cannot be chosen. Three across on a phone. */
+.seyboard { max-width: 60rem; }
+.seyboard h3 { font-size: 1rem; margin: 1.1rem 0 .2rem; }
+.seyboard h3 .muted { font-weight: 400; font-size: .85rem; margin-left: .4rem; }
+.seypick { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.6rem, 1fr)); gap: .6rem; margin: .5rem 0 .4rem; }
+.seyopt { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  gap: .25rem; padding: .9rem .45rem .7rem; text-align: center; cursor: pointer; box-sizing: border-box; min-width: 0;
+  font: inherit; letter-spacing: 0; text-transform: none; margin: 0;  /* not the form label's face */
+  border: var(--hairline); border-radius: 4px; background: var(--paper); color: var(--ink); }
+.seyopt input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.seyopt:hover { border-color: var(--signal); }
+.seyopt:has(:checked) { border-color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal); background: var(--paper-2); }
+.seyopt:has(:focus-visible) { outline: 2px solid var(--signal); outline-offset: 2px; }
+.seyopt .seyface { --mark-w: 4.6rem; margin-bottom: .2rem; }
+.seyname { font-family: var(--mono); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink); line-height: 1.3; overflow-wrap: anywhere; }
+.seywhose { font-family: var(--mono); font-size: .62rem; letter-spacing: .04em; color: var(--signal); line-height: 1.3; overflow-wrap: anywhere; }
+.seynote { font-size: .74rem; line-height: 1.3; color: var(--ink-3); text-wrap: balance; }
+.seyopt.taken { cursor: default; border-style: dashed; }
+.seyopt.taken:hover { border-color: var(--hair); }
+.seyopt.taken .seyface, .seyopt.taken .seyname, .seyopt.taken .seynote { opacity: .5; }
+.seyopt.mine { cursor: default; border-color: var(--signal); background: var(--paper-2); }
+.seymine, .seycard { display: flex; align-items: center; gap: 1.1rem; max-width: 44rem; margin: .6rem 0 1rem; padding: .8rem 1rem;
+  border: var(--hairline); border-radius: 4px; line-height: 1.5; }
+.seymine { border-color: var(--signal); background: var(--paper-2); }
+.seymine .seyface { --mark-w: 7rem; }
+.seycard .seyface { --mark-w: 3.6rem; }
+.seymine p, .seycard p { margin: 0; }
+.seymine .seyname, .seycard .seyname { display: block; font-weight: 400; color: var(--signal); margin-bottom: .15rem; }
+@media (max-width: 30rem) {
+  .seypick { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
+  .seyopt { padding: .7rem .25rem .55rem; border-radius: 3px; }
+  .seyopt .seyface { --mark-w: 3.9rem; }
+  .seynote { font-size: .68rem; }
+  .seymine { gap: .8rem; padding: .7rem .8rem; }
+  .seymine .seyface { --mark-w: 5rem; }
+}

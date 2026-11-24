@@ -58,6 +58,7 @@ import release
 import remind
 import review
 import schedule
+import seymour
 from pages import button, esc, link, section, see_page, table, when
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -641,7 +642,7 @@ ARRIVAL = (
 )
 
 
-def seymour():
+def arrival_mark():
     """The masthead's mark, for the arrival (static/door.js): the site's own drawing, so a change to the eye
     reaches the door too; its ids made his own, since the masthead's are on the same page; and dormant, so
     the script's sequence is the only thing he does."""
@@ -668,7 +669,7 @@ def door(c, h, invite=None, msg=None, address="", status=200):
     arrival = ""
     if not (cookies(h).get(SESSION_COOKIE) or cookies(h).get(CODE_COOKIE)):
         greet = f'<p class="hello">Hello, <b>{esc(known["name"])}</b>.</p>' if known else ""
-        arrival = f'<div class="arrival" id="arrival">{seymour()}{greet}<p class="hint">Tap to skip</p></div>'
+        arrival = f'<div class="arrival" id="arrival">{arrival_mark()}{greet}<p class="hint">Tap to skip</p></div>'
     body = (
         f"{arrival}"
         '<article class="lead"><p class="kicker">see.agentsee.work</p><h1>The office</h1>'
@@ -724,6 +725,7 @@ def office(c, h, g, s):
         f'<article class="lead"><p class="kicker">The office</p><h1>You\'re in, {esc(first)}.</h1>'
         f'<p class="deck">{esc(progress.summary(w))} {progress.sentence(w)}</p></article>'
         + progress.hub(w)
+        + seymour.office_card(c, g)
         + '<p class="muted">Each step opens as it is ready; nothing is published until you have approved it.</p>'
         f'<p class="muted">Signed in as {esc(s["address"])} on this device since {esc(when(s["created_at"]))}. '
         "A new device asks for a code of its own.</p>"
@@ -786,6 +788,10 @@ def get(h, c, path, q):
             "private, no-store",
             [("Content-Disposition", name)],
         )
+    if path == "/seymour":  # the pose or chain of the eye's that is theirs: to see, to pick, to swap (seymour.py)
+        if not g:
+            return h.redirect("/")
+        return page(h, *seymour.office_page(c, g, q.get("msg")))
     if path == "/idea":
         if not g:
             return h.redirect("/")
@@ -855,6 +861,7 @@ def get(h, c, path, q):
         "/review/note",
         "/review/cut",
         "/review/approve",
+        "/seymour/claim",
     ):
         return h.redirect("/")
     return not_found(h)
@@ -1102,6 +1109,27 @@ def post(h, c, path, form, files=None):
             row = review.current(c, g["id"])
             return answer(h, 200, ok=True, sections=[{"id": "notes", "html": review.notes_body(c, g, row)}])
         return h.redirect("/review#notes")
+    if path == "/seymour/claim":  # a claim, or a swap when they hold one: from the review's section or their page
+        g, s = current(c, h)
+        if not g:
+            return h.redirect("/")
+        back = "review" if form.get("back") == "review" else "seymour"
+        try:
+            if not seymour.may_pick(c, g):
+                raise seymour.SeymourError("You pick yours once your episode is here to watch")
+            kind, name = seymour.parse(form.get("pick"))
+            tell(c, g, "seymour", s["address"], **seymour.take(c, kind, name, s["address"], guest=g))
+        except seymour.SeymourError as e:
+            if live(h):
+                return answer(h, 400, ok=False, error=str(e))
+            if back == "review":
+                return step_page(h, c, g, "review", review.review_page(c, g, str(e), 400))
+            return page(h, *seymour.office_page(c, g, str(e), 400))
+        mirror(c, g["id"])
+        if live(h):
+            html = seymour.guest_section(c, g, idea.word(f"The {kind} {name} is yours."), back)
+            return answer(h, 200, ok=True, sections=[{"id": "seymour", "html": html}])
+        return h.redirect("/review#seymour" if back == "review" else "/seymour")
     if path == "/review/approve":
         g, s = current(c, h)
         if not g:
@@ -1286,6 +1314,7 @@ def guest_page(c, gid, csrf, msg=None, who=None):
             + (f"; shown as {esc(g['shown_name'])}, {esc(g['tz'] or 'no time zone')}" if g["shown_name"] else ""),
         ),
         ("Review", review.host_line(c, gid)),
+        ("Seymour", seymour.host_fact(c, g)),
     ]
     if g["revoked_at"]:
         facts.append(("Withdrawn", esc(when(g["revoked_at"]))))
@@ -1322,6 +1351,7 @@ def guest_page(c, gid, csrf, msg=None, who=None):
     body = f'<article class="lead"><h1>{esc(g["name"])}</h1></article>{note}{dl}'
     body += section("Now", "Actions", '<div class="actions">' + "".join(acts) + "</div>")
     body += schedule.host_section(c, g, csrf, host_name(who))
+    body += seymour.assign_section(c, g, csrf)
     if g["brief"]:
         body += section("Run-sheet", "The draft, as it stands", f'<pre class="brief">{esc(g["brief"])}</pre>')
     body += section(
@@ -1366,6 +1396,27 @@ def act(c, g, action, who, form=None):
                     raise ValueError("Tick the times you can do, or say none of these")
                 msg = schedule.answer(c, b, host_name(who), picks, who, note)
         except schedule.ScheduleError as e:
+            raise ValueError(str(e)) from None
+        mirror(c, gid)
+        return msg
+    if action in ("seymour", "seymour/release"):  # a host gives the guest a pose or chain, or lets theirs go
+        try:
+            if action == "seymour":
+                kind, name = seymour.parse((form or {}).get("pick"))
+                told = seymour.take(c, kind, name, who, guest=g, how="assigned")
+                tell(c, g, "seymour", who, **told)
+                msg = f"The {kind} {name} is {g['name'].split()[0]}'s" + (
+                    f", in place of {told['was']}" if told["was"] else ""
+                )
+            else:
+                row = seymour.of_guest(c, gid)
+                if not row:
+                    raise seymour.SeymourError("They hold none to release")
+                seymour.release(c, row["kind"], row["name"], who)
+                was = f"the {row['kind']} {row['name']}"
+                tell(c, g, "seymour", who, how="released", was=was, what=None, gid=gid)
+                msg = f"Released: {was} is free again"
+        except seymour.SeymourError as e:
             raise ValueError(str(e)) from None
         mirror(c, gid)
         return msg

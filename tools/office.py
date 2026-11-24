@@ -5,15 +5,29 @@ about a guest into the archive, read back on the workstation.
 
     ./tools/episode.py notes ep4        # the guest's confirmed cuts into removals.json; name, line, link into the notes
     ./tools/episode.py approve ep4 --release 2026-11-24   # the gate, the number, the numbered render, the record
+    ./tools/episode.py claims           # who holds which of Seymour's poses and chains, for the site
 
 Both wrap this in `op run` with tools/stage.env, as `stage` does, because
 the archive is where the office's records are, under guests/<id>/:
 guest.json (the guest, with the name as they want it shown, a line and a
 link), notes.json (their review notes, each cut confirmed as the words to
-remove) and approval.json (their approval of a review round, signed).
+remove), approval.json (their approval of a review round, signed) and
+claim.json (the pose or chain of Seymour's they hold, AGE-159).
 episode.json names an episode's guests by their ids on the engine's Guests
 screen ("guests": [...]); an episode that names none is the hosts' own
 and needs no record.
+
+A guest's Seymour is the eye of their episode. `notes` and `approve` write
+the claim into episode.json as "seymour" ({"kind", "name", "owner"}), from
+claim.json as it stands that day, or from the approval when it carries one;
+the cards, the art, the thumbnail and the clips are drawn with it
+(show.face). With two guests it is the first one episode.json names who
+holds one. Once the episode is approved, `notes` leaves it alone: a swap
+made afterwards shows on the site and in later episodes, and reaches this
+one only if it is approved again. Both commands, and `claims`, also bring
+the whole board (seymour/claims.json in the archive) to
+build/seymour/claims.json, which tools/site.py and `eyeanim.py --export`
+read.
 
 Approval is where the episode number is minted (AGE-112). A review render
 carries none, so a guest who never approves leaves no hole: the next
@@ -35,10 +49,12 @@ import pathlib
 import subprocess
 import sys
 
-from eplib import EPISODES, die, ep_dir, load_json, save_json
+from eplib import EPISODES, ROOT, die, ep_dir, load_json, save_json
 from stage import boto, connect, get_json, guests_of, hosts_of, review_record, unapproved
 
 TOOLS = pathlib.Path(__file__).resolve().parent
+BOARD = ROOT / "build" / "seymour" / "claims.json"  # the claims as the workstation last saw them (eyeanim.CLAIMS)
+BOARD_KEY = "seymour/claims.json"  # where the engine mirrors them (engine/seymour.py)
 
 
 def minted(s3, bucket):
@@ -96,6 +112,43 @@ def fill_guests(cfg, guests):
         notes.setdefault("guests", []).append(entry)
         added.append(g["name"])
     return added
+
+
+def claim_of(guests):
+    """The episode's Seymour from the office's records: the claim of the first guest named who holds one, as
+    {"kind", "name", "owner": {"id", "name"}}; None when no guest of the episode holds one. A guest's claim.json
+    is what they hold today (a swap rewrites it, a release empties it); a guest with none on file but a pick in
+    their signed approval gets that one."""
+    for g in guests:
+        c = g.get("claim")
+        if c is None:
+            c = (g.get("approval") or {}).get("seymour")
+        if c and c.get("kind") in ("pose", "chain") and c.get("name"):
+            return {"kind": c["kind"], "name": c["name"], "owner": {"id": g["id"], "name": g["name"]}}
+    return None
+
+
+def fill_claim(cfg, guests):
+    """episode.json's "seymour" brought up to the office's records. Returns (changed, a line to print)."""
+    had, now = cfg.get("seymour"), claim_of(guests)
+    if not guests or had == now:  # the hosts' own episode has no record to read: what episode.json says stands
+        return False, None
+    if now:
+        cfg["seymour"] = now
+        return True, f"seymour: the {now['kind']} {now['name']}, {now['owner']['name']}'s" + (
+            f" (was the {had.get('kind')} {had.get('name')})" if had else ""
+        )
+    del cfg["seymour"]
+    return True, f"seymour: none now (was the {had.get('kind')} {had.get('name')})"
+
+
+def fetch_board(s3, bucket, path=None):
+    """The whole board of claims from the archive to build/seymour/claims.json; the document, or None when the
+    engine has mirrored none yet (nothing is written then)."""
+    doc, _ = get_json(s3, bucket, BOARD_KEY)
+    if doc is not None:
+        save_json(path or BOARD, doc)
+    return doc
 
 
 def seed_removals(d, guests):
@@ -169,6 +222,17 @@ def notes_cmd(a, d, cfg, guests):
     if added:
         save_json(d / "episode.json", cfg)
         print(f"notes.guests: added {', '.join(added)}")
+    if cfg.get("approved"):
+        changed, line = fill_claim(dict(cfg), guests)
+        if changed:
+            print(f"{line}: not taken, the episode is approved; `episode.py approve {a.slug}` again would take it")
+    else:
+        changed, line = fill_claim(cfg, guests)
+        if changed:
+            save_json(d / "episode.json", cfg)
+            print(
+                f"{line}. The cards, the art and the clips carry it from the next `episode.py run {a.slug} --from cards`"
+            )
     phrases = seed_removals(d, guests)
     for g in guests:
         rounds = (g["notes"] or {}).get("rounds") or []
@@ -232,11 +296,22 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
     added = fill_guests(cfg, guests)
     if added:
         print(f"  notes.guests: added {', '.join(added)}")
+    # The guest's Seymour as they hold it today: the render below draws the cards, the art and the clips with it.
+    _, line = fill_claim(cfg, guests)
+    if line:
+        print(f"  {line}")
+
+    def drawn(rel):  # the pose or chain the render in hand was drawn with
+        s = (rel.get("episode") or {}).get("seymour") or {}
+        return (s.get("kind"), s.get("name"))
+
+    wanted = ((cfg.get("seymour") or {}).get("kind"), (cfg.get("seymour") or {}).get("name"))
     if a.dry_run:
         keep, would_drop = vetoed_clips(d, guests)
-        rendered = (load_json(out / "release.json").get("episode") or {}).get("number")
+        rel = load_json(out / "release.json")
+        rendered = (rel.get("episode") or {}).get("number")
         print(f"  clips vetoed: {', '.join(would_drop) if would_drop else 'none'}; {len(keep)} would stand")
-        print(f"  render needed: {'yes' if str(rendered) != str(n) or would_drop else 'no'}")
+        print(f"  render needed: {'yes' if str(rendered) != str(n) or would_drop or drawn(rel) != wanted else 'no'}")
         print("dry run: nothing written, nothing rendered")
         return 0
     dropped = drop_vetoed(d, guests)
@@ -247,12 +322,13 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
 
     rel = load_json(out / "release.json")
     rendered = (rel.get("episode") or {}).get("number")
-    if str(rendered) != str(n) or dropped:
+    if str(rendered) != str(n) or dropped or drawn(rel) != wanted:
         if a.no_render and not dropped:
-            die(
-                f"the render carries number {rendered!r}, not {n}: drop --no-render, or "
-                f"`episode.py run {a.slug} --from cards` first"
-            )
+            if str(rendered) != str(n):
+                what = f"number {rendered!r}, not {n}"
+            else:
+                what = f"another Seymour ({drawn(rel)[1] or 'none'}, not {wanted[1] or 'none'})"
+            die(f"the render carries {what}: drop --no-render, or `episode.py run {a.slug} --from cards` first")
         print(f"── the numbered render: episode.py run {a.slug} --from cards", flush=True)
         rc = subprocess.call([str(TOOLS / "episode.py"), "run", a.slug, "--from", "cards"])
         if rc:
@@ -291,6 +367,8 @@ def approve_cmd(a, d, cfg, guests, s3, buckets):
         ],
         "files": {k: v["sha256"] for k, v in rel["files"].items()},
     }
+    if cfg.get("seymour"):
+        approved["seymour"] = cfg["seymour"]
     if hosts:
         approved["hosts"] = [
             {"host": h.get("host"), "at": h.get("at"), "who": h.get("who")} for h in hosts.get("approvals") or []
@@ -315,6 +393,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     nt = sub.add_parser("notes", help="the guest's confirmed cuts into removals.json; name, line, link into the notes")
     nt.add_argument("slug")
+    sub.add_parser("claims", help="who holds which of Seymour's poses and chains, from the archive, for the site")
     ok = sub.add_parser("approve", help="the guests' approvals, the episode number, the numbered render, the record")
     ok.add_argument("slug")
     ok.add_argument("--release", help="YYYY-MM-DD the episode goes out; default today")
@@ -339,12 +418,25 @@ def main():
     a = ap.parse_args()
     sys.stdout.reconfigure(line_buffering=True)
     boto3 = boto(__file__)
+    if a.cmd == "claims":
+        s3, buckets = connect(boto3)
+        doc = fetch_board(s3, buckets["archive"])
+        if doc is None:
+            print(f"no {BOARD_KEY} in the archive yet: nobody has claimed a pose or a chain")
+            return 0
+        for cl in doc.get("claims") or []:
+            print(f"  {cl.get('kind'):<5} {cl.get('name'):<14} {cl.get('owner')}  since {str(cl.get('at') or '')[:10]}")
+        print(
+            f"{BOARD.relative_to(ROOT)}: {len(doc.get('claims') or [])} claimed; `tools/site.py` puts the names on the site"
+        )
+        return 0
     d = ep_dir(a.slug)
     cfg = load_json(d / "episode.json")
     if a.cmd == "approve" and not (d / "out" / "release.json").exists():
         die("no out/release.json: run the pipeline first")
     s3, buckets = connect(boto3, a.slug)
     guests = guests_of(cfg, s3, buckets["archive"])
+    fetch_board(s3, buckets["archive"])
     if a.cmd == "notes":
         return notes_cmd(a, d, cfg, guests)
     return approve_cmd(a, d, cfg, guests, s3, buckets)

@@ -4,6 +4,7 @@ window.SEYMOUR = {
  "axes": ["lt", "lb", "tilt", "hat", "ix", "iy", "ps", "gl"],
  "rest": {"lt": 0.0, "lb": 0.0, "tilt": 0.0, "hat": 0.0, "ix": 0, "iy": 0, "ps": 1.0, "gl": 1.0},
  "lid": {"open": 104, "shut": 178, "edge": 0.68},
+ "reserved": {"pose": ["attentive", "asleep", "closed"], "chain": ["blink", "listen", "idle", "intro", "signoff", "sleep"]},
  "poses": [
   {"name": "attentive", "note": "Default. Lower thirds, wordmark lockups.", "lt": 0.0, "lb": 0.0, "tilt": 0.0, "hat": 0.0, "ix": 0, "iy": 0, "ps": 1.0, "gl": 1.0},
   {"name": "alert", "note": "Sharper than attentive. Hat lifts, pupil tightens.", "lt": 0.0, "lb": 0.0, "tilt": 0.0, "hat": 2.0, "ix": 0, "iy": 0, "ps": 0.92, "gl": 1.0},

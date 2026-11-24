@@ -40,6 +40,7 @@ import publish
 import release
 import review
 import schedule
+import seymour
 from pages import button, composer, esc, link, page, section, status, table, when
 from plan import ACCOUNTS, short
 from publish import instagram, threads
@@ -967,6 +968,8 @@ class App(BaseHTTPRequestHandler):
                 return self.html(*guests.guests_page(c, CSRF, q.get("msg")))
             if path == "/calendar":
                 return self.html(*schedule.calendar_page(c))
+            if path == "/seymour":  # who holds which of the eye's poses and chains, and this host's own (seymour.py)
+                return self.html(*seymour.host_page(c, guests.host_name(self.who()), self.who(), CSRF, q.get("msg")))
             m = re.fullmatch(r"/guests/([0-9a-f]{8})", path)
             if m:
                 r = guests.guest_page(c, m.group(1), CSRF, q.get("msg"), self.who())
@@ -1066,7 +1069,26 @@ class App(BaseHTTPRequestHandler):
                     except ValueError as e:
                         msg = f"Invitation made. {e}; send it from here once mail is back"
                 return self.redirect(f"/guests/{g['id']}?" + urllib.parse.urlencode({"msg": msg}))
-            m = re.fullmatch(r"/guests/([0-9a-f]{8})/(send|nudge|revoke|reissue|accept|decline|cancel)", path)
+            if path in ("/seymour/claim", "/seymour/release"):  # a host's own claim or swap; any claim let go
+                try:
+                    kind, name = seymour.parse(form.get("pick"))
+                    if path == "/seymour/claim":
+                        seymour.take(c, kind, name, who, host=guests.host_name(who))
+                        msg = f"The {kind} {name} is yours"
+                    else:
+                        row = seymour.release(c, kind, name, who)
+                        msg = f"Released: the {kind} {name} is free again"
+                        g = guests.guest(c, row["guest"]) if row["guest"] else None
+                        if g:
+                            was = f"the {kind} {name}"
+                            guests.tell(c, g, "seymour", who, how="released", was=was, what=None, gid=g["id"])
+                            guests.mirror(c, g["id"])
+                except seymour.SeymourError as e:
+                    msg = str(e)
+                return self.redirect("/seymour?" + urllib.parse.urlencode({"msg": msg}))
+            m = re.fullmatch(
+                r"/guests/([0-9a-f]{8})/(send|nudge|revoke|reissue|accept|decline|cancel|seymour|seymour/release)", path
+            )
             if m:
                 g = guests.guest(c, m.group(1))
                 if not g:

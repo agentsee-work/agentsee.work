@@ -457,8 +457,13 @@ def build_notes(ep, show, chapters, links, q_pairs, people_, warn):
     }
 
 
-def episode_art(out, ep, theme, prev, force):
+def episode_art(out, ep, theme, prev, force, guest=None):
+    """The episode's artwork, drawn again when its title, its number, the theme or its eye changed. `guest` is
+    the episode's face (show.face): the guest's Seymour on a guest's episode. An episode without one keeps the
+    signature it always had, so nothing is redrawn for it."""
     sig = {"title": ep["title"], "number": ep["number"], "theme": theme}
+    if guest:
+        sig["seymour"] = f"{guest['kind']}:{guest['name']}"
     png, jpg = out / "episode-art.png", out / "episode-art.jpg"
     if not force and png.exists() and jpg.exists() and (prev or {}).get("art") == sig:
         return sig, False
@@ -466,7 +471,11 @@ def episode_art(out, ep, theme, prev, force):
     from show import build
 
     html_, w, h = build(
-        "episodeart", theme, ep["title"], None, number=ep["number"] if ep.get("number") is not None else ""
+        "episodeart",
+        theme,
+        ep["title"],
+        guest["pose"] if guest else None,
+        number=ep["number"] if ep.get("number") is not None else "",
     )
     render(html_, png, w, h)
     from PIL import Image
@@ -528,6 +537,16 @@ def main():
         "tags": notes.get("tags", []),
         "approved": {k: v for k, v in (cfg.get("approved") or {}).items() if k != "files"} or None,
     }
+    # The guest's Seymour (AGE-159): the pose or chain the episode was drawn
+    # with and whose it is, for the site's page and for approve, which renders
+    # again when the claim in episode.json is no longer this one.
+    from show import face
+
+    guest_face = face(cfg, warn)
+    if guest_face:
+        ep["seymour"] = {"kind": guest_face["kind"], "name": guest_face["name"]}
+        if guest_face.get("owner"):
+            ep["seymour"]["owner"] = guest_face["owner"]
 
     # chapters, from the render's own list, so the mp3's ID3 chapters, the
     # video's chapter cards, YouTube and the feed all say the same times
@@ -569,7 +588,7 @@ def main():
 
     art = prev.get("art")
     if not a.no_art:
-        art, made = episode_art(out, ep, a.theme, prev, a.art)
+        art, made = episode_art(out, ep, a.theme, prev, a.art, guest_face)
         print(f"  episode-art.png {'rendered' if made else 'current'}")
 
     print("files")

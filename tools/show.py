@@ -19,6 +19,12 @@ is the whole reason the lids exist. A layout can also be given the eye's axes
 directly, as a dict, which is how cards.py animates a card frame by frame
 without a second copy of the layout.
 
+A guest's episode wears the guest's own Seymour (AGE-159): the pose or chain
+they claimed in the office, which episode.json carries as "seymour". face()
+reads it, and every tool that draws the mark for an episode asks it rather
+than taking the asset's default; an episode with no claim gets the defaults,
+as before.
+
 Cover art is the one with a hard external constraint. Podcast apps draw it at
 about 55px in a list, so `--proof` renders it at the sizes that actually matter
 and lets you see what survives. Everything else here is checked by eye.
@@ -29,7 +35,7 @@ import pathlib
 import sys
 
 from banner import OUTDIR, ROOT, THEMES, render
-from eye import EXPRESSIONS, expr_mark, expr_vars, font_b64, mark_css, mark_svg
+from eye import EXPRESSIONS, REST, expr_mark, expr_vars, font_b64, mark_css, mark_svg
 
 # The standing credits. A guest is an argument; the hosts are the show.
 HOSTS = "James Hartt & Abrar Mahmood"
@@ -374,6 +380,40 @@ def build(name, theme, title="", expr=None, **fields):
     for k in ("paper_2", "hair"):
         css = css.replace("{" + k + "}", THEMES[theme][k])
     return page(name, theme, w, h, basis, expr or default_expr, css, body), w, h
+
+
+def face(cfg, warn=None):
+    """The guest's Seymour for an episode, from episode.json's "seymour"
+    ({"kind": "pose"|"chain", "name"}); None when the episode has none, which
+    is every episode of the hosts' own.
+
+    Returns the kind and the name as claimed, the chain's name when it is a
+    chain, and `pose`: what a still draws, which is the pose itself or the
+    chain's last step (a name, or the eye's axes when that step has none). A
+    name the tables do not have is not drawn: the episode renders as the
+    show's, and `warn` is told, so a claim on a pose that was renamed is seen
+    rather than guessed at."""
+    s = (cfg or {}).get("seymour") or {}
+    kind, name = s.get("kind"), s.get("name")
+    if not kind and not name:
+        return None
+    if kind == "pose" and name in EXPRESSIONS:
+        return {"kind": "pose", "name": name, "pose": name, "chain": None, "owner": s.get("owner")}
+    if kind == "chain":
+        from eyeanim import CHAINS
+
+        if name in CHAINS:
+            last = CHAINS[name]["seq"][-1]
+            pose = last if isinstance(last, str) else {**REST, **last}
+            return {"kind": "chain", "name": name, "pose": pose, "chain": name, "owner": s.get("owner")}
+    if warn:
+        warn(f'episode.json "seymour" names the {kind} {name!r}, which tools/eye.py and eyeanim.py do not have')
+    return None
+
+
+def face_key(f):
+    """A face as a word, for the records that say what a card or the art was drawn with."""
+    return f"{f['kind']}:{f['name']}" if f else None
 
 
 def proof(cover_path, theme):
