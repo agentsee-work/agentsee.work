@@ -266,6 +266,130 @@ def nudge(c, g, who):
     return f"Sent to {g['address']}: {what}"
 
 
+def round_letter(g, row):
+    """The subject and text of the mail that says a round is there to watch: the first, or one after their notes."""
+    title, n = review.title_of(row), row["round"]
+    if n <= 1:
+        subject = "Your AgentSee episode is ready to watch"
+        lead = (
+            f'The edit of your episode, "{title}", is ready: the whole episode and each clip, to watch, note and '
+            "approve."
+        )
+    else:
+        subject = f"Round {n} of your AgentSee episode is ready to watch"
+        lead = (
+            f'Round {n} of your episode, "{title}", is ready, made after the notes on the last one: the whole '
+            "episode and each clip, to watch, note and approve."
+        )
+    return subject, remind.compose(
+        [
+            f"Hello {g['name'].split()[0]},",
+            lead,
+            f"    https://{HOST}/review",
+            "Nobody outside AgentSee has seen it, and nothing goes out until you have approved it. If something "
+            "should come out, leave a note at the moment it happens; James and Abrar make the cut and a new round "
+            "comes here for you.",
+            "If anything is unclear or in the way, reply to this message; it reaches James and Abrar.",
+            remind.FOOT.format(host=HOST),
+        ]
+    )
+
+
+def _announced(c, gid, key):
+    return c.execute(
+        "SELECT 1 FROM event WHERE guest=? AND what='review:announced' AND detail LIKE ?", (gid, f'%"key": "{key}"%')
+    ).fetchone()
+
+
+def announce(c, g, row, who="worker"):
+    """A round the ledger has, said once: the mail to the guest that it is there to watch, a note to the hosts with
+    their own page, and the issue. Returns True when it was said now. A guest who has approved the round, or a
+    round the engine first saw long ago, is left alone; a guest who cannot be written to (no address, the release
+    unsigned, so their page would not show it) is not, and the hosts are told why. A mail that fails is tried
+    again on later passes, review.TRIES times in all, before the hosts are told it did not go."""
+    key, gid = review.ready_kind(row), g["id"]
+    if (
+        _announced(c, gid, key)
+        or review.approval(c, gid, row)
+        or review._age(row["seen_at"]) > review.RECENT.total_seconds()
+    ):
+        return False
+    why = None
+    if not g["address"]:
+        why = "there is no address for them"
+    elif not g["signed_version"]:
+        why = "they have not signed the release, and the office shows them no episode until they have"
+    mailed = False
+    if not why:
+        subject, text = round_letter(g, row)
+        mailed = _mail(c, who, g, subject, key, text)
+        if not mailed:
+            failed = c.execute(
+                "SELECT COUNT(*) FROM event WHERE guest=? AND what='mail:failed' AND detail LIKE ?",
+                (gid, f'%"subject": "{key}"%'),
+            ).fetchone()[0]
+            if failed < review.TRIES:
+                return False
+            why = f"the mail failed {failed} times; Health has the last failure"
+    title, page = review.title_of(row), f"https://{ENGINE}/guests/{gid}/review"
+    doc = review.record(row)
+    ledger.event(c, "review:announced", who, detail={"key": key, "mailed": mailed, "why": why}, guest=gid)
+    told = f"{g['name']} was written to at {g['address']}." if mailed else f"{g['name']} was not written to: {why}."
+    review._mail_hosts(
+        c,
+        g,
+        f"Round {row['round']} of {title} is up for review ({g['name']})",
+        remind.compose(
+            [
+                f'Review round {row["round"]} of "{title}" ({row["slug"]}) is in the archive and on the office. {told}',
+                f"Nothing goes out until {g['name'].split()[0]} and both of you have approved it. Watch, note and "
+                "approve at",
+                f"    {page}",
+            ]
+        ),
+    )
+    tell(
+        c,
+        g,
+        "round",
+        who,
+        slug=row["slug"],
+        round=row["round"],
+        title=title,
+        changed=doc.get("changed") or [],
+        mailed=mailed,
+        why=why,
+        page=page,
+    )
+    return True
+
+
+def rounds(c, who="worker", log=None, client=None):
+    """The worker's look for review rounds (review.py): each guest's `guests/<id>/review.json` read from the
+    archive into the ledger, and a round nobody has been told about announced (`announce`). `episode.py review`
+    writes only to the archive, so this is what makes the round appear on the office and in the guest's mail.
+    The first archive failure ends the pass, which Health shows; the next pass tries again."""
+    log = log or (lambda s: None)
+    found = {"at": ledger.now(), "rounds": 0, "told": []}
+    try:
+        client = client or archive.Client()
+        for g in c.execute("SELECT * FROM guest WHERE state!='revoked' ORDER BY created_at").fetchall():
+            row = review.fetch(c, g, client, strict=True)
+            if not row or review.approval(c, g["id"], row):
+                continue
+            found["rounds"] += 1
+            if found["told"]:
+                time.sleep(mail.PACE)
+            if announce(c, g, row, who):
+                found["told"].append(g["name"])
+                log(f"review: round {row['round']} of {row['slug']} announced for {g['name']}")
+    except archive.ArchiveError as e:
+        found["error"] = str(e)[:200]
+        log(f"review: the archive said no: {found['error']}")
+    review.remember(found)
+    return found
+
+
 def remind_all(c, who="worker", log=None, now=None, dry_run=False):
     """The daily pass (remind.py): a note to each guest who is due one, on a weekday, mail.PACE apart so the
     burst stays under the mail server's throttle; the pass recorded for Health. Returns the lines it would

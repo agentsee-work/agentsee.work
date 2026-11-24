@@ -5229,6 +5229,28 @@ class EngineTest(unittest.TestCase):
         ).fetchone()
         self.assertEqual(json.loads(ev["detail"])["round"], 1)
 
+        # ── the worker's look: the round is announced once, to the guest, the hosts and the issue ──
+        n = len(FakeSMTP.sent)
+        found = guests.rounds(c)
+        self.assertEqual((found["rounds"], found["told"], found.get("error")), (1, ["Ada Lovelace"], None))
+        to_guest, to_hosts = FakeSMTP.sent[n], FakeSMTP.sent[n + 1]
+        self.assertEqual(
+            (to_guest["To"], to_guest["Subject"]), ("ada@example.com", "Your AgentSee episode is ready to watch")
+        )
+        self.assertIn('"Ada, on engines"', to_guest.get_content().replace("\n", " "))
+        self.assertIn(f"\n    https://{SEE}/review\n", to_guest.get_content())
+        self.assertEqual(to_hosts["Subject"], "Round 1 of Ada, on engines is up for review (Ada Lovelace)")
+        self.assertIn(f"/guests/{gid}/review", to_hosts.get_content())
+        job = c.execute("SELECT * FROM linear_job WHERE guest=? ORDER BY id DESC", (gid,)).fetchone()
+        self.assertEqual((job["kind"], json.loads(job["args"])["mailed"]), ("round", True))
+        self.assertEqual(linear.drain(c, env, log=lambda s: None), 1)
+        said = fake.comments[-1][1]
+        self.assertIn('Review round 1 of "Ada, on engines" (ada-engines) is in the archive', said)
+        self.assertIn("Ada Lovelace was written to at ada@example.com.", said)
+        self.assertEqual(guests.rounds(c)["told"], [], "said once")
+        self.assertEqual(len(FakeSMTP.sent), n + 2)
+        self.assertIn("1 round waiting on approvals", review.health(c))
+
         # ── the page: the player and the clips through signed links, the archive in the policy ──
         st, h, body = req("GET", "/review", host=SEE, cookies=ada)
         self.assertEqual(st, 200)

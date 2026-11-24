@@ -6,7 +6,11 @@ is published before that: the pipeline refuses (tools/office.py, stage.py).
 What the pipeline writes for this module (`episode.py review`, stage.py
 --review): the render as it stands under `episodes/<slug>/review/`, and the
 round's record at `guests/<id>/review.json`, which `fetch` reads into the
-ledger's review table whenever the guest looks. The files reach the guest
+ledger's review table whenever the guest or a host looks, and the worker
+every few minutes without anyone looking (`guests.rounds`): a round nobody
+has been told of is said once, by mail to the guest ("ready to watch", with
+the link), by a note to the hosts with their own page, and on the guest's
+issue (the job `round`). The files reach the guest
 through signed links the archive client mints (archive.presign), good for
 an hour, so the bucket stays private and no byte passes through here.
 
@@ -128,11 +132,12 @@ def current(c, gid):
     return c.execute("SELECT * FROM review WHERE guest=?", (gid,)).fetchone()
 
 
-def fetch(c, g, client=None, force=True):
+def fetch(c, g, client=None, force=True, strict=False):
     """`guests/<id>/review.json` and the round's release.json from the archive
     into the ledger: the row, or None while there is nothing. A look inside
     REFRESH seconds of the last is skipped unless forced; an archive failure
-    is an event and the ledger's copy stands."""
+    is an event and the ledger's copy stands. `strict` raises the failure
+    instead, for the worker's pass, which stops at the first and says so once."""
     gid = g["id"]
     row = current(c, gid)
     if row and not force and _age(row["fetched_at"]) < REFRESH:
@@ -142,6 +147,8 @@ def fetch(c, g, client=None, force=True):
         doc = client.get_json(f"guests/{gid}/review.json")
         rel = client.get_json(f"episodes/{doc['slug']}/review/release.json") if doc and doc.get("slug") else None
     except archive.ArchiveError as e:
+        if strict:
+            raise
         ledger.event(c, "review:fetch:failed", "engine", detail=str(e)[:300], guest=gid)
         return row
     if not doc or not doc.get("slug"):
@@ -166,6 +173,45 @@ def fetch(c, g, client=None, force=True):
             guest=gid,
         )
     return current(c, gid)
+
+
+# ─── the worker's look ───────────────────────────────────────────────────────
+# `episode.py review <slug>` only writes to the archive, so the worker looks there for each guest's round every
+# few minutes (guests.rounds, which owns the mail): the round reaches the ledger, the guest is written to and
+# the hosts are told, without anyone opening a page first.
+LAST = {}  # the last pass in this process, for Health
+RECENT = dt.timedelta(days=14)  # a round first seen longer ago than this is not announced: it is no news
+TRIES = 3  # a mail that fails this often for one round is left to the hosts; Health shows the failure
+
+
+def every():
+    return dt.timedelta(minutes=float((ledger.CONFIG.get("review") or {}).get("every_minutes", 5)))
+
+
+def due():
+    if not LAST.get("at"):
+        return True
+    return dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(LAST["at"]) >= every()
+
+
+def remember(found):
+    LAST.clear()
+    LAST.update(found)
+
+
+def ready_kind(row):
+    """The mail's kind in the ledger's record for one round of one episode, so it is sent once."""
+    return f"round:{row['slug']}:{row['round']}"
+
+
+def health(c):
+    if not LAST.get("at"):
+        return f"not looked yet in this process; the worker looks every {every().seconds // 60} minutes"
+    if LAST.get("error"):
+        return f'{esc(when(LAST["at"]))} <span class="error">{esc(LAST["error"])}</span>'
+    n, told = LAST.get("rounds", 0), LAST.get("told") or []
+    text = f"last looked {esc(when(LAST['at']))}: {n} round{'s' if n != 1 else ''} waiting on approvals"
+    return text + (f"; wrote to {esc(', '.join(told))}" if told else "")
 
 
 def record(row):
@@ -721,6 +767,24 @@ def job_noted(env, a, c=None):
         body += f'\n\nThe words found in the transcript for the cut, awaiting their confirmation: "{a["cut"]}"'
     elif a.get("missed"):
         body += "\n\nThey asked for a cut, but the words could not be found in the transcript; read the note."
+    cm = linear.comment(env, a["issue"], body)
+    return {"issue": a["issue"], "comment": cm["url"]}
+
+
+def job_round(env, a, c=None):
+    """A round put up for review, on the guest's issue: what it is, who was written to, where the hosts approve."""
+    changed = a.get("changed") or []
+    told = (
+        f"{a['name']} was written to at {a['address']}."
+        if a.get("mailed")
+        else f"{a['name']} was not written to: {a.get('why') or 'the mail did not go'}."
+    )
+    body = (
+        f'Review round {a["round"]} of "{a["title"]}" ({a["slug"]}) is in the archive; the engine saw it on '
+        f"{a['when']}. {told} "
+        + (f"Changed since the last round: {', '.join(changed)}. " if changed else "")
+        + f"Nothing goes out until {a['name']} and both hosts have approved it. The hosts' page: {a['page']}"
+    )
     cm = linear.comment(env, a["issue"], body)
     return {"issue": a["issue"], "comment": cm["url"]}
 

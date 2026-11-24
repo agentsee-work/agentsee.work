@@ -752,6 +752,7 @@ def health_page(c):
         ("Worker last ran", when(STATE["last_run"]) or "not in this process"),
         ("Episode arrivals", arrive.health(c)),
         ("Plans to confirm", arrive.confirm_health(c)),
+        ("Review rounds", review.health(c)),
         (
             "Resting",
             "; ".join(f"{esc(a)} until {esc(when(u.isoformat()))}: {esc(why)}" for a, (u, why) in publish.HELD.items())
@@ -1281,6 +1282,12 @@ def worker(stop, interval=60):
                     arrive.chase(c, log=lambda s: print(s, flush=True))
                 except Exception as e:  # noqa: BLE001
                     print(f"worker: chase: {type(e).__name__}: {e}", flush=True)
+                if review.due():
+                    try:  # a round `episode.py review` put in the archive: into the ledger, and the guest written to
+                        guests.rounds(c, log=lambda s: print(s, flush=True))
+                    except Exception as e:  # noqa: BLE001
+                        print(f"worker: review: {type(e).__name__}: {e}", flush=True)
+                        review.remember({"at": ledger.now(), "error": f"{type(e).__name__}: {e}"})
                 linear.drain(c, os.environ, log=lambda s: print(s, flush=True))
                 if snapshot_due():
                     try:
