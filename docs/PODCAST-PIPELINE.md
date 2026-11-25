@@ -678,6 +678,16 @@ was below the noise floor of two summed mic tracks, so almost nothing was
 silent and one pause in nine minutes was closed. Floor plus 14 dB found the
 pauses that are actually there.
 
+**Level the speakers before measuring.** The tracks come as each microphone
+recorded them. On the first guest episode one host's track was 22 dB under
+the guest's, the one line for silence was drawn from the loud track and its
+room, and most of the quiet host's words sat below it: they were not
+protected as sound, and the pause rule removed the greater part of 722 of
+his 2,987 words while the transcript and the level checks looked fine.
+`cut.py` now brings each speaker to the loudest one's speech level before
+it sums them (`levelled_db` in the edit list's stats). After a cut, count
+the words a pause cut removes: there should be none.
+
 **Whisper's span for a stammered word can be a second long.** Removing it
 takes the word before. Cap a removal at a plausible length for the word and
 skip it otherwise.
