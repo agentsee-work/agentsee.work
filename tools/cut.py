@@ -277,10 +277,29 @@ def main():
 
     # ── the audio, as an envelope ──────────────────────────────────────────
     print("  measuring the audio", flush=True)
-    env = envelope_db(dialogue_sum(d, m))
-    n = len(env)
     # each speaker alone, for "is the other person actually making a sound here"
     sig_spk = {p["short"]: dialogue_sum(d, {**m, "participants": [p]}) for p in m["participants"]}
+    # Levelled before they are summed. The tracks come as each microphone recorded them, and one line for
+    # "silence" on the raw sum is drawn from the loudest track and its room: on the first guest episode one
+    # host's track was 22 dB under the guest's, so most of his words sat below the line, were not protected as
+    # sound, and the pause rule cut into them. Each speaker is brought to the loudest one's speech level (the
+    # median of their track inside their own words), which is what the mix does to them later anyway.
+    level_spk = {}
+    for k, v in sig_spk.items():
+        e = envelope_db(v)
+        mine = np.zeros(len(e), dtype=bool)
+        for w in words:
+            if w["spk"] == k:
+                mine[int(w["t0"] / HOP) : int(w["t1"] / HOP) + 1] = True
+        if mine.any():
+            level_spk[k] = float(np.percentile(e[mine], 50))
+    ref = max(level_spk.values()) if level_spk else 0.0
+    lift_spk = {k: round(ref - level_spk[k], 1) if k in level_spk else 0.0 for k in sig_spk}
+    sig_spk = {k: v * 10 ** (lift_spk[k] / 20) for k, v in sig_spk.items()}
+    if any(lift_spk.values()):
+        print("  levelled for measuring: " + ", ".join(f"{k} {v:+.1f} dB" for k, v in lift_spk.items()), flush=True)
+    env = envelope_db(np.sum(list(sig_spk.values()), axis=0))
+    n = len(env)
     env_spk = {k: envelope_db(v)[:n] for k, v in sig_spk.items()}
     in_word = np.zeros(n, dtype=bool)
     for w in words:
@@ -1197,6 +1216,7 @@ def main():
         "threshold_db": round(thr, 1),
         "speech_level_db": round(speech_level, 1),
         "noise_db": round(noise, 1),
+        "levelled_db": lift_spk,
     }
     edl = {
         "slug": a.slug,
