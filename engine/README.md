@@ -522,7 +522,11 @@ The review (`review.py`, AGE-111) is the last step of the office. The
 pipeline's `episode.py review <slug>` puts the render as it stands under
 `episodes/<slug>/review/` in the archive and the round's record at
 `guests/<id>/review.json`; the office reads that record whenever the guest
-looks (the ledger's `review` table keeps the copy and the round seen), and
+looks (the ledger's `review` table keeps the copy and the round seen), the
+worker reads it every five minutes besides (`"review": {"every_minutes"}`
+in `config.json`) and writes to the guest that the round is ready, to the
+hosts with their page and on the issue, once per round (Health's "Review
+rounds" row says when it last looked), and
 the page streams the episode, the clips and the posters from the archive
 through links the archive client signs for an hour (`archive.presign`), so
 the bucket stays private and nothing passes through the box; the guest

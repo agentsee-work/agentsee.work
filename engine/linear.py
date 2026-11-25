@@ -540,7 +540,7 @@ def _review(name):  # the review's turns (review.py): noted, cut, approved, host
     return job
 
 
-JOBS.update({k: _review(k) for k in ("noted", "cut", "approved", "host_approved")})
+JOBS.update({k: _review(k) for k in ("round", "noted", "cut", "approved", "host_approved")})
 
 
 def _seymour(env, a, c=None):  # a guest's claim on one of Seymour's poses or chains (seymour.py)

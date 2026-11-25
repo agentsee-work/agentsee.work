@@ -404,7 +404,9 @@ archive, under `episodes/<slug>/review/`, with a `review.json` that says
 which round it is and which files changed since the last, and a copy of
 that record at `guests/<id>/review.json` for each guest `episode.json`
 names (`"guests"`: their ids on the engine's Guests screen), which is where
-the office finds it to show them (AGE-111). Nothing goes to the media host,
+the office finds it to show them (AGE-111). No further command is needed:
+the engine's worker looks there every five minutes, and writes to the guest
+that the round is ready and to the hosts with their page. Nothing goes to the media host,
 whose paths are guessable by slug. The guest's notes come back the same
 way: `episode.py notes <slug>` reads `guests/<id>/notes.json`, puts each
 confirmed cut into `removals.json` as the phrase `cut.py` takes, and fills
